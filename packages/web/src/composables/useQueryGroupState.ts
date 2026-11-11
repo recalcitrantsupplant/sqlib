@@ -1,4 +1,5 @@
 import { ref, watch } from 'vue';
+import { NO_STAMPS, stampsOf, type EntityStamps } from '../lib/entityStamps';
 import type {
   UseQueryGroupStateDeps,
   UseQueryGroupStateResult,
@@ -41,6 +42,8 @@ export function useQueryGroupState(deps: UseQueryGroupStateDeps): UseQueryGroupS
   const queryGroupName = ref('');
   const queryGroupDescription = ref('');
   const queryGroupLibraryId = ref('');
+  /** When the group was made and last changed, and by whom, for the Details footer. */
+  const queryGroupStamps = ref<EntityStamps>(NO_STAMPS);
 
   const versionComment = versions.versionComment;
 
@@ -62,6 +65,7 @@ export function useQueryGroupState(deps: UseQueryGroupStateDeps): UseQueryGroupS
     queryGroupDescription.value = '';
     queryGroupId.value = '';
     queryGroupLibraryId.value = request.libraryId;
+    queryGroupStamps.value = NO_STAMPS;
     versions.reset();
     versionComment.value = '';
     versions.currentVersionNumberForDisplay.value = null;
@@ -95,6 +99,7 @@ export function useQueryGroupState(deps: UseQueryGroupStateDeps): UseQueryGroupS
       queryGroupName.value = queryGroup.name;
       queryGroupDescription.value = queryGroup.description ?? '';
       queryGroupLibraryId.value = queryGroup.isPartOf ?? '';
+      queryGroupStamps.value = stampsOf(queryGroup);
 
       versions.reset();
       // From the entity, not from whichever version happens to load: the route
@@ -288,6 +293,7 @@ export function useQueryGroupState(deps: UseQueryGroupStateDeps): UseQueryGroupS
       queryGroupName.value = '';
       queryGroupDescription.value = '';
       queryGroupLibraryId.value = '';
+      queryGroupStamps.value = NO_STAMPS;
       onGroupDeleted?.(deletedId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete query group';
@@ -377,6 +383,7 @@ export function useQueryGroupState(deps: UseQueryGroupStateDeps): UseQueryGroupS
     queryGroupName,
     queryGroupDescription,
     queryGroupLibraryId,
+    queryGroupStamps,
     versionComment,
     isSaving,
     isLoading,

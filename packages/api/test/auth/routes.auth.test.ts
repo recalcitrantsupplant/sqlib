@@ -76,7 +76,7 @@ describe('GET /auth/me', () => {
   it('names the caller and their groups from what sign-in recorded', async () => {
     const analysts = 'urn:sqlib:principal:group:analysts';
     const unrecorded = 'urn:sqlib:principal:group:unrecorded';
-    await store.recordPrincipal(ALICE, 'alice-sub', 'user', 'alice@example.com');
+    await store.recordPrincipal(ALICE, 'alice-sub', 'user', { label: 'alice@example.com' });
     await store.recordPrincipal(analysts, 'analysts', 'group');
     const app = await appAs([ALICE, analysts, unrecorded, 'urn:sqlib:principal:authenticated']);
 
@@ -262,6 +262,59 @@ describe('GET /auth/principals', () => {
   it('is refused to a caller who can share nothing', async () => {
     const app = await appAs([BOB]);
     expect((await app.inject({ method: 'GET', url: '/auth/principals' })).statusCode).toBe(403);
+    await app.close();
+  });
+});
+
+describe('GET /auth/names', () => {
+  const GROUP = 'urn:sqlib:principal:group:analysts';
+  const CLIENT = 'urn:sqlib:principal:client:reporting-bot';
+
+  beforeEach(async () => {
+    await store.recordPrincipal(ALICE, 'alice-sub', 'user', { label: 'alice@example.com', displayName: 'Alice Ng' });
+    await store.recordPrincipal(BOB, 'bob-sub', 'user', { label: 'bob@example.com' });
+    await store.recordPrincipal(GROUP, 'analysts', 'group');
+    await store.recordPrincipal(CLIENT, 'reporting-bot', 'client', { displayName: 'Reporting bot' });
+  });
+
+  it('answers any caller with the display name of each known user', async () => {
+    const app = await appAs([BOB]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/auth/names?iri=${encodeURIComponent(ALICE)}&iri=${encodeURIComponent(ALICE)}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([{ iri: ALICE, displayName: 'Alice Ng' }]);
+    await app.close();
+  });
+
+  it('leaves out users with no display name, groups, clients and unknown IRIs', async () => {
+    const app = await appAs([ALICE]);
+    const iris = [BOB, GROUP, CLIENT, 'urn:sqlib:principal:user:unknown'];
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/auth/names?${iris.map(iri => `iri=${encodeURIComponent(iri)}`).join('&')}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([]);
+    await app.close();
+  });
+
+  it('never answers with the email', async () => {
+    const app = await appAs(null);
+    const body = (await app.inject({ method: 'GET', url: `/auth/names?iri=${encodeURIComponent(ALICE)}` })).body;
+    expect(body).not.toContain('alice@example.com');
+    await app.close();
+  });
+
+  it('refuses more than 100 IRIs', async () => {
+    const app = await appAs([ALICE]);
+    const query = Array.from({ length: 101 }, (_, i) => `iri=urn:x:${i}`).join('&');
+    expect((await app.inject({ method: 'GET', url: `/auth/names?${query}` })).statusCode).toBe(400);
     await app.close();
   });
 });

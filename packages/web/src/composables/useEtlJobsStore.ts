@@ -39,6 +39,9 @@ export interface EtlJob {
   libraryIds: string[];
   dateCreated?: string;
   dateModified?: string;
+  /** Principal IRIs the server stamps; absent where nobody was recorded. */
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface EtlJobVersion {
@@ -53,6 +56,8 @@ export interface EtlJobVersion {
   comment?: string;
   dateCreated?: string;
   dateModified?: string;
+  /** The principal IRI that saved the version, where the server recorded one. */
+  createdBy?: string | null;
 }
 
 interface EtlJobsState {

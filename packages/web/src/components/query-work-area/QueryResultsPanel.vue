@@ -307,6 +307,9 @@ type QueryDetailsProps = {
   /** False while scratch, or with nothing to compare against: no diff to open. */
   canCompareVersions?: boolean;
   createdAt?: string | null;
+  createdBy?: string | null;
+  modifiedAt?: string | null;
+  modifiedBy?: string | null;
   canDelete?: boolean;
   deleting?: boolean;
 };

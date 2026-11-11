@@ -29,6 +29,10 @@ export interface RuleSetDetailsProps {
   editCount: number;
   draftSavedAt: string | null;
   draftSelected: boolean;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  modifiedAt?: string | null;
+  modifiedBy?: string | null;
 }
 </script>
 

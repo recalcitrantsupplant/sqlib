@@ -207,6 +207,24 @@ leave them out. The rules:
 Entities saved before these fields existed, or while auth was disabled, have
 neither field.
 
+#### Names for the IRIs
+
+`GET /auth/names?iri=<iri>&iri=<iri>` turns up to 100 principal IRIs into
+display names. Every caller may use it. It answers only for user principals
+that the server has a display name for, and leaves out groups, clients and
+unknown IRIs.
+
+The display name comes from the person's last token: the `name` claim, then
+`preferred_username`. The server records it beside the principal in the auth
+graph (`auth:displayName`). It never uses the email. Every reader of a library
+sees these names, and the email stays in the administrator's
+`GET /auth/principals`.
+
+The web app shows the person in the Details panel footer ("Created … by",
+"Edited … by"), on each version row, and in the version menu of the editor
+toolbar. It shows the signed-in caller as "You", and an IRI with no name as
+"Unknown". An entity with no `createdBy` shows its date only.
+
 ## Containment
 
 Containment is `sdo:isPartOf`. The target of the predicate depends on the kind:

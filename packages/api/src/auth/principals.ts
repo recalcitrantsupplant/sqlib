@@ -98,6 +98,8 @@ export interface DerivedPrincipals {
   rawByPrincipal: Map<string, string>;
   /** A readable name for the subject, from `labelOf`. Undefined when the token has none. */
   label?: string;
+  /** The name other people see for the subject, from `displayNameOf`. Undefined when the token has none. */
+  displayName?: string;
 }
 
 /**
@@ -111,6 +113,23 @@ export const LABEL_CLAIMS = ['email', 'preferred_username', 'name'] as const;
 
 export function labelOf(claims: Record<string, unknown>): string | undefined {
   for (const claim of LABEL_CLAIMS) {
+    const value = claims[claim];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+/**
+ * The claims, in order, that give the name other people see beside the
+ * entities a person created or changed: `name`, then `preferred_username`.
+ * Email is left out on purpose. Every reader of a library sees these names,
+ * and an email address is personal data that only administrators need
+ * (`label` keeps it for the principal directory).
+ */
+export const DISPLAY_NAME_CLAIMS = ['name', 'preferred_username'] as const;
+
+export function displayNameOf(claims: Record<string, unknown>): string | undefined {
+  for (const claim of DISPLAY_NAME_CLAIMS) {
     const value = claims[claim];
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
@@ -155,5 +174,6 @@ export function derivePrincipals(params: {
     tokenType: isClient ? 'client' : 'user',
     rawByPrincipal,
     label: isClient ? undefined : labelOf(claims),
+    displayName: isClient ? undefined : displayNameOf(claims),
   };
 }

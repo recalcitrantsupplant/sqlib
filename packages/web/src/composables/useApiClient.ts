@@ -695,6 +695,11 @@ export const grantSchema = z.object({
 });
 export type Grant = z.infer<typeof grantSchema>;
 
+export const principalNameSchema = z.object({
+  iri: z.string(),
+  displayName: z.string(),
+});
+
 export const principalSchema = z.object({
   iri: z.string(),
   rawClaim: z.string(),
@@ -1006,6 +1011,17 @@ export function useApiClient() {
       buildUrl(`/auth/principals${q ? `?q=${encodeURIComponent(q)}` : ''}`),
       { method: 'GET' },
       (payload) => principalSchema.array().parse(payload),
+    );
+
+  /**
+   * Display names for principal IRIs, for the `createdBy` and `modifiedBy`
+   * fields. Users without a name, groups and unknown IRIs are left out.
+   */
+  const lookupPrincipalNames = (iris: string[]) =>
+    requestData(
+      buildUrl(`/auth/names?${iris.map((iri) => `iri=${encodeURIComponent(iri)}`).join('&')}`),
+      { method: 'GET' },
+      (payload) => principalNameSchema.array().parse(payload),
     );
 
   const testGraphPolicy = (
@@ -3313,6 +3329,7 @@ export function useApiClient() {
     createGrant,
     deleteGrant,
     listPrincipals,
+    lookupPrincipalNames,
     testGraphPolicy,
     getGraphPolicy,
     listLibraries,

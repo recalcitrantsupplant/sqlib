@@ -32,6 +32,8 @@ export interface AuthMe {
   groups?: Array<{ iri: string; name?: string }>;
   /** The caller's email, username or name as the server last recorded it. */
   label?: string;
+  /** The name other readers see for the caller: `name` or `preferred_username`. */
+  displayName?: string;
   /** When the server first recorded the caller. */
   seenAt?: string;
   admin: boolean;
