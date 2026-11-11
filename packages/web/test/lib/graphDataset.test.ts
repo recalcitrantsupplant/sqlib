@@ -93,12 +93,15 @@ describe('a browser backend run with graphs', () => {
     expect(url.searchParams.get('named-graph-uri')).toBe(G2);
   });
 
-  it('sends no dataset with an update', async () => {
+  it('sends an update dataset as using-graph-uri in the URL', async () => {
     const fetchImpl = ok();
     await executeOnBrowserBackend(
-      { backend, query: 'INSERT DATA {}', operation: 'update', dataset: { defaultGraphs: [G1] } },
+      { backend, query: 'DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }', operation: 'update', dataset: { defaultGraphs: [G1], namedGraphs: [] } },
       fetchImpl,
     );
-    expect(String(fetchImpl.mock.calls[0]![0])).toBe(backend.endpoint);
+    const url = new URL(String(fetchImpl.mock.calls[0]![0]));
+    expect(url.searchParams.getAll('using-graph-uri')).toEqual([G1]);
+    expect(url.searchParams.getAll('using-named-graph-uri')).toEqual([EMPTY_DATASET_GRAPH]);
+    expect(url.searchParams.has('default-graph-uri')).toBe(false);
   });
 });

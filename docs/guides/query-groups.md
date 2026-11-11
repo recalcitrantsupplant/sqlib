@@ -390,11 +390,21 @@ node). Two headers say what ran: `X-Resolved-Target` names the version, and
 each query node over those graphs. Without them, a node uses the default
 dataset of its backend.
 
-- A part you leave out has no limit. An empty array means no graphs.
+- Leave out both parts to use the default dataset. An empty array means no
+  graphs.
+- If you give one part and leave out the other, the other part has no graphs.
+  This is the rule of SPARQL 1.1 Query §13.2 for `FROM` and `FROM NAMED`.
+  Fuseki applies it over HTTP, and sqlib applies it to Oxigraph backends.
 - Where a node also has a `DATASET` edge, sqlib intersects the two limits for
-  each part. A caller can narrow the choice of the group author, but cannot
-  widen it.
-- sqlib refuses an UPDATE with `400` when a dataset is given.
+  each part. A part you leave out does not limit the edge's part. A caller can
+  narrow the choice of the group author, but cannot widen it.
+- For an UPDATE, the dataset sets the graphs that its `WHERE` clause reads, as
+  `USING` and `USING NAMED` do. It does not change the graphs the update writes
+  to. Over HTTP, sqlib sends it as the `using-graph-uri` and
+  `using-named-graph-uri` parameters (SPARQL 1.1 Protocol §2.2.3). For an
+  Oxigraph backend, sqlib adds `USING` clauses to the update text.
+- sqlib refuses with `400` a dataset on an UPDATE whose text has `USING`,
+  `USING NAMED` or `WITH`, as the protocol requires.
 - `POST /sparql` takes the same two fields. `GET /sparql` takes the protocol
   parameters `default-graph-uri` and `named-graph-uri`, once for each graph.
 

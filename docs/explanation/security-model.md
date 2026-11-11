@@ -250,11 +250,15 @@ auth backend, take effect within the cache time.
   access (each caller in `disabled` mode) or with the administrator grant. It
   also does not narrow its own internal queries (`{ internal: true }`). To see
   what a person would read, use `Test as` on the Access screen.
-- **Updates.** The policy narrows reads only. An update names its target graphs
-  in its own text, and the dataset parameters limit only the `WHERE` clause of
-  an update. sqlib does not narrow that `WHERE` clause either. The `update:*`
-  modes therefore allow writes to any graph of the backend. Give update modes
-  only to callers who can read and write the whole backend.
+- **Updates.** The policy narrows the `WHERE` clause of an update, as it
+  narrows a read. sqlib sends the narrowed dataset as `using-graph-uri` and
+  `using-named-graph-uri`, or as `USING` clauses for an Oxigraph backend.
+  sqlib refuses with `403` a policed update whose text has `USING`,
+  `USING NAMED` or `WITH`, because the protocol does not let a dataset replace
+  those clauses. The policy does not limit the graphs an update writes to: an
+  update names them in its own text. The `update:*` modes therefore allow
+  writes to any graph of the backend. Give update modes only to callers who can
+  write the whole backend.
 - **Browser backends and exported bundles.** These send queries from the
   browser directly to the endpoint, so sqlib never sees them.
 - **Data graphs.** An in-process backend loaded from data graphs has the same

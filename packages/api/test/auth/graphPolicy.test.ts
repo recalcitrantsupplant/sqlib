@@ -16,7 +16,7 @@ import { resetAuthConfig } from '../../src/auth/config.js';
 import type { AuthContext, AuthMode } from '../../src/auth/types.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 import { OxigraphSparqlExecutor } from '../../src/server/OxigraphSparqlExecutor.js';
-import { GuardedSparqlExecutor, SERVICE_UNDER_POLICY_WARNING } from '../../src/auth/GuardedSparqlExecutor.js';
+import { GraphPolicyUpdateError, GuardedSparqlExecutor, SERVICE_UNDER_POLICY_WARNING } from '../../src/auth/GuardedSparqlExecutor.js';
 import {
   GraphPolicyError,
   bindPolicySubject,
@@ -239,6 +239,43 @@ describe('backend modes on the guarded executor', () => {
     await expect(saved.update(`INSERT DATA { <urn:a> <urn:b> <urn:c> }`)).resolves.toBeDefined();
     const adhoc = new GuardedSparqlExecutor(dataExecutor, { request: requestFor(contextFor([carol])), backendId: DATA, source: 'adhoc' });
     await expect(adhoc.update(`INSERT DATA { <urn:a> <urn:b> <urn:d> }`)).rejects.toBeInstanceOf(AuthorizationError);
+  });
+});
+
+describe('graph policy updates', () => {
+  const COPY = `PREFIX ex: <${EX}> INSERT { GRAPH ex:out { ?s ex:copied ?o } } WHERE { GRAPH ?g { ?s ex:p ?o } }`;
+  const copied = async () => {
+    const { result } = await dataExecutor.selectQueryParsed(
+      `PREFIX ex: <${EX}> SELECT ?o WHERE { GRAPH ex:out { ?s ex:copied ?o } }`,
+    );
+    return (result as { results: { bindings: Array<{ o: { value: string } }> } }).results.bindings.map(row => row.o.value).sort();
+  };
+
+  beforeEach(async () => {
+    await grants.createGrant({ principal: TEAM_A, resourceKind: 'backend', resource: DATA, modes: ['update:adhoc'] });
+  });
+
+  it('narrows what the WHERE clause of an update reads', async () => {
+    await guarded([ALICE, TEAM_A]).update(COPY);
+    expect(await copied()).toEqual(['one']);
+  });
+
+  it('intersects the caller\'s update dataset with the policy', async () => {
+    await guarded([ALICE, TEAM_A]).update(COPY, { dataset: { namedGraphs: [`${EX}g1`, `${EX}g2`] } });
+    expect(await copied()).toEqual(['one']);
+  });
+
+  it('refuses an update that names its graphs with USING or WITH', async () => {
+    const using = `PREFIX ex: <${EX}> INSERT { GRAPH ex:out { ?s ex:copied ?o } } USING ex:g2 WHERE { ?s ex:p ?o }`;
+    const withGraph = `PREFIX ex: <${EX}> WITH ex:g2 INSERT { ?s ex:copied ?o } WHERE { ?s ex:p ?o }`;
+    await expect(guarded([ALICE, TEAM_A]).update(using)).rejects.toBeInstanceOf(GraphPolicyUpdateError);
+    await expect(guarded([ALICE, TEAM_A]).update(withGraph)).rejects.toBeInstanceOf(GraphPolicyUpdateError);
+    expect(await copied()).toEqual([]);
+  });
+
+  it('runs INSERT DATA as written, as it reads nothing', async () => {
+    await guarded([ALICE, TEAM_A]).update(`PREFIX ex: <${EX}> INSERT DATA { GRAPH ex:out { ex:s ex:copied "direct" } }`);
+    expect(await copied()).toEqual(['direct']);
   });
 });
 

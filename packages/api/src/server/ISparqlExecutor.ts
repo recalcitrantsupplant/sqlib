@@ -17,10 +17,11 @@ export type { SparqlSelectJsonOutput };
  * The RDF dataset a query runs over, chosen at run time rather than by
  * `FROM` / `FROM NAMED` in the query text (SPARQL 1.1 Protocol §2.1.4).
  *
- * An absent list and an empty one differ. Absent leaves that part to the
- * backend: over HTTP the endpoint decides (Fuseki, following SPARQL 1.1 Query
- * §13.2, takes a request naming only named graphs to have an empty default
- * graph), and Oxigraph keeps its own default graph or named graphs. Empty
+ * An absent list and an empty one differ only when the other list is absent
+ * too. A dataset that gives one part and leaves out the other has nothing in
+ * the part it leaves out, as SPARQL 1.1 Query §13.2 says of `FROM` and
+ * `FROM NAMED`. Over HTTP the endpoint applies this rule (Fuseki does), and
+ * the Oxigraph executor passes an empty list for the absent part. Empty
  * means no graphs: the query runs against nothing for that part.
  */
 export type SparqlDataset = {
@@ -48,6 +49,21 @@ export type SparqlQueryOptions = {
   /**
    * The dataset to run over, overriding any `FROM` / `FROM NAMED` in the
    * query text. Values must be IRIs (see `lib/dataset.ts`).
+   */
+  dataset?: SparqlDataset;
+};
+
+/**
+ * Options for executing a SPARQL update.
+ */
+export type SparqlUpdateOptions = {
+  /**
+   * The dataset that the `WHERE` clause of each `DELETE/INSERT` operation
+   * reads, in place of `USING` / `USING NAMED` (SPARQL 1.1 Protocol §2.2.3).
+   * It does not change the graphs the update writes to. An HTTP backend gets
+   * `using-graph-uri` and `using-named-graph-uri`, and Oxigraph gets `USING`
+   * clauses in the text (see `lib/updateDataset.ts`). Refused for an update
+   * whose text has `USING`, `USING NAMED` or `WITH`.
    */
   dataset?: SparqlDataset;
 };
@@ -116,9 +132,10 @@ export interface ISparqlExecutor {
    * Executes a SPARQL UPDATE query (e.g., INSERT, DELETE).
    * Does not typically return data, but should signal success or failure.
    * @param sparqlUpdateQuery The complete UPDATE query string.
+   * @param options Optional execution parameters, including the dataset the update reads.
    * @returns A promise resolving when the update is complete, or rejecting on error.
    */
-  update(sparqlUpdateQuery: string): Promise<SparqlExecutionResult<void>>;
+  update(sparqlUpdateQuery: string, options?: SparqlUpdateOptions): Promise<SparqlExecutionResult<void>>;
 
   /**
    * Executes a SPARQL ASK query and returns the boolean result.

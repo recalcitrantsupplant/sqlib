@@ -28,7 +28,8 @@ import { recordPassthroughUpdate } from '../lib/patchService.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { clientId, toPatchView } from './patches.js';
-import { datasetFromRequest } from '../lib/dataset.js';
+import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
+import { assertUpdateTakesDataset, UpdateDatasetConflictError, withUsingClauses } from '../lib/updateDataset.js';
 import { GuardedSparqlExecutor } from '../auth/GuardedSparqlExecutor.js';
 
 const errorResponseSchema = {
@@ -224,16 +225,19 @@ export default async function (
     executor: ISparqlExecutor;
     backendId: string;
     updateString: string;
+    dataset?: SparqlDataset;
   }) => {
-    const { request, reply, executor, backendId, updateString } = params;
+    const { request, reply, executor, backendId, updateString, dataset } = params;
     let duration: number | undefined;
 
     const patch = await recordPassthroughUpdate({
       backendId,
-      updateString,
+      // The derivation reads the text, so it gets the dataset as USING
+      // clauses, and the record shows the update that ran.
+      updateString: withUsingClauses(updateString, dataset),
       origin: clientId(request),
       run: async () => {
-        ({ duration } = await executor.update(updateString));
+        ({ duration } = await executor.update(updateString, { dataset }));
       },
     });
 
@@ -346,12 +350,16 @@ export default async function (
 
       // Refused with a 400 naming the field when a value is not an IRI.
       const dataset = datasetFromRequest(params.dataset);
+      // For an update, the dataset is what its WHERE clause reads, sent as
+      // `using-graph-uri` (Protocol §2.2.3). The protocol refuses it with
+      // USING or WITH in the text, and so does this route.
       if (dataset && operation === QueryTypeIri.update) {
-        return reply.code(400).send({
-          error:
-            'defaultGraphs and namedGraphs choose the dataset a query reads. An update names its graphs '
-            + 'in its own text (USING, USING NAMED, WITH); the protocol\'s using-graph-uri parameters are not supported.',
-        });
+        try {
+          assertUpdateTakesDataset(query, dataset);
+        } catch (error) {
+          if (error instanceof UpdateDatasetConflictError) return reply.code(400).send({ error: error.message });
+          throw error;
+        }
       }
 
       if (operation === QueryTypeIri.update && !allowUpdate) {
@@ -455,9 +463,10 @@ export default async function (
               executor,
               backendId: backendId!,
               updateString: executedQuery,
+              dataset,
             });
           }
-          const { duration: updateDuration } = await executor.update(executedQuery);
+          const { duration: updateDuration } = await executor.update(executedQuery, { dataset });
           setTimingHeader(reply, updateDuration);
           return reply.code(204).send();
         }

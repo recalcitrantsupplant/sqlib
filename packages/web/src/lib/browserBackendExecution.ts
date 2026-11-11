@@ -121,7 +121,8 @@ export async function executeOnBrowserBackend(
   const isUpdate = (request.operation ?? (looksLikeUpdate(query) ? 'update' : 'query')) === 'update';
   const started = Date.now();
 
-  const datasetParams = isUpdate ? '' : datasetProtocolParams(request.dataset).toString();
+  // A direct POST carries the dataset in the URL, for a query and an update alike.
+  const datasetParams = datasetProtocolParams(request.dataset, isUpdate ? 'update' : 'query').toString();
   const join = (url: string, params: string) => (params ? `${url}${url.includes('?') ? '&' : '?'}${params}` : url);
   const postUrl = join(endpoint, datasetParams);
   const getUrl = join(endpoint, [`query=${encodeURIComponent(query)}`, datasetParams].filter(Boolean).join('&'));

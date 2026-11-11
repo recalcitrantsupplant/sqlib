@@ -130,12 +130,18 @@ async function loadOxigraph(): Promise<{ Store: new () => OxigraphStore }> {
  * A dataset as Oxigraph query options. The terms come from the module, which
  * by now is loaded and initialised: by {@link loadOxigraph}, or by whoever
  * built the store that was passed in.
+ *
+ * A part left out of a dataset that gives the other part is passed as an
+ * empty list, as SPARQL 1.1 Query §13.2 says and as an HTTP endpoint such as
+ * Fuseki does. Without this, Oxigraph would read its own default graph, or all
+ * of its named graphs, for that part.
  */
 async function datasetOptions(dataset: SparqlDataset): Promise<OxigraphDatasetOptions> {
+  if (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined) return {};
   const { namedNode } = await import('oxigraph');
   return {
-    ...(dataset.defaultGraphs ? { default_graph: dataset.defaultGraphs.map((iri) => namedNode(iri)) } : {}),
-    ...(dataset.namedGraphs ? { named_graphs: dataset.namedGraphs.map((iri) => namedNode(iri)) } : {}),
+    default_graph: (dataset.defaultGraphs ?? []).map((iri) => namedNode(iri)),
+    named_graphs: (dataset.namedGraphs ?? []).map((iri) => namedNode(iri)),
   };
 }
 

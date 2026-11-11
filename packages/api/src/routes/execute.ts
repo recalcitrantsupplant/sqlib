@@ -42,6 +42,8 @@ import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
+import { assertUpdateTakesDataset, UpdateDatasetConflictError, withUsingClauses } from '../lib/updateDataset.js';
+import { GraphPolicyUpdateError } from '../auth/GuardedSparqlExecutor.js';
 import { abortOnDisconnect, ExecutionAbortedError } from '../lib/cancellation.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
 import { applyExecutionArguments, normalizeArguments } from '../lib/executionArguments.js';
@@ -1232,11 +1234,19 @@ export default async function (
                     return reply.send({head: {}, boolean: result});
                 }
                 case QueryTypeIri.update: {
-                    if (dataset) {
-                        return reply.code(400).send({
-                            error: 'defaultGraphs and namedGraphs choose the dataset a query reads. An update names its graphs '
-                                + 'in its own text (USING, USING NAMED, WITH); the protocol\'s using-graph-uri parameters are not supported.',
-                        });
+                    /*
+                     * For an update, the dataset is what its WHERE clause
+                     * reads, sent as `using-graph-uri` (Protocol §2.2.3). The
+                     * protocol refuses it with USING or WITH in the text, and
+                     * so does this route.
+                     */
+                    try {
+                        assertUpdateTakesDataset(sparqlQueryString, dataset);
+                    } catch (error__u: unknown) {
+                        if (error__u instanceof UpdateDatasetConflictError) {
+                            return reply.code(400).send({error: error__u.message});
+                        }
+                        throw error__u;
                     }
                     if (wantsRdfPatch(finalAcceptHeader)) {
                         /*
@@ -1254,7 +1264,9 @@ export default async function (
                         try {
                             const patch = await previewUpdate({
                                 backendId,
-                                updateString: sparqlQueryString,
+                                // The derivation reads the text, so it gets
+                                // the dataset as USING clauses.
+                                updateString: withUsingClauses(sparqlQueryString, dataset),
                                 origin: clientIdOf(request),
                             });
                             if (patch.applyMode === 'graph-ops') {
@@ -1316,6 +1328,7 @@ export default async function (
                         const {result} = await targetExecutor.selectQueryParsed(check, {
                             acceptHeader: 'application/sparql-results+json',
                             signal,
+                            dataset,
                         });
                         const {rows, failed} = failedFlags(result as Parameters<typeof failedFlags>[0], refusals);
                         if (rows === 0 || failed.length > 0) {
@@ -1324,7 +1337,15 @@ export default async function (
                             return reply.code(409).send(refusedBody(failed, refusals, argumentTables));
                         }
                     }
-                    const {duration} = await targetExecutor.update(sparqlQueryString);
+                    let duration: number;
+                    try {
+                        ({duration} = await targetExecutor.update(sparqlQueryString, {dataset}));
+                    } catch (error__u: unknown) {
+                        if (error__u instanceof GraphPolicyUpdateError) {
+                            return reply.code(error__u.statusCode).send({error: error__u.message});
+                        }
+                        throw error__u;
+                    }
                     dbDuration = duration;
                     executionStatus = 'success';
                     request.log.info(`Executed UPDATE query ${targetId} successfully.`);

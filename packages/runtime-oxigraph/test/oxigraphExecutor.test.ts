@@ -190,4 +190,24 @@ describe('oxigraphExecutor updates', () => {
     expect(await run({ defaultGraphs: ['http://example.org/g2'] })).toEqual(['two']);
     expect(await run({ defaultGraphs: [] })).toEqual([]);
   });
+
+  it('reads an empty default graph when the dataset gives named graphs only', async () => {
+    const executor = await oxigraphExecutor({
+      data: {
+        content: '<http://example.org/s> <http://example.org/p> "default" .\n'
+          + '<http://example.org/g1> { <http://example.org/s> <http://example.org/p> "one" . }',
+        format: 'application/trig',
+      },
+    });
+    const run = async (queryText: string, dataset: { defaultGraphs?: string[]; namedGraphs?: string[] }) => {
+      const result = await executor.execute({ queryText, queryType: 'SELECT', dataset });
+      return (result as { results: { bindings: Array<{ o: { value: string } }> } }).results.bindings.map((b) => b.o.value);
+    };
+
+    // SPARQL 1.1 Query §13.2: FROM NAMED alone gives an empty default graph.
+    expect(await run('SELECT ?o WHERE { ?s ?p ?o }', { namedGraphs: ['http://example.org/g1'] })).toEqual([]);
+    expect(await run('SELECT ?o WHERE { GRAPH ?g { ?s ?p ?o } }', { namedGraphs: ['http://example.org/g1'] })).toEqual(['one']);
+    // And FROM alone gives no named graphs.
+    expect(await run('SELECT ?o WHERE { GRAPH ?g { ?s ?p ?o } }', { defaultGraphs: ['http://example.org/g1'] })).toEqual([]);
+  });
 });

@@ -300,7 +300,7 @@ describe('ExecutionEngine', () => {
         result: { success: true },
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.update).toHaveBeenCalledWith('INSERT DATA { <urn:s> <urn:p> <urn:o> }');
+      expect(mockExecutor.update).toHaveBeenCalledWith('INSERT DATA { <urn:s> <urn:p> <urn:o> }', { dataset: undefined });
     });
 
     it('executes a DESCRIBE node as CONSTRUCT', async () => {

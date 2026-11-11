@@ -1,6 +1,7 @@
 import { Dispatcher, Agent } from 'undici'; // Import Agent
-import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult, type SparqlDataset } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
+import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult, type SparqlDataset, type SparqlUpdateOptions } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
 import { datasetProtocolParameters, hasDataset } from '../lib/dataset.js';
+import { updateDatasetProtocolParameters } from '../lib/updateDataset.js';
 import { config } from './config.js';
 import { log } from '../lib/log.js';
 // Define a simpler config type specifically for the HTTP executor's needs
@@ -72,8 +73,12 @@ async function executeHttpRequestRaw(
 
   if (isUpdate) {
     // --- SPARQL Update (POST) ---
-    // UPDATE operations MUST use POST per SPARQL 1.1 Protocol specification
-    const body = `update=${encodeURIComponent(query)}`;
+    // UPDATE operations MUST use POST per SPARQL 1.1 Protocol specification.
+    // A dataset goes in the same form body as `using-graph-uri` and
+    // `using-named-graph-uri` pairs (Protocol §2.2.3).
+    const body = [['update', query], ...updateDatasetProtocolParameters(dataset)]
+      .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
+      .join('&');
     requestOptions = {
       method: 'POST',
       headers: {
@@ -275,9 +280,9 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
   /**
    * Executes a SPARQL UPDATE query (e.g., INSERT, DELETE).
    */
-  async update(sparqlUpdateQuery: string): Promise<SparqlExecutionResult<void>> {
+  async update(sparqlUpdateQuery: string, options?: SparqlUpdateOptions): Promise<SparqlExecutionResult<void>> {
     // Use the stored executorConfig, executeHttpRequestRaw handles using updateUrl
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlUpdateQuery, '*/*', true);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlUpdateQuery, '*/*', true, undefined, options?.dataset);
     await checkHttpResponseStatus(response); // Check status even for updates
     return { result: undefined, duration };
   }

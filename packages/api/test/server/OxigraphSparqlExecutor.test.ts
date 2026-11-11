@@ -329,5 +329,46 @@ describe('OxigraphSparqlExecutor', () => {
             const { result } = await executor.askQuery('ASK { ?s <http://example.org/p> "two" }', { dataset: { defaultGraphs: [g1.value] } });
             expect(result).toBe(false);
         });
+
+        it('reads an empty default graph when only named graphs are given, as FROM NAMED does', async () => {
+            store.add(oxigraph.quad(oxigraph.namedNode('http://example.org/s0'), p, oxigraph.literal('default')));
+            expect(await values('SELECT ?o WHERE { ?s <http://example.org/p> ?o }', { namedGraphs: [g1.value] })).toEqual([]);
+            expect(await values('SELECT ?o WHERE { GRAPH ?g { ?s <http://example.org/p> ?o } }', { defaultGraphs: [g1.value] }))
+                .toEqual([]);
+        });
+
+        describe('on an update', () => {
+            const COPY = 'INSERT { GRAPH <http://example.org/out> { ?s <http://example.org/copied> ?o } } '
+                + 'WHERE { ?s <http://example.org/p> ?o }';
+            const copied = () => values(
+                'SELECT ?o WHERE { GRAPH <http://example.org/out> { ?s <http://example.org/copied> ?o } }',
+                { namedGraphs: ['http://example.org/out'], defaultGraphs: [] },
+            ).then(() => store.match(null, oxigraph.namedNode('http://example.org/copied'), null, oxigraph.namedNode('http://example.org/out'))
+                .map((quad) => quad.object.value).sort());
+
+            it('reads the WHERE clause over the given default graphs', async () => {
+                await executor.update(COPY, { dataset: { defaultGraphs: [g2.value] } });
+                expect(await copied()).toEqual(['two']);
+            });
+
+            it('reads named graphs from the dataset, with DELETE WHERE too', async () => {
+                await executor.update(
+                    'DELETE WHERE { GRAPH ?g { ?s <http://example.org/p> ?o } }',
+                    { dataset: { namedGraphs: [g1.value] } },
+                );
+                expect(store.match(null, p, null, null).map((quad) => quad.object.value)).toEqual(['two']);
+            });
+
+            it('reads nothing over an empty dataset', async () => {
+                await executor.update(COPY, { dataset: { defaultGraphs: [] } });
+                expect(await copied()).toEqual([]);
+            });
+
+            it('refuses a dataset with USING or WITH in the text', async () => {
+                const withGraph = 'WITH <http://example.org/g1> INSERT { ?s <http://example.org/copied> ?o } WHERE { ?s ?p ?o }';
+                await expect(executor.update(withGraph, { dataset: { defaultGraphs: [g2.value] } }))
+                    .rejects.toThrow(/USING, USING NAMED or WITH/);
+            });
+        });
     });
 });
