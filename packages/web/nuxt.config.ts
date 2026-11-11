@@ -421,7 +421,7 @@ export default defineNuxtConfig({
         { rel: 'manifest', href: withBase('/site.webmanifest', baseURL) },
       ],
       meta: [
-        { name: 'theme-color', content: '#85272f' },
+        { name: 'theme-color', content: '#0a58ca' },
       ],
       script: [
         {

@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import { isReadOnlyDeployment } from '../config/readOnly.js';
 import type { FastifyInstance } from 'fastify';
 import { etlService } from '../lib/EtlService.js';
 import { toError } from '../lib/toError.js';
@@ -605,7 +606,12 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
     }, async ({ request, reply }) => {
     // Running stored SQL is running SQL. Checked outside the try below, whose
     // catch would otherwise have to remember to rethrow it.
-    requireAdmin(request, 'running ETL SQL');
+    //
+    // A read-only deployment is the exception. Its stored SQL changes only by
+    // redeployment, the run keeps nothing and is row-capped (`executeEtlJob`),
+    // and the entity guard above has already required Execute on the job's
+    // library. So a caller there runs exactly what the operator shipped.
+    if (!isReadOnlyDeployment()) requireAdmin(request, 'running ETL SQL');
     try {
       const { id } = request.params;
       const config = request.body;
