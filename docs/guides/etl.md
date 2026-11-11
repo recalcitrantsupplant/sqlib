@@ -149,7 +149,10 @@ requires administrator access:
   route plugin (`packages/api/src/routes/etl-jobs.ts`).
 - `POST /etl-jobs/:id/versions`, which stores the SQL that each later run
   executes, through an explicit `requireAdmin` in the handler.
-- `POST /etl-jobs/:id/execute`, which runs stored SQL, in the same way.
+- `POST /etl-jobs/:id/execute`, which runs stored SQL, in the same way. On a
+  read-only deployment (`SQLIB_READ_ONLY=true`) a caller with Execute on the
+  job's library may run it. There the stored SQL changes only by redeployment,
+  and the run keeps nothing and is capped by `SQLIB_READ_ONLY_ETL_MAX_ROWS`.
 - `POST /playground/etl/execute`, through an explicit `requireAdmin` in the
   handler (`packages/api/src/routes/playground.ts`).
 
