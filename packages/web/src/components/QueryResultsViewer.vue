@@ -17,6 +17,7 @@ import type { DataTableState } from '@/composables/useDataTable';
 import ResultsFooter from '@/components/shared/ResultsFooter.vue';
 import ResultsActionBar from '@/components/shared/ResultsActionBar.vue';
 import TermDisplayToggle from '@/components/shared/TermDisplayToggle.vue';
+import TableWrapToggle from '@/components/shared/TableWrapToggle.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import { Input } from '@/components/ui/input';
 import RdfTermTable from '@/components/shared/RdfTermTable.vue';
@@ -399,7 +400,8 @@ const renderSparqlCell = (binding: SparqlBindingValue | undefined) => {
         'code',
         {
           class:
-            'flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
+            'term-value flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
+          title: displayValue,
         },
         displayValue,
       ),
@@ -407,7 +409,7 @@ const renderSparqlCell = (binding: SparqlBindingValue | undefined) => {
       h(
         'div',
         {
-          class: 'flex flex-col items-end gap-1',
+          class: 'flex shrink-0 flex-col items-end gap-1',
         },
         [
           h(
@@ -559,6 +561,7 @@ defineExpose({
           <Download :size="14" />
           <span v-if="serialisationLabel" class="btn-action-label">{{ serialisationLabel }}</span>
         </button>
+        <TableWrapToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
         <TermDisplayToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
         <button
           v-if="canExpand"

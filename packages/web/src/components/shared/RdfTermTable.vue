@@ -127,15 +127,15 @@ const renderCell = (binding: RdfTermValue | SparqlBindingValue | string | undefi
         return h('span', { class: 'term-cell flex items-center' }, [
           h(
             'code',
-            { class: 'text-xs font-mono break-words rounded bg-muted px-1.5 py-0.5' },
+            { class: 'term-value text-xs font-mono break-words rounded bg-muted px-1.5 py-0.5', title: result.abbreviated },
             result.abbreviated,
           ),
         ]);
       }
     }
     if (binding.startsWith('http://') || binding.startsWith('https://')) {
-      return h('span', { class: 'flex items-center gap-2' }, [
-        h('span', { class: 'text-sm break-words' }, binding),
+      return h('span', { class: 'term-cell flex items-center gap-2' }, [
+        h('span', { class: 'term-value text-sm break-words', title: binding }, binding),
         renderPrefixAdder(binding),
       ]);
     }
@@ -205,7 +205,8 @@ const renderCell = (binding: RdfTermValue | SparqlBindingValue | string | undefi
         'code',
         {
           class:
-            'flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
+            'term-value flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
+          title: displayValue,
         },
         displayValue,
       ),
@@ -213,7 +214,7 @@ const renderCell = (binding: RdfTermValue | SparqlBindingValue | string | undefi
       h(
         'div',
         {
-          class: 'flex flex-col items-end gap-1',
+          class: 'flex shrink-0 flex-col items-end gap-1',
         },
         [
           h(

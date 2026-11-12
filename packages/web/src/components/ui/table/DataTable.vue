@@ -1,7 +1,7 @@
 <script setup lang="ts" generic="TData extends RowData, TValue">
 import type { RowData } from "@tanstack/vue-table"
 import { FlexRender } from "@tanstack/vue-table"
-import { computed, ref, useSlots, watch, watchEffect } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch, watchEffect } from "vue"
 import {
   Filter,
   ArrowUp,
@@ -34,6 +34,7 @@ import {
   type DataTableColumnDef,
   type DataTableState,
 } from "@/composables/useDataTable"
+import { useTableWrap } from "@/composables/useTableWrap"
 
 const props = withDefaults(defineProps<{
   columns: DataTableColumnDef<TData, TValue>[]
@@ -198,6 +199,100 @@ const enableFacetsForColumn = (columnId: string) => {
   computeFacetsForColumns.value = next
 }
 
+/*
+ * Column widths.
+ *
+ * The table keeps the browser's automatic layout, so a column is as wide as
+ * its widest value, up to a cap. The cap is a third of the visible table, with
+ * a floor of `MIN_DEFAULT_MAX_WIDTH`, so at least three capped columns fit on
+ * screen. Each cell draws its content in a `.dt-cell` box that carries the
+ * width; a `td` cannot carry a `max-width` in automatic layout.
+ *
+ * A column the user drags gets a fixed width in `columnWidths`, which may be
+ * above the cap. Double-clicking the handle drops it back to automatic.
+ */
+const ROW_NUMBER_COLUMN_ID = "row-number"
+const MIN_DEFAULT_MAX_WIDTH = 240
+const MIN_COLUMN_WIDTH = 60
+/** Cell padding plus the border, which `.dt-cell` widths leave out. */
+const CELL_CHROME_WIDTH = 17
+
+const { wrap } = useTableWrap()
+
+const scrollRef = ref<HTMLElement | null>(null)
+const visibleWidth = ref(0)
+let resizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (!scrollRef.value || typeof ResizeObserver === "undefined") return
+  visibleWidth.value = scrollRef.value.clientWidth
+  resizeObserver = new ResizeObserver(([entry]) => {
+    visibleWidth.value = entry?.contentRect.width ?? 0
+  })
+  resizeObserver.observe(scrollRef.value)
+})
+
+const defaultMaxWidth = computed(() => {
+  const gutter = props.enableRowNumbers ? 50 : 0
+  const share = Math.floor((visibleWidth.value - gutter) / 3) - CELL_CHROME_WIDTH
+  return Math.max(MIN_DEFAULT_MAX_WIDTH, share)
+})
+
+const columnWidths = ref<Record<string, number>>({})
+const hasSizedColumns = computed(() => Object.keys(columnWidths.value).length > 0)
+
+const isResizable = (columnId: string) => columnId !== ROW_NUMBER_COLUMN_ID
+
+const cellStyle = (columnId: string) => {
+  if (!isResizable(columnId)) return undefined
+  const fixed = columnWidths.value[columnId]
+  if (fixed !== undefined) {
+    return { width: `${fixed}px`, minWidth: `${fixed}px`, maxWidth: `${fixed}px` }
+  }
+  return { maxWidth: `${defaultMaxWidth.value}px` }
+}
+
+let dragCleanup: (() => void) | null = null
+
+const startResize = (columnId: string, event: PointerEvent) => {
+  const handle = event.currentTarget as HTMLElement
+  const box = handle.parentElement?.querySelector<HTMLElement>(".dt-cell")
+  if (!box) return
+  event.preventDefault()
+  event.stopPropagation()
+
+  const startX = event.clientX
+  const startWidth = box.getBoundingClientRect().width
+  handle.setPointerCapture(event.pointerId)
+  document.body.classList.add("dt-resizing")
+
+  const onMove = (moveEvent: PointerEvent) => {
+    const width = Math.max(MIN_COLUMN_WIDTH, Math.round(startWidth + moveEvent.clientX - startX))
+    columnWidths.value = { ...columnWidths.value, [columnId]: width }
+  }
+  const onEnd = () => {
+    handle.removeEventListener("pointermove", onMove)
+    handle.removeEventListener("pointerup", onEnd)
+    handle.removeEventListener("pointercancel", onEnd)
+    document.body.classList.remove("dt-resizing")
+    dragCleanup = null
+  }
+  handle.addEventListener("pointermove", onMove)
+  handle.addEventListener("pointerup", onEnd)
+  handle.addEventListener("pointercancel", onEnd)
+  dragCleanup = onEnd
+}
+
+const resetWidth = (columnId: string) => {
+  const { [columnId]: _dropped, ...rest } = columnWidths.value
+  columnWidths.value = rest
+}
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  dragCleanup?.()
+})
+
 </script>
 
 <template>
@@ -225,21 +320,28 @@ const enableFacetsForColumn = (columnId: string) => {
       </template>
     </p>
     <div class="table-shell">
-      <div class="table-scroll">
-        <Table>
+      <div ref="scrollRef" class="table-scroll" :class="{ 'dt-wrap': wrap }">
+        <Table :class="{ 'dt-table--sized': hasSizedColumns }">
           <TableHeader>
             <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id" :class="header.column.columnDef.meta?.headerClassName">
-                <div class="flex items-center justify-between gap-2">
-                  <FlexRender
+              <TableHead
+                v-for="header in headerGroup.headers"
+                :key="header.id"
+                class="dt-head"
+                :class="header.column.columnDef.meta?.headerClassName"
+              >
+                <div class="dt-cell flex items-center justify-between gap-2" :style="cellStyle(header.column.id)">
+                  <span
                     v-if="!header.isPlaceholder"
-                    :render="header.column.columnDef.header"
-                    :props="header.getContext()"
+                    class="dt-head-label"
+                    :class="{ 'cursor-pointer select-none': header.column.getCanSort() }"
                     @click="header.column.getToggleSortingHandler()?.($event)"
-                    :class="{
-                      'cursor-pointer select-none': header.column.getCanSort(),
-                    }"
-                  />
+                  >
+                    <FlexRender
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </span>
                   <div class="flex items-center gap-1 ml-auto shrink-0">
                     <Button
                       v-if="header.column.getCanSort()"
@@ -319,6 +421,15 @@ const enableFacetsForColumn = (columnId: string) => {
                   </DropdownMenu>
                   </div>
                 </div>
+                <div
+                  v-if="isResizable(header.column.id)"
+                  class="dt-resize-handle"
+                  :data-testid="`column-resize-${header.column.id}`"
+                  title="Drag to resize. Double-click to fit."
+                  @pointerdown="startResize(header.column.id, $event)"
+                  @dblclick="resetWidth(header.column.id)"
+                  @click.stop
+                ></div>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -329,8 +440,14 @@ const enableFacetsForColumn = (columnId: string) => {
                 :key="row.id"
                 :data-state="row.getIsSelected() && 'selected'"
               >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id" :class="cell.column.columnDef.meta?.cellClassName">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                <TableCell
+                  v-for="cell in row.getVisibleCells()"
+                  :key="cell.id"
+                  :class="cell.column.columnDef.meta?.cellClassName"
+                >
+                  <div class="dt-cell" :style="cellStyle(cell.column.id)">
+                    <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                  </div>
                 </TableCell>
               </TableRow>
             </template>
@@ -452,6 +569,91 @@ const enableFacetsForColumn = (columnId: string) => {
   scrollbar-gutter: stable both-edges;
   flex: 1;
   min-height: 0;
+}
+
+/*
+ * Column width and wrapping; see the script's "Column widths" note.
+ * Without wrap, a value wider than its column is cut with an ellipsis: plain
+ * text here, and a term value through `.term-value`, the class the result
+ * renderers put on the value chip.
+ */
+.table-scroll :deep(table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.table-scroll :deep(table.dt-table--sized) {
+  min-width: 0;
+}
+
+:deep(.dt-head) {
+  position: relative;
+}
+
+:deep(.dt-cell) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:deep(.dt-head-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.dt-cell .term-cell),
+:deep(.dt-cell .term-cell > div) {
+  min-width: 0;
+}
+
+:deep(.dt-cell .term-value) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-wrap :deep(td) {
+  white-space: normal;
+}
+
+.dt-wrap :deep(td .dt-cell),
+.dt-wrap :deep(.dt-cell .term-value) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dt-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.dt-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  right: 0;
+  width: 2px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.dt-resize-handle:hover::after {
+  background: var(--focus-ring);
+}
+
+:global(body.dt-resizing) {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .pagination-bar {
