@@ -15,4 +15,6 @@ export {
   type EtlWarning,
 } from './columns.js';
 
+export { DETECTED_IRI_SCHEMES, valuesLookLikeIris } from './infer.js';
+
 export { runEtl, type EtlOutputChunk, type EtlResult, type EtlRun } from './run.js';

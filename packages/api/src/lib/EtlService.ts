@@ -29,7 +29,7 @@ import { SparqlQueryParser } from './parser.js';
 import { abortReason } from './cancellation.js';
 import { executionDeadlineMs, readOnlyEtlMaxRows } from '../config/executionLimits.js';
 import { toRuntimeExecutor } from '../server/runtimeExecutor.js';
-import { rowsToBindings, runEtl, toLexicalForm } from '@sparql-query-lib/runtime-etl';
+import { rowsToBindings, runEtl, toLexicalForm, valuesLookLikeIris } from '@sparql-query-lib/runtime-etl';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { ArgumentSet } from './orchestration/types.js';
@@ -645,14 +645,22 @@ export class EtlService {
 
     const previewResult = await duckDbService.preview(input.sql, input.limit || 10);
 
-    // Infer default mappings from schema
-    const inferredColumns: ColumnDefinition[] = previewResult.schema.map((col) => ({
-      columnName: col.columnName,
-      targetVariable: col.columnName, // Use column name as variable name by default
-      termType: 'literal' as const,
-      datatypeIri: mapDuckDbTypeToXsd(col.duckdbType),
-      nullPolicy: 'undef' as const,
-    }));
+    // Infer a default mapping from the schema and the sample rows. A text
+    // column whose sample values are all IRIs maps to an IRI.
+    const inferredColumns: ColumnDefinition[] = previewResult.schema.map((col): ColumnDefinition => {
+      const isText = /VARCHAR|TEXT|STRING/i.test(col.duckdbType);
+      const sample = previewResult.rows.map((row) => (row as Record<string, unknown>)[col.columnName]);
+      if (isText && valuesLookLikeIris(sample)) {
+        return { columnName: col.columnName, targetVariable: col.columnName, termType: 'uri', nullPolicy: 'undef' };
+      }
+      return {
+        columnName: col.columnName,
+        targetVariable: col.columnName, // Use column name as variable name by default
+        termType: 'literal',
+        datatypeIri: mapDuckDbTypeToXsd(col.duckdbType),
+        nullPolicy: 'undef',
+      };
+    });
 
     return {
       ...previewResult,
