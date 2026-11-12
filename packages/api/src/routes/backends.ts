@@ -6,8 +6,11 @@ import {
   backendTypeKeyToIri,
   isOxigraphStoreMode,
   OXIGRAPH_STORE_MODES,
+  queryMethodIriToKey,
+  queryMethodKeyToIri,
   resolveOxigraphConfig,
   type BackendTypeKey,
+  type QueryMethodKey,
   type PersistedBackend,
   type OxigraphConfig,
 } from '../persistence/schemas/BackendSchema.js';
@@ -155,6 +158,10 @@ function serializeBackend(entity: PersistedBackend): Backend {
     oxigraphConfig: typeof rest.oxigraphConfig === 'object' && rest.oxigraphConfig !== null
       ? JSON.stringify(rest.oxigraphConfig)
       : rest.oxigraphConfig,
+    // Stored as an IRI, sent as the key the contract enumerates.
+    queryMethod: typeof rest.queryMethod === 'string'
+      ? queryMethodIriToKey(rest.queryMethod) ?? null
+      : rest.queryMethod,
   };
   // No zod parse here. Verified redundant: `toRestApi` already yields exactly
   // the response shape (nothing stripped, added, or changed), and every backend
@@ -247,6 +254,14 @@ function validateOxigraphMemoryConfig(
   }
 }
 
+/** The stored form of a request's `queryMethod`: an IRI, `null` to clear it, or `undefined` to leave it. */
+function mapQueryMethod(value: QueryMethodKey | null | undefined): PersistedBackend['queryMethod'] | undefined {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  return queryMethodKeyToIri(value);
+}
+
 function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (Partial<PersistedBackend> & { $id: string }) {
   const {
     id: _dropId,
@@ -275,6 +290,10 @@ function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (
   }
   if (endpoint !== undefined && endpoint !== null) {
     payload.endpoint = endpoint;
+  }
+  const queryMethod = mapQueryMethod(input.queryMethod);
+  if (queryMethod) {
+    payload.queryMethod = queryMethod;
   }
   const resolvedAuthKey = ensureAuthEnvKey({ provided: authEnvKey ?? undefined, fallbackName: name });
   if (resolvedAuthKey && (backendTypeKey === 'http' || authEnvKey)) {
@@ -564,6 +583,10 @@ function buildUpdateBackendPayload(input: BackendUpdate): Partial<PersistedBacke
       const normalizedKey = normalizeAuthEnvKey(authEnvKey);
       payload.authEnvKey = normalizedKey ?? null;
     }
+  }
+  const queryMethod = mapQueryMethod(input.queryMethod);
+  if (queryMethod !== undefined) {
+    payload.queryMethod = queryMethod;
   }
 
   const mappedConfig = mapOxigraphConfig(oxigraphConfig);
