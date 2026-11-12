@@ -615,6 +615,60 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+/*
+ * The "+ prefix" button (InlinePrefixAdder) sits over the right-hand end of
+ * the value in `.term-value-wrap`, so it reserves no width. Its `::before`
+ * fades the text under it into the chip colour. The button keeps its own
+ * reveal on row hover, focus and open popover; while hidden it lets clicks
+ * through to the value.
+ */
+:deep(.term-value-wrap) {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+:deep(.term-value-wrap > .inline-prefix-adder) {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+:deep(.term-value-wrap .prefix-trigger) {
+  position: relative;
+  background: var(--muted);
+  pointer-events: none;
+}
+
+:deep(.term-value-wrap .prefix-trigger:hover),
+:deep(.term-value-wrap .prefix-trigger.is-open) {
+  background: color-mix(in srgb, var(--action) 10%, var(--muted));
+}
+
+:deep(.term-value-wrap .prefix-trigger::before) {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: var(--space-7);
+  background: linear-gradient(to right, transparent, var(--muted));
+}
+
+:deep(tr:hover .term-value-wrap .prefix-trigger),
+:deep(.term-value-wrap .prefix-trigger:focus-visible),
+:deep(.term-value-wrap .prefix-trigger.is-open) {
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  :deep(.term-value-wrap .prefix-trigger) {
+    pointer-events: auto;
+  }
+}
+
 .dt-wrap :deep(td) {
   white-space: normal;
 }

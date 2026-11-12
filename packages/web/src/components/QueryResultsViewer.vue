@@ -396,16 +396,20 @@ const renderSparqlCell = (binding: SparqlBindingValue | undefined) => {
 
   return h('div', { class: 'term-cell flex flex-col gap-1' }, [
     h('div', { class: `flex justify-between gap-2 ${supplementary.length > 0 ? 'items-center' : 'items-start'}` }, [
-      h(
-        'code',
-        {
-          class:
-            'term-value flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
-          title: displayValue,
-        },
-        displayValue,
-      ),
-      binding.type === 'uri' && !fullIri ? renderPrefixAdder(binding.value) : null,
+      // The value and its "+ prefix" overlay share one box, so the button
+      // takes no width until the row is hovered (see InlinePrefixAdder).
+      h('span', { class: 'term-value-wrap' }, [
+        h(
+          'code',
+          {
+            class:
+              'term-value flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
+            title: displayValue,
+          },
+          displayValue,
+        ),
+        binding.type === 'uri' && !fullIri ? renderPrefixAdder(binding.value) : null,
+      ]),
       h(
         'div',
         {
