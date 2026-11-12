@@ -241,13 +241,56 @@
         ></div>
 
         <!-- SPARQL Template Editor (Bottom) -->
-        <ExpandableEditor v-slot="{ expanded: templateExpanded, toggle: toggleTemplate }" title="SPARQL Template" testid="etl-template-expand">
+        <ExpandableEditor
+          id="etl-template"
+          title="SPARQL Template"
+          testid="etl-template-expand"
+          :layer-open="showTemplateDiff"
+          @update:expanded="(open: boolean) => { if (!open) showTemplateDiff = false; }"
+        >
+        <template #header-end>
+          <button
+            v-if="showTemplateDiff"
+            type="button"
+            class="icon-control icon-control--active"
+            data-testid="etl-template-diff-close"
+            title="Back to the template"
+            @click="showTemplateDiff = false"
+          >
+            <GitCompare :size="16" />
+          </button>
+        </template>
+        <template #layer>
+          <SparqlDiffViewer
+            :left-query="savedTemplate"
+            :right-query="sparqlTemplate"
+            :left-label="templateDiffLeftLabel"
+            right-label="Draft"
+            height="100%"
+          />
+        </template>
+        <template #default="{ expanded: templateExpanded, toggle: toggleTemplate }">
         <div
           class="editor-section sparql-section"
           :style="{ flexGrow: sparqlHeight }"
         >
           <PanelHeader title="SPARQL Template" sunken>
             <template #actions>
+              <TemplateQueryPicker
+                v-if="!isReadOnly && activeLibraryId"
+                :library-id="activeLibraryId"
+                @use="useQueryAsTemplate"
+              />
+              <QueryDocumentActions
+                v-if="!isReadOnly"
+                :code="sparqlTemplate"
+                :can-diff="!isScratch"
+                :diff-title="templateDiffTitle"
+                :diff-active="showTemplateDiff"
+                @format="formatTemplate"
+                @diff="openTemplateDiff"
+                @update:code="(value: string) => { sparqlTemplate = value; onSparqlEdit(); }"
+              />
               <ExpandButton
                 v-if="!templateExpanded"
                 subject="the SPARQL template"
@@ -267,6 +310,7 @@
             />
           </div>
         </div>
+        </template>
         </ExpandableEditor>
 
         </div>
@@ -480,7 +524,11 @@ import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
 import ExpandButton from './shared/ExpandButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { languageExtensionsFor } from '../lib/codeLanguage';
-import { X, Eye } from '@lucide/vue';
+import { X, Eye, GitCompare } from '@lucide/vue';
+import QueryDocumentActions from './query-work-area/QueryDocumentActions.vue';
+import SparqlDiffViewer from './shared/SparqlDiffViewer.vue';
+import { useEditorExpand } from '../composables/useEditorExpand';
+import { useApiClient } from '../composables/useApiClient';
 import { toast } from 'vue-sonner';
 import { EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL } from '@sparql-query-lib/types';
 import QueryResultsViewer from './QueryResultsViewer.vue';
@@ -494,6 +542,7 @@ import EmptyState from './shared/EmptyState.vue';
 import InlineNote from './shared/InlineNote.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import TupleSetSink from './etl/TupleSetSink.vue';
+import TemplateQueryPicker from './etl/TemplateQueryPicker.vue';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -746,6 +795,7 @@ const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRe
     outputFormat.value = body.outputFormat ?? 'text/turtle';
     selectedBackendId.value = body.backendId ?? EPHEMERAL_BACKEND_ID;
     columnMappings.value = body.columnMappings ? [...body.columnMappings] : [];
+    mappingSourceSql.value = sqlQuery.value;
     /*
      * Carried across too, because it is not a preference — it is the record of
      * whether the template is the user's or the auto-generator's, and losing it
@@ -1600,6 +1650,63 @@ const generateSparqlTemplate = () => {
 const onIriTemplateEdit = (mapping: ColumnMapping) => {
   if (!mapping.iriTemplate) delete mapping.iriTemplate;
   onMappingEdit();
+};
+
+/*
+ * The SPARQL Template panel's document actions: the same row the query
+ * editor has. Diff compares the template with the version it was opened from.
+ */
+const apiClient = useApiClient();
+const editorExpansion = useEditorExpand();
+const showTemplateDiff = ref(false);
+
+/** The template of the version on screen, before any unsaved edit. */
+const savedTemplate = computed(() => {
+  if (!savedBody.value) return '';
+  try {
+    return (JSON.parse(savedBody.value) as EtlDraftBody).sparqlTemplate ?? '';
+  } catch {
+    return '';
+  }
+});
+const templateDiffLeftLabel = computed(() => {
+  const open = jobVersions.value.find((version) => version.id === selectedVersionId.value);
+  const number = open?.version ?? currentVersionNumber.value;
+  return number != null ? `v${number}` : 'Saved';
+});
+/** Empty when there is nothing to compare, which disables Diff. */
+const templateDiffTitle = computed(() =>
+  savedBody.value && savedTemplate.value !== sparqlTemplate.value
+    ? `Diff ${templateDiffLeftLabel.value} → Draft`
+    : '',
+);
+
+const openTemplateDiff = () => {
+  if (showTemplateDiff.value) {
+    showTemplateDiff.value = false;
+    return;
+  }
+  if (!templateDiffTitle.value) return;
+  showTemplateDiff.value = true;
+  editorExpansion.expand('etl-template');
+};
+
+/** A saved query's text becomes the template, as an edit that Discard undoes. */
+const useQueryAsTemplate = (text: string) => {
+  sparqlTemplate.value = text;
+  onSparqlEdit();
+};
+
+const formatTemplate = async () => {
+  if (!sparqlTemplate.value.trim()) return;
+  try {
+    const result = await apiClient.formatCode(sparqlTemplate.value);
+    sparqlTemplate.value = result.formatted;
+    onSparqlEdit();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to format the template';
+    toast.error(`Format failed: ${message}`);
+  }
 };
 
 const onSparqlEdit = () => {
