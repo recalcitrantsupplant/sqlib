@@ -73,17 +73,6 @@
         >
           <PanelHeader title="DuckDB SQL Query" sunken>
             <template #actions>
-              <select
-                v-model="selectedExample"
-                @change="onExampleChange"
-                class="example-select"
-                title="Load example query"
-              >
-                <option value="">Load example...</option>
-                <option v-for="example in sqlExamples" :key="example.label" :value="example.label">
-                  {{ example.label }}
-                </option>
-              </select>
               <button
                 @click="peekSqlResults"
                 class="btn-peek"
@@ -106,7 +95,7 @@
               v-model="sqlQuery"
               :disabled="isReadOnly"
               :extensions="sqlExtensions"
-              placeholder="SELECT * FROM read_csv('data/examples/people.csv')"
+              placeholder="SELECT * FROM read_csv('people.csv')"
               class="code-editor"
             />
           </div>
@@ -587,59 +576,6 @@ interface PreviewSchema {
   nullable: boolean;
 }
 
-interface SqlExample {
-  label: string;
-  sql: string;
-}
-
-// SQL Examples for the playground
-const sqlExamples: SqlExample[] = [
-  {
-    label: 'People (local CSV)',
-    sql: `SELECT * FROM read_csv('data/examples/people.csv')`,
-  },
-  {
-    label: 'Books (local CSV)',
-    sql: `SELECT * FROM read_csv('data/examples/books.csv')`,
-  },
-  {
-    label: 'Products (local CSV)',
-    sql: `SELECT * FROM read_csv('data/examples/products.csv')`,
-  },
-  {
-    label: 'NZ Greenhouse Gas Emissions (remote CSV)',
-    sql: `SELECT * FROM read_csv('https://www.stats.govt.nz/assets/Uploads/Greenhouse-gas-emissions-by-region-industry-and-household/Greenhouse-gas-emissions-by-region-industry-and-household-Year-ended-2024/Download-data/greenhouse-gas-emissions-by-region-industry-and-household-year-ended-2024.csv')`,
-  },
-  {
-    label: 'CrossRef RAG/LLM Papers (remote JSON API)',
-    sql: `SELECT facet_name, facet_value, facet_count
-FROM (
-  -- saved facet (years)
-  SELECT
-    'saved' AS facet_name,
-    p.key AS facet_value,
-    CAST(p.value AS BIGINT) AS facet_count
-  FROM read_json_auto(
-    'https://api.crossref.org/works?query.title=retrieval%20augmented%20generation%20RAG%20LLM&filter=from-pub-date:2022-01-01,until-pub-date:2025-12-31,type:journal-article&rows=100&facet=saved:*,type-name:*&select=DOI,title,author,saved,container-title,URL,type&mailto=you@example.com'
-  ) r,
-  json_each(to_json(r.message.facets.saved.values)) p
-
-  UNION ALL
-
-  -- type-name facet (work types)
-  SELECT
-    'type-name' AS facet_name,
-    t.key AS facet_value,
-    CAST(t.value AS BIGINT) AS facet_count
-  FROM read_json_auto(
-    'https://api.crossref.org/works?query.title=retrieval%20augmented%20generation%20RAG%20LLM&filter=from-pub-date:2022-01-01,until-pub-date:2025-12-31,type:journal-article&rows=100&facet=saved:*,type-name:*&select=DOI,title,author,saved,container-title,URL,type&mailto=you@example.com'
-  ) r,
-  json_each(to_json(r.message.facets."type-name".values)) t
-) x
-WHERE facet_value IS NOT NULL`,
-  },
-];
-
 // RDF output format options
 const rdfFormatOptions = [
   { value: 'application/n-triples', label: 'N-Triples' },
@@ -648,9 +584,17 @@ const rdfFormatOptions = [
   { value: 'application/ld+json', label: 'JSON-LD' },
 ];
 
+/**
+ * The SQL a new pipeline starts with. Inline rows, so it runs on a deployment
+ * that allows DuckDB no file or network reads.
+ */
+const DEFAULT_SQL = `SELECT * FROM (VALUES
+  ('https://example.org/person/1', 'Alice Smith', 28),
+  ('https://example.org/person/2', 'Bob Johnson', 35)
+) AS people(person, name, age)`;
+
 // State
-const selectedExample = ref('');
-const sqlQuery = ref(`SELECT * FROM read_csv('data/examples/people.csv')`);
+const sqlQuery = ref(DEFAULT_SQL);
 const sparqlTemplate = ref('');
 
 /*
@@ -761,7 +705,6 @@ const emit = defineEmits<{
 
 const pipelineName = ref('Untitled pipeline');
 const pipelineDescription = ref('');
-const DEFAULT_SQL = `SELECT * FROM read_csv('data/examples/people.csv')`;
 
 interface EtlScratchBody {
   sql?: string;
@@ -1506,16 +1449,6 @@ const onDatatypeChange = (index: number, value: string) => {
     columnMappings.value[index].datatypeIri = expandDatatype(value);
   }
   onMappingEdit();
-};
-
-// Handle example selection
-const onExampleChange = () => {
-  const example = sqlExamples.find(e => e.label === selectedExample.value);
-  if (example) {
-    sqlQuery.value = example.sql;
-    hasUserEditedSparql.value = false; // Reset so SPARQL template regenerates
-    selectedExample.value = ''; // Reset dropdown to placeholder
-  }
 };
 
 // Helper to get SQL type for a column
@@ -2362,27 +2295,6 @@ onUnmounted(() => {
 
 .focus-content::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
-}
-
-.example-select {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--text-body);
-  cursor: pointer;
-  max-width: 200px;
-}
-
-.example-select:hover {
-  border-color: var(--action);
-}
-
-.example-select:focus {
-  outline: none;
-  border-color: var(--action);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--action) 20%, transparent);
 }
 
 /* Peek Button */
