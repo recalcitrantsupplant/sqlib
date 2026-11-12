@@ -172,30 +172,11 @@
                   </div>
                   <div class="col-datatype">
                     <template v-if="mapping.termType === 'literal'">
-                      <select
-                        :value="getDatatypeDisplayValue(mapping.datatypeIri)"
+                      <DatatypeSelect
+                        :model-value="mapping.datatypeIri"
                         :disabled="isReadOnly"
-                        @change="onDatatypeChange(index, ($event.target as HTMLSelectElement).value)"
-                        class="datatype-select"
-                      >
-                        <option value="xsd:string">xsd:string</option>
-                        <option value="xsd:integer">xsd:integer</option>
-                        <option value="xsd:decimal">xsd:decimal</option>
-                        <option value="xsd:double">xsd:double</option>
-                        <option value="xsd:float">xsd:float</option>
-                        <option value="xsd:boolean">xsd:boolean</option>
-                        <option value="xsd:date">xsd:date</option>
-                        <option value="xsd:dateTime">xsd:dateTime</option>
-                        <option value="xsd:time">xsd:time</option>
-                        <option value="custom">Custom...</option>
-                      </select>
-                      <input
-                        v-if="getDatatypeDisplayValue(mapping.datatypeIri) === 'custom'"
-                        v-model="mapping.datatypeIri"
-                        :disabled="isReadOnly"
-                        @input="onMappingEdit"
-                        placeholder="http://example.org/custom"
-                        class="datatype-custom-input"
+                        test-id="etl-datatype"
+                        @update:model-value="(next) => onDatatypeChange(mapping, next)"
                       />
                     </template>
                     <input
@@ -532,6 +513,7 @@ import InlineNote from './shared/InlineNote.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import TupleSetSink from './etl/TupleSetSink.vue';
 import TemplateQueryPicker from './etl/TemplateQueryPicker.vue';
+import DatatypeSelect from './shared/DatatypeSelect.vue';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1405,49 +1387,10 @@ const timingTooltip = computed(() => {
   return lines.join('\n');
 });
 
-// XSD datatype mapping
-const XSD_PREFIX = 'http://www.w3.org/2001/XMLSchema#';
-const XSD_DATATYPES: Record<string, string> = {
-  'xsd:string': `${XSD_PREFIX}string`,
-  'xsd:integer': `${XSD_PREFIX}integer`,
-  'xsd:decimal': `${XSD_PREFIX}decimal`,
-  'xsd:double': `${XSD_PREFIX}double`,
-  'xsd:float': `${XSD_PREFIX}float`,
-  'xsd:boolean': `${XSD_PREFIX}boolean`,
-  'xsd:date': `${XSD_PREFIX}date`,
-  'xsd:dateTime': `${XSD_PREFIX}dateTime`,
-  'xsd:time': `${XSD_PREFIX}time`,
-};
-
-// Helper to convert full IRI to prefixed form for display
-const getDatatypeDisplayValue = (datatypeIri?: string): string => {
-  if (!datatypeIri) return 'xsd:string';
-
-  // Check if it's a known XSD datatype
-  for (const [prefix, iri] of Object.entries(XSD_DATATYPES)) {
-    if (datatypeIri === iri) {
-      return prefix;
-    }
-  }
-
-  // Custom datatype
-  return 'custom';
-};
-
-// Helper to convert prefixed form to full IRI
-const expandDatatype = (prefixedForm: string): string => {
-  return XSD_DATATYPES[prefixedForm] || prefixedForm;
-};
-
-// Handle datatype change
-const onDatatypeChange = (index: number, value: string) => {
-  if (value === 'custom') {
-    // Set to empty string so user can enter custom IRI
-    columnMappings.value[index].datatypeIri = '';
-  } else {
-    // Convert prefixed form to full IRI
-    columnMappings.value[index].datatypeIri = expandDatatype(value);
-  }
+/** A datatype choice for a literal column; undefined means none (`xsd:string`). */
+const onDatatypeChange = (mapping: ColumnMapping, next: string | undefined) => {
+  if (next) mapping.datatypeIri = next;
+  else delete mapping.datatypeIri;
   onMappingEdit();
 };
 
@@ -2091,10 +2034,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.datatype-select {
-  font-size: var(--text-label) !important;
 }
 
 .datatype-custom-input {
