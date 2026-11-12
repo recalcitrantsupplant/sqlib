@@ -1750,7 +1750,11 @@ watch(versions.loadCount, async () => {
   editsSinceLoad.value = 0;
   await nextTick();
   await nextTick();
-  savedFingerprint.value = canvasFingerprint.value;
+  // A version with old Start ports differs from what a save would write, so it
+  // opens with Save available.
+  savedFingerprint.value = versions.legacyStartPortsConverted.value.length > 0
+    ? 'legacy-start-ports'
+    : canvasFingerprint.value;
   await untangleOpenedVersion();
   draftOwnerId.value = isScratch.value ? null : (queryGroupId.value || null);
   resetCanvasHistory();
@@ -1780,7 +1784,7 @@ async function untangleOpenedVersion() {
   const narrow = !!surface && surface.width < 720;
   autoLayoutCanvas(narrow ? 'compact' : layoutPresetId.value, { quiet: true, remember: false });
   await nextTick();
-  savedFingerprint.value = canvasFingerprint.value;
+  if (versions.legacyStartPortsConverted.value.length === 0) savedFingerprint.value = canvasFingerprint.value;
 }
 
 /** VueFlow measures nodes a frame or two after they render. */

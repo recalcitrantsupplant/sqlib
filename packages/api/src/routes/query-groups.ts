@@ -43,6 +43,7 @@ import {
   validateQueryGroupVersionSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { GraphBuilder } from '../lib/orchestration/GraphBuilder.js';
+import { checkEdgePortKind, isQueryGroupEdgeFlowType } from '@sparql-query-lib/contracts';
 import { isGraphValidationError } from '../lib/orchestration/GraphValidationError.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
@@ -412,6 +413,25 @@ export default async function (fastify: FastifyInstance) {
               'node', nodeId, 'NODE_BACKEND_CONFLICT',
             );
           }
+        }
+      }
+
+      /*
+       * A Start node port of the wrong kind. The writer refuses these now, but
+       * a version saved before that check can still carry one, and
+       * `GraphBuilder` lets it run (`runnableSourcePortKinds`). Report it as a
+       * warning, so that `/validate` and the canvas name the same edge.
+       */
+      for (const edgeRef of (qgv.edges || [])) {
+        const edge = cache.get(String(edgeRef)) as PersistedQueryEdge | null;
+        if (!edge?.sourceOutputId || !isQueryGroupEdgeFlowType(edge.dataFlowType)) continue;
+        if ((cache.get(edge.sourceNodeId as string) as { '@type'?: string } | null)?.['@type'] !== 'StartNode') continue;
+        const kind = (cache.get(edge.sourceOutputId) as { '@type'?: string } | null)?.['@type'];
+        const reason = kind ? checkEdgePortKind(edge.dataFlowType, 'start', 'source', kind) : null;
+        if (reason) {
+          pushIssue('warning', `Edge ${edge.$id} source port ${edge.sourceOutputId} ${reason}. `
+            + 'This version runs, but a new version with this port is refused.',
+          'edge', edge.$id, 'EDGE_START_PORT_LEGACY_TYPE');
         }
       }
 

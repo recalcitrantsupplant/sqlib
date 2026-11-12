@@ -21,6 +21,24 @@ import type {
   DatasetPart,
 } from './types.js';
 import { DATASET_PARTS, EDGE_FLOW_TYPES } from './types.js';
+import { edgeSourcePortKinds, type QueryGroupEdgeFlowType, type QueryGroupNodeRole } from '@sparql-query-lib/contracts';
+
+/**
+ * The source port kinds a saved edge may have and still run.
+ *
+ * The shared edge table (`@sparql-query-lib/contracts`) is the rule, and the
+ * writer refuses a new version that breaks it. Versions saved before that
+ * check could carry a Start node port typed as a `QueryOutputTuple` (or, for
+ * VARIABLE_BINDINGS, a `BooleanIO`). The engine reads both the same way as a
+ * `QueryInputTuple`, so those versions keep running. Saving them again needs
+ * the port converted, which the canvas offers.
+ */
+export function runnableSourcePortKinds(flowType: QueryGroupEdgeFlowType, role: QueryGroupNodeRole): string[] {
+  const kinds: string[] = [...edgeSourcePortKinds(flowType, role)];
+  if (role === 'start' && flowType === 'VARIABLE_BINDINGS') kinds.push('QueryOutputTuple', 'BooleanIO');
+  if (role === 'start' && flowType === 'QUERY_ID') kinds.push('QueryOutputTuple');
+  return kinds;
+}
 
 export class GraphBuilder {
   private parser = new SparqlQueryParser();
@@ -455,16 +473,12 @@ export class GraphBuilder {
       const isStartNodeSource = (sourceNode.raw)['@type'] === 'StartNode';
 
       if (flowType === 'VARIABLE_BINDINGS') {
-        // Allow QueryOutputTuple or BooleanIO as source (booleans can be passed to VALUES clauses)
-        // Special case: StartNode can output QueryInputTuple (external inputs to the group)
-        if (isStartNodeSource) {
-          if (sourceType !== 'QueryOutputTuple' && sourceType !== 'BooleanIO' && sourceType !== 'QueryInputTuple') {
-            throw edgeError('EDGE_SOURCE_PORT_TYPE', `Edge ${e.id} from StartNode expects QueryOutputTuple, BooleanIO, or QueryInputTuple source but found ${sourceType}`);
-          }
-        } else {
-          if (sourceType !== 'QueryOutputTuple' && sourceType !== 'BooleanIO') {
-            throw edgeError('EDGE_SOURCE_PORT_TYPE', `Edge ${e.id} expects QueryOutputTuple or BooleanIO source but found ${sourceType}`);
-          }
+        // The shared edge table, plus the Start node ports that versions saved
+        // before the save-time check could still carry (see `runnableSourcePortKinds`).
+        const accepted = runnableSourcePortKinds('VARIABLE_BINDINGS', isStartNodeSource ? 'start' : 'step');
+        if (!sourceType || !accepted.includes(sourceType)) {
+          throw edgeError('EDGE_SOURCE_PORT_TYPE',
+            `Edge ${e.id}${isStartNodeSource ? ' from StartNode' : ''} expects ${accepted.join(' or ')} source but found ${sourceType}`);
         }
         // For EndNode targets, allow QueryOutputTuple (pass-through semantics: sourceOutputId === targetInputId)
         const isEndNodeTarget = (targetNode.raw)['@type'] === 'EndNode';
@@ -559,15 +573,19 @@ export class GraphBuilder {
         if (targetRawType !== 'DynamicQueryNode') {
           throw edgeError('EDGE_QUERY_ID_TARGET_NODE_TYPE', `Edge ${e.id} with dataFlowType=QUERY_ID must target a DynamicQueryNode (found ${targetRawType ?? 'unknown'})`);
         }
-        if (sourceType !== 'QueryOutputTuple') {
-          throw edgeError('EDGE_SOURCE_PORT_TYPE', `Edge ${e.id} expects QueryOutputTuple source but found ${sourceType}`);
+        // A Start node port is a group input, so the canvas writes it as a
+        // QueryInputTuple. This check used to demand a QueryOutputTuple from
+        // every source, which refused every QUERY_ID edge the canvas drew from
+        // the Start node.
+        const acceptedQueryId = runnableSourcePortKinds('QUERY_ID', isStartNodeSource ? 'start' : 'step');
+        if (!sourceType || !acceptedQueryId.includes(sourceType)) {
+          throw edgeError('EDGE_SOURCE_PORT_TYPE', `Edge ${e.id} expects ${acceptedQueryId.join(' or ')} source but found ${sourceType}`);
         }
         if (targetType !== 'QueryIdInput') {
           throw edgeError('EDGE_TARGET_PORT_TYPE', `Edge ${e.id} expects QueryIdInput target but found ${targetType}`);
         }
-        const outputMembers = Array.isArray((sourceEntity)?.memberEntries)
-          ? sourceEntity.memberEntries
-          : [];
+        const sourceMembers = (sourceEntity as { memberEntries?: unknown }).memberEntries;
+        const outputMembers = Array.isArray(sourceMembers) ? sourceMembers : [];
         if (outputMembers.length !== 1) {
           throw edgeError('EDGE_QUERY_ID_ARITY', `Edge ${e.id} expects a single-variable QueryOutputTuple for QUERY_ID flow (found ${outputMembers.length})`);
         }

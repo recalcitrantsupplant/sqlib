@@ -149,6 +149,12 @@ export interface ReferenceFailure {
   /** The IRI as the client sent it */
   reference: string;
   reason: string;
+  /**
+   * A `GraphValidationCode` when the failure is a graph rule rather than a
+   * reference that does not resolve, so a client can branch on it the way it
+   * does on `/validate`.
+   */
+  code?: string;
 }
 
 /**
@@ -258,8 +264,8 @@ export class ReferenceResolver {
     return out;
   }
 
-  fail(field: string, reference: string, reason: string): void {
-    this.failures.push({ field, reference, reason });
+  fail(field: string, reference: string, reason: string, code?: string): void {
+    this.failures.push(code ? { field, reference, reason, code } : { field, reference, reason });
   }
 
   get hasFailures(): boolean {

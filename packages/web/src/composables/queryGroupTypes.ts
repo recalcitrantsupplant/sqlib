@@ -319,6 +319,8 @@ export interface UseQueryGroupVersionsResult {
   loadVersionById: (groupId: string, versionId: string) => Promise<void>;
   /** Bumped each time a version has been put on the canvas. */
   loadCount: Ref<number>;
+  /** Start ports of the loaded version that were read as group inputs. A save writes them that way. */
+  legacyStartPortsConverted: Ref<string[]>;
   reloadVersionsAndSelect: (groupId: string, versionId: string | null, versions?: QueryGroupVersion[]) => Promise<void>;
   findVersionIdByNumber: (versionNumber: number | null) => string | null;
   setSelectedVersion: (versionId: string | null) => void;

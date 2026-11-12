@@ -38,6 +38,7 @@ import { toPersisted } from '../persistence/utils/id-adapter.js';
 import { WHEN_EMPTY_MODES } from '../persistence/schemas/QueryEdgeSchema.js';
 import type { WhenEmptyMode } from '../persistence/schemas/QueryEdgeSchema.js';
 import { DATASET_PARTS, type DatasetPart } from './orchestration/types.js';
+import { checkEdgePortKind, isQueryGroupEdgeFlowType } from '@sparql-query-lib/contracts';
 import type { EntityType } from './EntityRegistry.js';
 import {
   IO_REFERENCE_TYPES,
@@ -638,6 +639,34 @@ async function stageGroupVersion(
     nodeIds.push(id);
   }
 
+  /*
+   * The Start node's ports are the group's inputs: the tool signature and
+   * every argument set bind to them. So an edge that leaves the Start node
+   * is checked here, against the edge table the canvas uses
+   * (`@sparql-query-lib/contracts`), and a wrong port kind refuses the save.
+   * Without this a version could be saved that the API ran and the canvas
+   * reported as broken: a Start port typed as a QueryOutputTuple.
+   *
+   * Wiring between steps is still checked by `GraphBuilder`, at `/validate`
+   * and at run time, so a draft with an unfinished edge still saves. Only a
+   * named port is checked.
+   */
+  const stagedTypes = new Map(staged.map(({ type, payload }) => [payload.$id, type as string]));
+  const typeOf = (id: string): string | undefined =>
+    stagedTypes.get(id) ?? (cacheCoordinator.get(id) as { '@type'?: string } | null)?.['@type'];
+  const isStartNode = (nodeId: string) => nodeId === startNodeId || typeOf(nodeId) === 'StartNode';
+  const checkStartPort = (flowType: unknown, field: string, sourceNodeId?: string, sourceOutputId?: string) => {
+    // A control flow edge that names ports is `EDGE_CONTROL_FLOW_HAS_IO`, a
+    // wiring error that `GraphBuilder` reports for every node alike.
+    if (!isQueryGroupEdgeFlowType(flowType) || flowType === 'CONTROL_FLOW') return;
+    if (!sourceNodeId || !sourceOutputId) return;
+    if (!isStartNode(sourceNodeId)) return;
+    const kind = typeOf(sourceOutputId);
+    if (!kind) return;
+    const reason = checkEdgePortKind(flowType, 'start', 'source', kind);
+    if (reason) refs.fail(field, sourceOutputId, reason, 'EDGE_SOURCE_PORT_TYPE');
+  };
+
   const edgeIds: string[] = [];
   const endNodeInputIds = new Set<string>();
 
@@ -667,6 +696,8 @@ async function stageGroupVersion(
         refs.fail(at('datasetPart'), String(e.datasetPart), `is not one of ${DATASET_PARTS.join(', ')}`);
       }
     }
+
+    checkStartPort(e.dataFlowType, at('sourceOutputId'), sourceNodeId, sourceOutputId);
 
     stage('QueryEdge', toPersisted({
       $id: id,

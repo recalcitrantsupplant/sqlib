@@ -81,7 +81,7 @@ describe('Phase 2 legality matrix', () => {
     // --- source node and its natural port ---
     let sourcePort: PortRef | undefined;
     if (source === 'start') {
-      declaredPorts.push({ key: 'startOut', type: 'QueryOutputTuple', vars: ['thing'], attachTo: START, attachAs: 'outputs' });
+      declaredPorts.push({ key: 'startOut', type: 'QueryInputTuple', vars: ['thing'], attachTo: START, attachAs: 'outputs' });
       sourcePort = { declared: 'startOut' };
     } else if (source === 'ruleset') {
       nodes.push({ key: 'src', kind: 'RuleSetNode', ruleSet: 'identity' });
@@ -179,9 +179,22 @@ describe('Phase 2 legality matrix', () => {
       const spec = buildSpec(cell.source, cell.flow, cell.target);
       const { built, response } = await harness.tryBuild(spec, `matrix ${name}`);
 
-      // Nothing in the matrix should be refused by the route schema or the
-      // writer: these are structural graph questions, and the graph validator is
-      // where they belong.
+      // The writer refuses one kind of cell: an edge that leaves the Start node
+      // through a port the shared edge table does not allow there. The Start
+      // node's ports are the group's inputs, so they are checked at save.
+      // Every other cell is a structural graph question for the validator.
+      // A Start port is a QueryInputTuple, which an RDF_GRAPH or BOOLEAN edge
+      // cannot carry; into the End node the validator would report the empty
+      // graph instead, but the save is refused before it gets that far.
+      if (cell.source === 'start' && (cell.flow === 'RDF_GRAPH' || cell.flow === 'BOOLEAN')) {
+        expect(built, `${name} should be refused at save`).toBeNull();
+        expect(response.statusCode).toBe(422);
+        const refused = JSON.parse(response.payload) as { references?: Array<{ field: string; code?: string }> };
+        expect(refused.references).toContainEqual(
+          expect.objectContaining({ field: 'edges[0].sourceOutputId', code: 'EDGE_SOURCE_PORT_TYPE' }),
+        );
+        return;
+      }
       expect(built, `create rejected: ${response.statusCode} ${response.payload}`).not.toBeNull();
 
       const validation = await harness.validate(built!);

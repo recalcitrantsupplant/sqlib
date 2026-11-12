@@ -33,7 +33,7 @@ export const SOURCE_PORT_TYPE: Record<SourceKind, PortType> = {
   update: 'none',
   dynamic: 'QueryOutputTuple',
   ruleset: 'TriplesQuadsIO',
-  start: 'QueryOutputTuple',
+  start: 'QueryInputTuple',
 };
 
 /** Port entity type a data flow requires on the target side. */
@@ -43,6 +43,19 @@ export const FLOW_TARGET_PORT_TYPE: Record<Exclude<MatrixFlowType, 'CONTROL_FLOW
   BOOLEAN: 'BooleanIO',
   QUERY_ID: 'QueryIdInput',
 };
+
+/**
+ * Whether a table-carrying edge may leave this source through this port.
+ *
+ * A Start node port is a group input, so it is a QueryInputTuple on both
+ * flows. A step sends its result tuple, and on VARIABLE_BINDINGS also an ASK
+ * result as a one-column table.
+ */
+function sourceAccepts(flow: 'VARIABLE_BINDINGS' | 'QUERY_ID', source: SourceKind, portType: PortType): boolean {
+  if (source === 'start') return portType === 'QueryInputTuple';
+  if (flow === 'QUERY_ID') return portType === 'QueryOutputTuple';
+  return portType === 'QueryOutputTuple' || portType === 'BooleanIO';
+}
 
 export interface Expectation {
   /** `null` means the graph is expected to validate cleanly. */
@@ -73,7 +86,7 @@ export function expectationFor(source: SourceKind, flow: MatrixFlowType, target:
 
   if (flow === 'QUERY_ID') {
     if (target !== 'dynamic') return { code: 'EDGE_QUERY_ID_TARGET_NODE_TYPE', at: 'edge' };
-    if (sourceType !== 'QueryOutputTuple') return { code: 'EDGE_SOURCE_PORT_TYPE', at: 'edge' };
+    if (!sourceAccepts(flow, source, sourceType)) return { code: 'EDGE_SOURCE_PORT_TYPE', at: 'edge' };
     if (targetType !== 'QueryIdInput') return { code: 'EDGE_TARGET_PORT_TYPE', at: 'edge' };
     // A QUERY_ID source must be a single-variable tuple; every source template
     // used here projects one variable, so arity never trips.
@@ -103,7 +116,7 @@ export function expectationFor(source: SourceKind, flow: MatrixFlowType, target:
   }
 
   // VARIABLE_BINDINGS
-  if (sourceType !== 'QueryOutputTuple' && sourceType !== 'BooleanIO') {
+  if (!sourceAccepts(flow, source, sourceType)) {
     return { code: 'EDGE_SOURCE_PORT_TYPE', at: 'edge' };
   }
   if (target === 'end') {
@@ -120,6 +133,13 @@ export function expectationFor(source: SourceKind, flow: MatrixFlowType, target:
 
 export type LegalityCell = {
   source: SourceKind;
+  /**
+   * The port the source offers, so that each suite wires the cell with the
+   * same entity type. When each side chose its own, the API used a
+   * QueryOutputTuple for the Start node and the canvas a QueryInputTuple, and
+   * both suites passed while the two disagreed.
+   */
+  sourcePort: PortType;
   flow: MatrixFlowType;
   target: TargetKind;
   code: string | null;
@@ -132,7 +152,7 @@ export function legalityTable(): LegalityCell[] {
     MATRIX_FLOW_TYPES.flatMap(flow =>
       TARGET_KINDS.map((target): LegalityCell => {
         const expected = expectationFor(source, flow, target);
-        return { source, flow, target, code: expected.code, ...(expected.at ? { at: expected.at } : {}) };
+        return { source, sourcePort: SOURCE_PORT_TYPE[source], flow, target, code: expected.code, ...(expected.at ? { at: expected.at } : {}) };
       }),
     ),
   );
