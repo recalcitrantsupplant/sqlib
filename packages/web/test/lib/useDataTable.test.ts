@@ -21,12 +21,12 @@ const names = (table: ReturnType<typeof useDataTable<Row, unknown>>['table']) =>
 
 describe('useDataTable', () => {
   it('renders the rows in source order by default', () => {
-    const { table } = useDataTable(columns, rows);
+    const { table } = useDataTable(() => columns, () => rows);
     expect(names(table)).toEqual(['delta', 'alpha', 'charlie', 'bravo']);
   });
 
   it('sorts a column both ways', async () => {
-    const { table } = useDataTable(columns, rows);
+    const { table } = useDataTable(() => columns, () => rows);
     const column = table.getColumn('name')!;
 
     expect(column.getCanSort()).toBe(true);
@@ -41,7 +41,7 @@ describe('useDataTable', () => {
   });
 
   it('narrows rows with the global filter', async () => {
-    const { table, globalFilter } = useDataTable(columns, rows);
+    const { table, globalFilter } = useDataTable(() => columns, () => rows);
 
     globalFilter.value = 'lit';
     await nextTick();
@@ -50,7 +50,7 @@ describe('useDataTable', () => {
   });
 
   it('narrows rows with a column filter', async () => {
-    const { table } = useDataTable(columns, rows);
+    const { table } = useDataTable(() => columns, () => rows);
 
     table.getColumn('kind')!.setFilterValue('uri');
     await nextTick();
@@ -62,7 +62,7 @@ describe('useDataTable', () => {
   // unregistered name degrades quietly: filtering stops narrowing anything and
   // sorting drops to a raw comparison. Both cases below fail that way.
   it('matches a column filter on a substring, case-insensitively', async () => {
-    const { table } = useDataTable(columns, rows);
+    const { table } = useDataTable(() => columns, () => rows);
 
     table.getColumn('name')!.setFilterValue('AV');
     await nextTick();
@@ -76,7 +76,7 @@ describe('useDataTable', () => {
       { name: 'apple', kind: 'literal' },
       { name: 'Cherry', kind: 'literal' },
     ];
-    const { table } = useDataTable(columns, mixedCase);
+    const { table } = useDataTable(() => columns, () => mixedCase);
 
     table.getColumn('name')!.toggleSorting(false);
     await nextTick();
@@ -85,7 +85,7 @@ describe('useDataTable', () => {
   });
 
   it('counts facet values for a column, most frequent first', () => {
-    const { getColumnFacets } = useDataTable(columns, rows);
+    const { getColumnFacets } = useDataTable(() => columns, () => rows);
     expect(getColumnFacets('kind')).toEqual([
       ['uri', 2],
       ['literal', 2],
@@ -105,7 +105,7 @@ describe('useDataTable', () => {
       { name: 'charlie', kind: 'uri' },
       { name: 'bravo', kind: 'literal' },
     ]
-    const { table, applyFacetFilter } = useDataTable(columns, overlapping);
+    const { table, applyFacetFilter } = useDataTable(() => columns, () => overlapping);
 
     applyFacetFilter('kind', 'uri');
     await nextTick();
@@ -118,7 +118,7 @@ describe('useDataTable', () => {
       { name: 'delta', kind: 'uri' },
       { name: 'alpha', kind: 'uri-ref' },
     ]
-    const { table, applyFacetFilter } = useDataTable(columns, overlapping);
+    const { table, applyFacetFilter } = useDataTable(() => columns, () => overlapping);
 
     applyFacetFilter('kind', 'uri');
     await nextTick();
@@ -131,7 +131,7 @@ describe('useDataTable', () => {
   });
 
   it('toggles a facet filter on and back off', async () => {
-    const { table, applyFacetFilter, isFilterActive } = useDataTable(columns, rows);
+    const { table, applyFacetFilter, isFilterActive } = useDataTable(() => columns, () => rows);
 
     applyFacetFilter('kind', 'uri');
     await nextTick();
@@ -145,12 +145,12 @@ describe('useDataTable', () => {
   });
 
   it('leaves every row on one page unless pagination is enabled', () => {
-    const { table } = useDataTable(columns, rows, { initialPageSize: 2 });
+    const { table } = useDataTable(() => columns, () => rows, { initialPageSize: 2 });
     expect(names(table)).toEqual(['delta', 'alpha', 'charlie', 'bravo']);
   });
 
   it('pages through the rows when pagination is enabled', async () => {
-    const { table } = useDataTable(columns, rows, {
+    const { table } = useDataTable(() => columns, () => rows, {
       enablePagination: true,
       initialPageSize: 2,
     });
@@ -164,7 +164,7 @@ describe('useDataTable', () => {
   });
 
   it('prepends a row-number column when asked', () => {
-    const { table, columnCount } = useDataTable(columns, rows, {
+    const { table, columnCount } = useDataTable(() => columns, () => rows, {
       enableRowNumbers: true,
     });
 

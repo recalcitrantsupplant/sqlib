@@ -71,8 +71,8 @@ async function apply(id: string, version: number) {
   applying.value = true;
   try {
     const loaded = await queriesStore.fetchQueryVersion(id, version);
-    const text = loaded.queryString ?? '';
-    const refusal = templateRefusal(text, loaded.queryType ?? null);
+    const text = loaded.queryVersion.queryString ?? '';
+    const refusal = templateRefusal(text, loaded.queryVersion.queryType ?? null);
     if (refusal) {
       toast.error(refusal);
       return;

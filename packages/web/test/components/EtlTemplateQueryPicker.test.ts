@@ -52,8 +52,8 @@ beforeEach(() => {
   ]);
   store.fetchQueryVersion.mockImplementation(async (_id: string, version: number) =>
     version === 2
-      ? { queryString: TEMPLATE_V2, queryType: 'CONSTRUCT' }
-      : { queryString: TEMPLATE_V1, queryType: 'CONSTRUCT' });
+      ? { queryVersion: { queryString: TEMPLATE_V2, queryType: 'CONSTRUCT' } }
+      : { queryVersion: { queryString: TEMPLATE_V1, queryType: 'CONSTRUCT' } });
 });
 
 describe('TemplateQueryPicker', () => {
@@ -76,7 +76,7 @@ describe('TemplateQueryPicker', () => {
   });
 
   it('refuses a SELECT query and leaves the template alone', async () => {
-    store.fetchQueryVersion.mockResolvedValue({ queryString: 'SELECT * WHERE { ?s ?p ?o }', queryType: 'SELECT' });
+    store.fetchQueryVersion.mockResolvedValue({ queryVersion: { queryString: 'SELECT * WHERE { ?s ?p ?o }', queryType: 'SELECT' } });
     const wrapper = await mountPicker();
     wrapper.findComponent(SearchSelectStub).vm.$emit('update:modelValue', 'urn:sqlib:query:q1');
     await flushPromises();
