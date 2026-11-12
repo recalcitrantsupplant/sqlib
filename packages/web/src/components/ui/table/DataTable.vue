@@ -634,6 +634,7 @@ onBeforeUnmount(() => {
   top: 50%;
   right: 0;
   transform: translateY(-50%);
+  isolation: isolate;
 }
 
 :deep(.term-value-wrap .prefix-trigger) {
@@ -647,14 +648,23 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--action) 10%, var(--muted));
 }
 
+/*
+ * The fade ends in solid chip colour that runs on under the whole button. It
+ * paints behind the button (`z-index: -1` inside the stacking context of
+ * `.inline-prefix-adder`), so the button's border shows on all four sides.
+ * The text cannot show through the rounded corners or through the
+ * translucent dark-theme background.
+ */
 :deep(.term-value-wrap .prefix-trigger::before) {
   content: "";
   position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 100%;
-  width: var(--space-7);
-  background: linear-gradient(to right, transparent, var(--muted));
+  z-index: -1;
+  top: -1px;
+  bottom: -1px;
+  right: -1px;
+  width: calc(100% + 2px + var(--space-7));
+  border-radius: var(--radius-panel);
+  background: linear-gradient(to right, transparent, var(--muted) var(--space-7));
 }
 
 :deep(tr:hover .term-value-wrap .prefix-trigger),
