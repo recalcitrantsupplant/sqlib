@@ -161,7 +161,8 @@
                 <div class="col-sql-type">SQL Type</div>
                 <div class="col-sparql-var">SPARQL Variable</div>
                 <div class="col-term-type">Term Type</div>
-                <div class="col-datatype">Datatype</div>
+                <div class="col-datatype">Datatype / IRI template</div>
+                <div class="col-null-policy">If null</div>
               </div>
               <div class="table-body">
                 <div v-for="(mapping, index) in columnMappings" :key="index" class="mapping-row">
@@ -208,7 +209,22 @@
                         class="datatype-custom-input"
                       />
                     </template>
-                    <span v-else class="iri-note">N/A</span>
+                    <input
+                      v-else
+                      v-model="mapping.iriTemplate"
+                      :disabled="isReadOnly"
+                      data-testid="etl-iri-template"
+                      title="{value} takes the column value, URI-encoded"
+                      placeholder="Value as is, or https://example.org/{value}"
+                      class="datatype-custom-input"
+                      @input="onIriTemplateEdit(mapping)"
+                    />
+                  </div>
+                  <div class="col-null-policy">
+                    <select v-model="mapping.nullPolicy" :disabled="isReadOnly" data-testid="etl-null-policy" @change="onMappingEdit">
+                      <option value="undef">Leave unbound</option>
+                      <option value="skipRow">Skip row</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -502,6 +518,7 @@ import { useEntityDraft } from '../composables/useEntityDraft';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useEtlJobsStore, type EtlJobVersion } from '../composables/useEtlJobsStore';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
+import { mergeColumnMappings } from '../lib/etlColumnMappings';
 
 const config = useRuntimeConfig();
 
@@ -511,6 +528,7 @@ interface ColumnMapping {
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
+  iriTemplate?: string;
   nullPolicy: 'undef' | 'skipRow';
 }
 
@@ -601,6 +619,14 @@ const outputFormat = ref('text/turtle');
 const columnMappings = ref<ColumnMapping[]>([]);
 const previewSchema = ref<PreviewSchema[]>([]);
 const isExecuting = ref(false);
+/** The column preview is running. It is separate from a run of the pipeline. */
+const isDetectingColumns = ref(false);
+/**
+ * The SQL that the current column mapping was loaded with. A preview of this
+ * same SQL reads the column types only and keeps the mapping. This stops the
+ * preview after a load from replacing a saved mapping.
+ */
+const mappingSourceSql = ref<string | null>(null);
 // intentional any: holds opaque untyped ETL execution JSON from the API
 const executionResult = ref<any>(null);
 
@@ -805,6 +831,7 @@ function applyEditorBody(body: EtlDraftBody) {
   sqlQuery.value = body.sql ?? DEFAULT_SQL;
   sparqlTemplate.value = body.sparqlTemplate ?? '';
   columnMappings.value = body.columnMappings ? body.columnMappings.map((mapping) => ({ ...mapping })) : [];
+  mappingSourceSql.value = sqlQuery.value;
   // A body that was saved is the author's, never the generator's: editing the
   // mappings must not overwrite the template it came back with.
   hasUserEditedSparql.value = true;
@@ -999,6 +1026,7 @@ const applyVersion = async (version: EtlJobVersion) => {
       try {
         const mapping = await etlJobsStore.fetchColumnMappingVersion(version.currentColumnMappingVersionId);
         columnMappings.value = mapping.columns.map((column) => ({ ...column })) as ColumnMapping[];
+        mappingSourceSql.value = version.sql;
       } catch (error) {
         console.error('[EtlPlayground] Failed to load the column mapping', error);
         toast.error('Loaded the pipeline but not its column mapping');
@@ -1398,35 +1426,6 @@ const XSD_DATATYPES: Record<string, string> = {
   'xsd:time': `${XSD_PREFIX}time`,
 };
 
-// Helper function to map DuckDB types to XSD datatypes (returns full IRI)
-const mapDuckDbTypeToXsd = (duckdbType: string): string => {
-  const typeUpper = duckdbType.toUpperCase();
-
-  if (typeUpper.includes('VARCHAR') || typeUpper.includes('TEXT')) {
-    return XSD_DATATYPES['xsd:string'];
-  }
-  if (typeUpper.includes('INTEGER') || typeUpper.includes('BIGINT') || typeUpper.includes('SMALLINT')) {
-    return XSD_DATATYPES['xsd:integer'];
-  }
-  if (typeUpper.includes('DOUBLE') || typeUpper.includes('FLOAT') || typeUpper.includes('REAL')) {
-    return XSD_DATATYPES['xsd:double'];
-  }
-  if (typeUpper.includes('DECIMAL') || typeUpper.includes('NUMERIC')) {
-    return XSD_DATATYPES['xsd:decimal'];
-  }
-  if (typeUpper.includes('BOOLEAN') || typeUpper.includes('BOOL')) {
-    return XSD_DATATYPES['xsd:boolean'];
-  }
-  if (typeUpper.includes('TIMESTAMP') || typeUpper.includes('DATETIME')) {
-    return XSD_DATATYPES['xsd:dateTime'];
-  }
-  if (typeUpper.includes('DATE')) {
-    return XSD_DATATYPES['xsd:date'];
-  }
-
-  return XSD_DATATYPES['xsd:string'];
-};
-
 // Helper to convert full IRI to prefixed form for display
 const getDatatypeDisplayValue = (datatypeIri?: string): string => {
   if (!datatypeIri) return 'xsd:string';
@@ -1486,15 +1485,26 @@ const formatCellValue = (value: unknown): string => {
   return String(value);
 };
 
-// Methods
+/** Rows the preview reads to detect term types. Peek shows 10. */
+const DETECTION_SAMPLE_ROWS = 100;
+
+/**
+ * Read the SQL's columns, and fit the column mapping to them.
+ *
+ * A row that the mapping already has for a column stays as it is. A new
+ * column takes the server's inferred row, which maps a text column of IRIs
+ * to an IRI. A column that the SQL no longer returns loses its row. When the
+ * SQL is the one the mapping was loaded with, the mapping does not change.
+ */
 const executePreview = async () => {
-  isExecuting.value = true;
+  const sql = sqlQuery.value;
+  isDetectingColumns.value = true;
   try {
     const apiBaseUrl = config.public.apiBaseUrl.replace(/\/$/, '');
     const response = await authorizedFetch(`${apiBaseUrl}/etl-jobs/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sql: sqlQuery.value, limit: 10 }),
+      body: JSON.stringify({ sql, limit: DETECTION_SAMPLE_ROWS }),
     });
 
     if (!response.ok) {
@@ -1505,28 +1515,28 @@ const executePreview = async () => {
     }
 
     const data = await response.json();
+    // The person typed again while this preview ran; the next one is due.
+    if (sql !== sqlQuery.value) return;
     previewSchema.value = data.schema || [];
 
-    // Auto-generate column mappings
-    if (previewSchema.value.length > 0) {
-      columnMappings.value = previewSchema.value.map(col => ({
-        columnName: col.columnName,
-        targetVariable: col.columnName, // Same as SQL column name
-        termType: 'literal' as const,
-        datatypeIri: mapDuckDbTypeToXsd(col.duckdbType),
-        nullPolicy: 'undef' as const,
-      }));
+    const keepMapping = sql === mappingSourceSql.value && columnMappings.value.length > 0;
+    if (keepMapping || previewSchema.value.length === 0) return;
 
-      // Auto-generate SPARQL template if user hasn't edited it
-      if (!hasUserEditedSparql.value) {
-        generateSparqlTemplate();
-      }
+    const inferred: ColumnMapping[] = data.inferredMapping?.columns ?? [];
+    const next = mergeColumnMappings(columnMappings.value, previewSchema.value, inferred);
+    mappingSourceSql.value = sql;
+    if (JSON.stringify(next) === JSON.stringify(columnMappings.value)) return;
+    columnMappings.value = next;
+
+    // Auto-generate SPARQL template if user hasn't edited it
+    if (!hasUserEditedSparql.value) {
+      generateSparqlTemplate();
     }
   } catch (error: unknown) {
     console.error('Preview failed:', error);
     toast.error(error instanceof Error ? error.message : 'Failed to execute preview');
   } finally {
-    isExecuting.value = false;
+    isDetectingColumns.value = false;
   }
 };
 
@@ -1584,6 +1594,12 @@ const generateSparqlTemplate = () => {
     ( ${undefValues} )
   }
 }`;
+};
+
+/** An empty template means "the value as is", which the saved row records by omission. */
+const onIriTemplateEdit = (mapping: ColumnMapping) => {
+  if (!mapping.iriTemplate) delete mapping.iriTemplate;
+  onMappingEdit();
 };
 
 const onSparqlEdit = () => {
@@ -1951,7 +1967,7 @@ onUnmounted(() => {
 
 .table-header {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1.5fr 1fr 2fr;
+  grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 2fr 1.1fr;
   gap: 6px;
   padding: var(--space-2) var(--space-5);
   background: var(--surface-subtle);
@@ -1970,7 +1986,7 @@ onUnmounted(() => {
 
 .mapping-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1.5fr 1fr 2fr;
+  grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 2fr 1.1fr;
   gap: 6px;
   padding: var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--border-default);
@@ -1986,7 +2002,8 @@ onUnmounted(() => {
 .col-sql-type,
 .col-sparql-var,
 .col-term-type,
-.col-datatype {
+.col-datatype,
+.col-null-policy {
   display: flex;
   align-items: center;
   min-height: 28px;
@@ -2020,7 +2037,8 @@ onUnmounted(() => {
 }
 
 .col-term-type select,
-.col-datatype select {
+.col-datatype select,
+.col-null-policy select {
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
@@ -2042,12 +2060,6 @@ onUnmounted(() => {
 .datatype-custom-input {
   font-size: var(--text-micro) !important;
   padding: var(--space-1) var(--space-2) !important;
-}
-
-.iri-note {
-  font-size: var(--text-label);
-  color: var(--ink-muted);
-  font-style: italic;
 }
 
 /* Vertical Resizer (between main content and results panel) */
