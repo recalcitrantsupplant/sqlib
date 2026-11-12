@@ -37,7 +37,7 @@ import { registerErrorHandler } from './server/errorHandler.js';
 import { closeLibraryDatabase, LIBRARY_SQLITE_FILE } from './persistence/sqliteEntityStore.js';
 import { getAuthStore } from './auth/AuthStore.js';
 import { registerApplicationRoutes } from './server/registerRoutes.js';
-import { seedEtlDemoLibrary, seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
+import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
 
 // Create the Fastify instance outside the start function
 const app = Fastify({
@@ -214,7 +214,6 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   await seedRulesConformanceSuite(fastifyApp, featureFlags);
   await seedPatchDemoLibrary(fastifyApp, featureFlags);
   await seedGraphAccessDemoLibrary(fastifyApp, featureFlags);
-  await seedEtlDemoLibrary(fastifyApp, featureFlags);
 
   // Start cache monitoring with OpenTelemetry metrics
   if (enableCacheMonitoring) {

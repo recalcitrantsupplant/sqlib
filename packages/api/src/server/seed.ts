@@ -93,37 +93,6 @@ export async function seedPatchDemoLibrary(
 }
 
 /**
- * Optionally load the ETL examples library: saved ETL jobs, each with SQL, a
- * column mapping and a template, that open in the ETL screen ready to run.
- *
- * Off unless asked for, for the reason the rules suite gives.
- * `just run-local-etl-demo` is what asks.
- */
-export async function seedEtlDemoLibrary(
-  fastifyApp: FastifyInstance,
-  featureFlags: FeatureFlags,
-): Promise<void> {
-  if (process.env.SEED_ETL_DEMO !== 'true') return;
-
-  if (!featureFlags.etl) {
-    fastifyApp.log.warn('SEED_ETL_DEMO is set but the etl feature is off; nothing seeded.');
-    return;
-  }
-
-  try {
-    const { seedEtlDemo } = await import('../lib/etlDemo/seed.js');
-    const result = await seedEtlDemo(message => fastifyApp.log.info(message));
-    fastifyApp.log.info({
-      libraryId: result.libraryId,
-      created: result.jobsCreated,
-      alreadyPresent: result.jobsExisting,
-    }, 'ETL examples library loaded');
-  } catch (error) {
-    fastifyApp.log.error({ err: error }, 'Failed to seed the ETL examples; continuing without them');
-  }
-}
-
-/**
  * Optionally load the graph access demo: company data in three named graphs,
  * an auth backend of access rules, a graph policy joining them, and grants.
  *

@@ -479,7 +479,6 @@ not.
 | `SEED_W3C_RULES_SUITE` | unset | Set to exactly `true` to seed the W3C SHACL 1.2 Rules suite as runnable tests at startup. Requires the `rulesSuite` and `tests` flags. Seeding is idempotent. |
 | `W3C_RULES_SUITE_DIR` | the suite directory inside `packages/api` | Where that suite is read from. A relative path resolves against the API package root. |
 | `SEED_PATCH_DEMO` | unset | Set to exactly `true` to seed the RDF patch demo library at startup. Requires the `queries` flag. |
-| `SEED_ETL_DEMO` | unset | Set to exactly `true` to seed the ETL examples library at startup: saved ETL jobs with SQL, a column mapping and a template. Requires the `etl` flag. The CSV jobs need `ETL_DUCKDB_ALLOW_FILESYSTEM`; the remote jobs need `ETL_DUCKDB_ALLOW_HTTP` and the `httpfs` extension. Seeding is idempotent. |
 | `SYSTEM_STORE_ASSET_DIR` | `system-store` inside `packages/api` | Where the preloaded system library's assets are read from. |
 | `VITEST` | set by vitest | Presence suppresses OpenTelemetry log export during tests. |
 

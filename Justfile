@@ -163,34 +163,6 @@ run-local-memory:
     HTTP_PORT=3005 \
     pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts
 
-# Run the API with the ETL examples library: saved ETL jobs that open in the ETL
-# screen's left panel, each with SQL, a column mapping and a template.
-#
-# The inline job needs nothing. The CSV jobs read packages/api/data/examples, so
-# file reads are on. The remote CSV and JSON jobs need HTTP and the httpfs
-# extension, so both are on as well; without network access those two fail and
-# the rest still run. Seeding is idempotent, and keeps edits to the seeded jobs.
-#
-# Pair it with `just run-frontend`.
-#
-# API:  http://localhost:3005
-run-local-etl-demo:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
-    SEED_ETL_DEMO="true" \
-    FEATURE_ETL="true" \
-    ETL_DUCKDB_ALLOW_FILESYSTEM="true" \
-    ETL_DUCKDB_ALLOW_HTTP="true" \
-    ETL_DUCKDB_ALLOW_EXTENSION_INSTALL="true" \
-    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
-    LIBRARY_STORAGE_DIR="./tmp/etl-demo-store" \
-    INTERNAL_OXIGRAPH_STORE_ID="etl-demo-store" \
-    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
-    NODE_ENV="development" \
-    OTEL_ENABLED="false" \
-    MCP_TRANSPORT="dual-http" \
-    HTTP_PORT=3005 \
-    pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts
-
 # Generate trusted localhost certificates for the HTTPS proxy (one-time setup).
 setup-local-https:
     if ! command -v mkcert >/dev/null 2>&1; then \
