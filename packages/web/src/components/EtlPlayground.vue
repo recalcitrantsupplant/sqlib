@@ -328,7 +328,7 @@
                 v-else
                 :raw-content="executionResult?.rdfOutput"
                 :content-type="executionResult?.contentType"
-                :loading="false"
+                :loading="isExecuting"
                 download-base-name="etl-results"
                 :timing="etlTiming"
                 :timing-detail="timingTooltip"
@@ -377,7 +377,7 @@
             v-else
             :raw-content="executionResult.rdfOutput"
             :content-type="executionResult.contentType"
-            :loading="false"
+            :loading="isExecuting"
             :timing="etlTiming"
             :timing-detail="timingTooltip"
           />
