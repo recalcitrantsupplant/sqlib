@@ -39,7 +39,7 @@ interface ColumnDefinition {
 ### `DETECTED_IRI_SCHEMES` — const, from `infer`
 
 ```ts
-declare const DETECTED_IRI_SCHEMES: readonly ["http", "https", "urn", "ftp", "file", "mailto", "tag", "did"];
+declare const DETECTED_IRI_SCHEMES: readonly ['http', 'https', 'urn', 'ftp', 'file', 'mailto', 'tag', 'did'];
 ```
 
 ### `EtlOutputChunk` — interface, from `run`
