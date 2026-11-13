@@ -2167,8 +2167,10 @@ export const executionArgumentRefsJsonSchema = {
 /**
  * One part of a run-time dataset: the graphs `FROM` (`defaultGraphs`) or
  * `FROM NAMED` (`namedGraphs`) would name, supplied with the request instead
- * and sent to the backend as SPARQL 1.1 Protocol dataset parameters. Absent
- * leaves that part to the backend; an empty array means no graphs.
+ * and sent to the backend as SPARQL 1.1 Protocol dataset parameters. For an
+ * update, they are the graphs `USING` and `USING NAMED` would name. With both
+ * absent, the backend's default dataset is used. With one absent, that part
+ * has no graphs (SPARQL 1.1 Query §13.2). An empty array means no graphs.
  */
 export const datasetGraphsJsonSchema = {
   type: 'array',
@@ -2248,6 +2250,9 @@ export const executionRouteSchemas = {
         "type": "object",
         "properties": {
           "error": {
+            "type": "string"
+          },
+          "code": {
             "type": "string"
           },
           "failedNodeId": {
@@ -2978,6 +2983,9 @@ export const patchPreviewJsonSchema = {
     enumerateGraphOps: { type: 'boolean' },
     /* Refuse rather than enumerate past this many triples per operation. */
     enumerationCap: { type: 'integer', minimum: 0 },
+    /* The graphs the update's WHERE clauses read, as on `POST /sparql`. */
+    defaultGraphs: datasetGraphsJsonSchema,
+    namedGraphs: datasetGraphsJsonSchema,
   },
   required: ['updateString', 'backendId'],
   additionalProperties: false,

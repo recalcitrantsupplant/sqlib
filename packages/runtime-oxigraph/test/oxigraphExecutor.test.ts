@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromBundle, hashTemplateText, iri, type ExportBundle } from '@sparql-query-lib/runtime';
-import { oxigraphExecutor } from '../src/index.js';
+import { oxigraphExecutor, supportsUpdateDataset } from '../src/index.js';
 
 const DATA = `
 @prefix ex: <http://example.org/> .
@@ -164,6 +164,17 @@ describe('oxigraphExecutor updates', () => {
     await expect(executor.update!({ updateText: 'CLEAR ALL', signal: controller.signal })).rejects.toThrow('stop');
   });
 
+  it('refuses an update with a dataset when the binding cannot apply it', async () => {
+    const executor = await oxigraphExecutor();
+    if (await supportsUpdateDataset()) return;
+
+    await expect(executor.update!({
+      updateText: 'INSERT { ?s <http://example.org/q> ?o } WHERE { ?s ?p ?o }',
+      dataset: { defaultGraphs: ['http://example.org/g1'] },
+    })).rejects.toThrow('cannot limit the graphs an update reads');
+    expect(executor.store.size).toBe(0);
+  });
+
   it('has no update method over a store that cannot write', async () => {
     const readOnly = { query: () => '{"head":{},"boolean":true}', load: () => {}, size: 0 };
     const executor = await oxigraphExecutor({ store: readOnly });
@@ -189,5 +200,25 @@ describe('oxigraphExecutor updates', () => {
 
     expect(await run({ defaultGraphs: ['http://example.org/g2'] })).toEqual(['two']);
     expect(await run({ defaultGraphs: [] })).toEqual([]);
+  });
+
+  it('reads an empty default graph when the dataset gives named graphs only', async () => {
+    const executor = await oxigraphExecutor({
+      data: {
+        content: '<http://example.org/s> <http://example.org/p> "default" .\n'
+          + '<http://example.org/g1> { <http://example.org/s> <http://example.org/p> "one" . }',
+        format: 'application/trig',
+      },
+    });
+    const run = async (queryText: string, dataset: { defaultGraphs?: string[]; namedGraphs?: string[] }) => {
+      const result = await executor.execute({ queryText, queryType: 'SELECT', dataset });
+      return (result as { results: { bindings: Array<{ o: { value: string } }> } }).results.bindings.map((b) => b.o.value);
+    };
+
+    // SPARQL 1.1 Query §13.2: FROM NAMED alone gives an empty default graph.
+    expect(await run('SELECT ?o WHERE { ?s ?p ?o }', { namedGraphs: ['http://example.org/g1'] })).toEqual([]);
+    expect(await run('SELECT ?o WHERE { GRAPH ?g { ?s ?p ?o } }', { namedGraphs: ['http://example.org/g1'] })).toEqual(['one']);
+    // And FROM alone gives no named graphs.
+    expect(await run('SELECT ?o WHERE { GRAPH ?g { ?s ?p ?o } }', { defaultGraphs: ['http://example.org/g1'] })).toEqual([]);
   });
 });

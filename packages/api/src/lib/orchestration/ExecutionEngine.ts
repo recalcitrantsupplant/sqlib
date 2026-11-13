@@ -31,6 +31,7 @@ import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js
 import { convertRdf, mergeRdf, rdfFormatFromMediaType, type RdfPayload } from './rdfHandoff.js';
 import { intersectDatasets, type SparqlDataset } from '../dataset.js';
 import { versionSlotPolicies } from '../slotPolicies.js';
+import { oxigraphSupportsUpdateDataset } from '../oxigraphUpdateDataset.js';
 
 export type ExecutionHooks = {
   onNodeStart?: (node: ResolvedNode, orderIndex: number) => void;
@@ -660,7 +661,7 @@ export class ExecutionEngine {
       const storeId = node.backendConfig.storeId;
       const store = oxigraphStoreManager.getEphemeralStore(storeId)
         ?? oxigraphStoreManager.createEphemeralStore(storeId);
-      return oxigraphDeltaStore(store, { createStore: () => new oxigraph.Store() });
+      return oxigraphDeltaStore(store, { createStore: () => new oxigraph.Store(), supportsUpdateDataset: oxigraphSupportsUpdateDataset() });
     }
     if (!node.backendId) {
       throw new Error(`PatchNode ${node.id} names neither a backendId nor an ephemeral backendConfig`);

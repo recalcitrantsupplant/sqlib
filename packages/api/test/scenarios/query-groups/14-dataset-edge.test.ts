@@ -147,7 +147,10 @@ describe('DATASET edge', () => {
     const { response, groupId } = await createGroup('intersect', { datasetPart: 'default' });
     expect(response.statusCode, response.body).toBe(201);
     // g2 is not in the catalog, so asking for it adds nothing; g3 is in both.
-    const execution = await execute({ targetId: groupId, defaultGraphs: [`${EX}g2`, `${EX}g3`] });
+    // The caller's dataset applies to the upstream query too. A dataset with
+    // no named graphs has none (SPARQL 1.1 Query §13.2), so the caller names
+    // the catalog graph that the upstream reads.
+    const execution = await execute({ targetId: groupId, defaultGraphs: [`${EX}g2`, `${EX}g3`], namedGraphs: [`${EX}catalog`] });
     expect(valuesOf(execution)).toEqual(['three']);
   }, 20000);
 

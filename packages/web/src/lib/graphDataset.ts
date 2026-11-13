@@ -111,14 +111,20 @@ export function parseGraphIris(text: string): string[] {
   return iris;
 }
 
-/** The SPARQL protocol parameters for a dataset, for a request the browser sends itself. */
-export function datasetProtocolParams(dataset: GraphDataset | null | undefined): URLSearchParams {
+/**
+ * The SPARQL protocol parameters for a dataset, for a request the browser
+ * sends itself. An update takes `using-graph-uri` and `using-named-graph-uri`
+ * (SPARQL 1.1 Protocol §2.2.3): the graphs its WHERE clause reads.
+ */
+export function datasetProtocolParams(
+  dataset: GraphDataset | null | undefined,
+  operation: 'query' | 'update' = 'query',
+): URLSearchParams {
   const params = new URLSearchParams();
   if (!dataset) return params;
-  const parts = [
-    ['default-graph-uri', dataset.defaultGraphs],
-    ['named-graph-uri', dataset.namedGraphs],
-  ] as const;
+  const parts = operation === 'update'
+    ? ([['using-graph-uri', dataset.defaultGraphs], ['using-named-graph-uri', dataset.namedGraphs]] as const)
+    : ([['default-graph-uri', dataset.defaultGraphs], ['named-graph-uri', dataset.namedGraphs]] as const);
   for (const [name, graphs] of parts) {
     if (graphs === undefined) continue;
     for (const graph of graphs.length > 0 ? graphs : [EMPTY_DATASET_GRAPH]) params.append(name, graph);

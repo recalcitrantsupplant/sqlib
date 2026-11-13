@@ -27,9 +27,9 @@ export type {
 } from './plan.js';
 export { derivePatch } from './derive.js';
 export type { DeriveOptions, Patch } from './derive.js';
-export type { DeltaStore, SimulationStore } from './deltaStore.js';
+export type { DeltaDataset, DeltaReadOptions, DeltaStore, SimulationStore } from './deltaStore.js';
 export type { GraphOperationRecord } from './graphOps.js';
-export { oxigraphDeltaStore } from './oxigraph.js';
+export { oxigraphDatasetOptions, oxigraphDeltaStore } from './oxigraph.js';
 export type { OxigraphDeltaStoreOptions, OxigraphStoreLike } from './oxigraph.js';
 export {
   invertPatch,
