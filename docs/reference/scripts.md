@@ -13,15 +13,54 @@ environment variable that a recipe sets.
 
 ## Justfile recipes
 
-Run `just <recipe>`. A recipe that takes a parameter shows its default.
+`just <recipe>`. `just` with no recipe runs `dev`. `just --list` shows the
+recipes by group. Recipes taking a parameter show its default. Every recipe
+that runs sqlib from source first runs `pnpm install --frozen-lockfile` and
+checks for Node 26 and pnpm.
+
+### Run
 
 | Recipe | What it does |
 | --- | --- |
+| `dev` (the default) | API and MCP on `http://localhost:3005`, web UI on `http://localhost:3001`. SQLite library store in `packages/api/tmp/library-store`, every feature flag on, auth disabled, writes allowed |
+| `dev-otel` | `dev`, with telemetry sent to the local observability stack (`lgtm-up`) |
 | `run-local-memory` | API and MCP on `http://localhost:3005` (`/mcp` for MCP), library in a local Oxigraph store under `packages/api/tmp/library-store`, checkpointing every 60s, assistant on, telemetry off. Runs under `tsx watch` |
+| `run-frontend API_URL=http://localhost:3005` | The web UI against any API URL |
 | `clean-local-memory` | Deletes `packages/api/tmp/library-store` |
+
+### Docker
+
+| Recipe | What it does |
+| --- | --- |
+| `build-docker TAG=latest` | `docker build --network=host -t sparql-query-lib:<TAG> .` |
+| `run-docker TAG=latest PORT=3005` | Runs that image with its defaults on `http://127.0.0.1:<PORT>`, with the `sqlib-data` volume on `/app/packages/api/storage` |
+| `clean-docker` | Deletes the `sqlib-data` volume |
+| `build-web-image TAG=latest` | Builds the web UI bundle image, `sqlib-web:<TAG>`, with the static site at `/site` |
+| `extract-web-bundle TAG=latest DEST=tmp/web-bundle` | Copies that static site out of the image |
+
+### HTTPS and MCP clients
+
+| Recipe | What it does |
+| --- | --- |
 | `setup-local-https` | One-time: installs the mkcert root and writes `certs/localhost.pem` and `certs/localhost-key.pem`. Fails if mkcert is not installed |
-| `run-local-https` | The same dual API+MCP process on port 3300, plus a Traefik container terminating TLS on `https://localhost:3443`. Requires the certificates |
+| `run-local-https` | The dual API+MCP process on port 3300, plus a Traefik container terminating TLS on `https://localhost:3443`. Requires the certificates |
 | `run-docker-https` | The built image plus Fuseki behind Traefik on `https://localhost:3443`, with no host pnpm process. Needs an image tagged `sparql-query-lib:aca-local` and the certificates |
+| `run-mcp-app-harness` | A minimal MCP Apps host for the `ui://` Views, against `run-local-memory` |
+| `smoke-mcp-app endpoint=http://localhost:3005/mcp` | Checks the MCP Apps protocol of a running server, without a browser |
+| `tunnel-mcp port=3005 tool=` | Exposes the local MCP server over public HTTPS with ngrok or cloudflared |
+
+### Auth
+
+| Recipe | What it does |
+| --- | --- |
+| `dev-auth` | `dev` in `required` auth mode behind a local Rauthy on port 8080, with its own stores |
+| `clean-dev-auth` | Deletes `dev-auth`'s library store and grants |
+| `rauthy-up` / `rauthy-down` / `clean-rauthy` | Starts, stops or deletes the local Rauthy |
+
+### Demos
+
+| Recipe | What it does |
+| --- | --- |
 | `run-local-rules-tests` | API on `http://localhost:3005` in its own store, seeded with the W3C SHACL 1.2 Rules suite as runnable tests. Queries, groups, rules, data graphs and tests on. Benchmarks and ETL off. Invalid save on, because a third of the documents in the suite must not parse. Seeding is idempotent |
 | `run-frontend-rules API_URL=http://localhost:3005` | The web UI with the `NUXT_PUBLIC_FEATURE_*` flags matching that API |
 | `clean-local-rules-tests` | Deletes `packages/api/tmp/rules-tests-store` |
@@ -29,20 +68,20 @@ Run `just <recipe>`. A recipe that takes a parameter shows its default.
 | `run-frontend-patch-demo API_URL=http://localhost:3005` | The web UI with the matching flags |
 | `uat-patch-demo API_URL=http://localhost:3005 WEB_URL=http://localhost:3001` | Runs that demo from start to end in a real browser, against a real API. It starts neither. Run the two recipes above first |
 | `clean-local-patch-demo` | Deletes `packages/api/tmp/patch-demo-store` |
-| `run-local-like-docker` | The API alone, no MCP, with the persistence settings `run-docker-local` uses |
-| `build-docker TAG=latest` | `docker build --network=host -t sparql-query-lib:<TAG> .` |
-| `run-docker-local TAG=latest` | Runs that image with the persistent store on a host bind mount, API on `http://localhost:3005` |
-| `run-docker-persistent TAG=latest` | The same image in `APP_MODE=api` on port 3000 |
-| `run-frontend API_URL=http://localhost:3005` | The web UI against any API URL |
+| `demo-graph-access` | The graph access demo: sqlib in `required` auth mode behind Rauthy, with four test people |
+| `demo-graph-access-down` / `clean-graph-access-demo` | Stops that demo's Rauthy, or deletes the demo's stores and Rauthy |
+
+### Observability and tests
+
+| Recipe | What it does |
+| --- | --- |
+| `lgtm-up` / `lgtm-down` | Starts or stops `grafana/otel-lgtm` (Grafana on port 3030) |
+| `test-replication stores="s3 abs gs"` | The SQLite backup integration test against local storage emulators |
 
 The frontend recipes are separate commands, because the API and the SPA are
 separate processes that read separate environments. If you set feature flags on
 the API only, the rail shows sections that the API does not serve. See
 [feature flags](feature-flags.md).
-
-Three recipes export `FEATURE_QUERIES_ENABLED`, `FEATURE_RULES_ENABLED` and
-`FEATURE_ETL_ENABLED`. No code reads those names, because the real names have no
-`_ENABLED` suffix. Those recipes therefore run with the default flags.
 
 ## Workspace scripts
 
