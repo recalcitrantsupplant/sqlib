@@ -469,6 +469,60 @@ select some of them. Then sign in as the administrator, and open **Access**:
 Stop Rauthy with `just demo-graph-access-down`. Delete both stores and the
 secrets with `just clean-graph-access-demo`.
 
+## Where to run sqlib
+
+Put sqlib in the same region as the backends it queries. Then put the people
+and programs that call sqlib in that region too. Distance adds a round trip to
+each request. sqlib sends many requests one after another, so the delays add
+up.
+
+```mermaid
+flowchart LR
+  B[Browser or API client] -- "web UI: several requests per screen" --> S[sqlib]
+  S -- "one request per query run, group node or bench iteration" --> D[(SPARQL backend)]
+```
+
+### sqlib to backend
+
+This hop has the largest effect, in development and in production.
+
+- A query run sends at least one request to the backend.
+- A query group sends one request for each node. The engine runs the nodes
+  one at a time (see [query groups](query-groups.md)).
+- A bench run sends one request for each iteration.
+- At 250 ms for each request, a group of 8 nodes waits 2 s for the network
+  alone.
+
+Run sqlib in the backend's region, or on the same network. Settings, under
+Connection, shows the last probe of the active library's default backend. The
+Backends screen shows the last probe of each backend. A probe above 250 ms
+shows as slow. Set `SQLIB_BACKEND_SLOW_MS` to change this limit.
+
+### Browser to sqlib
+
+This hop affects people who use the web UI, mostly while they write and test
+queries.
+
+- A screen sends several API requests one after another. A 300 ms round trip
+  can add more than 1 s before the screen is ready.
+- The web UI times `GET /health` from the browser. It discards the first
+  request, which also opens the connection, and takes the median of the next
+  3. The result stays in the browser.
+- At 100 ms or more, the home screen shows a warning under the command field.
+  Settings, under Connection, shows the number at any round trip.
+- Set `SQLIB_LOCATION`, such as `Sydney`, to show where the server runs beside
+  the warning. The browser cannot find this out by itself.
+
+You can develop with a distant server. The screens are slower, and the results
+are the same.
+
+### Development and production
+
+| Stage | sqlib near the backend | Callers near sqlib |
+| --- | --- | --- |
+| Development | Recommended. Runs and benches are slow without it. | Optional. Only the web UI is slower. |
+| Production | Required for fast responses. | Recommended for each published tool, API client and web UI user. |
+
 ## Before you expose it
 
 This repository is pre-1.0, and its source is available for review (see
