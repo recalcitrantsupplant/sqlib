@@ -42,6 +42,7 @@
       :item-noun="flatSidebar.noun"
       :item-noun-plural="flatSidebar.nounPlural"
       :supports-scratch="flatSidebar.supportsScratch"
+      :hide-new="flatSidebar.hideNew"
       :supports-saved="flatSidebar.supportsSaved"
       :saved-kinds="flatSidebar.savedKinds"
       :tags="libraryTags"
@@ -334,6 +335,7 @@ import { useBackendProbes } from '../../composables/useBackendProbes';
 import { useQueriesStore } from '../../composables/useQueriesStore';
 import { useEntityKinds, isInLibrary } from '../../composables/useEntityKinds';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 import { useLibraryEvents } from '../../composables/useLibraryEvents';
 import type { ChangedEntity } from '../../composables/useLibraryRefresh';
 import type { Backend, Library } from '@sparql-query-lib/contracts';
@@ -408,6 +410,7 @@ const backendsStore = useBackendsStore();
 const queriesStore = useQueriesStore();
 const { entitiesOfKind, loadKind: loadEntityKind } = useEntityKinds();
 const { isEnabled: isFeatureEnabled, labelFor } = useFeatureFlags();
+const deployment = useDeploymentMode();
 const queriesEnabled = computed(() => isFeatureEnabled('queries'));
 const queryGroupsEnabled = computed(() => isFeatureEnabled('queryGroups'));
 const rulesSuiteEnabled = computed(() => isFeatureEnabled('rulesSuite'));
@@ -1040,10 +1043,20 @@ function testRowExtras(kind: string, id: string): Partial<SidebarEntity> {
   return { verdict: lastRun ? (lastRun.passed ? 'pass' : 'fail') : undefined };
 }
 
+/**
+ * Whether a section can hold scratch records here. A read-only deployment
+ * refuses the ETL preview route, so an ETL scratch pipeline could not detect
+ * its columns or run. Only saved ETL jobs open there.
+ */
+function scratchAllowed(draftSection: DraftSection | null): draftSection is DraftSection {
+  if (!draftSection) return false;
+  return !(draftSection === 'etl' && deployment.isReadOnly.value);
+}
+
 // Reading the store's ref inside the computed keeps the cluster live: a
 // keystroke in the editor re-sorts the list without anyone re-fetching.
 function scratchFor(draftSection: DraftSection | null) {
-  if (!draftSection) return [];
+  if (!scratchAllowed(draftSection)) return [];
   void draftsStore.allDrafts.value;
   return scratchBySection[draftSection].items();
 }
@@ -1059,6 +1072,7 @@ const flatSidebar = computed(() => {
     nounPlural: definition.nounPlural,
     savedKinds: definition.savedKinds,
     supportsScratch: definition.draftSection !== null,
+    hideNew: definition.draftSection !== null && !scratchAllowed(definition.draftSection),
     supportsSaved: definition.savedKinds.length > 0,
     /*
      * Whether this section's rows can carry tags at all. Bench and ETL cannot:
@@ -1220,7 +1234,7 @@ function handleCreateFromSidebar() {
   const section = activeListSection.value;
   if (!section) return;
   const draftSection = SECTION_DEFINITIONS[section].draftSection;
-  if (!draftSection) return;
+  if (!scratchAllowed(draftSection)) return;
   const created = scratchBySection[draftSection].create(draftSection === 'query' ? '' : null);
   handleSelectScratch(created.id);
 }
