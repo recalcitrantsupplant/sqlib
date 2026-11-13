@@ -165,8 +165,23 @@ describe('ArgumentScalarsPanel', () => {
         modelValue: [{ parameterKind: 'limit', parameterName: 'pageSize', numericValue: 20 }],
       },
     });
-    const values = w.findAll('.col-value input').map((input) => (input.element as HTMLInputElement).value);
+    const values = w.findAll('.scalar-row input').map((input) => (input.element as HTMLInputElement).value);
     expect(values).toEqual(['20', '0']);
+  });
+
+  it('shows each parameter as its clause, with its line, and no name field', () => {
+    const w = mount(ArgumentScalarsPanel, {
+      props: {
+        limitParameters: ['1'],
+        offsetParameters: [],
+        modelValue: [],
+        lines: { 'limit:1': 23 },
+      },
+    });
+    const row = w.find('[data-testid="argument-scalar-limit-1"]');
+    expect(row.find('.scalar-clause').text().replace(/\s+/g, ' ')).toBe('LIMIT 0001');
+    expect(row.find('.clause-line').text()).toBe('L23');
+    expect(row.findAll('input')).toHaveLength(1);
   });
 
   it('ignores a stored value for a parameter the query no longer declares', () => {
@@ -177,7 +192,7 @@ describe('ArgumentScalarsPanel', () => {
         modelValue: [{ parameterKind: 'limit', parameterName: 'gone', numericValue: 5 }],
       },
     });
-    expect(w.findAll('tbody tr')).toHaveLength(0);
+    expect(w.findAll('.scalar-row')).toHaveLength(0);
   });
 });
 
