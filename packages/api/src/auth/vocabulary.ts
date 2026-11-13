@@ -30,7 +30,7 @@ export const auth = {
   seenAt: `${AUTH_NS}seenAt`,
   /** A person's readable name from their last token: email, username or full name. */
   label: 'http://www.w3.org/2000/01/rdf-schema#label',
-  /** The name other readers see for a person: the `name` or `preferred_username` claim, never the email. */
+  /** The name other readers see for a person, from `displayNameOf` in `principals.ts`. Never the email. */
   displayName: `${AUTH_NS}displayName`,
   /** A user's groups as the last token sqlib saw for them carried. */
   memberOf: `${AUTH_NS}memberOf`,

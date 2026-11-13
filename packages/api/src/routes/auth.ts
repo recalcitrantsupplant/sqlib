@@ -375,7 +375,7 @@ export default async function (fastify: FastifyInstance) {
    * Open to every caller who reaches it. A principal IRI is a hash of the
    * issuer and the token subject, so a caller can only ask about IRIs it read
    * from an entity or a grant it may see. The answer is the display name only
-   * (`name` or `preferred_username`), never the email or the raw claim, which
+   * (see `displayNameOf`), never the email or the raw claim, which
    * stay in the administrator's `GET /principals`.
    */
   fastify.get('/names', ...typedRoute(namesSchema, async (request, reply) => {

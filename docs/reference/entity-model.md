@@ -214,11 +214,20 @@ display names. Every caller may use it. It answers only for user principals
 that the server has a display name for, and leaves out groups, clients and
 unknown IRIs.
 
-The display name comes from the person's last token: the `name` claim, then
-`preferred_username`. The server records it beside the principal in the auth
-graph (`auth:displayName`). It never uses the email. Every reader of a library
-sees these names, and the email stays in the administrator's
-`GET /auth/principals`.
+The display name comes from the person's last token. It is the first of these
+claims that the token carries:
+
+1. `name`.
+2. `preferred_username`. Rauthy access tokens carry no `name`, so Rauthy
+   deployments usually show this one.
+3. `given_name` and `family_name`, joined by a space.
+
+The server skips a claim that equals the `email` claim or has the form of an
+email address. Every reader of a library sees these names, and the email stays
+in the administrator's `GET /auth/principals`. A token with none of these
+claims gives no display name, and the web app shows "Unknown". The server
+records the name beside the principal in the auth graph (`auth:displayName`),
+and updates it at the person's next request with a token.
 
 The web app shows the person in the Details panel footer ("Created … by",
 "Edited … by"), on each version row, and in the version menu of the editor

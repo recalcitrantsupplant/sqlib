@@ -57,7 +57,7 @@ export interface PrincipalRecord {
   seenAt?: string;
   /** A person's email, username or name from their last token, for display. */
   label?: string;
-  /** The name other readers see for a person: `name` or `preferred_username` from their last token. */
+  /** The name other readers see for a person, from their last token (`displayNameOf`). Never the email. */
   displayName?: string;
   /**
    * For a user or client: the group principals its last token carried.
