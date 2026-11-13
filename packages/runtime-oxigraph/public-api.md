@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 6 exported names.
+Version `0.1.0`. 1 entry point, 7 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime-oxigraph`
 
-6 exports, from `index.d.ts`.
+7 exports, from `index.d.ts`.
 
 ### `OxigraphDatasetOptions` — interface, from `index`
 
@@ -66,7 +66,7 @@ interface OxigraphStore {
     }): void;
     update?(update: string, options?: {
         base_iri?: string;
-    }): void;
+    } & OxigraphDatasetOptions): void;
     readonly size: number;
 }
 ```
@@ -79,4 +79,10 @@ interface SeedDocument {
     format?: string;
     baseIri?: string;
 }
+```
+
+### `supportsUpdateDataset` — function, from `index`
+
+```ts
+declare function supportsUpdateDataset(): Promise<boolean>;
 ```

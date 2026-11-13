@@ -93,12 +93,28 @@ describe('a browser backend run with graphs', () => {
     expect(url.searchParams.get('named-graph-uri')).toBe(G2);
   });
 
-  it('sends no dataset with an update', async () => {
+  it('sends an update dataset as using-graph-uri pairs in a form body', async () => {
     const fetchImpl = ok();
+    const query = 'DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }';
     await executeOnBrowserBackend(
-      { backend, query: 'INSERT DATA {}', operation: 'update', dataset: { defaultGraphs: [G1] } },
+      { backend, query, operation: 'update', dataset: { defaultGraphs: [G1], namedGraphs: [] } },
       fetchImpl,
     );
-    expect(String(fetchImpl.mock.calls[0]![0])).toBe(backend.endpoint);
+    const [url, init] = fetchImpl.mock.calls[0]! as [string, RequestInit];
+    expect(String(url)).toBe(backend.endpoint);
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/x-www-form-urlencoded');
+    const form = new URLSearchParams(String(init.body));
+    expect(form.get('update')).toBe(query);
+    expect(form.getAll('using-graph-uri')).toEqual([G1]);
+    expect(form.getAll('using-named-graph-uri')).toEqual([EMPTY_DATASET_GRAPH]);
+  });
+
+  it('sends an update with no dataset as a direct POST', async () => {
+    const fetchImpl = ok();
+    await executeOnBrowserBackend({ backend, query: 'INSERT DATA {}', operation: 'update' }, fetchImpl);
+    const [url, init] = fetchImpl.mock.calls[0]! as [string, RequestInit];
+    expect(String(url)).toBe(backend.endpoint);
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/sparql-update');
+    expect(init.body).toBe('INSERT DATA {}');
   });
 });

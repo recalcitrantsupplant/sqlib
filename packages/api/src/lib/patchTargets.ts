@@ -25,6 +25,7 @@ import { HttpSparqlExecutor } from '../server/HttpSparqlExecutor.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import { executorDeltaStore, oxigraphDeltaStore } from './deltaStore.js';
+import { oxigraphSupportsUpdateDataset } from './oxigraphUpdateDataset.js';
 
 /** Raised when a backend cannot host patches at all. */
 export class PatchTargetError extends Error {
@@ -127,7 +128,7 @@ function storeTarget(backendId: string, store: oxigraph.Store, readOnly = false)
     // against a throwaway copy of this store. HTTP backends get no factory and
     // keep the refusal, because copying a remote dataset to preview a write is
     // not a trade anyone would want made on their behalf.
-    deltaStore: oxigraphDeltaStore(store, { createStore: () => new oxigraph.Store() }),
+    deltaStore: oxigraphDeltaStore(store, { createStore: () => new oxigraph.Store(), supportsUpdateDataset: oxigraphSupportsUpdateDataset() }),
     executor: new OxigraphSparqlExecutor(store),
     store,
     readOnly,

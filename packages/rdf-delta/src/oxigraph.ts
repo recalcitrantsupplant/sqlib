@@ -17,7 +17,7 @@
  * into multi-operation preview; one that does not keeps the refusal.
  */
 
-import type { DeltaStore, SimulationStore } from './deltaStore.js';
+import type { DeltaDataset, DeltaReadOptions, DeltaStore, SimulationStore } from './deltaStore.js';
 import type { QuadLike, TermLike } from './terms.js';
 
 const N_QUADS = 'application/n-quads';
@@ -41,6 +41,25 @@ export interface OxigraphDeltaStoreOptions {
    * name rather than derived against the wrong state.
    */
   createStore?: () => OxigraphStoreLike;
+  /**
+   * True when the binding applies dataset options on `Store.update`. Oxigraph
+   * 0.5.13 does not. A fork then refuses an update with a dataset.
+   */
+  supportsUpdateDataset?: boolean;
+}
+
+/**
+ * A dataset as Oxigraph's `default_graph` and `named_graphs` options. An
+ * absent part is an empty list when the other part is given (SPARQL 1.1
+ * Query §13.2). Oxigraph takes any RDF/JS named node, so plain objects do.
+ */
+export function oxigraphDatasetOptions(dataset: DeltaDataset | undefined): Record<string, unknown> {
+  if (!dataset || (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined)) return {};
+  const named = (value: string) => ({ termType: 'NamedNode', value });
+  return {
+    default_graph: (dataset.defaultGraphs ?? []).map(named),
+    named_graphs: (dataset.namedGraphs ?? []).map(named),
+  };
 }
 
 /**
@@ -56,12 +75,12 @@ export function oxigraphDeltaStore(
   options: OxigraphDeltaStoreOptions = {},
 ): DeltaStore {
   const base: DeltaStore = {
-    async construct(sparql: string): Promise<QuadLike[]> {
-      return (store.query(sparql) as QuadLike[]) ?? [];
+    async construct(sparql: string, readOptions?: DeltaReadOptions): Promise<QuadLike[]> {
+      return (store.query(sparql, oxigraphDatasetOptions(readOptions?.dataset)) as QuadLike[]) ?? [];
     },
 
-    async select(sparql: string): Promise<Array<Record<string, TermLike>>> {
-      const rows = (store.query(sparql) as Array<Map<string, TermLike>>) ?? [];
+    async select(sparql: string, readOptions?: DeltaReadOptions): Promise<Array<Record<string, TermLike>>> {
+      const rows = (store.query(sparql, oxigraphDatasetOptions(readOptions?.dataset)) as Array<Map<string, TermLike>>) ?? [];
       return rows.map((row) => Object.fromEntries(row));
     },
 
@@ -90,9 +109,14 @@ export function oxigraphDeltaStore(
       if (nquads.trim()) copy.load?.(nquads, { format: N_QUADS });
       return {
         ...(oxigraphDeltaStore(copy, options) as SimulationStore),
-        update(sparql: string): void {
-          copy.update?.(sparql);
+        update(sparql: string, updateOptions?: { dataset?: DeltaDataset }): void {
+          const datasetOptions = oxigraphDatasetOptions(updateOptions?.dataset);
+          if (Object.keys(datasetOptions).length > 0 && !options.supportsUpdateDataset) {
+            throw new Error('This Oxigraph binding cannot apply a dataset to an update');
+          }
+          copy.update?.(sparql, datasetOptions);
         },
+        supportsUpdateDataset: options.supportsUpdateDataset === true,
       };
     },
   };

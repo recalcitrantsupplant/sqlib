@@ -146,6 +146,15 @@ export const PatchSchema = {
     '@type': xsd.string,
     '@optional': true,
   },
+  /**
+   * The dataset the update's WHERE clauses read, as JSON
+   * (`{ defaultGraphs?, namedGraphs? }`). Absent when the update had none.
+   */
+  updateDataset: {
+    '@id': sqlib.updateDataset,
+    '@type': xsd.string,
+    '@optional': true,
+  },
   /** Set on a revert patch: the patch it undoes. */
   inverseOf: {
     '@id': sqlib.inverseOf,
@@ -212,6 +221,7 @@ export interface PersistedPatch {
   sourceKind: PatchSourceKind;
   sourceRef?: string | null;
   updateString?: string | null;
+  updateDataset?: string | null;
   inverseOf?: string | null;
   origin?: string | null;
   dateCreated?: string | null;

@@ -74,6 +74,9 @@ export class LibrarySparqlViewExecutor implements ISparqlExecutor {
     return current(this.dir).askQuery(query, options);
   }
 
+  /** True so that the read-only refusal below answers every update. */
+  readonly supportsUpdateDataset = true;
+
   async update(): Promise<SparqlExecutionResult<void>> {
     throw new ReadOnlyBackendError(
       'The library store is kept in SQLite, and SPARQL over it is read-only. Change entities through the API.',
