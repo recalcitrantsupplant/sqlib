@@ -54,11 +54,11 @@ against. Those backends are entities that you make through the API.
 | `LIBRARY_STORAGE_SPARQL_PASSWORD` | unset | Basic-auth password for the library endpoint. |
 | `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=sqlite`, the directory holding `library.sqlite` (and its `-wal` and `-shm` files); `:memory:` keeps the database in the process, for tests. With `oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. |
 | `INTERNAL_OXIGRAPH_STORE_ID` | `library-store` | Name of the persistent store within that directory. |
-| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. |
+| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often sqlib writes each durable Oxigraph store that has changed to its `.nq` file. It applies to the `oxigraph-persistent` library store and to each `durable` `oxigraphMemory` backend, for every `INTERNAL_BACKEND_TYPE`. `0` turns the timer off, and the stores are then written at shutdown only. A value that is not a whole number stops startup with an error. |
 | `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. |
 | `INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE` | unset | A JSON object describing the source for that load method. Invalid JSON is logged as a warning and ignored. |
-| `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for the in-process Oxigraph backends that you make as entities: the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. The library is not stored here. With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the library store is in `LIBRARY_STORAGE_DIR`. |
-| `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager even when the library is not in Oxigraph, so that Oxigraph-backed backend entities work. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. |
+| `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for the in-process Oxigraph backends that you make as entities: the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. It applies for every `INTERNAL_BACKEND_TYPE`, with or without `ENABLE_OXIGRAPH`. The library is not stored here. With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the library store is in `LIBRARY_STORAGE_DIR`. |
+| `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager at startup even when the library is not in Oxigraph. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. When it is not initialised at startup, the first use of an Oxigraph-backed backend entity initialises it, with the same directory and the same checkpoint timer. |
 | `DEBUG_OXIGRAPH` | `false` | Set to `true` to log every SPARQL operation the in-process Oxigraph executor runs. |
 
 ### How `oxigraph-persistent` stores data
@@ -70,6 +70,27 @@ They have no RocksDB-backed store, which the Rust and Python bindings have.
 `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` milliseconds, and reads those files
 at startup. A process killed between checkpoints loses the writes made since
 the last checkpoint. `oxigraph-memory` keeps nothing.
+
+### How durable Oxigraph backends store data
+
+An `oxigraphMemory` backend with mode `durable` is also an in-memory store.
+sqlib writes it to a `.nq` file in `OXIGRAPH_STORAGE_DIR` on the same timer and
+on shutdown, for every `INTERNAL_BACKEND_TYPE`. The timer starts when the first
+durable store is made. A process killed between checkpoints loses the writes
+made to the backend since the last checkpoint.
+
+Versions before this change kept the file in a different directory in two
+cases:
+
+- With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the file was in
+  `LIBRARY_STORAGE_DIR`.
+- With `ENABLE_OXIGRAPH` unset, the file was in `./storage/oxigraph`, resolved
+  against the working directory, whatever `OXIGRAPH_STORAGE_DIR` said.
+
+At the first use of such a backend, sqlib copies its file from the earlier
+directory when `OXIGRAPH_STORAGE_DIR` has no file for it. The original file
+stays in place. Make sure that `OXIGRAPH_STORAGE_DIR` is on a volume that
+survives the container.
 
 For a durable store, use the default `sqlite`. Or run a SPARQL server, such as
 the Oxigraph server or Fuseki, and use `INTERNAL_BACKEND_TYPE=http`.

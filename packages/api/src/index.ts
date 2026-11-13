@@ -10,9 +10,9 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyCors from '@fastify/cors';
 import { serializerOpts, setupLazySerializer, setupValidator } from './lib/validator-setup.js';
 import { memoryCacheManager } from './lib/MemoryCacheManager.js';
-import path from 'node:path';
 import { cacheMonitoringService } from './lib/CacheMonitoringService.js';
 import { oxigraphStoreManager } from './lib/OxigraphStoreManager.js';
+import { defaultOxigraphStorageDir, oxigraphStorageDir } from './lib/oxigraphSettings.js';
 import { getDuckDbService } from './lib/DuckDbService.js';
 import { getFeatureFlags, resetFeatureFlags } from './config/featureFlags.js';
 import { config } from './server/config.js';
@@ -62,29 +62,37 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
   const enableFlag = process.env.ENABLE_OXIGRAPH === 'true';
   const shouldInitManager = enableFlag || backendConfig.type === 'oxigraph-persistent';
 
+  // Durable backends are in OXIGRAPH_STORAGE_DIR for every library store type.
+  // Two earlier locations still hold files after an upgrade: LIBRARY_STORAGE_DIR
+  // under `oxigraph-persistent`, and the default directory, which a manager
+  // initialised on first use wrote to. The manager copies a file from there
+  // when OXIGRAPH_STORAGE_DIR has none for that backend (#178).
+  const storageDir = oxigraphStorageDir();
+  oxigraphStoreManager.adoptSnapshotsFrom([
+    ...(backendConfig.type === 'oxigraph-persistent' ? [backendConfig.storageDir] : []),
+    defaultOxigraphStorageDir(),
+  ].filter(dir => dir !== storageDir));
+
   if (!shouldInitManager) {
-    fastifyApp.log.info('Oxigraph store manager disabled (set ENABLE_OXIGRAPH=true to enable)');
+    fastifyApp.log.info({ storageDir }, 'Oxigraph store manager not initialized at start-up; the first Oxigraph backend initializes it');
     return;
   }
 
-  const storageDir = backendConfig.type === 'oxigraph-persistent'
-    ? backendConfig.storageDir
-    : path.resolve(process.env.OXIGRAPH_STORAGE_DIR || './storage/oxigraph');
-
-  fastifyApp.log.info({ storageDir }, 'Initializing Oxigraph store manager');
+  fastifyApp.log.info(
+    { storageDir, checkpointIntervalMs: config.oxigraphCheckpointIntervalMs },
+    'Initializing Oxigraph store manager'
+  );
   await oxigraphStoreManager.initialize(storageDir);
   fastifyApp.log.info('Oxigraph store manager initialization complete.');
 
   if (backendConfig.type === 'oxigraph-persistent') {
+    // The library store keeps its own directory. The manager starts the
+    // periodic checkpoint itself when a durable store is registered.
     await oxigraphStoreManager.createPersistentStore(backendConfig.storeId, {
       storeType: 'persistent',
       loadMethod: backendConfig.loadMethod,
       sourceConfig: backendConfig.sourceConfig,
-    });
-    
-    if (backendConfig.checkpointIntervalMs && backendConfig.checkpointIntervalMs > 0) {
-      oxigraphStoreManager.startCheckpointing(backendConfig.checkpointIntervalMs);
-    }
+    }, { storageDir: backendConfig.storageDir });
 
     fastifyApp.log.info({
       storeId: backendConfig.storeId,

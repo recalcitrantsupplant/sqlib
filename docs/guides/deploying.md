@@ -582,6 +582,12 @@ the dump, up to one checkpoint interval of writes is lost. If the writes are
 important, make the interval shorter. Check that your platform sends `SIGTERM`
 and waits for the process to exit.
 
+The same loss applies to each `durable` `oxigraphMemory` backend, whatever the
+library store is. A SQLite library is written per change, but a durable backend
+beside it is an in-memory store with a `.nq` snapshot in `OXIGRAPH_STORAGE_DIR`,
+written on the same timer and on `SIGTERM`. Put `OXIGRAPH_STORAGE_DIR` on a
+volume that survives the container.
+
 ## Backup to blob storage
 
 The `sqlite` store is one file on local disk. On a container platform, the disk

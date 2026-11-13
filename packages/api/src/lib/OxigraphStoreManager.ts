@@ -6,9 +6,11 @@
  * IMPORTANT: The oxigraph JavaScript/WebAssembly bindings only support in-memory stores.
  * Unlike the Rust/Python bindings, there is NO RocksDB disk-backed persistence.
  *
- * - "Durable" stores: In-memory stores that are serialized to .nq files on shutdown
- *   and can be restored on startup. Data is NOT automatically persisted - you must
- *   call serializeDurableStore() or rely on shutdown() to save data.
+ * - "Durable" stores: In-memory stores that are serialized to .nq files and
+ *   restored on startup. The manager writes a store that has changed on a timer
+ *   (`INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS`), which it starts when the first
+ *   durable store is registered, and writes every store on shutdown().
+ *   A process that is killed loses the writes since the last checkpoint.
  *
  * - "Ephemeral" stores: Pure in-memory stores for temporary use, never serialized.
  *
@@ -23,6 +25,7 @@ import type { OxigraphConfig, OxigraphSourceConfig, OxigraphStoreMode } from '..
 import { hydrateStoreFromDataGraphs, trackedDataGraphIds, type HydrationResult } from './dataGraphHydration.js';
 import { restoreStoreFromSnapshot, writeStoreSnapshot } from './storeSnapshot.js';
 import { markStoreWritten, storeWriteCount } from './storeWrites.js';
+import { oxigraphCheckpointIntervalMs, oxigraphStorageDir } from './oxigraphSettings.js';
 import { log } from './log.js';
 
 /**
@@ -67,6 +70,16 @@ export class OxigraphStoreManager {
    */
   private memoryEpochs = new Map<string, number>();
   private storageDir: string;  // Directory for serialized .nq files
+  /** The directory given to the constructor or to `reset`, if any. */
+  private configuredStorageDir: string | undefined;
+  /** backendId -> a directory for that store's file, in place of `storageDir`. */
+  private storeDirs = new Map<string, string>();
+  /** Directories that earlier versions wrote data backend files to. */
+  private legacyStorageDirs: string[] = [];
+  /** The interval given to the constructor, in place of the environment's. */
+  private readonly configuredCheckpointIntervalMs: number | undefined;
+  /** True once the "no periodic checkpoint" warning is logged. */
+  private warnedNoCheckpoint = false;
   private readonly maxMemoryUsage: number;
   private initialized = false;
   private checkpointInterval: NodeJS.Timeout | null = null;
@@ -81,9 +94,17 @@ export class OxigraphStoreManager {
   /** True while `checkpointAllStores` is running, so ticks cannot stack. */
   private checkpointRunning = false;
 
-  constructor(storageDir = './storage/oxigraph', maxMemoryUsage = 1024 * 1024 * 1024) { // 1GB default
-    this.storageDir = path.resolve(storageDir);
+  /**
+   * @param storageDir Directory for `.nq` files. Default: `OXIGRAPH_STORAGE_DIR`,
+   *   read when the manager is initialised.
+   * @param checkpointIntervalMs Interval of the periodic checkpoint. Default:
+   *   `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS`. `0` turns it off.
+   */
+  constructor(storageDir?: string, maxMemoryUsage = 1024 * 1024 * 1024, checkpointIntervalMs?: number) { // 1GB default
+    this.configuredStorageDir = storageDir === undefined ? undefined : path.resolve(storageDir);
+    this.storageDir = this.configuredStorageDir ?? oxigraphStorageDir();
     this.maxMemoryUsage = maxMemoryUsage;
+    this.configuredCheckpointIntervalMs = checkpointIntervalMs;
   }
 
   /**
@@ -124,6 +145,71 @@ export class OxigraphStoreManager {
     // Prevent the interval from keeping the process alive
     if (this.checkpointInterval.unref) {
       this.checkpointInterval.unref();
+    }
+  }
+
+  /**
+   * Start the periodic checkpoint when a durable store is registered.
+   *
+   * The manager owns the loop, so each durable store gets it: the library
+   * store, a backend that start-up initialised, and a backend that initialised
+   * the manager on first use. A loop that is already running stays as it is.
+   */
+  private ensureCheckpointing(): void {
+    if (this.checkpointInterval) return;
+    const intervalMs = this.configuredCheckpointIntervalMs ?? oxigraphCheckpointIntervalMs();
+    if (intervalMs > 0) {
+      this.startCheckpointing(intervalMs);
+      return;
+    }
+    if (!this.warnedNoCheckpoint) {
+      this.warnedNoCheckpoint = true;
+      log.warn(
+        'The periodic checkpoint is off (INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS=0). Durable Oxigraph stores are written at shutdown only.',
+      );
+    }
+  }
+
+  /**
+   * Name directories that an earlier version wrote data backend files to.
+   *
+   * A durable memory store with no file in the storage directory takes a copy
+   * of its file from the first of these that has one. The original stays in
+   * place. See `adoptLegacySnapshot`.
+   */
+  adoptSnapshotsFrom(dirs: string[]): void {
+    this.legacyStorageDirs = dirs.map(dir => path.resolve(dir));
+  }
+
+  /**
+   * Copy a store's file from a legacy directory when the storage directory has
+   * none.
+   *
+   * Two changes moved where a durable backend's file is read from: under
+   * `oxigraph-persistent` it was in `LIBRARY_STORAGE_DIR`, and a manager
+   * initialised on first use wrote to `./storage/oxigraph`. Without this copy
+   * such a backend starts empty after an upgrade, although its data is on disk.
+   */
+  private async adoptLegacySnapshot(backendId: string, serializationPath: string): Promise<void> {
+    if (this.legacyStorageDirs.length === 0) return;
+    if (await fileExists(serializationPath)) return;
+
+    const filename = path.basename(serializationPath);
+    for (const dir of this.legacyStorageDirs) {
+      const legacyPath = path.join(dir, filename);
+      if (legacyPath === serializationPath || !(await fileExists(legacyPath))) continue;
+
+      // Copy to a temporary name, then rename, so a crash mid-copy leaves no
+      // partial file under the name that the restore reads.
+      const tempPath = `${serializationPath}.adopting`;
+      await fs.mkdir(path.dirname(serializationPath), { recursive: true });
+      await fs.copyFile(legacyPath, tempPath);
+      await fs.rename(tempPath, serializationPath);
+      log.info(
+        { backendId, from: legacyPath, to: serializationPath },
+        'Copied a durable store file from its earlier directory',
+      );
+      return;
     }
   }
 
@@ -199,7 +285,14 @@ export class OxigraphStoreManager {
    * Can optionally reconfigure storage directory before initialization
    */
   async initialize(storageDir?: string): Promise<void> {
-    const targetDir = path.resolve(storageDir || this.storageDir);
+    // With no directory given, an initialised manager keeps the one it has.
+    if (this.initialized && !storageDir) return;
+
+    // `OXIGRAPH_STORAGE_DIR` is read here and not only in the constructor: the
+    // singleton is built at import, which can be before the environment is set.
+    const targetDir = storageDir
+      ? path.resolve(storageDir)
+      : this.configuredStorageDir ?? oxigraphStorageDir();
 
     if (this.initialized) {
       if (targetDir === this.storageDir) {
@@ -217,6 +310,7 @@ export class OxigraphStoreManager {
       this.memoryEpochs.clear();
       this.storeStats.clear();
       this.lastCheckpoint.clear();
+      this.storeDirs.clear();
     }
     this.storageDir = targetDir;
 
@@ -239,19 +333,36 @@ export class OxigraphStoreManager {
    *
    * @deprecated Use createDurableStore() instead - "persistent" naming was misleading
    */
-  async createPersistentStore(backendId: string, config: OxigraphConfig): Promise<oxigraph.Store> {
-    return this.createDurableStore(backendId, config);
+  async createPersistentStore(
+    backendId: string,
+    config: OxigraphConfig,
+    options: { storageDir?: string } = {},
+  ): Promise<oxigraph.Store> {
+    return this.createDurableStore(backendId, config, options);
   }
 
   /**
    * Create or retrieve a durable store for a backend.
    *
-   * Durable stores are in-memory but serialized to .nq files on shutdown.
-   * Call serializeDurableStore() to save immediately, or rely on shutdown().
+   * Durable stores are in-memory. The periodic checkpoint and shutdown()
+   * serialize them to .nq files. Call serializeDurableStore() to save immediately.
+   *
+   * @param options.storageDir A directory for this store's file, in place of
+   *   the manager's. The library store uses it to stay in `LIBRARY_STORAGE_DIR`.
    */
-  async createDurableStore(backendId: string, config: OxigraphConfig): Promise<oxigraph.Store> {
+  async createDurableStore(
+    backendId: string,
+    config: OxigraphConfig,
+    options: { storageDir?: string } = {},
+  ): Promise<oxigraph.Store> {
     if (!this.initialized) {
       await this.initialize();
+    }
+
+    if (options.storageDir && !this.durableStores.has(backendId) && !this.pendingDurableStores.has(backendId)) {
+      const dir = path.resolve(options.storageDir);
+      await fs.mkdir(dir, { recursive: true });
+      this.storeDirs.set(backendId, dir);
     }
 
     if (this.durableStores.has(backendId)) {
@@ -298,6 +409,7 @@ export class OxigraphStoreManager {
     }
 
     this.durableStores.set(backendId, store);
+    this.ensureCheckpointing();
     this.updateStoreStats(backendId, store, false, serializationPath);
 
     if (!restoredFromDisk) {
@@ -398,6 +510,7 @@ export class OxigraphStoreManager {
     // is data still on disk that a fresh start would go on to overwrite.
     let restoredFromDisk = false;
     if (serializationPath) {
+      await this.adoptLegacySnapshot(backendId, serializationPath);
       const restore = await restoreStoreFromSnapshot(store, serializationPath);
       restoredFromDisk = restore.restored;
       if (restoredFromDisk) {
@@ -434,6 +547,7 @@ export class OxigraphStoreManager {
       // Durable memory stores ride the same checkpoint/shutdown path that every
       // other durable store uses, which is what makes their disk state the truth.
       this.durableStores.set(backendId, store);
+      this.ensureCheckpointing();
     }
 
     this.updateStoreStats(backendId, store, mode === 'ephemeral', serializationPath);
@@ -538,7 +652,7 @@ export class OxigraphStoreManager {
    */
   private getSerializationPath(backendId: string): string {
     const filename = `${backendId.replace(/[^a-zA-Z0-9]/g, '_')}.nq`;
-    return path.join(this.storageDir, filename);
+    return path.join(this.storeDirs.get(backendId) ?? this.storageDir, filename);
   }
 
   /**
@@ -777,13 +891,16 @@ export class OxigraphStoreManager {
    * singleton outlives the file that filled it. `test/setup-vitest.ts` calls
    * this before each file so that each one starts from an empty manager.
    */
-  reset(storageDir = './storage/oxigraph'): void {
+  reset(storageDir?: string): void {
     this.stopCheckpointing();
     this.checkpointRunning = false;
     this.clearStores();
     this.pendingDurableStores.clear();
     this.pendingMemoryStores.clear();
-    this.storageDir = path.resolve(storageDir);
+    this.configuredStorageDir = storageDir === undefined ? undefined : path.resolve(storageDir);
+    this.storageDir = this.configuredStorageDir ?? oxigraphStorageDir();
+    this.legacyStorageDirs = [];
+    this.warnedNoCheckpoint = false;
     this.initialized = false;
   }
 
@@ -796,6 +913,7 @@ export class OxigraphStoreManager {
     this.memoryEpochs.clear();
     this.storeStats.clear();
     this.lastCheckpoint.clear();
+    this.storeDirs.clear();
   }
 
   // Private helper methods
@@ -974,6 +1092,15 @@ export class OxigraphStoreManager {
 
       return `${subj} ${pred} ${obj} .`;
     }).join('\n');
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
   }
 }
 
