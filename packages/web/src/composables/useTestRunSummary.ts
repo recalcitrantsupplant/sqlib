@@ -38,7 +38,7 @@ export function useTestRunSummary() {
   const testsStore = useTestsStore();
   const tagsStore = useTagsStore();
   const backendsStore = useBackendsStore();
-  const { scope, running, endRun, beginRun, noteAnswered, clearRun } = useTestRunScope();
+  const { scope, running, begun, endRun, beginRun, noteAnswered, clearRun } = useTestRunScope();
 
   /** Test id → the store its run version named. Filled as versions arrive. */
   const backendByTest = ref<Record<string, TestRunBackend>>({});
@@ -137,6 +137,7 @@ export function useTestRunSummary() {
     summary,
     scope,
     running,
+    begun,
     storageNote,
     beginRun,
     noteAnswered,

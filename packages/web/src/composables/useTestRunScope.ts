@@ -8,20 +8,33 @@
  * of 47, by tag, 48 seconds", which is the whole content of the Runs tab.
  *
  * Kept module-level so the sidebar, the results pane and the run actions in
- * the page all read one run. Persisted alongside the verdict cache so a reload
+ * the page all read one run. Each library keeps its own last run: a run starts
+ * from one library's tests, so the Runs tab of another library shows that
+ * library's run, or none. Persisted alongside the verdict cache so a reload
  * lands on the same run rather than an empty tab; that persistence is this
  * file's business alone — see `lib/testRunSummary` for the shape everything
  * else reads.
  */
 import { computed, reactive } from 'vue';
 import type { TestRunScope, TestRunScopeKind } from '../lib/testRunSummary.js';
+import { useActiveLibrary } from './useActiveLibrary.js';
 
-const STORAGE_KEY = 'sqlib.testRunScope.v1';
+/** Library id → that library's last run. */
+const STORAGE_KEY = 'sqlib.testRunScope.v2';
+/** One run for all libraries. Its library is not recorded, so it is dropped. */
+const LEGACY_STORAGE_KEY = 'sqlib.testRunScope.v1';
+/** The key for runs started with no library selected. */
+const NO_LIBRARY = '';
 
 type ScopeState = {
-  scope: TestRunScope | null;
-  /** True between `beginRun` and `endRun`, so the tab can stream. */
-  running: boolean;
+  scopes: Record<string, TestRunScope>;
+  /** The library of the run between `beginRun` and `endRun`, or null. */
+  runningLibrary: string | null;
+  /**
+   * Counts `beginRun` calls. A screen that reacts to a new run watches this:
+   * the current scope also changes when the library changes.
+   */
+  begun: number;
 };
 
 function storage(): Storage | null {
@@ -32,13 +45,8 @@ function storage(): Storage | null {
   }
 }
 
-function loadScope(): TestRunScope | null {
-  const store = storage();
-  if (!store) return null;
+function parseScope(parsed: unknown): TestRunScope | null {
   try {
-    const raw = store.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     const scope = parsed as Partial<TestRunScope>;
     if (!Array.isArray(scope.testIds) || typeof scope.label !== 'string') return null;
@@ -63,11 +71,31 @@ function loadScope(): TestRunScope | null {
   }
 }
 
-function persist(scope: TestRunScope | null): void {
+function loadScopes(): Record<string, TestRunScope> {
+  const store = storage();
+  if (!store) return {};
+  try {
+    store.removeItem(LEGACY_STORAGE_KEY);
+    const raw = store.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const scopes: Record<string, TestRunScope> = {};
+    for (const [libraryId, value] of Object.entries(parsed as Record<string, unknown>)) {
+      const scope = parseScope(value);
+      if (scope) scopes[libraryId] = scope;
+    }
+    return scopes;
+  } catch {
+    return {};
+  }
+}
+
+function persist(scopes: Record<string, TestRunScope>): void {
   const store = storage();
   if (!store) return;
   try {
-    if (scope) store.setItem(STORAGE_KEY, JSON.stringify(scope));
+    if (Object.keys(scopes).length > 0) store.setItem(STORAGE_KEY, JSON.stringify(scopes));
     else store.removeItem(STORAGE_KEY);
   } catch {
     // Quota is shared. A run that cannot be remembered is a Runs tab that is
@@ -79,17 +107,33 @@ function persist(scope: TestRunScope | null): void {
 const state = reactive<ScopeState>({
   // A run outlives the tab it was started in, so the tab has something to show
   // on the first paint after a reload.
-  scope: loadScope(),
-  running: false,
+  scopes: loadScopes(),
+  runningLibrary: null,
+  begun: 0,
 });
 
 let startedAtMs = 0;
 
 export function useTestRunScope() {
-  const scope = computed(() => state.scope);
-  const running = computed(() => state.running);
-  const answered = computed(() => state.scope?.answeredIds.length ?? 0);
-  const hasRun = computed(() => state.scope !== null && state.scope.testIds.length > 0);
+  const { activeLibraryId } = useActiveLibrary();
+  const currentLibrary = computed(() => activeLibraryId.value ?? NO_LIBRARY);
+
+  const scope = computed(() => state.scopes[currentLibrary.value] ?? null);
+  const running = computed(() => state.runningLibrary === currentLibrary.value);
+  const begun = computed(() => state.begun);
+  const answered = computed(() => scope.value?.answeredIds.length ?? 0);
+  const hasRun = computed(() => scope.value !== null && scope.value.testIds.length > 0);
+
+  /** The run that `noteAnswered` and `endRun` write to: the one in progress. */
+  const runLibrary = () => state.runningLibrary ?? currentLibrary.value;
+
+  function write(libraryId: string, next: TestRunScope | null): void {
+    const scopes = { ...state.scopes };
+    if (next) scopes[libraryId] = next;
+    else delete scopes[libraryId];
+    state.scopes = scopes;
+    persist(scopes);
+  }
 
   /**
    * Open a run. Everything the tab shows is "of this run" from here on.
@@ -106,8 +150,10 @@ export function useTestRunScope() {
     match?: 'any' | 'all';
   }): void {
     startedAtMs = Date.now();
-    state.running = true;
-    state.scope = {
+    const libraryId = currentLibrary.value;
+    state.runningLibrary = libraryId;
+    state.begun += 1;
+    write(libraryId, {
       kind: input.kind,
       label: input.label,
       tagIds: input.tagIds ?? [],
@@ -121,8 +167,7 @@ export function useTestRunScope() {
       finishedAt: null,
       wallMs: 0,
       cancelled: false,
-    };
-    persist(state.scope);
+    });
   }
 
   /**
@@ -132,12 +177,13 @@ export function useTestRunScope() {
    * place at the end — and so nothing on it describes the run before this one.
    */
   function noteAnswered(testIds: string[]): void {
-    if (!state.scope || testIds.length === 0) return;
-    const known = new Set(state.scope.answeredIds);
+    const libraryId = runLibrary();
+    const current = state.scopes[libraryId];
+    if (!current || testIds.length === 0) return;
+    const known = new Set(current.answeredIds);
     const added = testIds.filter((id) => !known.has(id));
     if (added.length === 0) return;
-    state.scope = { ...state.scope, answeredIds: [...state.scope.answeredIds, ...added] };
-    persist(state.scope);
+    write(libraryId, { ...current, answeredIds: [...current.answeredIds, ...added] });
   }
 
   /**
@@ -148,27 +194,28 @@ export function useTestRunScope() {
    * rather than this client's guess at it.
    */
   function endRun(input?: { testIds?: string[]; answeredIds?: string[]; cancelled?: boolean }): void {
-    state.running = false;
-    if (!state.scope) return;
+    const libraryId = runLibrary();
+    state.runningLibrary = null;
+    const current = state.scopes[libraryId];
+    if (!current) return;
     const answeredIds = input?.answeredIds
-      ? [...new Set([...state.scope.answeredIds, ...input.answeredIds])]
-      : state.scope.answeredIds;
-    state.scope = {
-      ...state.scope,
-      testIds: input?.testIds ? [...input.testIds] : state.scope.testIds,
+      ? [...new Set([...current.answeredIds, ...input.answeredIds])]
+      : current.answeredIds;
+    write(libraryId, {
+      ...current,
+      testIds: input?.testIds ? [...input.testIds] : current.testIds,
       answeredIds,
       finishedAt: new Date().toISOString(),
       wallMs: Math.max(0, Date.now() - startedAtMs),
       cancelled: Boolean(input?.cancelled),
-    };
-    persist(state.scope);
+    });
   }
 
+  /** Forget the current library's last run. */
   function clearRun(): void {
-    state.scope = null;
-    state.running = false;
-    persist(null);
+    if (state.runningLibrary === currentLibrary.value) state.runningLibrary = null;
+    write(currentLibrary.value, null);
   }
 
-  return { scope, running, answered, hasRun, beginRun, noteAnswered, endRun, clearRun };
+  return { scope, running, begun, answered, hasRun, beginRun, noteAnswered, endRun, clearRun };
 }
