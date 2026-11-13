@@ -60,7 +60,7 @@ async function token(claims: Record<string, unknown>) {
 
 async function buildApp(
   mode: string,
-  options: { basePath?: string; env?: Record<string, string> } = {}
+  options: { basePath?: string; publicBasePath?: string; trustProxy?: boolean; env?: Record<string, string> } = {}
 ): Promise<FastifyInstance> {
   resetAuthConfig({
     SQLIB_AUTH_MODE: mode,
@@ -71,8 +71,8 @@ async function buildApp(
     ...options.env,
   } as NodeJS.ProcessEnv);
 
-  const app = Fastify({ logger: false });
-  await registerAuthPlugin(app, { basePath: options.basePath });
+  const app = Fastify({ logger: false, trustProxy: options.trustProxy ?? false });
+  await registerAuthPlugin(app, { basePath: options.basePath, publicBasePath: options.publicBasePath });
   if (options.basePath) {
     await app.register(async scoped => registerRoutes(scoped), { prefix: options.basePath });
   } else {
@@ -429,6 +429,121 @@ describe('protected-resource metadata (RFC 9728)', () => {
       expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(200);
     }
     await app.close();
+  });
+
+  /*
+   * #175. Under a base path, `/mcp` is served under it, and a reverse proxy
+   * may route only that prefix to sqlib. The challenge then names the copy of
+   * the document under the prefix, and the fallback resource names the MCP URL
+   * under the prefix. Each test follows the challenge to the document, as an
+   * MCP client does.
+   */
+  describe('under APP_BASE_PATH', () => {
+    const UNCHECKED = { SQLIB_AUTH_AUDIENCE: '', SQLIB_AUTH_AUDIENCE_UNCHECKED: 'true' };
+    const publicOriginBefore = process.env.SQLIB_PUBLIC_ORIGIN;
+
+    afterEach(() => {
+      if (publicOriginBefore === undefined) delete process.env.SQLIB_PUBLIC_ORIGIN;
+      else process.env.SQLIB_PUBLIC_ORIGIN = publicOriginBefore;
+    });
+
+    /** The 401 of a tokenless MCP request, and the document its challenge names. */
+    async function discover(app: FastifyInstance, url: string, headers: Record<string, string> = {}) {
+      const refused = await app.inject({ method: 'POST', url, payload: {}, headers: { host: 'api.test', ...headers } });
+      expect(refused.statusCode).toBe(401);
+      const metadataUrl = /resource_metadata="([^"]+)"/.exec(String(refused.headers['www-authenticate']))?.[1] ?? '';
+      const path = new URL(metadataUrl).pathname;
+      const document = await app.inject({ method: 'GET', url: path, headers: { host: 'api.test', ...headers } });
+      expect(document.statusCode, metadataUrl).toBe(200);
+      return { metadataUrl, resource: (document.json() as { resource: string }).resource };
+    }
+
+    it('names the document under the base path when the audience is not a URL', async () => {
+      const app = await buildApp('required', { basePath: '/api/sqlib' });
+      const { metadataUrl, resource } = await discover(app, '/api/sqlib/mcp');
+
+      expect(metadataUrl).toBe('http://api.test/api/sqlib/.well-known/oauth-protected-resource');
+      expect(resource).toBe(AUDIENCE);
+      await app.close();
+    });
+
+    it('names the MCP URL under the base path as the resource when no audience is checked', async () => {
+      const app = await buildApp('required', { basePath: '/api/sqlib', env: UNCHECKED });
+      const { metadataUrl, resource } = await discover(app, '/api/sqlib/mcp');
+
+      expect(metadataUrl).toBe('http://api.test/api/sqlib/.well-known/oauth-protected-resource');
+      expect(resource).toBe('http://api.test/api/sqlib/mcp');
+      await app.close();
+    });
+
+    it('keeps a URL resource as it is, and names the document under the base path at its origin', async () => {
+      const app = await buildApp('required', {
+        basePath: '/api/sqlib',
+        env: { SQLIB_AUTH_RESOURCE: 'https://sqlib.test/api/sqlib/mcp' },
+      });
+      const { metadataUrl, resource } = await discover(app, '/api/sqlib/mcp');
+
+      expect(metadataUrl).toBe('https://sqlib.test/api/sqlib/.well-known/oauth-protected-resource');
+      expect(resource).toBe('https://sqlib.test/api/sqlib/mcp');
+      await app.close();
+    });
+
+    it('uses the public base path when a proxy removes the prefix', async () => {
+      // The proxy forwards `/sqlib/mcp` as `/mcp`, so sqlib has no base path of its own.
+      const app = await buildApp('required', { publicBasePath: '/sqlib', env: UNCHECKED });
+      const refused = await app.inject({ method: 'POST', url: '/mcp', payload: {}, headers: { host: 'api.test' } });
+
+      expect(String(refused.headers['www-authenticate'])).toContain(
+        'resource_metadata="http://api.test/sqlib/.well-known/oauth-protected-resource"'
+      );
+      const document = await app.inject({
+        method: 'GET',
+        url: '/.well-known/oauth-protected-resource',
+        headers: { host: 'api.test' },
+      });
+      expect(document.json().resource).toBe('http://api.test/sqlib/mcp');
+      await app.close();
+    });
+
+    it('ignores forwarded headers unless the proxy is trusted', async () => {
+      const forwarded = { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'data.example.org' };
+
+      const untrusting = await buildApp('required', { basePath: '/api/sqlib', env: UNCHECKED });
+      expect((await discover(untrusting, '/api/sqlib/mcp', forwarded)).resource).toBe('http://api.test/api/sqlib/mcp');
+      await untrusting.close();
+
+      const trusting = await buildApp('required', { basePath: '/api/sqlib', env: UNCHECKED, trustProxy: true });
+      const { metadataUrl, resource } = await discover(trusting, '/api/sqlib/mcp', forwarded);
+      expect(metadataUrl).toBe('https://data.example.org/api/sqlib/.well-known/oauth-protected-resource');
+      expect(resource).toBe('https://data.example.org/api/sqlib/mcp');
+      await trusting.close();
+    });
+
+    it('builds both URLs from SQLIB_PUBLIC_ORIGIN when it is set', async () => {
+      process.env.SQLIB_PUBLIC_ORIGIN = 'https://data.example.org';
+      const app = await buildApp('required', { basePath: '/api/sqlib', env: UNCHECKED });
+      const { metadataUrl, resource } = await discover(app, '/api/sqlib/mcp');
+
+      expect(metadataUrl).toBe('https://data.example.org/api/sqlib/.well-known/oauth-protected-resource');
+      expect(resource).toBe('https://data.example.org/api/sqlib/mcp');
+      await app.close();
+    });
+  });
+
+  it('uses SQLIB_PUBLIC_ORIGIN with no base path, for a resource that is not a URL', async () => {
+    const before = process.env.SQLIB_PUBLIC_ORIGIN;
+    process.env.SQLIB_PUBLIC_ORIGIN = 'https://data.example.org';
+    try {
+      const app = await buildApp('required');
+      const refused = await app.inject({ method: 'POST', url: '/mcp', payload: {}, headers: { host: 'internal:3000' } });
+      expect(String(refused.headers['www-authenticate'])).toContain(
+        'resource_metadata="https://data.example.org/.well-known/oauth-protected-resource"'
+      );
+      await app.close();
+    } finally {
+      if (before === undefined) delete process.env.SQLIB_PUBLIC_ORIGIN;
+      else process.env.SQLIB_PUBLIC_ORIGIN = before;
+    }
   });
 
   it('answers 404 when no issuer is configured', async () => {

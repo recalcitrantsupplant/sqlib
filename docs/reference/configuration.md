@@ -28,12 +28,14 @@ For the reasons behind these settings, see
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
 | `MCP_CATALOGUE` | `both` | Which surfaces the server offers: `both`, `catalogue` or `published`. `catalogue` serves no published tools (`/mcp/{slug}` and `/tools/…` are 404). `published` serves only the published tools: `/mcp` lists them alone, every authoring route is 404, `POST /execute` runs only their pinned versions, and an invalid published tool stops the server at startup instead of being skipped. Anything else throws. See [publishing tools](../guides/publishing-tools.md). |
-| `SQLIB_OGC_BASE_URL` | unset | The absolute URL at the start of each OGC API Features link, such as `https://maps.example.org`. If it is not set, links use the scheme and host of the request, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
+| `SQLIB_OGC_BASE_URL` | unset | The absolute URL at the start of each OGC API Features link, such as `https://maps.example.org`. If it is not set, links use `SQLIB_PUBLIC_ORIGIN`, or else the scheme and host of the request, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
 | `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read API and `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers, and its preflight gets 404. Set to the empty string to allow none even in development. A production deployment whose SPA is served from another origin than the API must list that origin. The API (`packages/api/src/config/cors.ts`) and the MCP transport read it the same way, since in `dual-http` and `streamable-http` modes they share one instance; `/mcp` answers its own `OPTIONS /mcp` preflight, with the MCP headers, and the API's plugin leaves that path alone. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
-| `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. |
+| `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. The MCP endpoint is served at `/mcp` and at `<prefix>/mcp`. |
 | `APP_PUBLIC_BASE_PATH` | value of `APP_BASE_PATH` | The prefix the server advertises in generated URLs, for a deployment behind a proxy that rewrites the path. |
+| `SQLIB_PUBLIC_ORIGIN` | unset | The scheme and host that clients use for this server, such as `https://data.example.org`. sqlib puts it at the start of the URLs it advertises: the protected-resource metadata, the 401 challenge, and OGC links when `SQLIB_OGC_BASE_URL` is not set. Set it behind a reverse proxy. If it is not set, those URLs use the scheme and host of the request. A value with a path, a query or another scheme stops startup with an error. |
+| `SQLIB_TRUST_PROXY` | `false` | Makes the server read `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For` from the request. `true` trusts every sender. A whole number trusts that number of proxy hops. Any other value is a comma-separated list of proxy addresses or CIDR ranges, such as `10.0.0.0/8`. Leave it off when clients can reach the server without the proxy, because a client can then set the advertised URLs with its own headers. |
 | `NODE_ENV` | unset | Standard Node convention. It selects the MCP transport default above, switches OTLP export on in `development` (see telemetry), and suppresses OpenTelemetry logging when it is `test`. |
 | `MCP_DEBUG_PORT` | `3334` | Port for `packages/mcp-server`'s echo server (`pnpm --filter @sparql-query-lib/mcp-server dev:debug-http`), a development aid, not part of the served application. |
 | `MCP_DEBUG_HOST` | `127.0.0.1` | Address for the same. |
@@ -456,6 +458,21 @@ The document lists the configured issuers as `authorization_servers`. It is
 public in each mode, and answers 404 when no issuer is configured. Each 401 has
 `WWW-Authenticate: Bearer resource_metadata="…"`. With this header, an MCP
 client finds the authorization server with no client configuration.
+
+The URL in `resource_metadata` depends on the base path:
+
+| Base path | `SQLIB_AUTH_RESOURCE` | `resource_metadata` |
+| --- | --- | --- |
+| none | a URL | `<origin of the resource>/.well-known/oauth-protected-resource<path of the resource>` |
+| none | not a URL, or unset | `<public origin>/.well-known/oauth-protected-resource` |
+| set | any | `<public origin><public base path>/.well-known/oauth-protected-resource` |
+
+The public origin is `SQLIB_PUBLIC_ORIGIN`. If that is not set, it is the
+origin of a URL resource, or else the scheme and host of the request. The
+public base path is `APP_PUBLIC_BASE_PATH`, or else `APP_BASE_PATH`.
+
+When no issuer has an audience and `SQLIB_AUTH_RESOURCE` is not set, the
+`resource` in the document is `<public origin><public base path>/mcp`.
 
 ## Environments
 

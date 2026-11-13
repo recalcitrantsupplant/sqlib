@@ -109,6 +109,12 @@ async function buildContext(
 export interface AuthPluginOptions {
   /** `APP_BASE_PATH`, normalised (`''` or `/prefix`), under which the routes are mounted. */
   basePath?: string;
+  /**
+   * `APP_PUBLIC_BASE_PATH`, normalised, else `basePath`: the path prefix that
+   * a client sees. It goes into the URLs that the 401 challenge and the
+   * protected-resource metadata advertise.
+   */
+  publicBasePath?: string;
 }
 
 export async function registerAuthPlugin(
@@ -117,6 +123,7 @@ export async function registerAuthPlugin(
 ): Promise<void> {
   const config = getAuthConfig();
   const basePath = options.basePath ?? '';
+  const publicBasePath = options.publicBasePath ?? basePath;
 
   app.decorateRequest('authContext', undefined);
 
@@ -124,7 +131,7 @@ export async function registerAuthPlugin(
   // write scope: what a request saves is stamped with its caller.
   registerWriteActorHooks(app);
 
-  registerProtectedResourceMetadataRoutes(app, config, basePath);
+  registerProtectedResourceMetadataRoutes(app, config, basePath, publicBasePath);
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     if (config.mode === 'disabled') {
@@ -148,7 +155,7 @@ export async function registerAuthPlugin(
     if (!token) {
       if (config.mode === 'required' && !isPublicRoute(request.routeOptions?.url, config, basePath)) {
         reply
-          .header('WWW-Authenticate', bearerChallenge(config, request))
+          .header('WWW-Authenticate', bearerChallenge(config, request, undefined, publicBasePath))
           .code(401)
           .send({ error: 'Authentication required.' });
         return reply;
@@ -175,7 +182,7 @@ export async function registerAuthPlugin(
         if (status === 401) {
           reply.header(
             'WWW-Authenticate',
-            bearerChallenge(config, request, { code: 'invalid_token', description: tokenError.kind })
+            bearerChallenge(config, request, { code: 'invalid_token', description: tokenError.kind }, publicBasePath)
           );
         }
         reply.code(status).send({
