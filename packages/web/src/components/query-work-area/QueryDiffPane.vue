@@ -7,6 +7,27 @@
       this view, not an action on it — and the way back sits where actions sit.
     -->
     <div class="diff-controls">
+      <!--
+        Text or triples, for RDF sides only. The counts are the triples one
+        side has and the other does not.
+      -->
+      <div v-if="triplesAvailable" class="diff-mode">
+        <SegmentedToggle
+          v-model="mode"
+          group-label="Compare as"
+          size="default"
+          :options="MODE_OPTIONS"
+        />
+        <span
+          v-if="mode === 'triples' && tripleResult?.ok"
+          class="diff-counts"
+          data-testid="triple-diff-counts"
+        >
+          <span class="diff-count diff-count--added" title="Triples added">+{{ tripleResult.added }}</span>
+          <span class="diff-count diff-count--removed" title="Triples removed">−{{ tripleResult.removed }}</span>
+        </span>
+      </div>
+
       <div class="diff-versions">
         <div class="diff-version-selector">
           <SectionLabel for="query-diff-left-version" as="label" size="md">Left:</SectionLabel>
@@ -81,8 +102,28 @@
     </div>
 
     <div class="diff-body">
+      <template v-if="mode === 'triples' && triplesAvailable">
+        <SparqlDiffViewer
+          v-if="tripleResult?.ok"
+          :left-query="tripleResult.leftText"
+          :right-query="tripleResult.rightText"
+          :left-label="leftLabel"
+          :right-label="rightLabel"
+          content-type="text/turtle"
+          read-only
+          height="100%"
+          data-testid="triple-diff-viewer"
+        />
+        <div v-else-if="tripleResult" class="diff-error" data-testid="triple-diff-error">
+          {{ tripleResult.message }}
+        </div>
+        <div v-else class="diff-loading">
+          <Loader2 :size="32" class="spin-icon" />
+        </div>
+      </template>
+
       <SparqlDiffViewer
-        v-if="leftQuery && rightQuery"
+        v-else-if="leftQuery && rightQuery"
         :left-query="leftQuery"
         :right-query="rightQuery"
         :left-label="leftLabel"
@@ -109,6 +150,7 @@
  * `ExpandableEditor`'s `layer` slot. The editor underneath keeps its instance,
  * so coming back lands on the same text, selection and undo history.
  */
+import { computed, ref, watch } from 'vue';
 import { ArrowLeftRight, Loader2 } from '@lucide/vue';
 import Select from '../ui/select/Select.vue';
 import SelectContent from '../ui/select/SelectContent.vue';
@@ -117,7 +159,9 @@ import SelectTrigger from '../ui/select/SelectTrigger.vue';
 import SelectValue from '../ui/select/SelectValue.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import SparqlDiffViewer from '../shared/SparqlDiffViewer.vue';
+import SegmentedToggle from '../shared/SegmentedToggle.vue';
 import { DRAFT_SIDE } from '@/lib/versionDiff';
+import { planTripleDiff, type TripleDiffResult } from '@/lib/tripleDiff';
 
 interface VersionOption {
   value: string;
@@ -125,7 +169,7 @@ interface VersionOption {
   dateModified?: string | null;
 }
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   versionOptions: VersionOption[];
   /** Offer the draft as a side when the editor holds unsaved edits. */
   hasDraftEdits?: boolean;
@@ -138,8 +182,16 @@ withDefaults(defineProps<{
   rightLabel: string;
   /** The language both sides are highlighted as: SPARQL, or an RDF format. */
   contentType?: string;
+  /**
+   * The RDF format of each side. With both set, the pane offers the triple
+   * view beside the text one. Query diffs leave them out.
+   */
+  leftFormat?: string | null;
+  rightFormat?: string | null;
   testid?: string;
 }>(), {
+  leftFormat: null,
+  rightFormat: null,
   hasDraftEdits: false,
   contentType: 'application/sparql-query',
   testid: 'query-diff-pane',
@@ -151,6 +203,44 @@ defineEmits<{
   (e: 'swap-versions'): void;
   (e: 'close'): void;
 }>();
+
+/* ------------------------------------------------------------- triple view */
+
+const MODE_OPTIONS = [
+  { value: 'text', label: 'Text', testId: 'diff-mode-text' },
+  { value: 'triples', label: 'Triples', testId: 'diff-mode-triples' },
+] as const;
+
+const mode = ref<'text' | 'triples'>('text');
+const triplesAvailable = computed(() => Boolean(props.leftFormat && props.rightFormat));
+const tripleResult = ref<TripleDiffResult | null>(null);
+
+/*
+ * Recomputed when either side or the mode changes. Canonicalisation is async,
+ * so a later request can finish first: only the newest one writes the result.
+ */
+let tripleRequest = 0;
+watch(
+  () => [mode.value, props.leftQuery, props.rightQuery, props.leftFormat, props.rightFormat, props.leftLabel, props.rightLabel],
+  async () => {
+    if (mode.value !== 'triples' || !triplesAvailable.value) return;
+    if (props.leftQuery === null || props.rightQuery === null) {
+      tripleResult.value = null;
+      return;
+    }
+    const request = ++tripleRequest;
+    tripleResult.value = null;
+    const result = await planTripleDiff(
+      { text: props.leftQuery, format: props.leftFormat as string, label: props.leftLabel },
+      { text: props.rightQuery, format: props.rightFormat as string, label: props.rightLabel },
+    ).catch((error: unknown): TripleDiffResult => ({
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+    if (request === tripleRequest) tripleResult.value = result;
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -196,6 +286,34 @@ defineEmits<{
   min-width: 140px;
   height: var(--control-h);
   font-size: var(--text-body);
+}
+
+.diff-mode {
+  display: flex;
+  grid-column: 1;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.diff-counts {
+  display: flex;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+}
+
+.diff-count--added {
+  color: var(--success-ink);
+}
+
+.diff-count--removed {
+  color: var(--danger-ink);
+}
+
+.diff-error {
+  padding: var(--space-6);
+  color: var(--danger-ink);
+  font-size: var(--text-content);
 }
 
 .diff-close {
