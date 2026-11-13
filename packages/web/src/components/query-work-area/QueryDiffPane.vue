@@ -23,8 +23,8 @@
           class="diff-counts"
           data-testid="triple-diff-counts"
         >
-          <span class="diff-count diff-count--added" title="Triples added">+{{ tripleResult.added }}</span>
-          <span class="diff-count diff-count--removed" title="Triples removed">−{{ tripleResult.removed }}</span>
+          <span class="diff-count--added" title="Triples added">+{{ tripleResult.added }}</span>
+          <span class="diff-count--removed" title="Triples removed">−{{ tripleResult.removed }}</span>
         </span>
       </div>
 
