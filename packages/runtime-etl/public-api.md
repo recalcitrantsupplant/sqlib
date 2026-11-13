@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 10 exported names.
+Version `0.1.0`. 1 entry point, 12 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime-etl`
 
-10 exports, from `index.d.ts`.
+12 exports, from `index.d.ts`.
 
 ### `Binding` — type, from `columns`
 
@@ -34,6 +34,12 @@ interface ColumnDefinition {
     iriTemplate?: string;
     nullPolicy: 'undef' | 'skipRow';
 }
+```
+
+### `DETECTED_IRI_SCHEMES` — const, from `infer`
+
+```ts
+declare const DETECTED_IRI_SCHEMES: readonly ["http", "https", "urn", "ftp", "file", "mailto", "tag", "did"];
 ```
 
 ### `EtlOutputChunk` — interface, from `run`
@@ -106,4 +112,10 @@ declare function toArgumentSet(bindings: Binding[], columns: ReadonlyArray<Colum
 
 ```ts
 declare function toLexicalForm(value: unknown, datatypeIri?: string): string;
+```
+
+### `valuesLookLikeIris` — function, from `infer`
+
+```ts
+declare function valuesLookLikeIris(values: readonly unknown[]): boolean;
 ```
