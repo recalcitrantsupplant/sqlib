@@ -552,6 +552,11 @@ export const sqlib = createNamespace({
     "movedEntity",
     "fromVersion",
     "toVersion",
+    // One delete of one library entity, kept so the library's activity feed
+    // can say who deleted what. The entity is gone, so its type is kept here.
+    "Removal",
+    "removedEntity",
+    "removedType",
 
     // Patches — the ground quad diff of one write, kept as an event rather
     // than a version: what changed, on which backend, derived from what, and

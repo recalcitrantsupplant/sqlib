@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
+import { registerWriteActorHooks } from '../../../src/auth/writeActor.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
@@ -64,6 +65,9 @@ export class ScenarioTestBaseUnmocked {
 
     // Create Fastify app with real configuration
     const app = Fastify({ logger: false, serializerOpts });
+    // As the auth plugin does in the real app: a write in a request is made
+    // by that request's caller (nobody, here), and a delete is recorded.
+    registerWriteActorHooks(app);
 
     // Set up real JSON schema validation
     setupValidator(app);

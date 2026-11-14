@@ -66,6 +66,7 @@ export const ENTITY_TYPE_NAMES = [
   'Tag',
   'Environment',
   'PointerMove',
+  'Removal',
   'Patch',
   'TupleSet',
   'TupleSetVersion',

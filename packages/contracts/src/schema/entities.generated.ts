@@ -3571,6 +3571,63 @@ export const queryoutputvariableSchema = {
   ]
 } as const;
 
+export const removalSchema = {
+  "$id": "removal",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "removedEntity": {
+      "type": "string",
+      "format": "iri"
+    },
+    "removedType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "removedEntity",
+    "removedType"
+  ]
+} as const;
+
 export const ruleSchema = {
   "$id": "rule",
   "type": "object",
@@ -5577,6 +5634,18 @@ export interface QueryOutputVariableRestApi {
   id: string;
   variableName: string;
   description?: string | null;
+}
+
+export interface RemovalRestApi {
+  id: string;
+  isPartOf: string;
+  removedEntity: string;
+  removedType: string;
+  name?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface RuleRestApi {
