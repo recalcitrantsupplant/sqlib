@@ -23,6 +23,12 @@ const login = vi.fn();
 const logout = vi.fn();
 const signedIn = ref(false);
 const freshAccessToken = vi.fn();
+const push = vi.fn();
+
+vi.mock('#imports', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useRouter: () => ({ push }),
+}));
 
 vi.mock('@/composables/useAuth', () => ({
   useAuth: () => ({
@@ -69,6 +75,7 @@ beforeEach(() => {
   logout.mockClear();
   signedIn.value = false;
   freshAccessToken.mockReset();
+  push.mockClear();
   document.body.innerHTML = '';
 });
 
@@ -90,12 +97,31 @@ describe('AccountMenu', () => {
     expect(menu.textContent).toContain('priya@example.com');
     expect(menu.textContent).toContain('auth.example.com');
     expect(menu.querySelector('[data-testid="account-groups"]')!.textContent).toBe('analysts');
-    const access = menu.querySelector('[data-testid="account-access"]')!.textContent!;
-    expect(access).toContain('Finance queries');
-    expect(access).toContain('Run');
-    expect(access).toContain('Company data');
-    expect(access).toContain('Query saved · Update none');
+    const access = menu.querySelector('[data-testid="account-access"]')!;
+    const library = access.querySelector('[data-testid="account-access-library"]')!;
+    expect(library.textContent).toContain('Finance queries');
+    expect(library.querySelector('.grant-chip--run')!.textContent).toBe('Run');
+    expect(library.querySelector('.grant-chip--run')!.getAttribute('title')).toBe('read, execute');
+    const backend = access.querySelector('[data-testid="account-access-backend"]')!;
+    expect(backend.textContent).toContain('Company data');
+    expect([...backend.querySelectorAll('.grant-chip')].map((chip) => chip.textContent)).toEqual(['saved', 'none']);
+    expect(backend.querySelector('.grant-chip--none')).not.toBeNull();
     expect(menu.querySelector('[data-testid="account-sign-out"]')).not.toBeNull();
+    wrapper.unmount();
+  });
+
+  it('opens a library or backend from its row', async () => {
+    state.account.value = { state: 'signed-in', identity: { name: 'Priya Shah', email: null } };
+    state.me.value = me();
+    let wrapper = await open();
+    document.body.querySelector<HTMLElement>('[data-testid="account-access-library"]')!.click();
+    expect(push).toHaveBeenCalledWith({ path: '/library', query: { library: LIBRARY } });
+    wrapper.unmount();
+
+    document.body.innerHTML = '';
+    wrapper = await open();
+    document.body.querySelector<HTMLElement>('[data-testid="account-access-backend"]')!.click();
+    expect(push).toHaveBeenLastCalledWith({ path: `/backends/${encodeURIComponent(BACKEND)}` });
     wrapper.unmount();
   });
 
