@@ -41,8 +41,16 @@
               >
                 {{ option.label }}
                 <template #aside>
-                  <span v-if="option.dateModified" class="version-timestamp">
-                    {{ formatRelativeTime(option.dateModified) }}
+                  <span class="version-aside">
+                    <PersonChip
+                      v-if="option.createdBy"
+                      :iri="option.createdBy"
+                      compact
+                      data-testid="version-option-author"
+                    />
+                    <span v-if="option.dateModified" class="version-timestamp">
+                      {{ formatRelativeTime(option.dateModified) }}
+                    </span>
                   </span>
                 </template>
               </SelectItem>
@@ -169,9 +177,16 @@ import SelectItem from '../ui/select/SelectItem.vue';
 import SelectTrigger from '../ui/select/SelectTrigger.vue';
 import SelectValue from '../ui/select/SelectValue.vue';
 import SectionLabel from './SectionLabel.vue';
+import PersonChip from './PersonChip.vue';
 import { formatRelativeTime } from '@/lib/time';
 
-export type VersionOption = { value: string; label: string; dateModified?: string | null };
+export type VersionOption = {
+  value: string;
+  label: string;
+  dateModified?: string | null;
+  /** The principal IRI that saved this version, where the server recorded one. */
+  createdBy?: string | null;
+};
 
 const props = withDefaults(
   defineProps<{
@@ -354,8 +369,14 @@ const isDiffDisabled = computed(
   width: 100%;
 }
 
-.version-timestamp {
+.version-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
   margin-left: 1em;
+}
+
+.version-timestamp {
   font-size: var(--text-content);
   color: var(--ink-muted);
   white-space: nowrap;

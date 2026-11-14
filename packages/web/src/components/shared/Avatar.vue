@@ -1,6 +1,6 @@
 <template>
   <span class="avatar" :class="[`avatar--${size}`, `avatar--${tone}`]" aria-hidden="true">
-    <User v-if="tone === 'guest' || !initials" :size="size === 'lg' ? 18 : 14" />
+    <User v-if="tone === 'guest' || !initials" :size="size === 'lg' ? 18 : size === 'sm' ? 12 : 14" />
     <template v-else>{{ initials }}</template>
   </span>
 </template>
@@ -18,10 +18,13 @@ import { User } from '@lucide/vue';
 withDefaults(
   defineProps<{
     initials?: string;
-    /** `md` is a control's height; `lg` heads a menu or a page. */
-    size?: 'md' | 'lg';
-    /** `warning` rings a lapsed session; `guest` is a visitor with no account. */
-    tone?: 'default' | 'warning' | 'guest';
+    /** `sm` sits in a line of text or a list row; `md` is a control's height; `lg` heads a menu or a page. */
+    size?: 'sm' | 'md' | 'lg';
+    /**
+     * `warning` rings a lapsed session; `guest` is a visitor with no account;
+     * `unknown` is a person this server has no name for.
+     */
+    tone?: 'default' | 'warning' | 'guest' | 'unknown';
   }>(),
   { initials: '', size: 'md', tone: 'default' },
 );
@@ -41,6 +44,12 @@ withDefaults(
   user-select: none;
 }
 
+.avatar--sm {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  font-size: var(--text-micro);
+}
+
 .avatar--md {
   width: var(--control-h);
   height: var(--control-h);
@@ -57,6 +66,12 @@ withDefaults(
   background: var(--warning-surface);
   color: var(--warning-ink);
   box-shadow: 0 0 0 var(--focus-ring-width) var(--warning);
+}
+
+.avatar--unknown {
+  background: var(--surface-subtle);
+  color: var(--ink-muted);
+  box-shadow: inset 0 0 0 1px var(--border-default);
 }
 
 .avatar--guest {

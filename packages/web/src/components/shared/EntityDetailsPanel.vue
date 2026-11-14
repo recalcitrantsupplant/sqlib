@@ -221,6 +221,12 @@
               lands on the same edge on every row — including the draft above,
               which has neither a tool nor an action to draw.
             -->
+            <PersonChip
+              v-if="option.createdBy"
+              :iri="option.createdBy"
+              class="version-author"
+              data-testid="version-author"
+            />
             <span class="version-age">{{ formatRelativeTime(option.dateModified) }}</span>
 
             <span class="version-tools">
@@ -347,12 +353,22 @@
       v-if="showFooter"
       :noun="entityNoun"
       :confirm-prompt="deleteConfirmPrompt"
-      :created-at="createdAt"
       :can-delete="canDelete"
       :deleting="deleting"
       :reset-key="entityId"
       @delete="emit('delete')"
-    />
+    >
+      <template #meta>
+        <div v-if="createdLabel || editedLabel" class="footer-meta">
+          <InlineNote v-if="createdLabel" as="span" class="footer-line" data-testid="details-created">
+            Created {{ createdLabel }}<template v-if="createdBy"> by <PersonChip :iri="createdBy" /></template>
+          </InlineNote>
+          <InlineNote v-if="editedLabel" as="span" class="footer-line" data-testid="details-edited">
+            Edited {{ editedLabel }}<template v-if="modifiedBy"> by <PersonChip :iri="modifiedBy" /></template>
+          </InlineNote>
+        </div>
+      </template>
+    </RecordFooter>
   </div>
 </template>
 
@@ -381,6 +397,8 @@ export interface DetailsVersionOption {
    */
   summary?: string | null;
   dateModified?: string | null;
+  /** The principal IRI that saved this version, where the server recorded one. */
+  createdBy?: string | null;
   /** The environments that point at this version, in chain order. */
   environments?: readonly string[];
 }
@@ -400,6 +418,7 @@ import { isBooleanQueryType, isGraphQueryType, isQueryTypeIri, isResultSetQueryT
 import { formatRelativeTime, formatCompactAge, formatShortDate } from '../../lib/time';
 import EntityTagsField from '../tags/EntityTagsField.vue';
 import InlineNote from './InlineNote.vue';
+import PersonChip from './PersonChip.vue';
 import RecordFooter from './RecordFooter.vue';
 import SearchSelect from './SearchSelect.vue';
 import type { TaggableKind } from '../../composables/useEntityTags';
@@ -461,6 +480,12 @@ const props = withDefaults(defineProps<{
   canCompareVersions?: boolean;
   /** When the entity was created; absent leaves the footer note out. */
   createdAt?: string | null;
+  /** Who created the entity: a principal IRI, or absent where nobody was recorded. */
+  createdBy?: string | null;
+  /** When the entity last changed; absent, or equal to `createdAt`, leaves the Edited line out. */
+  modifiedAt?: string | null;
+  /** Who made the last change: a principal IRI, or absent where nobody was recorded. */
+  modifiedBy?: string | null;
   /**
    * True where deleting from here is wired up. False — the default — leaves
    * the footer's delete out rather than drawing a button that does nothing.
@@ -482,6 +507,9 @@ const props = withDefaults(defineProps<{
   canAnnotateVersions: false,
   canCompareVersions: false,
   createdAt: null,
+  createdBy: null,
+  modifiedAt: null,
+  modifiedBy: null,
   canDelete: false,
   deleting: false,
 });
@@ -672,7 +700,16 @@ const showActionSlot = computed(() => props.canSetCurrentVersion || props.curren
 
 const createdLabel = computed(() => formatShortDate(props.createdAt));
 
-const showFooter = computed(() => props.canDelete || !!createdLabel.value);
+/*
+ * A save that only made the entity has no edit to report. The two stamps are
+ * written by one call on create, so equal strings mean no later write.
+ */
+const editedLabel = computed(() => {
+  if (!props.modifiedAt || props.modifiedAt === props.createdAt) return '';
+  return formatRelativeTime(props.modifiedAt);
+});
+
+const showFooter = computed(() => props.canDelete || !!createdLabel.value || !!editedLabel.value);
 
 const deleteConfirmPrompt = computed(() => {
   const count = props.versionOptions.length;
@@ -1077,6 +1114,12 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   outline: none;
 }
 
+.version-author {
+  flex-shrink: 1;
+  max-width: 40%;
+  font-size: var(--text-label);
+}
+
 .version-age {
   flex-shrink: 0;
   color: var(--ink-muted);
@@ -1240,5 +1283,20 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   color: var(--ink-secondary);
   font-family: var(--font-mono);
   font-size: var(--text-label);
+}
+
+/* Two short lines, created above edited, so the dates line up. */
+.footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.footer-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
 }
 </style>

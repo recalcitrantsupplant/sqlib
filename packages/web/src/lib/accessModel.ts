@@ -80,6 +80,45 @@ export function describeBackendModes(modes: Iterable<string>): string {
   return OPERATIONS.map((op) => `${op === 'query' ? 'Query' : 'Update'} ${levelLabel(levelOf(list, op))}`).join(' · ');
 }
 
+/** The colour a grant chip takes: a library role, or a backend level. */
+export type GrantTone = 'view' | 'run' | 'edit' | 'manage' | Level;
+
+/** One coloured chip in a list of grants. `title` is its tooltip. */
+export interface GrantChip {
+  label: string;
+  tone: GrantTone;
+  title?: string;
+}
+
+/**
+ * The tone of each library mode, for a set that no role names. A mode takes
+ * the colour of the lowest role that adds it.
+ */
+const MODE_TONES: Record<LibraryMode, GrantTone> = {
+  read: 'view',
+  execute: 'run',
+  write: 'edit',
+  delete: 'manage',
+  control: 'manage',
+};
+
+/** Library modes as chips: one chip for a role, or one chip for each mode when no role matches. */
+export function libraryGrantChips(modes: Iterable<string>): GrantChip[] {
+  const held = new Set(modes);
+  const list = LIBRARY_MODES.filter((mode) => held.has(mode));
+  const role = roleOf(list);
+  if (role !== 'custom') {
+    return [{ label: LIBRARY_ROLES.find((r) => r.value === role)!.label, tone: role, title: list.join(', ') }];
+  }
+  return list.map((mode) => ({ label: mode, tone: MODE_TONES[mode] }));
+}
+
+/** The level a set of backend modes gives one operation, as a chip. */
+export function backendLevelChip(modes: Iterable<string>, operation: Operation): GrantChip {
+  const level = levelOf(modes, operation);
+  return { label: levelLabel(level), tone: level };
+}
+
 /** True when the grant makes its principal an administrator. */
 export function isAdminGrant(grant: Grant): boolean {
   return grant.resourceKind === 'everything' && grant.modes.includes('control');

@@ -360,6 +360,13 @@ describe('required mode', () => {
     expect(labelOf('user-5')).toBe('five');
     expect(labelOf('user-6')).toBe('Six');
     expect(labelOf('user-7')).toBeUndefined();
+
+    // The name other readers see skips the email.
+    const displayNameOf = (sub: string) => store.listPrincipals(sub)[0]?.displayName;
+    expect(displayNameOf('user-4')).toBe('Four');
+    expect(displayNameOf('user-5')).toBe('Five');
+    expect(displayNameOf('user-6')).toBe('Six');
+    expect(displayNameOf('user-7')).toBeUndefined();
     await app.close();
   });
 });

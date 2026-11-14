@@ -22,7 +22,10 @@
       </button>
     </template>
     <template v-else>
-      <InlineNote v-if="createdLabel" as="span" :data-testid="`${testIdPrefix}-created`">Created {{ createdLabel }}</InlineNote>
+      <!-- A host with more to say than the date (who made it, when it changed) fills this. -->
+      <slot name="meta">
+        <InlineNote v-if="createdLabel" as="span" :data-testid="`${testIdPrefix}-created`">Created {{ createdLabel }}</InlineNote>
+      </slot>
       <button
         v-if="canDelete"
         class="delete-button"
@@ -60,7 +63,7 @@ const props = withDefaults(defineProps<{
   noun: string;
   /** The question in the confirm strip, with the effects of the delete. */
   confirmPrompt: string;
-  /** When the record was created; absent leaves the note out. */
+  /** When the record was created; absent leaves the note out. Ignored when the `meta` slot is filled. */
   createdAt?: string | null;
   /** False leaves the button out, for a record the user cannot delete. */
   canDelete?: boolean;

@@ -249,6 +249,7 @@ import { useEntityDraft } from '@/composables/useEntityDraft';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { buildQuerySignature, compatibility } from '@/lib/argumentSignature';
 import { pinBindings, referencesOf } from '@/lib/tupleSetReferences';
+import { NO_STAMPS, stampsOf, type EntityStamps } from '@/lib/entityStamps';
 import type {
   ArgumentScalarBinding,
   ArgumentSetDraftBody,
@@ -278,11 +279,19 @@ const scope = ref<'query' | 'queryGroup' | null>(null);
 const targetId = ref<string | null>(null);
 const setLibraryId = ref<string | null>(null);
 const setCreatedAt = ref<string | null>(null);
+/** When the set was made and last changed, and by whom, for the Details footer. */
+const setStamps = ref<EntityStamps>(NO_STAMPS);
 
 const tupleBindings = ref<ArgumentTupleBinding[]>([]);
 const scalarBindings = ref<ArgumentScalarBinding[]>([]);
 
-const versions = ref<Array<{ id: string; version: number; dateModified?: string; dateCreated?: string }>>([]);
+const versions = ref<Array<{
+  id: string;
+  version: number;
+  dateModified?: string;
+  dateCreated?: string;
+  createdBy?: string | null;
+}>>([]);
 const currentVersionId = ref<string | null>(null);
 const loadedVersionId = ref<string | null>(null);
 
@@ -518,6 +527,7 @@ const versionOptions = computed(() =>
       // and there is nothing to annotate.
       comment: null,
       dateModified: version.dateModified ?? version.dateCreated ?? null,
+      createdBy: version.createdBy ?? null,
     })),
 );
 
@@ -544,6 +554,7 @@ const detailsProps = computed(() => ({
   editCount: editCount.value,
   draftSavedAt: locallySavedAt.value,
   draftSelected: editCount.value > 0,
+  ...(isScratch.value ? NO_STAMPS : setStamps.value),
   createdAt: isScratch.value ? null : setCreatedAt.value,
   canDelete: !isScratch.value && !!setId.value,
   deleting: isDeleting.value,
@@ -681,6 +692,7 @@ async function load() {
     targetId.value = detail.targetId ?? null;
     setLibraryId.value = detail.libraryId ?? null;
     setCreatedAt.value = detail.dateCreated ?? null;
+    setStamps.value = stampsOf(detail);
     currentVersionId.value = detail.currentVersionId ?? null;
     loadedVersionId.value = detail.currentVersionId ?? null;
     tupleBindings.value = detail.currentVersion?.tupleBindings ?? detail.tupleBindings ?? [];
@@ -802,6 +814,7 @@ function clearRecord() {
   targetId.value = null;
   setLibraryId.value = null;
   setCreatedAt.value = null;
+  setStamps.value = NO_STAMPS;
   versions.value = [];
   currentVersionId.value = null;
   loadedVersionId.value = null;

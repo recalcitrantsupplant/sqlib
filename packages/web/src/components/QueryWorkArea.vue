@@ -631,6 +631,12 @@ const queryId = ref('');
 // The Details footer's "Created" note; the query list never needed it, so it
 // was never kept.
 const queryCreatedAt = ref<string | null>(null);
+/** Who made the query and who last changed it, with when, for the Details footer. */
+const queryAuthorship = ref<{ createdBy: string | null; modifiedAt: string | null; modifiedBy: string | null }>({
+  createdBy: null,
+  modifiedAt: null,
+  modifiedBy: null,
+});
 const queryConcurrency = ref<string | null>(null);
 
 /** The library the open query belongs to — where a save would land. */
@@ -1832,6 +1838,7 @@ const detailsProps = computed(() => ({
     label: option.label,
     comment: option.comment ?? null,
     dateModified: option.dateModified,
+    createdBy: option.createdBy ?? null,
     environments: environmentsByVersion.value[option.value] ?? [],
   })),
   selectedVersion: selectedVersion.value,
@@ -1853,6 +1860,7 @@ const detailsProps = computed(() => ({
   // versions to compare at all.
   canCompareVersions: !isScratch.value && versionOptions.value.length > 1,
   createdAt: isScratch.value ? null : queryCreatedAt.value,
+  ...(isScratch.value ? {} : queryAuthorship.value),
   // A scratch query lives in this browser: Discard in the save bar is what
   // removes it, and there is no server entity for Delete to address.
   canDelete: !isScratch.value && !!queryId.value,
@@ -2097,6 +2105,7 @@ function resetDraftState() {
   versionComment.value = '';
   queryId.value = '';
   queryCreatedAt.value = null;
+  queryAuthorship.value = { createdBy: null, modifiedAt: null, modifiedBy: null };
   currentQueryId.value = null;
   queryConcurrency.value = null;
   defaultBackend.value = NONE_BACKEND;
@@ -2130,6 +2139,11 @@ function hydrateFromQuery(query: ApiQuery, options: { ifMatch?: string | null } 
   queryId.value = query.id;
   currentQueryId.value = query.id;
   queryCreatedAt.value = query.dateCreated ?? null;
+  queryAuthorship.value = {
+    createdBy: query.createdBy ?? null,
+    modifiedAt: query.dateModified ?? null,
+    modifiedBy: query.modifiedBy ?? null,
+  };
   queryName.value = query.name;
   queryDescription.value = query.description ?? '';
   // The comment lives on the version, not the query; it is set for real once
