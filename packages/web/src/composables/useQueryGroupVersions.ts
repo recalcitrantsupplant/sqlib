@@ -5,6 +5,7 @@ import type {
   VersionMeta,
 } from './queryGroupTypes';
 import { createGraphStateFromExpanded } from './useQueryGroupGraph';
+import { upgradeLegacyStartPorts } from './queryGroupLegacyStartPorts';
 import type { QueryGroupVersion } from '@sparql-query-lib/contracts';
 import type { QueryGroupGraphState } from './useQueryGroupGraph';
 
@@ -155,7 +156,11 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     }
 
     const result = await apiClient.getQueryGroupVersion(groupId, meta.version);
-    const expanded = result.data;
+    // An old Start port typed as a result tuple is read as the group input it
+    // is, so the canvas shows it as one and the next save writes it as one.
+    const upgrade = upgradeLegacyStartPorts(result.data);
+    const expanded = upgrade.expanded;
+    legacyStartPortsConverted.value = upgrade.converted;
     concurrencyTokens.value[expanded.queryGroupVersion.id] = result.etag ?? null;
 
     const normalizedVersion =
@@ -283,6 +288,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
    * edit from a load.
    */
   const loadCount = ref(0);
+  const legacyStartPortsConverted = ref<string[]>([]);
 
   const setSelectedVersion = (versionId: string | null) => {
     selectedVersionId.value = versionId;
@@ -317,6 +323,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     loadVersionList,
     loadVersionById,
     loadCount,
+    legacyStartPortsConverted,
     reloadVersionsAndSelect,
     findVersionIdByNumber,
     setSelectedVersion,

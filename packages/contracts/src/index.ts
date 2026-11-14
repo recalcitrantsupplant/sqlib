@@ -19,6 +19,7 @@ export * from './hand-written/tuple-sets.js';
 export * from './hand-written/backends.js';
 export * from './hand-written/argument-sets.js';
 export * from './hand-written/query-groups.js';
+export * from './hand-written/query-group-edge-rules.js';
 export * from './generated/benchmark.js';
 export * from './generated/detection.js';
 export * from './generated/execution.js';

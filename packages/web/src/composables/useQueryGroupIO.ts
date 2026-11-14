@@ -331,7 +331,9 @@ const toQueryIdInputDraft = (input: unknown): QueryIdInputDraft | null => {
     id: rec.id,
     name: typeof rec.name === 'string' && rec.name.trim().length > 0 ? rec.name : null,
     description: typeof rec.description === 'string' && rec.description.trim().length > 0 ? rec.description : null,
-    isPartOf: typeof rec.isPartOf === 'string' && rec.isPartOf.trim().length > 0 ? rec.isPartOf : null,
+    // `isPartOf` is not sent back. The writer derives it from the node that
+    // declares the port, and the create route refuses the field, so a loaded
+    // group with a dynamic node could not be saved again.
   };
   return draft;
 };
