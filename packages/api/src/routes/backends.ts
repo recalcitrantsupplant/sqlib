@@ -73,6 +73,7 @@ import {
 import { getAuthStore } from '../auth/AuthStore.js';
 import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
 import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
 import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -1250,6 +1251,7 @@ export default async function (
       libraries: Array<{ id: string; name: string }>;
       queries: Array<{ id: string; name: string }>;
       etlJobs: Array<{ id: string; name: string }>;
+      environments: Array<{ id: string; name: string; library: string }>;
     } | ErrorResponse
   }>(
     '/:id/references',
@@ -1294,6 +1296,17 @@ export default async function (
                     name: { type: 'string' }
                   }
                 }
+              },
+              environments: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    library: { type: 'string' }
+                  }
+                }
               }
             }
           }
@@ -1325,10 +1338,15 @@ export default async function (
         .filter(job => job.defaultBackend === id)
         .map(job => ({ id: job.$id, name: job.name }));
 
+      const referencingEnvironments = (repos.Environment.list() as PersistedEnvironment[])
+        .filter(env => env.defaultBackend === id)
+        .map(env => ({ id: env.$id, name: env.name, library: env.isPartOf }));
+
       return reply.send({
         libraries: referencingLibraries,
         queries: referencingQueries,
         etlJobs: referencingEtlJobs,
+        environments: referencingEnvironments,
       });
     })
   );
@@ -1365,6 +1383,15 @@ export default async function (
         if (query.defaultBackend === id) {
           request.log.info(`Clearing defaultBackend reference in Query: ${query.$id}`);
           await repos.Query.update(query.$id, { defaultBackend: null });
+        }
+      }
+
+      // An environment whose default goes away falls back to the query's and
+      // the library's defaults.
+      for (const env of repos.Environment.list() as PersistedEnvironment[]) {
+        if (env.defaultBackend === id) {
+          request.log.info(`Clearing defaultBackend reference in Environment: ${env.$id}`);
+          await repos.Environment.update(env.$id, { defaultBackend: null });
         }
       }
 

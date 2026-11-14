@@ -183,8 +183,9 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
     const targetNode = graph.currentGraphState.value.nodes.find(node => node.id === nodeId) ?? null;
     /*
      * A node with no backend of its own takes the query's default, then the
-     * library's — the order a query run uses (`lib/backendDefaults.ts`) — and
-     * only then whatever the canvas was last pointed at.
+     * library's (`lib/backendDefaults.ts`), and only then whatever the canvas
+     * was last pointed at. The node keeps the backend in the saved group
+     * version, so the active environment's default does not apply here.
      */
     const queryDefault = queriesStore.queries.value.find(q => q.id === queryEntityId)?.defaultBackend ?? null;
     const fallbackBackend = targetNode?.backendId

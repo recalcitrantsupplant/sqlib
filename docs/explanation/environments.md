@@ -70,8 +70,29 @@ Published tools use it too. An explicit name, `latest` included, always wins.
 A library with no environments ignores the default, so a server set to `prod`
 does not break those libraries.
 
-The environment never chooses the backend. `defaultBackend` on an
-environment is a suggestion for clients, the same as on a query or a library.
+`/execute` never chooses the backend. A query run names its `backendId`.
+
+`defaultBackend` on an environment is the default backend of the library in
+that environment. With it, a library runs dev, test and prod each on its own
+backend. Clients and published tools pick the backend a query starts on in
+this order:
+
+1. In the web app, the backend this browser last ran the query on in this
+   environment.
+2. The default of the environment the run resolves in.
+3. The query's own `defaultBackend`.
+4. The library's `defaultBackend`.
+
+Under `latest` there is no step 2. The environment's default comes before the
+query's own, so that a query with its own default does not send its prod
+version to the dev backend. Published tools resolve in
+`SQLIB_DEFAULT_ENVIRONMENT`, so a prod server publishes each query with the
+prod default. The run bar labels the default it starts on with its source,
+for example "Fuseki prod · prod default". A query group node takes its backend
+when the group version is saved, so a group runs on the same backends in every
+environment.
+
+Deleting a backend clears every environment default that names it.
 
 ## Moving a pointer
 
@@ -99,7 +120,8 @@ switcher ("Manage environments…"), the environment badge on the rail and the
 
 - **Environments tab.** A list of the chain, `latest` first, beside one
   environment's detail. Each row in the list counts what that environment is
-  behind the one before it. The detail shows the environment's backend and
+  behind the one before it. The detail shows the environment's default
+  backend and
   who may promote to or run in it, then each query, group and rule set that
   differs from the environment before it, with Move (or Add) per row and
   Move all. The rest folds into one "in step" line. Each row's menu moves the
