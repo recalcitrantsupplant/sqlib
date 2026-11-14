@@ -236,6 +236,40 @@ toolbar. It shows the signed-in caller as "You", and an IRI with no name as
 shows who moved each environment pointer, from the `PointerMove` records (see
 [environments](../explanation/environments.md#moving-a-pointer)).
 
+#### Library activity
+
+`GET /libraries/:id/activity?kind=&actor=&before=&limit=` lists what people
+did in one library, newest first. It needs read on the library, and leaves out
+entities the caller may not read. Each item has a `kind`, a time (`at`), the
+principal (`actor`, null when nobody was recorded) and the entity. The feed
+stores nothing of its own. It reads these records:
+
+| `kind` | Read from |
+| --- | --- |
+| `created` | The entity's `dateCreated` and `createdBy` |
+| `saved` | A version's `dateCreated` and `createdBy` |
+| `edited` | The entity's `dateModified` and `modifiedBy`. Only the last edit is known. An edit within 2 s of the create, of a version of the same entity, or of a pointer move of the same environment is left out, because those writes also change the entity |
+| `moved` | A `PointerMove` of an environment in the library |
+| `deleted` | A `Removal` |
+
+`kind=edited` keeps edits and saved versions. `limit` is 50 by default and at
+most 200. A page with more after it returns `next`. Pass it as `before` for
+the next page.
+
+A delete writes a `Removal` (`removedEntity`, `removedType`, `name`, and the
+`createdBy` and `dateCreated` stamp) when all of these hold:
+
+1. The delete runs in a request, and the request is a `DELETE` whose `:id` is
+   the deleted entity. The versions, pointer moves or group parts that one
+   delete takes with it get no record of their own.
+2. The entity is a query, query group, rule set, rule, data block, data graph,
+   tuple set, argument set, test, ETL job, notebook, benchmark, tag or
+   environment, and it belongs to a library.
+
+A library delete writes no record, and deletes the library's records. The web
+app shows the feed in the Library page's Activity tab, with filters for the
+kind and the person.
+
 ## Containment
 
 Containment is `sdo:isPartOf`. The target of the predicate depends on the kind:
@@ -250,6 +284,7 @@ Containment is `sdo:isPartOf`. The target of the predicate depends on the kind:
 | `BrowserDefaultDataGraph` | Its `QueryGroup` or `RuleSet` |
 | `Patch` | The `Backend` whose data it describes. One predicate gives containment and target, so read access follows the path of the backend |
 | `PointerMove` | The `Environment` whose pointer moved. Read access follows the environment's library |
+| `Removal` | The `Library` the deleted entity belonged to |
 | `Backend` | Nothing. Backends are at account level, and each library can use them |
 | `BenchmarkExperiment` | A `Library`. Required on create. An experiment stored before this field existed has none, and only administrators can use it until `scripts/backfill-benchmark-ownership.ts` sets one |
 

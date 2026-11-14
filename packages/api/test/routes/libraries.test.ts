@@ -21,6 +21,8 @@ const { systemQueryExecuteMock, repo } = vi.hoisted(() => ({
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getEntityRepositories: () => ({
     Library: repo,
+    // The library delete also deletes the library's delete records.
+    Removal: { list: () => [], delete: vi.fn() },
   }),
 }));
 
