@@ -53,6 +53,7 @@
             :busy="busy"
             :notice="notice"
             :versions-of="envs.versionsOf"
+            :moves-of="envs.movesOf"
             @edit="openEdit(selectedEnvironment)"
             @reorder="(by) => moveEnvironment(selectedEnvironment!, by)"
             @delete="askDelete(selectedEnvironment)"

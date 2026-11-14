@@ -58,6 +58,7 @@ import { BrowserDefaultDataGraphSchema } from '../persistence/schemas/BrowserDef
 import { TagSchema } from '../persistence/schemas/TagSchema.js';
 import { EnvironmentSchema } from '../persistence/schemas/EnvironmentSchema.js';
 import { PatchSchema } from '../persistence/schemas/PatchSchema.js';
+import { PointerMoveSchema } from '../persistence/schemas/PointerMoveSchema.js';
 import { TupleSetSchema } from '../persistence/schemas/TupleSetSchema.js';
 import { TupleSetVersionSchema } from '../persistence/schemas/TupleSetVersionSchema.js';
 import { NotebookSchema } from '../persistence/schemas/NotebookSchema.js';
@@ -117,6 +118,7 @@ export const SCHEMA_BY_TYPE = {
   Tag: TagSchema,
   Environment: EnvironmentSchema,
   Patch: PatchSchema,
+  PointerMove: PointerMoveSchema,
   TupleSet: TupleSetSchema,
   TupleSetVersion: TupleSetVersionSchema,
   Notebook: NotebookSchema,

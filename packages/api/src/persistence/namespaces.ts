@@ -546,6 +546,12 @@ export const sqlib = createNamespace({
     "environmentVersion",
     // A query that only a group uses: never promoted on its own.
     "groupOnly",
+    // One move of one environment pointer, kept as an event: which entity,
+    // from which version, to which version. Who and when are the stamp.
+    "PointerMove",
+    "movedEntity",
+    "fromVersion",
+    "toVersion",
 
     // Patches — the ground quad diff of one write, kept as an event rather
     // than a version: what changed, on which backend, derived from what, and

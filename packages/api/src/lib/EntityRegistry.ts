@@ -18,6 +18,7 @@ import type { PersistedBrowserDefaultDataGraph } from '../persistence/schemas/Br
 import type { PersistedTag } from '../persistence/schemas/TagSchema.js';
 import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
 import type { PersistedPatch } from '../persistence/schemas/PatchSchema.js';
+import type { PersistedPointerMove } from '../persistence/schemas/PointerMoveSchema.js';
 import type { PersistedTupleSet } from '../persistence/schemas/TupleSetSchema.js';
 import type { PersistedTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
 import type { PersistedNotebook } from '../persistence/schemas/NotebookSchema.js';
@@ -107,6 +108,7 @@ import { BrowserDefaultDataGraphs } from '../persistence/utils/BrowserDefaultDat
 import { Tags } from '../persistence/utils/TagUtils.js';
 import { Environments } from '../persistence/utils/EnvironmentUtils.js';
 import { Patches } from '../persistence/utils/PatchUtils.js';
+import { PointerMoves } from '../persistence/utils/PointerMoveUtils.js';
 import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
 import { Notebooks, NotebookVersions } from '../persistence/utils/NotebookUtils.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
@@ -163,6 +165,7 @@ export const LENS_BY_TYPE = {
   Tag: Tags,
   Environment: Environments,
   Patch: Patches,
+  PointerMove: PointerMoves,
   TupleSet: TupleSets,
   TupleSetVersion: TupleSetVersions,
   Notebook: Notebooks,
@@ -223,6 +226,7 @@ export type EntityByType = {
   Tag: PersistedTag;
   Environment: PersistedEnvironment;
   Patch: PersistedPatch;
+  PointerMove: PersistedPointerMove;
   TupleSet: PersistedTupleSet;
   TupleSetVersion: PersistedTupleSetVersion;
   Notebook: PersistedNotebook;
@@ -270,6 +274,9 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
   // happens through this process. Long, like the other write-once types — but
   // not infinite, because a revert elsewhere would otherwise never be seen.
   Patch: 120_000,
+  // Written once by this process and never edited. Not infinite, so that a
+  // move another process writes is seen.
+  PointerMove: 120_000,
 };
 
 export function getTtlForType(type: EntityType): number {

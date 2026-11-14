@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { QueryTypeIri } from '../../../src/constants/queryTypes.js';
+import { getCacheCoordinator } from '../../../src/lib/CacheCoordinatorProvider.js';
 import { ScenarioTestBaseUnmocked, type ScenarioTestContext } from '../fixtures/scenario-test-base-unmocked.js';
 
 /**
@@ -142,6 +143,54 @@ describe('Environments', () => {
     ]);
   });
 
+  it('records each move, and shows the last one on the pointer', async () => {
+    const moves = async (envId: string, query = '') => {
+      const res = await context.app.inject({
+        method: 'GET', url: `/environments/${encodeURIComponent(envId)}/moves${query}`,
+      });
+      expect(res.statusCode, res.payload).toBe(200);
+      return res.json() as Array<Record<string, unknown>>;
+    };
+
+    // The refused moves of the test above wrote nothing.
+    const prodMoves = await moves(prodId);
+    expect(prodMoves).toEqual([
+      expect.objectContaining({
+        entity: queryId, entityType: 'Query', entityName: 'Promoted query',
+        fromVersion: null, toVersion: versions[0], toVersionNumber: 1,
+      }),
+    ]);
+    expect(typeof prodMoves[0].movedAt).toBe('string');
+
+    // A move that does not change the pointer is not a move.
+    expect((await point(devId, queryId, versions[1])).statusCode).toBe(200);
+    expect((await point(devId, otherQueryId, otherVersion)).statusCode).toBe(200);
+    expect((await point(devId, queryId, versions[2])).statusCode).toBe(200);
+    expect((await point(devId, queryId, versions[1])).statusCode).toBe(200);
+
+    const devMoves = await moves(devId);
+    expect(devMoves.map(m => [m.entity, m.fromVersionNumber, m.toVersionNumber])).toEqual([
+      [queryId, 3, 2],
+      [queryId, 2, 3],
+      [otherQueryId, null, 1],
+      [queryId, null, 2],
+    ]);
+    expect((await moves(devId, `?entity=${encodeURIComponent(otherQueryId)}`)).map(m => m.entity))
+      .toEqual([otherQueryId]);
+    expect(await moves(devId, '?limit=2')).toHaveLength(2);
+
+    // The pointer row carries its newest move to the version it holds.
+    const rows = await context.app.inject({
+      method: 'GET', url: `/environments/${encodeURIComponent(devId)}/pointers`,
+    });
+    const row = (rows.json() as Array<Record<string, unknown>>).find(r => r.entity === queryId);
+    expect(row?.movedAt).toBe(devMoves[0].movedAt);
+    expect(row).toHaveProperty('movedBy');
+
+    expect((await point(devId, otherQueryId, null)).statusCode).toBe(200);
+    expect((await moves(devId))[0]).toMatchObject({ entity: otherQueryId, fromVersionNumber: 1, toVersion: null });
+  });
+
   it('runs the version each environment points to', async () => {
     const none = await run();
     expect(none.statusCode, none.payload).toBe(200);
@@ -262,5 +311,10 @@ describe('Environments', () => {
     const del = await context.app.inject({ method: 'DELETE', url: `/environments/${encodeURIComponent(devId)}` });
     expect([200, 204]).toContain(del.statusCode);
     expect((await run('dev')).statusCode).toBe(400);
+
+    // Its recorded moves go with it.
+    const left = getCacheCoordinator().list('PointerMove')
+      .filter((move: { isPartOf?: string }) => move.isPartOf === devId);
+    expect(left).toEqual([]);
   });
 });

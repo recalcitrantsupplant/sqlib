@@ -70,6 +70,25 @@ export function formatRelativeTime(dateString: string | null | undefined): strin
  * timestamp, where recency is the question, and the useless reading of a
  * creation date, where it is not.
  */
+/** A day and month, for a date in a dense row: `12 Oct`. The year shows when it is not this year. */
+export function formatDayMonth(dateString: string | null | undefined, now: Date = new Date()): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
+}
+
+/** A date and time to the minute, for a history row or a tooltip: `2 Nov 2026, 14:02`. */
+export function formatDateTime(dateString: string | null | undefined): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 export function formatShortDate(dateString: string | null | undefined): string {
   if (!dateString) {
     return '';
