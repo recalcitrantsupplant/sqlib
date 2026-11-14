@@ -25,6 +25,7 @@ import {
   resetReadOnly,
 } from './config/readOnly.js';
 import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
+import { normalizeBasePath, publicOriginSetting, trustProxySetting } from './config/publicUrl.js';
 import { catalogueMode, publishedToolsServed, registerPublishedModePlugin } from './config/catalogueMode.js';
 import { loadPublishedCatalogue } from './lib/publishedTools.js';
 import { registerPublishedToolRoutes } from './server/publishedToolRoutes.js';
@@ -48,6 +49,8 @@ const app = Fastify({
   // it fast-json-stringify logs `unknown format "iri" ignored` for every such
   // field and then skips it. See lib/validator-setup.ts.
   serializerOpts,
+  // `SQLIB_TRUST_PROXY`: off unless the operator turns it on. See config/publicUrl.ts.
+  trustProxy: trustProxySetting(),
 });
 
 async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
@@ -115,22 +118,6 @@ type ConfigureOptions = {
   eagerSerializers?: boolean;
 };
 
-function normalizeBasePath(input: string | undefined): string {
-  if (!input) {
-    return '';
-  }
-
-  const trimmed = input.trim();
-  if (trimmed === '' || trimmed === '/') {
-    return '';
-  }
-
-  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  const withoutTrailingSlashes = withLeadingSlash.replace(/\/+$/, '');
-
-  return withoutTrailingSlashes === '/' ? '' : withoutTrailingSlashes;
-}
-
 async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = {}) {
   const {
     enableCacheMonitoring = true,
@@ -157,7 +144,21 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
       'CORS origins resolved'
     );
   }
-  await fastifyApp.register(fastifyCors, buildCorsOptions(corsPolicy));
+  // Read before any plugin that matches routes by pattern: `/mcp` is also
+  // mounted under the base path, and each of them has to know that spelling.
+  const basePath = normalizeBasePath(process.env.APP_BASE_PATH);
+  const publicBasePath = normalizeBasePath(process.env.APP_PUBLIC_BASE_PATH) || basePath;
+  // Read here so an invalid value stops the server before it serves anything.
+  const publicOrigin = publicOriginSetting();
+  const trustProxy = process.env.SQLIB_TRUST_PROXY?.trim() || 'false';
+  if (publicOrigin || trustProxy !== 'false') {
+    fastifyApp.log.info(
+      { publicOrigin, publicBasePath, trustProxy },
+      'Public address resolved'
+    );
+  }
+
+  await fastifyApp.register(fastifyCors, buildCorsOptions(corsPolicy, basePath));
 
   // Register multipart plugin
   await fastifyApp.register(fastifyMultipart);
@@ -170,9 +171,8 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // three modes. Grants load later (they need the entity cache); the plugin only
   // validates tokens here. It matches its public routes by registered pattern,
   // which carries the base path whenever one is set.
-  const basePath = normalizeBasePath(process.env.APP_BASE_PATH);
   resetAuthConfig();
-  await registerAuthPlugin(fastifyApp, { basePath });
+  await registerAuthPlugin(fastifyApp, { basePath, publicBasePath });
 
   // After auth so a refusal is logged against a request that already carries a
   // context, and before every route so no write route can be reached without
@@ -181,7 +181,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   if (isReadOnlyDeployment()) {
     fastifyApp.log.info('SQLIB_READ_ONLY=true: refusing writes to sqlib\'s own state');
   }
-  await registerReadOnlyPlugin(fastifyApp);
+  await registerReadOnlyPlugin(fastifyApp, { basePath });
 
   // `MCP_CATALOGUE` (see `config/catalogueMode.ts`). Read here so an unknown
   // value stops the server before it serves anything. In `published` mode
@@ -282,8 +282,6 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // own cache. See `registerNoStoreHook`.
   registerNoStoreHook(fastifyApp);
   registerTraceLinkHook(fastifyApp);
-
-  const publicBasePath = normalizeBasePath(process.env.APP_PUBLIC_BASE_PATH) || basePath;
 
   if (basePath) {
     await fastifyApp.register(
@@ -387,7 +385,7 @@ const start = async (fastifyApp: typeof app) => {
 }
 
 // Export the app instance and the start function
-export { app, start, configureApp, normalizeBasePath };
+export { app, start, configureApp, normalizeBasePath, trustProxySetting };
 // For Fastify instances built outside this package (the MCP server's dual-http mode).
 export { fastifyLoggerOptions } from './lib/log.js';
 // Re-exported for in-process consumers that must validate exactly as this server

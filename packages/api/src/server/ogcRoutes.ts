@@ -50,6 +50,7 @@ import {
   type OgcQueryable,
 } from '@sparql-query-lib/tools';
 import type { PublishedCatalogue } from '../lib/publishedTools.js';
+import { publicOrigin } from '../config/publicUrl.js';
 
 const JSON_TYPE = 'application/json';
 const OPENAPI_TYPE = 'application/vnd.oai.openapi+json;version=3.0';
@@ -120,7 +121,7 @@ export async function registerOgcRoutes(
 
   const serviceUrl = (request: FastifyRequest, slug: string): string => {
     const configured = process.env.SQLIB_OGC_BASE_URL?.trim().replace(/\/+$/, '');
-    const base = configured || `${request.protocol}://${request.host}${publicBasePath}`;
+    const base = configured || `${publicOrigin(request)}${publicBasePath}`;
     return `${base}/ogc/${slug}`;
   };
 

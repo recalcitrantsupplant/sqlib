@@ -278,6 +278,35 @@ sqlib needs three settings, for any broker:
 3. `SQLIB_AUTH_CLAIM_GROUPS`: the dot-path to the claim with group or role
    membership.
 
+### Behind a reverse proxy, or under a path prefix
+
+An MCP client finds the broker from URLs that sqlib advertises. Behind a
+reverse proxy, sqlib must build those URLs from the address that clients use.
+
+1. Set `SQLIB_PUBLIC_ORIGIN` to the scheme and host that clients use, such as
+   `https://data.example.org`. Without it, a proxy that terminates TLS makes
+   sqlib advertise `http://<internal host>`, and an MCP client refuses a
+   document from another origin.
+2. As an alternative, set `SQLIB_TRUST_PROXY` so that sqlib reads the
+   `X-Forwarded-*` headers of the proxy. Use it only when clients cannot reach
+   sqlib without the proxy.
+3. With `APP_BASE_PATH=/api/sqlib`, the MCP endpoint is
+   `https://data.example.org/api/sqlib/mcp`. Set `SQLIB_AUTH_RESOURCE` and the
+   `aud` of the broker to that URL.
+4. Route the whole prefix to sqlib. The 401 challenge names
+   `<prefix>/.well-known/oauth-protected-resource`, so a proxy that forwards
+   only `/api/sqlib/*` needs no other route for a client that reads the
+   challenge.
+5. A client that does not read the challenge asks for
+   `/.well-known/oauth-protected-resource/api/sqlib/mcp` at the root of the
+   origin (RFC 9728). Route that path to sqlib too if you have such a client.
+6. If the proxy removes the prefix before it forwards, leave `APP_BASE_PATH`
+   empty and set `APP_PUBLIC_BASE_PATH` to the prefix.
+
+If `SQLIB_AUTH_RESOURCE` is not a URL (for example the audience `sqlib-api`),
+an MCP client that follows the MCP SDK cannot use the document, because the SDK
+requires `resource` to be a URL. Set `SQLIB_AUTH_RESOURCE` to the URL of `/mcp`.
+
 The SPA needs one more value: the client id that the broker gave it
 (`authClientId` in `/config.json`). Register `<SPA origin>/auth/callback` as
 its redirect URL.

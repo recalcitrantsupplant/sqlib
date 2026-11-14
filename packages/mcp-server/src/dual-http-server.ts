@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import { startStreamableHttpMcpServer } from './http-server.js';
+import { trustProxyFromEnv } from './deployment.js';
 
 type ConfigureAppFn = (
   app: ReturnType<typeof Fastify>,
@@ -53,6 +54,8 @@ export async function startDualHttpServer(options: { host?: string; port?: numbe
   const app = Fastify({
     logger: fastifyLoggerOptions ? fastifyLoggerOptions() : true,
     bodyLimit: 100 * 1024 * 1024,
+    // `SQLIB_TRUST_PROXY`: off unless the operator turns it on.
+    trustProxy: trustProxyFromEnv(),
   });
 
   const { teardown: apiTeardown } = await configureApp(app, {
