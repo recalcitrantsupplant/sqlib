@@ -16,6 +16,8 @@ export const argumentSetVersionDetailSchema = z.object({
   scalarBindings: z.array(z.any()),
   dateCreated: z.string(),
   dateModified: z.string(),
+  createdBy: z.string().nullable().optional(),
+  modifiedBy: z.string().nullable().optional(),
 });
 
 export const argumentSetDetailSchema = z.object({
@@ -34,6 +36,8 @@ export const argumentSetDetailSchema = z.object({
   scalarBindings: z.array(z.any()),
   dateCreated: z.string(),
   dateModified: z.string(),
+  createdBy: z.string().nullable().optional(),
+  modifiedBy: z.string().nullable().optional(),
 });
 
 /**

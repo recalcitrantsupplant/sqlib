@@ -23,7 +23,9 @@ You need Node 26 (`.nvmrc`, the same major version as the Docker images) and
 pnpm 11.1.2 (`packageManager` in the root `package.json`). `pnpm build` runs
 `pnpm -r build` in topological order, so `types` and `contracts` build before the
 packages that import them. At run time, no package resolves internal packages
-from source, so a tree with no build does not start.
+from source, so a tree with no build does not start. `just` alone also works on
+a fresh clone: it runs `pnpm install` and builds the packages its dev server
+cannot run from source.
 
 For work on one package, use pnpm filters:
 
@@ -40,6 +42,7 @@ will probably use:
 
 | Recipe | What it does |
 | --- | --- |
+| `just` | Runs `dev`: API + MCP on port 3005 and the SPA on port 3001, SQLite store under `packages/api/tmp/library-store`, every feature flag on, auth disabled |
 | `just run-local-memory` | API + MCP on port 3005, durable Oxigraph store under `packages/api/tmp/library-store`, assistant flag on |
 | `just clean-local-memory` | Delete that store |
 | `just dev-auth` | API, MCP and SPA with each feature flag on, in `required` auth mode behind a local Rauthy on port 8080, with an administrator and three test people. See [a dev stack behind Rauthy](docs/guides/deploying.md#a-dev-stack-behind-rauthy) |
@@ -52,9 +55,8 @@ will probably use:
 | `just run-local-patch-demo` / `just run-frontend-patch-demo` | The RDF Patch demo library and its SPA |
 | `just uat-patch-demo` | Run that demo in a real browser, against a running API and SPA. Start both first |
 | `just clean-local-patch-demo` | Delete the patch-demo store |
-| `just run-local-like-docker` | The API alone, with the persistence settings of the container |
 | `just build-docker [TAG]` | Build the server image |
-| `just run-docker-local [TAG]` / `just run-docker-persistent [TAG]` | Run that image with a mounted store |
+| `just run-docker [TAG] [PORT]` | Run that image with its defaults and the `sqlib-data` volume |
 | `just build-web-image [TAG]` | Build the web UI bundle image (static site at `/site`, nothing to run) |
 | `just extract-web-bundle [TAG] [DEST]` | Copy that static site out of the image |
 | `just setup-local-https`, `just run-local-https`, `just run-docker-https` | mkcert certificates and Traefik in front of the API and MCP on `https://localhost:3443` |

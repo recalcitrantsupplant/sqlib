@@ -45,6 +45,12 @@ export class ReadOnlyBackendError extends Error {
 }
 
 export class ReadOnlySparqlExecutor implements ISparqlExecutor {
+  /**
+   * True so that a dataset check does not answer first: every update is
+   * refused here with the read-only 403, which is the error the caller needs.
+   */
+  readonly supportsUpdateDataset = true;
+
   constructor(
     private readonly inner: ISparqlExecutor,
     private readonly backendId?: string,

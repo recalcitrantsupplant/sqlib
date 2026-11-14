@@ -810,6 +810,7 @@ interface TypedExportBundle<TName extends string> extends ExportBundle {
 interface UpdateRequest {
     updateText: string;
     signal?: AbortSignal;
+    dataset?: SparqlDataset;
 }
 ```
 

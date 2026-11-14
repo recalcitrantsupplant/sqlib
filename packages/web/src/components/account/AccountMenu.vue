@@ -22,7 +22,7 @@
       align="end"
       side="right"
       :side-offset="6"
-      class="min-w-[264px] max-w-[320px]"
+      class="w-max min-w-[320px] max-w-[480px]"
       data-testid="account-menu"
     >
       <div class="account-head">
@@ -43,20 +43,55 @@
       <template v-if="libraryRows.length || backendRows.length">
         <DropdownMenuSeparator />
         <div class="account-access" data-testid="account-access">
-          <template v-if="libraryRows.length">
-            <SectionLabel :count="libraryRows.length">Libraries</SectionLabel>
-            <div v-for="row in libraryRows" :key="row.iri" class="access-row">
-              <span class="access-name">{{ row.name }}</span>
-              <span class="access-level">{{ row.level }}</span>
-            </div>
-          </template>
-          <template v-if="backendRows.length">
-            <SectionLabel :count="backendRows.length">Backends</SectionLabel>
-            <div v-for="row in backendRows" :key="row.iri" class="access-row">
-              <span class="access-name">{{ row.name }}</span>
-              <span class="access-level">{{ row.level }}</span>
-            </div>
-          </template>
+          <span class="access-heading">Access</span>
+          <div class="access-table">
+            <template v-if="libraryRows.length">
+              <div class="access-columns">
+                <SectionLabel>Library</SectionLabel>
+                <SectionLabel class="access-span">Role</SectionLabel>
+              </div>
+              <DropdownMenuItem
+                v-for="row in libraryRows"
+                :key="row.iri"
+                class="access-row"
+                data-testid="account-access-library"
+                @select="openLibrary(row.iri)"
+              >
+                <span class="access-name">{{ row.name }}</span>
+                <span class="access-span access-chips">
+                  <span
+                    v-for="chip in row.chips"
+                    :key="chip.label"
+                    class="grant-chip"
+                    :class="`grant-chip--${chip.tone}`"
+                    :title="chip.title"
+                  >{{ chip.label }}</span>
+                </span>
+              </DropdownMenuItem>
+            </template>
+            <template v-if="backendRows.length">
+              <div class="access-columns" :class="{ 'access-columns--gap': libraryRows.length }">
+                <SectionLabel>Backend</SectionLabel>
+                <SectionLabel>Query</SectionLabel>
+                <SectionLabel>Update</SectionLabel>
+              </div>
+              <DropdownMenuItem
+                v-for="row in backendRows"
+                :key="row.iri"
+                class="access-row"
+                data-testid="account-access-backend"
+                @select="openBackend(row.iri)"
+              >
+                <span class="access-name">{{ row.name }}</span>
+                <span
+                  v-for="chip in row.chips"
+                  :key="chip.label + chip.tone"
+                  class="grant-chip"
+                  :class="`grant-chip--${chip.tone}`"
+                >{{ chip.label }}</span>
+              </DropdownMenuItem>
+            </template>
+          </div>
         </div>
       </template>
 
@@ -100,12 +135,15 @@ import { TOKEN_ENV } from '../../lib/codeSnippets';
 import { useActiveLibrary } from '../../composables/useActiveLibrary';
 import { useBackendsStore } from '../../composables/useBackendsStore';
 import { initialsOf, issuerHost } from '../../lib/account';
-import { describeBackendModes, describeLibraryModes } from '../../lib/accessModel';
+import { backendLevelChip, libraryGrantChips } from '../../lib/accessModel';
+import { sectionPath } from '../../lib/sectionRoutes';
+import { useRouter } from '#imports';
 
 const { account, me, login, logout } = useAuth();
 const { available: tokenAvailable, expiresLabel, copyToken } = useApiTokenCopy();
 const { libraries } = useActiveLibrary();
 const { backends } = useBackendsStore();
+const router = useRouter();
 
 const state = computed(() => account.value.state);
 const identity = computed(() => account.value.identity);
@@ -138,7 +176,7 @@ const libraryRows = computed(() =>
     .map(([iri, modes]) => ({
       iri,
       name: libraries.value.find((library) => library.id === iri)?.name ?? shortName(iri),
-      level: describeLibraryModes(modes),
+      chips: libraryGrantChips(modes),
     }))
     .sort((a, b) => a.name.localeCompare(b.name)));
 
@@ -148,9 +186,18 @@ const backendRows = computed(() =>
     .map(([iri, modes]) => ({
       iri,
       name: backends.value.find((backend) => backend.id === iri)?.name ?? shortName(iri),
-      level: describeBackendModes(modes),
+      chips: [backendLevelChip(modes, 'query'), backendLevelChip(modes, 'update')],
     }))
     .sort((a, b) => a.name.localeCompare(b.name)));
+
+/** The Library page for one library, which becomes the active one. */
+function openLibrary(iri: string) {
+  void router?.push({ path: '/library', query: { library: iri } });
+}
+
+function openBackend(iri: string) {
+  void router?.push({ path: sectionPath({ section: 'backends', id: iri }) });
+}
 </script>
 
 <style scoped>
@@ -229,29 +276,72 @@ const backendRows = computed(() =>
 .account-access {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-1);
+}
+
+.access-heading {
+  padding: 0 var(--space-4);
+  color: var(--ink);
+  font-size: var(--text-body-lg);
+  font-weight: var(--weight-semibold);
+}
+
+/* Name, then one column per grant. Rows and column labels share the tracks. */
+.access-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: var(--space-6);
+}
+
+.access-columns,
+.access-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+}
+
+.access-columns--gap {
+  margin-top: var(--space-4);
+}
+
+.access-span {
+  grid-column: 2 / -1;
 }
 
 .access-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-4);
   font-size: var(--text-body);
+  cursor: pointer;
 }
 
 .access-name {
-  overflow: hidden;
   color: var(--ink);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
-.access-level {
-  flex-shrink: 0;
-  color: var(--ink-muted);
+.access-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
+
+.grant-chip {
+  justify-self: start;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.grant-chip--view { background: var(--grant-view-surface); color: var(--grant-view-ink); }
+.grant-chip--run { background: var(--grant-run-surface); color: var(--grant-run-ink); }
+.grant-chip--edit { background: var(--grant-edit-surface); color: var(--grant-edit-ink); }
+.grant-chip--manage { background: var(--grant-manage-surface); color: var(--grant-manage-ink); }
+.grant-chip--adhoc { background: var(--grant-adhoc-surface); color: var(--grant-adhoc-ink); }
+.grant-chip--saved { background: var(--grant-saved-surface); color: var(--grant-saved-ink); }
+.grant-chip--none { color: var(--grant-none-ink); font-weight: var(--weight-normal); }
 
 .token-expiry {
   margin-left: auto;

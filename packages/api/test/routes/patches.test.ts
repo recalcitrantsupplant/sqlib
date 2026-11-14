@@ -125,6 +125,44 @@ describe('/patches', () => {
     expect(patch.rawDeleteCount).toBe(2);
   });
 
+  it('previews an update over the graphs its WHERE clause is given, and applies the same patch', async () => {
+    const MARK = 'INSERT { ?s <http://ex/seen> ?o } WHERE { ?s <http://ex/status> ?o }';
+    const previewed = await app.inject({
+      method: 'POST',
+      url: '/patches/preview',
+      payload: { backendId: BACKEND_ID, updateString: MARK, defaultGraphs: ['http://ex/g'] },
+    });
+
+    expect(previewed.statusCode).toBe(200);
+    expect(previewed.json().additionCount).toBe(2);
+    expect(previewed.json().additions).toContain('<http://ex/x> <http://ex/seen> "old"');
+
+    const applied = await app.inject({
+      method: 'POST',
+      url: '/patches/apply',
+      payload: { patchId: previewed.json().id },
+    });
+
+    expect(applied.statusCode).toBe(200);
+    const seen = store().query('SELECT ?s WHERE { ?s <http://ex/seen> ?o }') as unknown[];
+    expect(seen).toHaveLength(2);
+  });
+
+  it('refuses a dataset on an update that names its own graphs', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/patches/preview',
+      payload: {
+        backendId: BACKEND_ID,
+        updateString: 'WITH <http://ex/g> INSERT { ?s <http://ex/seen> ?o } WHERE { ?s <http://ex/status> ?o }',
+        defaultGraphs: ['http://ex/g'],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe('UPDATE_DATASET_CONFLICT');
+  });
+
   it('applies a previewed patch and announces the data change', async () => {
     const events: FeedEvent[] = [];
     subscribeChanges((event) => events.push(event));

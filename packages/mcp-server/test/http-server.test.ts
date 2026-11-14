@@ -34,7 +34,12 @@ afterEach(async () => {
 });
 
 async function startHarness(
-  options: { corsPolicy?: CorsPolicy; initTimeoutMs?: number; prepare?: (app: FastifyInstance) => Promise<void> } = {},
+  options: {
+    corsPolicy?: CorsPolicy;
+    initTimeoutMs?: number;
+    basePath?: string;
+    prepare?: (app: FastifyInstance) => Promise<void>;
+  } = {},
 ): Promise<Harness> {
   const app = Fastify({ logger: false });
   await options.prepare?.(app);
@@ -47,6 +52,7 @@ async function startHarness(
   const built = await buildStreamableHttpMcpServer({
     fastifyInstance: app,
     bootstrapApiApp: false,
+    basePath: options.basePath ?? '',
     corsPolicy: options.corsPolicy ?? { any: false, origins: new Set() },
     initTimeoutMs: options.initTimeoutMs,
     mcpOptions: { fastifyInstance: app, skipAppSetup: true, fastifyLogger: false },
@@ -278,6 +284,60 @@ describe('MCP CORS', { timeout: 30_000 }, () => {
     expect(listed.any).toBe(false);
     expect(resolveCorsPolicy({ SQLIB_CORS_ORIGINS: '*' })).toEqual({ any: true, origins: new Set() });
     expect(resolveCorsPolicy({ NODE_ENV: 'development', SQLIB_CORS_ORIGINS: '' }).origins.size).toBe(0);
+  });
+});
+
+/*
+ * #175. The REST routes are under `APP_BASE_PATH`, and the web app gives the
+ * MCP address as the API base URL plus `/mcp`. A reverse proxy that forwards
+ * only the prefix reaches MCP only when `/mcp` is served under it.
+ */
+describe('MCP under APP_BASE_PATH', { timeout: 30_000 }, () => {
+  const BASE = '/api/sqlib';
+
+  it('serves a session at the root and under the base path', async () => {
+    const { url } = await startHarness({ basePath: BASE });
+    const underBase = url.replace(/\/mcp$/, `${BASE}/mcp`);
+
+    for (const endpoint of [url, underBase]) {
+      const { headers } = await initialise(endpoint);
+      const listed = await rpcResult(await post(endpoint, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, headers));
+      expect(listed.result.tools.length, endpoint).toBeGreaterThan(0);
+    }
+  });
+
+  it('answers 404 under a prefix that is not the base path', async () => {
+    const { url } = await startHarness({ basePath: BASE });
+    const response = await post(url.replace(/\/mcp$/, '/other/mcp'), initializeMessage());
+    expect(response.status).toBe(404);
+  });
+
+  it('leads a tokenless client from the 401 to a document that names the URL it called', async () => {
+    const { url } = await startHarness({
+      basePath: BASE,
+      prepare: async (app) => {
+        resetAuthConfig({
+          SQLIB_AUTH_MODE: 'required',
+          SQLIB_AUTH_ISSUER: 'https://issuer.test/',
+          SQLIB_AUTH_AUDIENCE_UNCHECKED: 'true',
+          SQLIB_AUTH_JWKS_URI: 'https://issuer.test/jwks',
+        } as NodeJS.ProcessEnv);
+        await registerAuthPlugin(app, { basePath: BASE });
+      },
+    });
+    const underBase = url.replace(/\/mcp$/, `${BASE}/mcp`);
+
+    const response = await post(underBase, initializeMessage());
+    expect(response.status).toBe(401);
+    await response.text();
+    const metadataUrl = /resource_metadata="([^"]+)"/.exec(response.headers.get('www-authenticate') ?? '')?.[1];
+    // Under the base path, so a proxy that forwards only the prefix serves it.
+    expect(new URL(metadataUrl!).pathname).toBe(`${BASE}/.well-known/oauth-protected-resource`);
+
+    const metadata = await fetch(metadataUrl!);
+    expect(metadata.status).toBe(200);
+    // An MCP client refuses a document whose resource is not the URL it called.
+    expect((await metadata.json()).resource).toBe(underBase);
   });
 });
 

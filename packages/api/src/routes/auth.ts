@@ -77,6 +77,7 @@ const meSchema = {
         },
         /** The caller's email, username or name from their last token. */
         label: { type: 'string' },
+        displayName: { type: 'string' },
         /** When the caller was first recorded. */
         seenAt: { type: 'string' },
         admin: { type: 'boolean' },
@@ -170,6 +171,7 @@ const listPrincipalsSchema = {
           kind: { type: 'string' },
           seenAt: { type: 'string' },
           label: { type: 'string' },
+          displayName: { type: 'string' },
           groups: { type: 'array', items: { type: 'string' } },
         },
         required: ['iri', 'rawClaim', 'kind'],
@@ -177,6 +179,46 @@ const listPrincipalsSchema = {
       },
     },
     403: errorResponseSchema,
+  },
+} as const;
+
+/**
+ * At most this many IRIs per `GET /auth/names`. One screen of a library names
+ * far fewer people than this; the web app batches the IRIs it shows.
+ */
+export const MAX_NAME_LOOKUPS = 100;
+
+const namesSchema = {
+  tags: ['Auth'],
+  summary: 'Display names of the people who created or changed entities',
+  description:
+    'Pass each principal IRI as an `iri` parameter, at most 100. The answer has a row for each user principal ' +
+    'that this server has a display name for. Groups, clients and unknown IRIs are left out.',
+  querystring: {
+    type: 'object',
+    properties: {
+      iri: {
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' }, maxItems: MAX_NAME_LOOKUPS },
+        ],
+      },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          iri: { type: 'string' },
+          displayName: { type: 'string' },
+        },
+        required: ['iri', 'displayName'],
+        additionalProperties: false,
+      },
+    },
   },
 } as const;
 
@@ -318,12 +360,35 @@ export default async function (fastify: FastifyInstance) {
       principals: [...context.principals],
       groups,
       ...(self?.label ? { label: self.label } : {}),
+      ...(self?.displayName ? { displayName: self.displayName } : {}),
       ...(self?.seenAt ? { seenAt: self.seenAt } : {}),
       admin: context.fullAccess || context.grants.admin,
       libraries,
       backends,
       environments,
     });
+  }));
+
+  /**
+   * Names for the `createdBy` and `modifiedBy` IRIs a reader already holds.
+   *
+   * Open to every caller who reaches it. A principal IRI is a hash of the
+   * issuer and the token subject, so a caller can only ask about IRIs it read
+   * from an entity or a grant it may see. The answer is the display name only
+   * (see `displayNameOf`), never the email or the raw claim, which
+   * stay in the administrator's `GET /principals`.
+   */
+  fastify.get('/names', ...typedRoute(namesSchema, async (request, reply) => {
+    const asked = request.query.iri;
+    const iris = [...new Set(asked === undefined ? [] : Array.isArray(asked) ? asked : [asked])];
+    const store = getAuthStore();
+    const rows: { iri: string; displayName: string }[] = [];
+    for (const iri of iris) {
+      const record = store.principalRecord(iri);
+      if (!record || record.kind !== 'user' || !record.displayName) continue;
+      rows.push({ iri, displayName: record.displayName });
+    }
+    return reply.send(rows);
   }));
 
   fastify.get('/grants', ...typedRoute(listGrantsSchema, async (request, reply) => {
@@ -443,6 +508,7 @@ export default async function (fastify: FastifyInstance) {
         kind: record.kind,
         ...(record.seenAt ? { seenAt: record.seenAt } : {}),
         ...(record.label ? { label: record.label } : {}),
+        ...(record.displayName ? { displayName: record.displayName } : {}),
         // Group membership is for administrators, who test graph policies
         // with it; a library owner sharing a library needs only names.
         ...(record.groups && standing.admin ? { groups: record.groups } : {}),

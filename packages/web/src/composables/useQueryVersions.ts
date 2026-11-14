@@ -7,7 +7,13 @@ import { isQueryTypeIri, type QueryTypeValue } from '@sparql-query-lib/types';
 import type { QueryVersionExpanded } from '@sparql-query-lib/contracts';
 import { slotPoliciesFromExpanded, type WhenEmptyMode } from '@/lib/slotPolicies';
 
-type VersionOption = { value: string; label: string; dateModified?: string | null; comment?: string | null };
+type VersionOption = {
+  value: string;
+  label: string;
+  dateModified?: string | null;
+  comment?: string | null;
+  createdBy?: string | null;
+};
 
 type ToastLike = {
   success(message: string): void;
@@ -120,7 +126,13 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
   };
 
   const mapVersionsToOptions = (
-    versions: Array<{ id: string; version: number; dateModified?: string | null; comment?: string | null }>
+    versions: Array<{
+      id: string;
+      version: number;
+      dateModified?: string | null;
+      comment?: string | null;
+      createdBy?: string | null;
+    }>
   ) =>
     versions
       .map((v) => ({
@@ -131,6 +143,7 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
         // comment can be read — the editor's single comment field, which only
         // ever showed the selected version's, is gone.
         comment: v.comment ?? null,
+        createdBy: v.createdBy ?? null,
       }))
       .sort((a, b) => parseInt(b.label, 10) - parseInt(a.label, 10));
 
@@ -148,7 +161,12 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
    * version is being viewed, and null once the shown version is the current one
    * — which a save always makes it, so a stale `?version=` is cleared.
    */
-  const adoptNewVersion = (version: { id: string; version: number; dateModified?: string | null }) => {
+  const adoptNewVersion = (version: {
+    id: string;
+    version: number;
+    dateModified?: string | null;
+    createdBy?: string | null;
+  }) => {
     currentVersion.value = version.id;
     selectedVersion.value = version.id;
     selectedVersionNumber.value = version.version;
@@ -158,7 +176,7 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     if (!versionOptions.value.some((option) => option.value === version.id)) {
       versionOptions.value = [
         ...versionOptions.value,
-        { value: version.id, label, dateModified: version.dateModified ?? null },
+        { value: version.id, label, dateModified: version.dateModified ?? null, createdBy: version.createdBy ?? null },
       ].sort((a, b) => parseInt(b.label, 10) - parseInt(a.label, 10));
     }
 

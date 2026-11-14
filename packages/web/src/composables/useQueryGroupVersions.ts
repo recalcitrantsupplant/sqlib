@@ -49,7 +49,7 @@ const normalizeVersionNumber = (value: unknown): number | null => {
 export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQueryGroupVersionsResult {
   const { graph, io, queryGroupsStore, queriesStore, apiClient } = deps;
 
-  const versionOptions = ref<Array<{ value: string; label: string; dateModified?: string | null }>>([]);
+  const versionOptions = ref<Array<{ value: string; label: string; dateModified?: string | null; createdBy?: string | null }>>([]);
   const versionMetadata = ref<Record<string, VersionMeta>>({});
   const concurrencyTokens = ref<Record<string, string | null>>({});
   const selectedVersionId = ref<string | null>(null);
@@ -71,7 +71,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
 
   const buildVersionOptionsList = (versions: QueryGroupVersion[]) => {
     const metadata: Record<string, VersionMeta> = {};
-    const options: Array<{ value: string; label: string; dateModified?: string | null }> = [];
+    const options: Array<{ value: string; label: string; dateModified?: string | null; createdBy?: string | null }> = [];
 
     for (const entry of versions) {
       const versionNumber = normalizeVersionNumber(entry.version);
@@ -87,12 +87,14 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
         versionNumber,
         dateModified,
         comment: entry.comment ?? null,
+        createdBy: entry.createdBy ?? null,
       };
 
       options.push({
         value: optionValue,
         label: `v${versionNumber}`,
         dateModified,
+        createdBy: entry.createdBy ?? null,
       });
     }
 
@@ -124,12 +126,14 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     if (existing) {
       existing.label = `v${meta.versionNumber}`;
       existing.dateModified = meta.dateModified;
+      existing.createdBy = meta.createdBy;
       return;
     }
     versionOptions.value.push({
       value: meta.id,
       label: `v${meta.versionNumber}`,
       dateModified: meta.dateModified,
+      createdBy: meta.createdBy,
     });
     versionOptions.value.sort((a, b) => {
       const metaA = versionMetadata.value[a.value]?.version ?? 0;
@@ -167,6 +171,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
       versionNumber: normalizedVersion,
       dateModified: expanded.queryGroupVersion.dateModified ?? expanded.queryGroupVersion.dateCreated ?? null,
       comment: expanded.queryGroupVersion.comment ?? null,
+      createdBy: expanded.queryGroupVersion.createdBy ?? null,
     };
     versionMetadata.value[expanded.queryGroupVersion.id] = updatedMeta;
     ensureOptionForMeta(updatedMeta);

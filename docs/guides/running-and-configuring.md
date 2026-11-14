@@ -18,7 +18,12 @@ environment variable with its default. This page explains the choices.
 - [mkcert](https://github.com/FiloSottile/mkcert), for the local HTTPS recipes
   only.
 
-Install dependencies and build the workspace packages once:
+To start the API, MCP and web UI with the defaults (SQLite store, every
+feature flag on, auth disabled), run `just` from the repository root. It
+installs the dependencies and builds what it needs first.
+
+To run the other recipes, or the packages' own scripts, install dependencies
+and build the workspace packages once:
 
 ```bash
 pnpm install
@@ -32,8 +37,13 @@ run `pnpm build` first.
 
 ## The Justfile recipes
 
+`just --list` shows every recipe by group, and
+[scripts reference](../reference/scripts.md) describes each one. These start
+sqlib:
+
 | Recipe | What it starts |
 | --- | --- |
+| `dev` (bare `just`) | API + MCP on `http://localhost:3005` and the web UI on `http://localhost:3001`. SQLite store under `packages/api/tmp/library-store`, every feature flag on, auth disabled |
 | `run-local-memory` | API + MCP on `http://localhost:3005`, library in a local Oxigraph store under `packages/api/tmp/library-store`, in-app assistant enabled |
 | `clean-local-memory` | Deletes that store |
 | `setup-local-https` | Generates trusted `localhost` certificates into `certs/` with mkcert (one-time) |
@@ -46,20 +56,18 @@ run `pnpm build` first.
 | `run-frontend-patch-demo` | The web UI with the matching flags |
 | `uat-patch-demo` | Runs that demo from start to end in a browser, against an API and a UI that are already running. It starts neither. |
 | `clean-local-patch-demo` | Deletes the patch-demo store |
-| `run-local-like-docker` | The API alone (no MCP) on port 3000, with the same persistence settings `run-docker-local` uses |
 | `build-docker TAG` | `docker build -t sparql-query-lib:TAG .` |
-| `run-docker-local TAG` | Runs that image with a host volume, publishing container port 3000 on host port 3005 |
-| `run-docker-persistent TAG` | Runs that image in `APP_MODE=api` on port 3000 with a host volume |
+| `run-docker TAG PORT` | Runs that image with its defaults on `127.0.0.1:PORT` (default 3005), with the `sqlib-data` volume |
+| `clean-docker` | Deletes the `sqlib-data` volume |
 | `run-frontend API_URL` | The web UI against any API base URL, default `http://localhost:3005` |
 
 The recipes that take an argument default it, so `just build-docker` tags
 `latest` and `just run-frontend` targets `http://localhost:3005`.
 
-`run-local-memory`, `run-local-rules-tests` and `run-local-patch-demo` all run
-`tsx watch` over `packages/mcp-server/src/cli.ts` with `MCP_TRANSPORT=dual-http`,
-so each serves the REST API and the MCP endpoint from one process and one port.
-`run-local-like-docker` runs the API's own entry point instead, so it has no
-`/mcp`.
+`dev`, `run-local-memory`, `run-local-rules-tests` and `run-local-patch-demo`
+all run `tsx watch` over `packages/mcp-server/src/cli.ts` with
+`MCP_TRANSPORT=dual-http`, so each serves the REST API and the MCP endpoint from
+one process and one port.
 
 The recipes that set many feature flags come in pairs. The API and the web UI
 are separate processes, and each reads its own environment. `run-frontend-rules`
@@ -204,14 +212,31 @@ reason.
 Build it, then run it:
 
 ```bash
-just build-docker 0.1.0
-just run-docker-local 0.1.0
+docker build -t sqlib .
+docker run --rm -p 127.0.0.1:3000:3000 sqlib
 ```
 
-`run-docker-local` publishes container port 3000 on host port 3005, mounts
-`./tmp/library-store-docker` at `/app/packages/api/tmp/library-store`, and sets
-`INTERNAL_BACKEND_TYPE=oxigraph-persistent` with a 60-second checkpoint
-interval.
+The image runs with the defaults of `just`: the SQLite library store, every
+feature flag on, and auth disabled. The REST API and MCP are on port 3000. It
+needs no environment variables and no volume. Every setting is an `ENV` in the
+`Dockerfile`, so `-e NAME=value` overrides it.
+
+With auth disabled and ETL on, any caller can run arbitrary DuckDB SQL in the
+container. `-p 127.0.0.1:3000:3000` publishes the port on the loopback
+interface only. Publish it more widely only on a network you control, or turn
+auth on as [deploying](deploying.md) describes.
+
+The image keeps all of its state under `/app/packages/api/storage`: the
+library (`library-store/`), grants (`auth/`), Oxigraph backends (`oxigraph/`)
+and ETL output (`etl-output/`). Without a volume, that state is lost when the
+container is removed. Mount a named volume to keep it:
+
+```bash
+docker run --rm -p 127.0.0.1:3000:3000 -v sqlib-data:/app/packages/api/storage sqlib
+```
+
+`just build-docker` and `just run-docker` do the same, with the tag
+`sparql-query-lib:latest` and the API on host port 3005.
 
 `APP_MODE` selects what the container runs:
 

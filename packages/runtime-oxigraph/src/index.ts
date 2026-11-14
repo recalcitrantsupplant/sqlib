@@ -68,7 +68,7 @@ export interface OxigraphStore {
    * written before it existed still fits; the real `Store` has it, and the
    * executor offers `update` only when the store does.
    */
-  update?(update: string, options?: { base_iri?: string }): void;
+  update?(update: string, options?: { base_iri?: string } & OxigraphDatasetOptions): void;
   readonly size: number;
 }
 
@@ -130,13 +130,48 @@ async function loadOxigraph(): Promise<{ Store: new () => OxigraphStore }> {
  * A dataset as Oxigraph query options. The terms come from the module, which
  * by now is loaded and initialised: by {@link loadOxigraph}, or by whoever
  * built the store that was passed in.
+ *
+ * A part left out of a dataset that gives the other part is passed as an
+ * empty list, as SPARQL 1.1 Query §13.2 says and as an HTTP endpoint such as
+ * Fuseki does. Without this, Oxigraph would read its own default graph, or all
+ * of its named graphs, for that part.
  */
 async function datasetOptions(dataset: SparqlDataset): Promise<OxigraphDatasetOptions> {
+  if (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined) return {};
   const { namedNode } = await import('oxigraph');
   return {
-    ...(dataset.defaultGraphs ? { default_graph: dataset.defaultGraphs.map((iri) => namedNode(iri)) } : {}),
-    ...(dataset.namedGraphs ? { named_graphs: dataset.namedGraphs.map((iri) => namedNode(iri)) } : {}),
+    default_graph: (dataset.defaultGraphs ?? []).map((iri) => namedNode(iri)),
+    named_graphs: (dataset.namedGraphs ?? []).map((iri) => namedNode(iri)),
   };
+}
+
+let updateDatasetSupport: Promise<boolean> | undefined;
+
+/**
+ * Whether the loaded binding applies `default_graph` and `named_graphs` on
+ * `Store.update`. Oxigraph 0.5.13 does not. Probed once: on a store with one
+ * quad, an `INSERT … WHERE` over an empty default graph inserts nothing.
+ */
+export function supportsUpdateDataset(): Promise<boolean> {
+  updateDatasetSupport ??= (async () => {
+    try {
+      const { Store, namedNode, quad } = await loadOxigraph() as unknown as {
+        Store: new () => OxigraphStore & { add(q: unknown): void };
+        namedNode(iri: string): OxigraphNamedNode;
+        quad(s: unknown, p: unknown, o: unknown): unknown;
+      };
+      const store = new Store();
+      store.add(quad(namedNode('urn:sqlib:probe:s'), namedNode('urn:sqlib:probe:p'), namedNode('urn:sqlib:probe:o')));
+      store.update!(
+        'INSERT { <urn:sqlib:probe:s2> <urn:sqlib:probe:p> <urn:sqlib:probe:o> } WHERE { ?s ?p ?o }',
+        { default_graph: [], named_graphs: [] },
+      );
+      return store.size === 1;
+    } catch {
+      return false;
+    }
+  })();
+  return updateDatasetSupport;
 }
 
 function toDocuments(data: OxigraphExecutorOptions['data']): SeedDocument[] {
@@ -182,9 +217,18 @@ export async function oxigraphExecutor(
 
   // Synchronous underneath, like a query: the signal can stop an update that
   // has not started, never one that has.
-  const update = async ({ updateText, signal }: UpdateRequest): Promise<void> => {
+  const update = async ({ updateText, signal, dataset }: UpdateRequest): Promise<void> => {
     signal?.throwIfAborted();
-    resolved.update!(updateText);
+    if (!dataset || (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined)) {
+      resolved.update!(updateText);
+      return;
+    }
+    // The binding ignores dataset options it does not know, with no error, so
+    // a dataset is applied only when a probe shows the binding honours it.
+    if (!(await supportsUpdateDataset())) {
+      throw new Error('This Oxigraph build cannot limit the graphs an update reads. Run it without a dataset.');
+    }
+    resolved.update!(updateText, await datasetOptions(dataset));
   };
 
   return {

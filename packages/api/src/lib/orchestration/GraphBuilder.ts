@@ -21,6 +21,7 @@ import type {
   DatasetPart,
 } from './types.js';
 import { DATASET_PARTS, EDGE_FLOW_TYPES } from './types.js';
+import { updateDatasetShape } from '../updateDataset.js';
 import { edgeSourcePortKinds, type QueryGroupEdgeFlowType, type QueryGroupNodeRole } from '@sparql-query-lib/contracts';
 
 /**
@@ -315,9 +316,16 @@ export class GraphBuilder {
       throw edgeError('EDGE_DATASET_TARGET_NODE_TYPE',
         `Edge ${e.id} with dataFlowType=DATASET must target a QueryNode or DynamicQueryNode (found ${targetRawType ?? 'unknown'})`);
     }
-    if (toQueryTypeIri(targetNode.queryType) === QueryTypeIri.update) {
-      throw edgeError('EDGE_DATASET_TARGET_NODE_TYPE',
-        `Edge ${e.id} gives a dataset to UPDATE node ${targetNode.id}; an update names its graphs in its own text`);
+    // An edge into an update node sets what its WHERE clauses read
+    // (`using-graph-uri`). An update that names its own graphs, or is DELETE
+    // WHERE, cannot take one, and the run would refuse it with 400.
+    if (toQueryTypeIri(targetNode.queryType) === QueryTypeIri.update && targetNode.queryString) {
+      const shape = updateDatasetShape(targetNode.queryString);
+      if (shape?.namesDataset || shape?.deleteWhere) {
+        throw edgeError('EDGE_DATASET_UPDATE_NAMES_GRAPHS',
+          `Edge ${e.id} gives a dataset to UPDATE node ${targetNode.id}, whose text `
+          + (shape.namesDataset ? 'names its graphs with USING, USING NAMED or WITH' : 'has DELETE WHERE'));
+      }
     }
     if (!e.sourceOutputId) {
       throw edgeError('EDGE_DATA_FLOW_MISSING_IO', `Edge ${e.id} with dataFlowType=DATASET must specify sourceOutputId`);

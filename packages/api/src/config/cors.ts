@@ -24,6 +24,7 @@
 
 import type { FastifyCorsOptions } from '@fastify/cors';
 import type { FastifyRequest } from 'fastify';
+import { MCP_ROUTES, mcpRoutePatterns } from './publicUrl.js';
 
 /**
  * `any` is the literal `*`. `origins` is the explicit list, normalised.
@@ -58,7 +59,7 @@ export function resolveCorsPolicy(env: NodeJS.ProcessEnv = process.env): CorsPol
  * any route runs, so left to itself it would answer `/mcp`'s preflights with
  * the wrong header list and the MCP route would never see them.
  */
-export const SELF_MANAGED_CORS_ROUTES: readonly string[] = ['/mcp', '/mcp/:slug'];
+export const SELF_MANAGED_CORS_ROUTES: readonly string[] = MCP_ROUTES;
 
 const API_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
@@ -83,7 +84,9 @@ const API_EXPOSED_HEADERS = ['ETag', 'Last-Modified', 'Server-Timing', 'WWW-Auth
  * headers, and a preflight from it falls through to the plugin's catch-all
  * `OPTIONS` route, which answers 404.
  */
-export function buildCorsOptions(policy: CorsPolicy): FastifyCorsOptions {
+export function buildCorsOptions(policy: CorsPolicy, basePath = ''): FastifyCorsOptions {
+  // `/mcp` is also mounted under `APP_BASE_PATH`, and answers CORS itself there too.
+  const selfManaged = mcpRoutePatterns(basePath);
   const shared: FastifyCorsOptions = {
     methods: API_METHODS,
     allowedHeaders: API_ALLOWED_HEADERS,
@@ -92,7 +95,7 @@ export function buildCorsOptions(policy: CorsPolicy): FastifyCorsOptions {
 
   const optionsFor = (request: FastifyRequest): FastifyCorsOptions => {
     const routeUrl = request.routeOptions?.url;
-    if (routeUrl && SELF_MANAGED_CORS_ROUTES.includes(routeUrl)) return { origin: false };
+    if (routeUrl && selfManaged.includes(routeUrl)) return { origin: false };
 
     const origin = typeof request.headers.origin === 'string' ? request.headers.origin : undefined;
     if (!origin) return { origin: false };

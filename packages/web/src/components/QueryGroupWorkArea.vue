@@ -826,6 +826,7 @@ const {
   queryGroupName,
   queryGroupDescription,
   queryGroupLibraryId,
+  queryGroupStamps,
   versionComment,
   isSaving,
   isLoading,
@@ -1972,7 +1973,9 @@ const detailsProps = computed(() => ({
     label: option.label.replace(/^v/, ''),
     comment: versionMetadata.value[option.value]?.comment ?? null,
     dateModified: versionMetadata.value[option.value]?.dateModified ?? null,
+    createdBy: versionMetadata.value[option.value]?.createdBy ?? null,
   })),
+  ...(isScratch.value ? {} : queryGroupStamps.value),
   selectedVersion: selectedVersionId.value,
   // What the group record points at, not what the canvas happens to be
   // showing: "current" is what a caller that names no version gets, and

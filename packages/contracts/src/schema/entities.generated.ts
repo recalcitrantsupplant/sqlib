@@ -2991,6 +2991,10 @@ export const patchSchema = {
       "type": "string",
       "nullable": true
     },
+    "updateDataset": {
+      "type": "string",
+      "nullable": true
+    },
     "inverseOf": {
       "type": "string",
       "format": "iri",
@@ -5412,6 +5416,7 @@ export interface PatchRestApi {
   sourceKind: string;
   sourceRef?: string | null;
   updateString?: string | null;
+  updateDataset?: string | null;
   inverseOf?: string | null;
   origin?: string | null;
   dateCreated?: string | null;

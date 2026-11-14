@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { isInitializeRequest, type Server } from '@modelcontextprotocol/server';
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { createMcpServer, publishedSurfaceOf, type CreateMcpServerOptions } from './index.js';
+import { basePathFromEnv, mcpRoutePaths, trustProxyFromEnv } from './deployment.js';
 
 export type StreamableHttpServerOptions = {
   host?: string;
@@ -12,6 +13,11 @@ export type StreamableHttpServerOptions = {
   fastifyInstance?: FastifyInstance;
   mcpOptions?: CreateMcpServerOptions;
   bootstrapApiApp?: boolean;
+  /**
+   * The path prefix the REST routes are mounted under. `/mcp` is served at the
+   * root and under this prefix. Defaults to `APP_BASE_PATH`.
+   */
+  basePath?: string;
   /**
    * Browser origins allowed to call `/mcp`. Defaults to `SQLIB_CORS_ORIGINS`
    * (see resolveCorsPolicy).
@@ -116,7 +122,7 @@ const jsonRpcError = (code: number, message: string) => ({
  * listening. `startStreamableHttpMcpServer` is this plus `listen`.
  */
 export async function buildStreamableHttpMcpServer(options: StreamableHttpServerOptions = {}) {
-  const app = options.fastifyInstance ?? Fastify({ logger: true });
+  const app = options.fastifyInstance ?? Fastify({ logger: true, trustProxy: trustProxyFromEnv() });
   const shouldBootstrapApiApp = options.bootstrapApiApp ?? true;
   const corsPolicy = options.corsPolicy ?? resolveCorsPolicy();
   const initTimeoutMs = options.initTimeoutMs ?? 30_000;
@@ -288,7 +294,10 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
       return { library: slug };
     };
 
-    for (const path of ['/mcp', '/mcp/:slug']) {
+    // Also under `APP_BASE_PATH`, where the REST routes are. A reverse proxy
+    // that forwards only that prefix then reaches MCP, and the address is the
+    // one the web app shows: the API base URL plus `/mcp` (#175).
+    for (const path of mcpRoutePaths(options.basePath ?? basePathFromEnv())) {
       mcp.options(path, async (request, reply) => {
         if (applyMcpCorsHeaders(request, reply)) {
           reply.header('access-control-allow-methods', MCP_ALLOWED_METHODS);
@@ -378,7 +387,7 @@ export async function startStreamableHttpMcpServer(options: StreamableHttpServer
   const address = app.server.address() as AddressInfo | null;
   const boundPort = address?.port ?? port;
 
-  app.log.info(`MCP HTTP server running at http://${host}:${boundPort}/mcp`);
+  app.log.info(`MCP HTTP server running at http://${host}:${boundPort}${basePathFromEnv()}/mcp`);
 
   return { app, shutdown, sessions, host, port: boundPort };
 }

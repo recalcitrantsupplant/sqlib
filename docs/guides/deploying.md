@@ -52,19 +52,26 @@ One image serves each runtime mode. `APP_MODE` selects the mode:
 
 ```bash
 docker run -p 3000:3000 \
-  -e APP_MODE=dual-http \
-  -e LIBRARY_STORAGE_DIR=/app/packages/api/storage/library-store \
-  -e SQLIB_AUTH_STORE_DIR=/app/packages/api/storage/auth \
   -v sqlib-storage:/app/packages/api/storage \
   <image>:<tag>
 ```
 
-The library store is the default, `sqlite`: `library.sqlite` in
-`LIBRARY_STORAGE_DIR`. With auth on, grants go to `auth.sqlite` in
-`SQLIB_AUTH_STORE_DIR`. Set both directories to absolute paths on the volume.
-Their defaults are relative to the working directory. In the `dual-http` and
-`mcp-http` modes, the working directory is `/app/packages/mcp-server`, which is
-not on the volume.
+The image's `ENV` sets the defaults of a local `just` run: the SQLite library
+store, every feature flag on, and `SQLIB_AUTH_MODE=disabled`. Those defaults
+suit a trial on one machine. A deployment overrides them with its own
+environment:
+
+- Set `SQLIB_AUTH_MODE` and the issuer settings ([authentication](#authentication-one-broker-in-front)).
+- Set every `FEATURE_*` variable it wants off to `false`. A flag that the
+  deployment leaves unset is on, including `FEATURE_ETL`, `FEATURE_ASSISTANT`
+  and `FEATURE_OGC`.
+
+The library store is `sqlite`: `library.sqlite` in `LIBRARY_STORAGE_DIR`. With
+auth on, grants go to `auth.sqlite` in `SQLIB_AUTH_STORE_DIR`. The image sets
+both, and `OXIGRAPH_STORAGE_DIR` and `ETL_OUTPUT_DIR`, to directories under
+the volume. Their code defaults are relative to the working directory, and in
+the `dual-http` and `mcp-http` modes that is `/app/packages/mcp-server`, which
+is not on the volume and is not writable by `node`.
 
 The image declares `/app/packages/api/storage` as a volume, and makes it with
 the owner `node` (uid 1000). A new Docker volume is therefore writable. A host
@@ -271,6 +278,35 @@ sqlib needs three settings, for any broker:
 3. `SQLIB_AUTH_CLAIM_GROUPS`: the dot-path to the claim with group or role
    membership.
 
+### Behind a reverse proxy, or under a path prefix
+
+An MCP client finds the broker from URLs that sqlib advertises. Behind a
+reverse proxy, sqlib must build those URLs from the address that clients use.
+
+1. Set `SQLIB_PUBLIC_ORIGIN` to the scheme and host that clients use, such as
+   `https://data.example.org`. Without it, a proxy that terminates TLS makes
+   sqlib advertise `http://<internal host>`, and an MCP client refuses a
+   document from another origin.
+2. As an alternative, set `SQLIB_TRUST_PROXY` so that sqlib reads the
+   `X-Forwarded-*` headers of the proxy. Use it only when clients cannot reach
+   sqlib without the proxy.
+3. With `APP_BASE_PATH=/api/sqlib`, the MCP endpoint is
+   `https://data.example.org/api/sqlib/mcp`. Set `SQLIB_AUTH_RESOURCE` and the
+   `aud` of the broker to that URL.
+4. Route the whole prefix to sqlib. The 401 challenge names
+   `<prefix>/.well-known/oauth-protected-resource`, so a proxy that forwards
+   only `/api/sqlib/*` needs no other route for a client that reads the
+   challenge.
+5. A client that does not read the challenge asks for
+   `/.well-known/oauth-protected-resource/api/sqlib/mcp` at the root of the
+   origin (RFC 9728). Route that path to sqlib too if you have such a client.
+6. If the proxy removes the prefix before it forwards, leave `APP_BASE_PATH`
+   empty and set `APP_PUBLIC_BASE_PATH` to the prefix.
+
+If `SQLIB_AUTH_RESOURCE` is not a URL (for example the audience `sqlib-api`),
+an MCP client that follows the MCP SDK cannot use the document, because the SDK
+requires `resource` to be a URL. Set `SQLIB_AUTH_RESOURCE` to the URL of `/mcp`.
+
 The SPA needs one more value: the client id that the broker gave it
 (`authClientId` in `/config.json`). Register `<SPA origin>/auth/callback` as
 its redirect URL.
@@ -462,6 +498,60 @@ select some of them. Then sign in as the administrator, and open **Access**:
 Stop Rauthy with `just demo-graph-access-down`. Delete both stores and the
 secrets with `just clean-graph-access-demo`.
 
+## Where to run sqlib
+
+Put sqlib in the same region as the backends it queries. Then put the people
+and programs that call sqlib in that region too. Distance adds a round trip to
+each request. sqlib sends many requests one after another, so the delays add
+up.
+
+```mermaid
+flowchart LR
+  B[Browser or API client] -- "web UI: several requests per screen" --> S[sqlib]
+  S -- "one request per query run, group node or bench iteration" --> D[(SPARQL backend)]
+```
+
+### sqlib to backend
+
+This hop has the largest effect, in development and in production.
+
+- A query run sends at least one request to the backend.
+- A query group sends one request for each node. The engine runs the nodes
+  one at a time (see [query groups](query-groups.md)).
+- A bench run sends one request for each iteration.
+- At 250 ms for each request, a group of 8 nodes waits 2 s for the network
+  alone.
+
+Run sqlib in the backend's region, or on the same network. Settings, under
+Connection, shows the last probe of the active library's default backend. The
+Backends screen shows the last probe of each backend. A probe above 250 ms
+shows as slow. Set `SQLIB_BACKEND_SLOW_MS` to change this limit.
+
+### Browser to sqlib
+
+This hop affects people who use the web UI, mostly while they write and test
+queries.
+
+- A screen sends several API requests one after another. A 300 ms round trip
+  can add more than 1 s before the screen is ready.
+- The web UI times `GET /health` from the browser. It discards the first
+  request, which also opens the connection, and takes the median of the next
+  3. The result stays in the browser.
+- At 100 ms or more, the home screen shows a warning under the command field.
+  Settings, under Connection, shows the number at any round trip.
+- Set `SQLIB_LOCATION`, such as `Sydney`, to show where the server runs beside
+  the warning. The browser cannot find this out by itself.
+
+You can develop with a distant server. The screens are slower, and the results
+are the same.
+
+### Development and production
+
+| Stage | sqlib near the backend | Callers near sqlib |
+| --- | --- | --- |
+| Development | Recommended. Runs and benches are slow without it. | Optional. Only the web UI is slower. |
+| Production | Required for fast responses. | Recommended for each published tool, API client and web UI user. |
+
 ## Before you expose it
 
 This repository is pre-1.0, and its source is available for review (see
@@ -484,6 +574,10 @@ application. Set `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` only if you need this.
 startup. [Authentication: one broker in front](#authentication-one-broker-in-front)
 tells you what to put in front.
 
+**The image turns every feature flag on.** That includes ETL, which runs
+arbitrary DuckDB SQL. Set each `FEATURE_*` variable the deployment wants off to
+`false`. See [feature flags](../reference/feature-flags.md).
+
 **`/mcp` has no authentication in the default mode**, as for the rest of the
 API. It gives a full set of tools over each library and backend on the server.
 If the deployment serves `dual-http` or `mcp-http`, enforce authentication, or
@@ -496,8 +590,9 @@ the API share an origin. If the SPA has a different origin, list it. A listed
 origin gets credentialed access. `*` allows each origin, and never sends
 credentials. See [configuration](../reference/configuration.md#server-and-transport).
 
-**Check the feature flags.** `etl`, `playgroundEtl` and `assistant` are off by
-default, for these reasons:
+**Check the feature flags.** In the code's defaults, `etl`, `playgroundEtl` and
+`assistant` are off. The image turns them on, so set them to `false` unless the
+deployment needs them. They are off in the code for these reasons:
 
 - ETL takes arbitrary DuckDB SQL. This SQL can read the host filesystem, and,
   with the httpfs extension, make outbound requests.
@@ -581,6 +676,12 @@ the platform kills idle instances, or its shutdown grace period is shorter than
 the dump, up to one checkpoint interval of writes is lost. If the writes are
 important, make the interval shorter. Check that your platform sends `SIGTERM`
 and waits for the process to exit.
+
+The same loss applies to each `durable` `oxigraphMemory` backend, whatever the
+library store is. A SQLite library is written per change, but a durable backend
+beside it is an in-memory store with a `.nq` snapshot in `OXIGRAPH_STORAGE_DIR`,
+written on the same timer and on `SIGTERM`. Put `OXIGRAPH_STORAGE_DIR` on a
+volume that survives the container.
 
 ## Backup to blob storage
 

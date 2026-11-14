@@ -6,6 +6,7 @@ import { toQueryTypeIri } from './queryTypes.js';
 import type { NodeResult } from './orchestration/types.js';
 import type { SparqlDataset } from '../server/ISparqlExecutor.js';
 import { hasDataset } from './dataset.js';
+import { assertUpdateTakesDataset } from './updateDataset.js';
 
 /** A `LIMIT`/`OFFSET` value, named by the placeholder it fills. */
 export type PageParameter = { name: string; value: number };
@@ -86,9 +87,12 @@ export async function invokeCallable(
     return { result };
   }
   if (type === QueryTypeIri.update) {
-    // Dropping it would run the update over more than the caller allowed.
-    if (dataset) throw new Error('A dataset applies to queries only; an UPDATE names its graphs in its own text');
-    await executor.update(query);
+    // The dataset is what the update's WHERE clause reads (`using-graph-uri`).
+    // Refused when the text names its own graphs, is DELETE WHERE, or the
+    // backend cannot apply it: dropping the dataset would run the update over
+    // graphs the caller did not choose.
+    assertUpdateTakesDataset(query, dataset, executor);
+    await executor.update(query, { dataset });
     return { result: { success: true } };
   }
   if (type === QueryTypeIri.construct || type === QueryTypeIri.describe) {

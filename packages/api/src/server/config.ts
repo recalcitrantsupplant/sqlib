@@ -13,6 +13,7 @@
 import path from 'node:path';
 import type { OxigraphSourceConfig } from '../persistence/schemas/BackendSchema.js';
 import { log } from '../lib/log.js';
+import { oxigraphCheckpointIntervalMs } from '../lib/oxigraphSettings.js';
 
 interface HttpEndpointConfig {
   type: 'http';
@@ -48,8 +49,6 @@ interface OxigraphPersistentConfig {
   sourceConfig?: OxigraphSourceConfig;
   /** Directory where .nq serialization files are stored */
   storageDir: string;
-  /** Interval in milliseconds to periodically checkpoint in-memory stores to disk */
-  checkpointIntervalMs?: number;
 }
 
 // Union type for the internal backend configuration
@@ -58,6 +57,11 @@ export type InternalBackendConfig = SqliteConfig | HttpEndpointConfig | Oxigraph
 export interface Config {
   enableTimingLogs: boolean;
   internalBackend: InternalBackendConfig;
+  /**
+   * Interval in milliseconds between checkpoints of durable Oxigraph stores,
+   * for every library store type. `0` turns the periodic checkpoint off.
+   */
+  oxigraphCheckpointIntervalMs: number;
   cacheWriteThroughEnabled: boolean;
   cachePreloadEnabled: boolean;
 }
@@ -109,8 +113,6 @@ export function getInternalBackendConfig(env: NodeJS.ProcessEnv = process.env): 
       loadMethod,
       sourceConfig,
       storageDir,
-      checkpointIntervalMs: env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS ?
-        parseInt(env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS, 10) : 60000, // 1 min default
     };
   }
 
@@ -147,6 +149,8 @@ export function getInternalBackendConfig(env: NodeJS.ProcessEnv = process.env): 
 export const config: Config = {
   enableTimingLogs: process.env.ENABLE_TIMING_LOGS === 'true' || true, // Default to true
   internalBackend: getInternalBackendConfig(),
+  // Read at load, so that an invalid value stops start-up.
+  oxigraphCheckpointIntervalMs: oxigraphCheckpointIntervalMs(),
   get cacheWriteThroughEnabled(): boolean {
     return process.env.CACHE_WRITE_THROUGH !== 'false'; // Default true, set to 'false' to disable
   },

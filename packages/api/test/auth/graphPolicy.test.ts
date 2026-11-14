@@ -16,7 +16,7 @@ import { resetAuthConfig } from '../../src/auth/config.js';
 import type { AuthContext, AuthMode } from '../../src/auth/types.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 import { OxigraphSparqlExecutor } from '../../src/server/OxigraphSparqlExecutor.js';
-import { GuardedSparqlExecutor, SERVICE_UNDER_POLICY_WARNING } from '../../src/auth/GuardedSparqlExecutor.js';
+import { GraphPolicyUpdateError, GuardedSparqlExecutor, SERVICE_UNDER_POLICY_WARNING } from '../../src/auth/GuardedSparqlExecutor.js';
 import {
   GraphPolicyError,
   bindPolicySubject,
@@ -239,6 +239,88 @@ describe('backend modes on the guarded executor', () => {
     await expect(saved.update(`INSERT DATA { <urn:a> <urn:b> <urn:c> }`)).resolves.toBeDefined();
     const adhoc = new GuardedSparqlExecutor(dataExecutor, { request: requestFor(contextFor([carol])), backendId: DATA, source: 'adhoc' });
     await expect(adhoc.update(`INSERT DATA { <urn:a> <urn:b> <urn:d> }`)).rejects.toBeInstanceOf(AuthorizationError);
+  });
+});
+
+describe('graph policy updates', () => {
+  const COPY = `PREFIX ex: <${EX}> INSERT { GRAPH ex:out { ?s ex:copied ?o } } WHERE { GRAPH ?g { ?s ex:p ?o } }`;
+
+  /** An inner executor that applies update datasets, and records what it was given. */
+  function recording() {
+    const calls: Array<{ text: string; options?: { dataset?: unknown } }> = [];
+    const inner = Object.assign(Object.create(dataExecutor) as OxigraphSparqlExecutor, {
+      supportsUpdateDataset: true,
+      update: async (text: string, options?: { dataset?: unknown }) => {
+        calls.push({ text, options });
+        return { result: undefined, duration: 0 };
+      },
+    });
+    const executor = new GuardedSparqlExecutor(inner, {
+      request: requestFor(contextFor([ALICE, TEAM_A])),
+      backendId: DATA,
+      source: 'adhoc',
+    });
+    return { executor, calls };
+  }
+
+  const codeOf = async (run: Promise<unknown>) => {
+    try {
+      await run;
+    } catch (error) {
+      expect(error).toBeInstanceOf(GraphPolicyUpdateError);
+      return (error as GraphPolicyUpdateError).code;
+    }
+    return undefined;
+  };
+
+  beforeEach(async () => {
+    await grants.createGrant({ principal: TEAM_A, resourceKind: 'backend', resource: DATA, modes: ['update:adhoc'] });
+  });
+
+  it('narrows what the WHERE clause of an update reads', async () => {
+    const { executor, calls } = recording();
+    await executor.update(COPY);
+    expect(calls[0].options?.dataset).toEqual({ defaultGraphs: [`${EX}g1`], namedGraphs: [`${EX}g1`] });
+  });
+
+  it('intersects the caller\'s update dataset with the policy', async () => {
+    const { executor, calls } = recording();
+    await executor.update(COPY, { dataset: { namedGraphs: [`${EX}g1`, `${EX}g2`] } });
+    expect(calls[0].options?.dataset).toEqual({ defaultGraphs: [`${EX}g1`], namedGraphs: [`${EX}g1`] });
+  });
+
+  it('refuses an update that names its graphs with USING or WITH', async () => {
+    const { executor, calls } = recording();
+    const using = `PREFIX ex: <${EX}> INSERT { GRAPH ex:out { ?s ex:copied ?o } } USING ex:g2 WHERE { ?s ex:p ?o }`;
+    const withGraph = `PREFIX ex: <${EX}> WITH ex:g2 INSERT { ?s ex:copied ?o } WHERE { ?s ex:p ?o }`;
+    expect(await codeOf(executor.update(using))).toBe('GRAPH_POLICY_UPDATE_NAMES_GRAPHS');
+    expect(await codeOf(executor.update(withGraph))).toBe('GRAPH_POLICY_UPDATE_NAMES_GRAPHS');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses DELETE WHERE, which a dataset cannot narrow', async () => {
+    const { executor, calls } = recording();
+    expect(await codeOf(executor.update('DELETE WHERE { ?s ?p ?o }'))).toBe('GRAPH_POLICY_UPDATE_DELETE_WHERE');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses an update that reads on a backend that cannot take an update dataset', async () => {
+    // In-process Oxigraph 0.5.13 cannot apply one.
+    expect(dataExecutor.supportsUpdateDataset).toBe(false);
+    expect(await codeOf(guarded([ALICE, TEAM_A]).update(COPY))).toBe('GRAPH_POLICY_UPDATE_UNSUPPORTED');
+  });
+
+  it('runs INSERT DATA as written, as it reads nothing', async () => {
+    await guarded([ALICE, TEAM_A]).update(`PREFIX ex: <${EX}> INSERT DATA { GRAPH ex:out { ex:s ex:copied "direct" } }`);
+    const { result } = await dataExecutor.selectQueryParsed(
+      `PREFIX ex: <${EX}> SELECT ?o WHERE { GRAPH ex:out { ?s ex:copied ?o } }`,
+    );
+    const values = (result as { results: { bindings: Array<{ o: { value: string } }> } }).results.bindings.map(row => row.o.value);
+    expect(values).toEqual(['direct']);
+  });
+
+  it('does not police an administrator', async () => {
+    await expect(guarded([ADMIN]).update(COPY)).resolves.toBeDefined();
   });
 });
 

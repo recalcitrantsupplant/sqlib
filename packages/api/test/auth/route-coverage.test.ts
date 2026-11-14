@@ -130,6 +130,11 @@ overrideCacheCoordinatorProvider({
  *   reaches no row the caller is not already standing on. `GET /auth/me` is
  *   the whole of this. Distinct from `stateless`, which reads no stored state
  *   at all: this one reads the caller's own grants.
+ * - `name-lookup` — the route turns principal IRIs into display names, for
+ *   the `createdBy` and `modifiedBy` fields. Open to every caller. A principal
+ *   IRI is a hash of issuer and subject, so a caller can only ask about IRIs it
+ *   read from something it may see. It answers with the display name only,
+ *   never the email or raw claim. `GET /auth/names` is the whole of this.
  *
  * `readable-listing` and `unfiltered-listing` were one value, `unrestricted-
  * listing`, glossed as "returns what the caller may see, filtered downstream".
@@ -143,7 +148,7 @@ type Protection =
   | 'stateless' | 'admin'
   | 'backend-use' | 'backend-write' | 'backend-listing' | 'library-create'
   | 'backend-by-operation' | 'session-owner'
-  | 'auth-graph' | 'self-describing'
+  | 'auth-graph' | 'self-describing' | 'name-lookup'
   | 'unguarded-unowned' | 'readable-listing' | 'unfiltered-listing';
 
 const MANIFEST: Record<string, Protection> = {
@@ -693,6 +698,7 @@ const MANIFEST: Record<string, Protection> = {
   'POST /auth/grants': 'auth-graph',
   'DELETE /auth/grants/:id': 'auth-graph',
   'GET /auth/principals': 'handler',
+  'GET /auth/names': 'name-lookup',
 
   /*
    * Detection is the first plugin whose every route is `stateless`. Each takes
