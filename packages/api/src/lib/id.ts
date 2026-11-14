@@ -59,6 +59,7 @@ export const NS = {
   tag: 'urn:sqlib:tag:',
   environment: 'urn:sqlib:environment:',
   patch: 'urn:sqlib:patch:',
+  pointerMove: 'urn:sqlib:pointer-move:',
   tupleSet: 'urn:sqlib:tuple-set:',
   tupleSetVersion: 'urn:sqlib:tuple-set-version:',
   notebook: 'urn:sqlib:notebook:',
@@ -215,6 +216,9 @@ const ALIAS_TO_KIND: Record<string, KnownKind> = {
 
   // patches
   'patch': 'patch',
+
+  // environment pointer moves
+  'pointermove': 'pointerMove',
 
   // tuple sets
   'tupleset': 'tupleSet',

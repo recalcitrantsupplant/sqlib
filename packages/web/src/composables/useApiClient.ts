@@ -228,8 +228,25 @@ export const environmentPointerSchema = z.object({
   entityName: z.string().nullable().optional(),
   version: z.string(),
   versionNumber: z.number().nullable().optional(),
+  movedBy: z.string().nullable().optional(),
+  movedAt: z.string().nullable().optional(),
 });
 export type EnvironmentPointer = z.infer<typeof environmentPointerSchema>;
+
+/** One row of `GET /environments/:id/moves`, newest first. */
+export const environmentMoveSchema = z.object({
+  id: z.string(),
+  entity: z.string(),
+  entityType: z.string().nullable().optional(),
+  entityName: z.string().nullable().optional(),
+  fromVersion: z.string().nullable().optional(),
+  fromVersionNumber: z.number().nullable().optional(),
+  toVersion: z.string().nullable().optional(),
+  toVersionNumber: z.number().nullable().optional(),
+  movedBy: z.string().nullable().optional(),
+  movedAt: z.string().nullable().optional(),
+});
+export type EnvironmentMove = z.infer<typeof environmentMoveSchema>;
 
 /** Create an environment; `startFrom` ("latest" or an environment id) seeds its pointers. */
 export type EnvironmentCreateRequest = {
@@ -2267,6 +2284,19 @@ export function useApiClient() {
       (payload) => environmentPointerSchema.array().parse(payload),
     );
 
+  /** The recorded pointer moves of an environment, newest first; `entity` narrows them to one. */
+  const listEnvironmentMoves = (id: string, options: { entity?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (options.entity) params.set('entity', options.entity);
+    if (options.limit) params.set('limit', String(options.limit));
+    const query = params.toString();
+    return requestData(
+      buildUrl(`/environments/${encodeURIComponent(id)}/moves${query ? `?${query}` : ''}`),
+      { method: 'GET' },
+      (payload) => environmentMoveSchema.array().parse(payload),
+    );
+  };
+
   /**
    * Move one pointer. `from` is the version the caller saw (null for none):
    * the server refuses with 409 and the `current` version when it differs.
@@ -3324,6 +3354,7 @@ export function useApiClient() {
     updateEnvironment,
     deleteEnvironment,
     listEnvironmentPointers,
+    listEnvironmentMoves,
     moveEnvironmentPointer,
     listGrants,
     createGrant,

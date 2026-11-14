@@ -58,18 +58,26 @@
             <ArrowRight :size="12" class="arrow" aria-hidden="true" />
             <span class="chip">{{ label(catchUpTarget(row, column)!) }}</span>
           </span>
-          <template v-if="mayPromote">
-            <button
-              type="button"
-              class="btn-compact row-button"
-              :disabled="busy"
-              :data-testid="`move-${row.entity.name}-${environment.name}`"
-              @click="emit('move', moveOf(row, catchUpTarget(row, column)!.version))"
-            >
-              {{ row.cells[column].version ? 'Move' : 'Add' }}
-            </button>
-            <RowMenu :row="row" :column="column" :environment-name="environment.name" :versions-of="versionsOf" @move="(version) => emit('move', moveOf(row, version))" />
-          </template>
+          <MovedBy :cell="row.cells[column]" />
+          <button
+            v-if="mayPromote"
+            type="button"
+            class="btn-compact row-button"
+            :disabled="busy"
+            :data-testid="`move-${row.entity.name}-${environment.name}`"
+            @click="emit('move', moveOf(row, catchUpTarget(row, column)!.version))"
+          >
+            {{ row.cells[column].version ? 'Move' : 'Add' }}
+          </button>
+          <RowMenu
+            :row="row"
+            :column="column"
+            :environment-name="environment.name"
+            :may-move="mayPromote"
+            :versions-of="versionsOf"
+            :moves-of="historyOf"
+            @move="(version) => emit('move', moveOf(row, version))"
+          />
         </li>
       </ul>
     </section>
@@ -85,7 +93,16 @@
           <span class="kind">{{ KIND_LABELS[row.entity.kind] }}</span>
           <span class="spacer" />
           <span class="chip" :class="`chip--${row.cells[column].state}`">{{ label(row.cells[column]) }}</span>
-          <RowMenu v-if="mayPromote" :row="row" :column="column" :environment-name="environment.name" :versions-of="versionsOf" @move="(version) => emit('move', moveOf(row, version))" />
+          <MovedBy :cell="row.cells[column]" />
+          <RowMenu
+            :row="row"
+            :column="column"
+            :environment-name="environment.name"
+            :may-move="mayPromote"
+            :versions-of="versionsOf"
+            :moves-of="historyOf"
+            @move="(version) => emit('move', moveOf(row, version))"
+          />
         </li>
       </ul>
     </section>
@@ -103,6 +120,8 @@ import InlineNote from '@/components/shared/InlineNote.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import RowMenu from '@/components/library-page/EnvironmentRowMenu.vue';
+import MovedBy from '@/components/library-page/PointerMovedBy.vue';
+import type { EnvironmentMove } from '@/composables/useApiClient';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,7 +154,14 @@ const props = defineProps<{
   busy?: boolean;
   notice: { tone: 'warning' | 'danger'; text: string } | null;
   versionsOf: (entity: PromotableEntity) => Promise<Array<{ id: string; version: number }>>;
+  movesOf?: (environment: string, entity: PromotableEntity) => Promise<EnvironmentMove[]>;
 }>();
+
+const historyOf = computed(() => {
+  const movesOf = props.movesOf;
+  if (!movesOf) return undefined;
+  return (entity: PromotableEntity) => movesOf(props.environment.id, entity);
+});
 
 const emit = defineEmits<{
   (e: 'edit'): void;

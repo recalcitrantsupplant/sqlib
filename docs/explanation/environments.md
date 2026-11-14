@@ -83,11 +83,27 @@ pointer. `version: null` removes it.
 - `from` is a compare-and-set guard. When it is given and the pointer is not at
   `from`, the call returns 409 with the `current` version.
 
-Every move writes an audit log line (`pointerMove`) with the environment, the
-entity, the old and new version and the caller.
+Every move that changes the pointer writes a `PointerMove` record and an audit
+log line (`pointerMove`). The record holds the environment (`isPartOf`), the
+entity (`movedEntity`), the old and new version (`fromVersion`, `toVersion`),
+the caller (`createdBy`) and the time (`dateCreated`). A move to the version
+the pointer already holds writes nothing.
 
-`GET /environments/:id/pointers` lists the pointers with the entity name and the
-version number.
+- The record names the entity and the versions as plain IRIs. A recorded move
+  does not stop a delete of the entity or of a version, so a reader must
+  expect such an IRI to resolve to nothing.
+- Deleting an environment deletes its moves.
+- No record exists for a pointer that `startFrom` copied in at create, or for
+  a move made before moves were recorded.
+
+`GET /environments/:id/pointers` lists the pointers with the entity name, the
+version number, and the caller and time of the last move to that version
+(`movedBy`, `movedAt`). Both are null when no move is recorded.
+
+`GET /environments/:id/moves?entity=&limit=` lists the recorded moves, newest
+first, with the entity name and both version numbers. `entity` keeps the
+moves of one query, group or rule set. `limit` is 20 by default and at most
+200. Both pointer routes need read on the library.
 
 Today an administrator, or a holder of `promote`, moves a pointer directly.
 
@@ -102,8 +118,10 @@ switcher ("Manage environments…"), the environment badge on the rail and the
   behind the one before it. The detail shows the environment's backend and
   who may promote to or run in it, then each query, group and rule set that
   differs from the environment before it, with Move (or Add) per row and
-  Move all. The rest folds into one "in step" line. Each row's menu moves the
-  pointer to any version or removes it. Each move sends `from`. "Compare
+  Move all. The rest folds into one "in step" line. Each row shows who made
+  the last recorded move and on which day. Each row's menu shows the move
+  history of that entity in the environment, and, for a holder of `promote`,
+  moves the pointer to any version or removes it. Each move sends `from`. "Compare
   all" shows every entity against every environment in one table. A
   `control` holder adds, edits, reorders and deletes environments, or creates
   a whole chain at once for a library with none. `?env=` keeps the selection.

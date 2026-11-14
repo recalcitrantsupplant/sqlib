@@ -3048,6 +3048,64 @@ export const patchSchema = {
   ]
 } as const;
 
+export const pointermoveSchema = {
+  "$id": "pointermove",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "movedEntity": {
+      "type": "string",
+      "format": "iri"
+    },
+    "fromVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "toVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "movedEntity"
+  ]
+} as const;
+
 export const queryedgeSchema = {
   "$id": "queryedge",
   "type": "object",
@@ -5424,6 +5482,18 @@ export interface PatchRestApi {
   createdBy?: string | null;
   modifiedBy?: string | null;
   dateApplied?: string | null;
+}
+
+export interface PointerMoveRestApi {
+  id: string;
+  isPartOf: string;
+  movedEntity: string;
+  fromVersion?: string | null;
+  toVersion?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface QueryEdgeRestApi {
