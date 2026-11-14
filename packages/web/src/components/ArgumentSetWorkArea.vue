@@ -18,10 +18,10 @@
         :show-format="false"
         :show-diff="false"
         :show-edit="false"
+        :show-more="false"
         @save="save"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
-        @delete="removeSet"
       />
 
       <!--

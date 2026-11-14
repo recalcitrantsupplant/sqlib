@@ -573,26 +573,18 @@
           </aside>
         </div>
 
-        <!--
-          The one action that unmakes it, at the foot of the record — the place
-          every other record keeps its Delete, rather than behind a ⋮ that has
-          to be opened to find out what is in it.
-
-          It does not confirm here, as those do. The page answers this with a
-          dialog naming the libraries and queries pointing at the backend, and
-          that is worth more than an in-place "are you sure": it is the thing
-          you would have gone looking for before answering.
-        -->
-        <div class="record-footer" data-testid="backend-footer">
-          <button
-            class="delete-button"
-            data-testid="delete-backend"
-            @click="emit('delete-request', { backendId: backend.id, backendName: backend.name })"
-          >
-            <Trash2 :size="12" />Delete backend
-          </button>
-        </div>
       </div>
+
+      <RecordFooter
+        noun="backend"
+        :confirm-prompt="deleteConfirmPrompt"
+        :created-at="backend.dateCreated ?? null"
+        :can-delete="canEdit"
+        :deleting="deleting"
+        :reset-key="backend.id"
+        test-id-prefix="backend"
+        @delete="emit('delete-request', { backendId: backend.id, backendName: backend.name })"
+      />
     </template>
 
     <div v-else class="record-empty">
@@ -669,7 +661,6 @@ import {
   ExternalLink,
   Minus,
   Plus,
-  Trash2,
   X,
 } from '@lucide/vue';
 import { toast } from 'vue-sonner';
@@ -682,6 +673,7 @@ import {
 } from '@sparql-query-lib/types';
 import InlineField from './backends/InlineField.vue';
 import InlineNote from './shared/InlineNote.vue';
+import RecordFooter from './shared/RecordFooter.vue';
 import MemorySourcesEditor from './backends/MemorySourcesEditor.vue';
 import InfoHint from './shared/InfoHint.vue';
 import SectionLabel from './shared/SectionLabel.vue';
@@ -736,10 +728,12 @@ const props = withDefaults(
     draft: boolean;
     /** Library members see name and health only (doc §Rules). */
     canEdit?: boolean;
+    /** True while the host deletes this backend. */
+    deleting?: boolean;
   }>(),
   // Vue casts an absent boolean prop to false, so the owner default has to be
   // written down or every field renders read-only.
-  { canEdit: true },
+  { canEdit: true, deleting: false },
 );
 
 const emit = defineEmits<{
@@ -1009,6 +1003,28 @@ function toggleDefaultForGroup(kind: string) {
 const defaultForCount = computed(() =>
   defaultForGroups.value.reduce((total, group) => total + group.entries.length, 0),
 );
+
+/*
+ * The confirm names what the delete changes outside the backend: each record
+ * that defaults to it loses that default (the server clears the pointer).
+ */
+const DEFAULT_KIND_NOUNS: Record<DefaultKind, [string, string]> = {
+  library: ['library', 'libraries'],
+  query: ['query', 'queries'],
+  etlJob: ['ETL job', 'ETL jobs'],
+};
+
+const deleteConfirmPrompt = computed(() => {
+  const parts = defaultForGroups.value
+    .filter((group) => group.entries.length > 0)
+    .map((group) => {
+      const [one, many] = DEFAULT_KIND_NOUNS[group.kind];
+      return `${group.entries.length} ${group.entries.length === 1 ? one : many}`;
+    });
+  if (parts.length === 0) return 'Delete this backend?';
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return `Delete this backend? It is the default for ${list}.`;
+});
 
 /*
  * The in-memory store is never a stored default: a library refuses it ("Ephemeral
@@ -1655,6 +1671,9 @@ function relativeTime(iso: string): string {
 .backend-work-area {
   flex: 1;
   min-width: 0;
+  /* The parent is a block, so the column takes its height from here; without
+     it the footer sits under the content instead of at the foot of the pane. */
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1731,46 +1750,6 @@ function relativeTime(iso: string): string {
 .button--primary:disabled {
   background: var(--border-strong);
   color: var(--ink-inverse);
-}
-
-/*
- * The footer: the same band, the same quiet-red Delete and the same in-place
- * confirm as every other record's (`EntityDetailsPanel`). Copied rather than
- * shared because this screen's record is not that panel — what has to match is
- * what it looks like and how it behaves, not where the markup lives.
- */
-.record-footer {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-4);
-  box-sizing: border-box;
-  min-height: var(--panel-bar-h);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--surface-subtle);
-}
-
-.delete-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: var(--control-h-sm);
-  margin-left: auto;
-  padding: 0 var(--space-4);
-  border: none;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--danger-active);
-  font-family: inherit;
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
-
-.delete-button:hover {
-  background: var(--danger-surface);
-  color: var(--danger-ink);
 }
 
 /*

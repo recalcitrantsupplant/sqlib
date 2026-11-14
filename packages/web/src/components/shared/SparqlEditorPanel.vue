@@ -25,7 +25,6 @@
       @save-new-version="$emit('save-new-version')"
       @save-invalid="$emit('save-invalid')"
       @request-focus="$emit('request-focus')"
-      @delete="$emit('delete')"
       @clone="$emit('clone')"
       @move="$emit('move')"
       @copy-version-id="$emit('copy-version-id')"
@@ -362,7 +361,6 @@ const emit = defineEmits<{
   (e: 'update:selectedVersion', value: string): void;
   (e: 'save'): void;
   (e: 'save-new-version'): void;
-  (e: 'delete'): void;
   (e: 'clone'): void;
   (e: 'move'): void;
   (e: 'save-invalid'): void;

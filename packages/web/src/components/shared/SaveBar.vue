@@ -151,21 +151,19 @@
     </button>
 
     <!--
-      The mockup's ⋮ More. It exists because removing the metadata panel from
-      above the editor took the only Delete affordance with it. "Edit details…"
-      is only for the sections that still keep a dialog of their own: where
-      Details edits every field the dialog did — name, description, default
-      backend, current version — a second editor of the same four is a second
-      copy that can disagree with the first.
-      A scratch item has neither entry: it has no server identity to delete and
-      nothing to edit on the server, so the menu is saved-only.
+      ⋮ More. "Edit details…" is only for the sections that still keep a
+      dialog of their own: where Details edits every field the dialog did, a
+      second editor of the same fields can disagree with the first. Delete is
+      not here: every saved record has it in the footer of its Details tab,
+      where it confirms in place.
+      A scratch item has no server record to edit, so the menu is saved-only.
 
       A read-only deployment leaves the menu only where a section put something
-      of its own in it — the rules screen's "Preview changes…", which reads.
-      Both standing entries write to the server, so a ⋮ holding nothing but
-      those is a menu that opens onto two refusals.
+      of its own in it, such as the rules screen's "Preview changes…", which
+      reads. "Edit details…" writes to the server, so a ⋮ holding only it would
+      open onto a refusal.
     -->
-    <DropdownMenu v-if="showMore && !isScratch && (canWrite || hasMenuItems)">
+    <DropdownMenu v-if="showMore && !isScratch && ((showEdit && canWrite) || hasMenuItems)">
       <DropdownMenuTrigger as-child>
         <button class="icon-control" data-testid="query-more" title="More actions">
           <EllipsisVertical :size="16" />
@@ -176,9 +174,6 @@
         <slot name="menu-items" />
         <DropdownMenuItem v-if="showEdit && canWrite" data-testid="query-edit-details" @select="emit('edit')">
           Edit details…
-        </DropdownMenuItem>
-        <DropdownMenuItem v-if="canWrite" data-testid="query-delete" @select="emit('delete')">
-          Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -292,7 +287,6 @@ const emit = defineEmits<{
   (e: 'needs-name'): void;
   (e: 'discard'): void;
   (e: 'edit'): void;
-  (e: 'delete'): void;
   (e: 'format'): void;
   (e: 'update:code', value: string): void;
   (e: 'import'): void;

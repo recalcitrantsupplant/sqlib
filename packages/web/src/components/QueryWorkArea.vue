@@ -175,7 +175,6 @@
             @request-expand="expandEditor"
             @request-format="formatQueryCode"
             @save-new-version="saveNewVersion"
-            @delete="requestDeleteQuery"
             @execute="executeQuery"
             @copy-version-id="copyQueryVersionId"
             @toggle-diff="handleDiffToggle"
@@ -460,28 +459,6 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <AlertDialog v-model:open="deleteConfirmOpen">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete this query?</AlertDialogTitle>
-          <AlertDialogDescription>
-            “{{ queryName || 'Untitled query' }}” and every saved version of it will be
-            removed. This cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            class="delete-action"
-            data-testid="confirm-delete-query"
-            :disabled="isDeleting"
-            @click.prevent="confirmDeleteQuery"
-          >
-            {{ isDeleting ? 'Deleting…' : 'Delete' }}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
 
     <!--
       There is no Edit-details dialog any more. Every field it carried — name,
@@ -2483,14 +2460,9 @@ const compareVersionWithCurrent = async (versionId: string) => {
  * screen it is not held in the browser first — it goes straight to the server
  * and takes every version with it.
  */
-const deleteConfirmOpen = ref(false);
 const isDeleting = ref(false);
 
-const requestDeleteQuery = () => {
-  if (!queryId.value || isScratch.value) return;
-  deleteConfirmOpen.value = true;
-};
-
+/* Confirmed in the Details footer before it gets here. */
 const confirmDeleteQuery = async () => {
   const id = queryId.value;
   if (!id) return;
@@ -2502,7 +2474,6 @@ const confirmDeleteQuery = async () => {
     // run, which is a result for a query nothing can open.
     removeDraft();
     forgetLastRun(runCacheKey('query', id));
-    deleteConfirmOpen.value = false;
     toast.success('Query deleted');
     emit('query-deleted', id);
   } catch (error) {
@@ -3043,14 +3014,5 @@ onUnmounted(() => {
 /* Dropdown menu item icons */
 :deep(.lucide-icon) {
   flex-shrink: 0;
-}
-
-.delete-action {
-  background: var(--danger);
-  color: var(--danger-fg);
-}
-
-.delete-action:hover {
-  background: var(--danger-hover);
 }
 </style>

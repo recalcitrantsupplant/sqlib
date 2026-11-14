@@ -628,8 +628,8 @@ describe('BackendWorkArea', () => {
    * Copy and Delete sat behind a ⋮ that had to be opened to find out it held
    * one thing anybody wants and one nobody wants by accident. They are where
    * every other record keeps them: the id beside a copy button in Identity,
-   * Delete at the foot. The confirm stays the page's dialog, which names what
-   * points at the backend — worth more than an in-place "are you sure".
+   * Delete at the foot. It confirms in place, as theirs does, and the confirm
+   * names what defaults to the backend.
    */
   describe('copy and delete, out of the overflow menu', () => {
     it('shows the id with a copy button beside it', async () => {
@@ -640,14 +640,28 @@ describe('BackendWorkArea', () => {
       expect(wrapper.find('[data-testid="backend-overflow"]').exists()).toBe(false);
     });
 
-    it('asks the page to delete, from the footer', async () => {
+    it('confirms in the footer, then asks the page to delete', async () => {
       const wrapper = await mountRecord();
 
-      await wrapper.find('[data-testid="delete-backend"]').trigger('click');
+      await wrapper.find('[data-testid="backend-delete"]').trigger('click');
+      expect(wrapper.emitted('delete-request')).toBeUndefined();
+      expect(wrapper.find('[data-testid="backend-confirm-prompt"]').text()).toBe('Delete this backend? It is the default for 1 library.');
+
+      await wrapper.find('[data-testid="backend-confirm-delete"]').trigger('click');
 
       expect(wrapper.emitted('delete-request')).toEqual([
         [{ backendId: backend.id, backendName: backend.name }],
       ]);
+    });
+
+    it('cancelling the confirm deletes nothing', async () => {
+      const wrapper = await mountRecord();
+
+      await wrapper.find('[data-testid="backend-delete"]').trigger('click');
+      await wrapper.find('[data-testid="backend-cancel-delete"]').trigger('click');
+
+      expect(wrapper.find('[data-testid="backend-confirm-delete"]').exists()).toBe(false);
+      expect(wrapper.emitted('delete-request')).toBeUndefined();
     });
   });
 
