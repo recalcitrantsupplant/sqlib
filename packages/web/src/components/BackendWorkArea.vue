@@ -1944,6 +1944,7 @@ function relativeTime(iso: string): string {
 }
 
 .segmented {
+  --segment-border: 1px;
   display: flex;
 }
 
@@ -1951,7 +1952,7 @@ function relativeTime(iso: string): string {
   position: relative;
   height: var(--control-h-sm);
   padding: 0 var(--space-5);
-  border: 1px solid var(--border-default);
+  border: var(--segment-border) solid var(--border-default);
   border-radius: 0;
   background: var(--surface);
   color: var(--ink-muted);
@@ -1960,11 +1961,11 @@ function relativeTime(iso: string): string {
   cursor: pointer;
 }
 
-/* Each segment draws all four borders, and the next one overlaps by 1px, so
-   two neighbours share one line. The selected segment sits above its
-   neighbours, so its blue border shows on both sides. */
+/* Each segment draws all four borders, and the next one overlaps it by one
+   border width, so two neighbours share one line. The selected segment sits
+   above its neighbours, so its blue border shows on both sides. */
 .segment + .segment {
-  margin-left: -1px;
+  margin-left: calc(-1 * var(--segment-border));
 }
 
 .segment:first-child {
