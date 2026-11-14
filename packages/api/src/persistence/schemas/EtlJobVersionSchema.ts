@@ -3,6 +3,15 @@
  *
  * Represents an immutable version of an ETL job. Each version has a stable
  * parent EtlJob and contains the SQL query, SPARQL template, and configuration.
+ *
+ * The SPARQL template comes from one of two places:
+ *
+ * - `sparqlTemplate`: the template text, stored on the version.
+ * - `templateQuery`: a saved CONSTRUCT query. A `QueryVersion` IRI pins that
+ *   version. A `Query` IRI floats: each run uses the query's current version,
+ *   and the run records which version that was (`EtlExecution.templateQueryVersion`).
+ *
+ * A version has exactly one of the two. `lib/etlTemplate.ts` resolves both to text.
  */
 
 import type { Schema } from '../schema.js';
@@ -29,9 +38,18 @@ export const EtlJobVersionSchema = {
     '@id': sqlib.sql,
     '@type': xsd.string,
   },
+  /** Inline template text. Absent when `templateQuery` is set. */
   sparqlTemplate: {
     '@id': sqlib.sparqlTemplate,
     '@type': xsd.string,
+    '@optional': true,
+  },
+  /** A `QueryVersion` (pinned) or a `Query` (floats to its current version). */
+  templateQuery: {
+    '@id': sqlib.templateQuery,
+    '@type': sqlib.IRI,
+    '@optional': true,
+    '@references': { types: ['Query', 'QueryVersion'] },
   },
   backendId: {
     '@id': sqlib.backendId,
@@ -71,7 +89,8 @@ export interface PersistedEtlJobVersion {
   version: number; // 1, 2, 3...
   immutable?: boolean | null;
   sql: string; // DuckDB SQL query
-  sparqlTemplate: string; // SPARQL query with VALUES placeholder
+  sparqlTemplate?: string | null; // SPARQL query with VALUES placeholder; absent when templateQuery is set
+  templateQuery?: string | null; // IRI of a QueryVersion (pinned) or a Query (floating)
   backendId: string; // IRI to target Backend for SPARQL execution
   currentColumnMappingVersion?: string | null; // IRI to EtlColumnMappingVersion
   chunkSize?: number | null; // default chunk size for pagination

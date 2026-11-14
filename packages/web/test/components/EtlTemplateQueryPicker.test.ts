@@ -1,6 +1,6 @@
 /**
- * The SPARQL Template panel's query picker: a saved query and version, whose
- * text becomes the template.
+ * The SPARQL Template panel's query picker: a saved query, then Latest or a
+ * version. It emits the link to store and the text that link resolves to now.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
@@ -39,10 +39,10 @@ const SearchSelectStub = {
   template: '<div data-testid="search-select"><span v-for="o in options" :key="o.value">{{ o.label }}</span></div>',
 };
 
-async function mountPicker() {
+async function mountPicker(modelValue: string | null = null) {
   const Picker = (await import('@/components/etl/TemplateQueryPicker.vue')).default;
   const wrapper = mount(Picker, {
-    props: { libraryId: LIBRARY },
+    props: { libraryId: LIBRARY, modelValue },
     global: { stubs: { SearchSelect: SearchSelectStub, Select: SelectStub, SelectContent: true, SelectTrigger: true, SelectValue: true, SelectItem: true } },
   });
   await wrapper.trigger('focusin');
@@ -90,18 +90,29 @@ describe('TemplateQueryPicker', () => {
     expect(wrapper.get('[data-testid="version-select"]').attributes('data-disabled')).toBe('true');
   });
 
-  it('uses the current version when a query is chosen, and another version when one is picked', async () => {
+  it('links a chosen query as Latest, and pins a version when one is picked', async () => {
     const wrapper = await mountPicker();
     wrapper.findComponent(SearchSelectStub).vm.$emit('update:modelValue', 'urn:sqlib:query:q1');
     await flushPromises();
-    expect(wrapper.emitted('use')?.[0]).toEqual([TEMPLATE_V2]);
+    expect(wrapper.emitted('use')?.[0]).toEqual([{ reference: 'urn:sqlib:query:q1', text: TEMPLATE_V2 }]);
 
     const versionSelect = wrapper.findComponent(SelectStub);
-    expect(versionSelect.props('modelValue')).toBe('2');
+    expect(versionSelect.props('modelValue')).toBe('latest');
     expect(versionSelect.props('disabled')).toBe(false);
     versionSelect.vm.$emit('update:modelValue', '1');
     await flushPromises();
-    expect(wrapper.emitted('use')?.[1]).toEqual([TEMPLATE_V1]);
+    expect(wrapper.emitted('use')?.[1]).toEqual([{ reference: 'urn:sqlib:query-version:v1', text: TEMPLATE_V1 }]);
+  });
+
+  it('shows a stored link: a query as Latest, a version as its number', async () => {
+    const latest = await mountPicker('urn:sqlib:query:q1');
+    expect(latest.findComponent(SearchSelectStub).props('modelValue')).toBe('urn:sqlib:query:q1');
+    expect(latest.findComponent(SelectStub).props('modelValue')).toBe('latest');
+
+    const pinned = await mountPicker('urn:sqlib:query-version:v1');
+    expect(pinned.findComponent(SearchSelectStub).props('modelValue')).toBe('urn:sqlib:query:q1');
+    expect(pinned.findComponent(SelectStub).props('modelValue')).toBe('1');
+    expect(pinned.emitted('use')).toBeUndefined();
   });
 
   it('refuses a SELECT query and leaves the template alone', async () => {

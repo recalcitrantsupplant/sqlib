@@ -46,7 +46,12 @@ export interface EtlJobVersion {
   isPartOf: string;
   version: number;
   sql: string;
+  /** The template text. For a linked template, the text of the query version it resolves to now. */
   sparqlTemplate: string;
+  /** The saved query the template comes from: a query version (pinned) or a query (latest). */
+  templateQuery?: string;
+  /** The query version `templateQuery` resolves to now. */
+  templateQueryVersion?: string;
   backendId: string;
   currentColumnMappingVersionId?: string;
   chunkSize?: number;
@@ -216,6 +221,8 @@ export function useEtlJobsStore() {
     input: {
       sql: string;
       sparqlTemplate: string;
+      /** A saved query to use as the template. When set, `sparqlTemplate` is not sent. */
+      templateQuery?: string | null;
       backendId: string;
       comment?: string | null;
       columnMappings: EtlColumnMapping[];
@@ -225,7 +232,9 @@ export function useEtlJobsStore() {
       method: 'POST',
       body: JSON.stringify({
         sql: input.sql,
-        sparqlTemplate: input.sparqlTemplate,
+        ...(input.templateQuery
+          ? { templateQuery: input.templateQuery }
+          : { sparqlTemplate: input.sparqlTemplate }),
         backendId: input.backendId,
         ...(input.comment ? { comment: input.comment } : {}),
       }),

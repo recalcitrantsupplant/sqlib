@@ -249,10 +249,22 @@
               <TemplateQueryPicker
                 v-if="!isReadOnly && activeLibraryId"
                 :library-id="activeLibraryId"
+                :model-value="templateQuery"
                 @use="useQueryAsTemplate"
               />
+              <button
+                v-if="!isReadOnly && templateQuery"
+                type="button"
+                class="icon-control"
+                data-testid="etl-template-unlink"
+                title="Unlink and edit the text here"
+                aria-label="Unlink the template from the query"
+                @click="unlinkTemplate"
+              >
+                <Unlink :size="16" />
+              </button>
               <QueryDocumentActions
-                v-if="!isReadOnly"
+                v-if="!isReadOnly && !templateQuery"
                 :code="sparqlTemplate"
                 :can-diff="!isScratch"
                 :diff-title="templateDiffTitle"
@@ -272,7 +284,7 @@
           <div class="editor-wrapper">
             <Codemirror
               v-model="sparqlTemplate"
-              :disabled="isReadOnly"
+              :disabled="isReadOnly || Boolean(templateQuery)"
               :extensions="sparqlExtensions"
               @update:model-value="onSparqlEdit"
               placeholder="CONSTRUCT { ?person a :Person ; :name ?name } WHERE { VALUES (?name) { (UNDEF) } }"
@@ -494,7 +506,7 @@ import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
 import ExpandButton from './shared/ExpandButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { languageExtensionsFor } from '../lib/codeLanguage';
-import { X, Eye, GitCompare } from '@lucide/vue';
+import { X, Eye, GitCompare, Unlink } from '@lucide/vue';
 import QueryDocumentActions from './query-work-area/QueryDocumentActions.vue';
 import SparqlDiffViewer from './shared/SparqlDiffViewer.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
@@ -578,6 +590,13 @@ const DEFAULT_SQL = `SELECT * FROM (VALUES
 // State
 const sqlQuery = ref(DEFAULT_SQL);
 const sparqlTemplate = ref('');
+/**
+ * The saved query the template is linked to: a query IRI (each run uses its
+ * current version) or a query version IRI (pinned). Null when the template is
+ * text of its own. While linked, `sparqlTemplate` shows the query's text and
+ * cannot be edited here.
+ */
+const templateQuery = ref<string | null>(null);
 
 /*
  * Where the Prefix Manager's "Add to editor" lands on this screen: the SPARQL
@@ -587,7 +606,8 @@ useEditorAsPrefixTarget({
   label: 'the template',
   contentType: 'application/sparql-query',
   read: () => sparqlTemplate.value,
-  write: (text) => { sparqlTemplate.value = text; },
+  // An edit to a linked template's text makes it the pipeline's own text.
+  write: (text) => { templateQuery.value = null; sparqlTemplate.value = text; },
 });
 const selectedBackendId = ref(EPHEMERAL_BACKEND_ID);
 const outputFormat = ref('text/turtle');
@@ -691,6 +711,7 @@ const pipelineDescription = ref('');
 interface EtlScratchBody {
   sql?: string;
   sparqlTemplate?: string;
+  templateQuery?: string | null;
   outputFormat?: string;
   backendId?: string;
   columnMappings?: ColumnMapping[];
@@ -710,13 +731,14 @@ usePrefixDiscovery(() => sparqlTemplate.value, () => prefixSource.value);
 const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRecord({
   scratchId: () => props.scratchId,
   missingMessage: 'That pipeline is not in this browser',
-  track: [sqlQuery, sparqlTemplate, outputFormat, selectedBackendId, columnMappings, pipelineName, pipelineDescription],
+  track: [sqlQuery, sparqlTemplate, templateQuery, outputFormat, selectedBackendId, columnMappings, pipelineName, pipelineDescription],
   hydrate: (record) => {
     const body = (record.body ?? {}) as EtlScratchBody;
     pipelineName.value = record.name;
     pipelineDescription.value = record.description ?? '';
     sqlQuery.value = body.sql ?? DEFAULT_SQL;
     sparqlTemplate.value = body.sparqlTemplate ?? '';
+    templateQuery.value = body.templateQuery ?? null;
     outputFormat.value = body.outputFormat ?? 'text/turtle';
     selectedBackendId.value = body.backendId ?? EPHEMERAL_BACKEND_ID;
     columnMappings.value = body.columnMappings ? [...body.columnMappings] : [];
@@ -734,6 +756,7 @@ const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRe
     body: {
       sql: sqlQuery.value,
       sparqlTemplate: sparqlTemplate.value,
+      templateQuery: templateQuery.value,
       outputFormat: outputFormat.value,
       backendId: selectedBackendId.value,
       columnMappings: [...columnMappings.value],
@@ -790,6 +813,7 @@ const needsName = computed(() => isScratch.value && UNTITLED_PATTERN.test(pipeli
 interface EtlDraftBody {
   sql?: string;
   sparqlTemplate?: string;
+  templateQuery?: string | null;
   columnMappings?: ColumnMapping[];
 }
 
@@ -798,6 +822,7 @@ function editorBody(): EtlDraftBody {
   return {
     sql: sqlQuery.value,
     sparqlTemplate: sparqlTemplate.value,
+    templateQuery: templateQuery.value,
     columnMappings: columnMappings.value.map((mapping) => ({ ...mapping })),
   };
 }
@@ -805,6 +830,7 @@ function editorBody(): EtlDraftBody {
 function applyEditorBody(body: EtlDraftBody) {
   sqlQuery.value = body.sql ?? DEFAULT_SQL;
   sparqlTemplate.value = body.sparqlTemplate ?? '';
+  templateQuery.value = body.templateQuery ?? null;
   columnMappings.value = body.columnMappings ? body.columnMappings.map((mapping) => ({ ...mapping })) : [];
   mappingSourceSql.value = sqlQuery.value;
   // A body that was saved is the author's, never the generator's: editing the
@@ -836,7 +862,7 @@ const {
   description: () => pipelineDescription.value,
   editorBody,
   applyBody: applyEditorBody,
-  sources: [sqlQuery, sparqlTemplate, columnMappings],
+  sources: [sqlQuery, sparqlTemplate, templateQuery, columnMappings],
   resultKind: 'GRAPH',
 });
 
@@ -992,6 +1018,7 @@ const applyVersion = async (version: EtlJobVersion) => {
     selectedVersionId.value = version.id;
     sqlQuery.value = version.sql;
     sparqlTemplate.value = version.sparqlTemplate;
+    templateQuery.value = version.templateQuery ?? null;
     // The version's `backendId` records where it was saved from; it no longer
     // moves the run bar, which follows the job (see `resolveRunBackend`).
     // A saved template is by definition the author's, not the generator's, so
@@ -1099,6 +1126,7 @@ watch([pipelineName, pipelineDescription], () => {
 const versionPayload = () => ({
   sql: sqlQuery.value,
   sparqlTemplate: sparqlTemplate.value,
+  templateQuery: templateQuery.value,
   backendId: selectedBackendId.value,
   columnMappings: columnMappings.value.map((mapping) => ({ ...mapping })),
 });
@@ -1503,6 +1531,8 @@ const peekSqlResults = async () => {
 };
 
 const generateSparqlTemplate = () => {
+  // A linked template is the query's text, never the generator's.
+  if (templateQuery.value) return;
   if (columnMappings.value.length === 0) {
     sparqlTemplate.value = '';
     return;
@@ -1567,9 +1597,20 @@ const openTemplateDiff = () => {
   editorExpansion.expand('etl-template');
 };
 
-/** A saved query's text becomes the template, as an edit that Discard undoes. */
-const useQueryAsTemplate = (text: string) => {
-  sparqlTemplate.value = text;
+/**
+ * Link the template to a saved query, as an edit that Discard undoes. The text
+ * is shown and used by unsaved runs; a saved version stores the link only.
+ */
+const useQueryAsTemplate = (choice: { reference: string; text: string }) => {
+  templateQuery.value = choice.reference;
+  sparqlTemplate.value = choice.text;
+  showTemplateDiff.value = false;
+  onSparqlEdit();
+};
+
+/** Keep the linked query's text as the template's own text, and edit it here. */
+const unlinkTemplate = () => {
+  templateQuery.value = null;
   onSparqlEdit();
 };
 
