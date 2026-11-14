@@ -85,6 +85,9 @@ export interface ArgumentSetVersionDetail {
   scalarBindings: ArgumentScalarBinding[]
   dateCreated: string
   dateModified: string
+  /** Principal IRIs the server stamps; absent where nobody was recorded. */
+  createdBy?: string | null
+  modifiedBy?: string | null
 }
 
 export interface ArgumentSetDetail {
@@ -105,6 +108,9 @@ export interface ArgumentSetDetail {
   scalarBindings: ArgumentScalarBinding[]
   dateCreated: string
   dateModified: string
+  /** Principal IRIs the server stamps; absent where nobody was recorded. */
+  createdBy?: string | null
+  modifiedBy?: string | null
 }
 
 export interface ArgumentSetInput {

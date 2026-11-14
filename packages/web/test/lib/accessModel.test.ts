@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { Grant } from '@/composables/useApiClient';
 import {
+  backendLevelChip,
   describeBackendModes,
   describeLibraryModes,
   effectiveAccess,
   levelOf,
+  libraryGrantChips,
   modesOfRole,
   roleOf,
   splitIri,
@@ -72,5 +74,26 @@ describe('splitIri', () => {
   it('sets the distinctive tail apart from a shortened head', () => {
     expect(splitIri('http://example.org/graph/finance')).toEqual({ head: '…/graph/', tail: 'finance' });
     expect(splitIri('urn:x')).toEqual({ head: '', tail: 'urn:x' });
+  });
+});
+
+describe('grant chips', () => {
+  it('gives a role one chip, with its modes as the tooltip', () => {
+    expect(libraryGrantChips(['execute', 'read', 'write'])).toEqual([
+      { label: 'Edit', tone: 'edit', title: 'read, execute, write' },
+    ]);
+  });
+
+  it('gives each mode its own chip when no role matches', () => {
+    expect(libraryGrantChips(['execute'])).toEqual([{ label: 'execute', tone: 'run' }]);
+    expect(libraryGrantChips(['delete', 'read'])).toEqual([
+      { label: 'read', tone: 'view' },
+      { label: 'delete', tone: 'manage' },
+    ]);
+  });
+
+  it('gives each backend operation its level', () => {
+    expect(backendLevelChip(['query:adhoc'], 'query')).toEqual({ label: 'ad hoc', tone: 'adhoc' });
+    expect(backendLevelChip(['query:adhoc'], 'update')).toEqual({ label: 'none', tone: 'none' });
   });
 });

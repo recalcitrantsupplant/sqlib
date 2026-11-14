@@ -40,6 +40,12 @@ export function getHealthPayload() {
      * a read-only deployment must not offer a button the server will refuse.
      */
     readOnly: isReadOnlyDeployment(),
+    /*
+     * Where the operator says this server runs, such as "Sydney", from
+     * `SQLIB_LOCATION`. The SPA shows it beside the round-trip warning. A
+     * browser cannot find this out by itself. Null when unset.
+     */
+    location: process.env.SQLIB_LOCATION?.trim() || null,
     cache: {
       ready,
       totalEntities: cacheStats.totalEntities,
@@ -95,6 +101,7 @@ const healthResponseSchema = {
     // Declared, or Fastify's serialiser drops it and the SPA reads a
     // read-only deployment as writable — see `useDeploymentMode`.
     readOnly: { type: 'boolean' },
+    location: { type: ['string', 'null'] },
     cache: {
       type: 'object',
       properties: {

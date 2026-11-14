@@ -2021,6 +2021,7 @@ const {
   summary: testRunSummary,
   scope: testRunScopeState,
   running: testRunRunning,
+  begun: testRunsBegun,
   storageNote: testRunStorageNote,
   beginRun: beginTestRun,
   noteAnswered: noteTestsAnswered,
@@ -2105,16 +2106,16 @@ function showRunResults() {
 /*
  * Any run switches to the Runs tab, wherever it was started — a heading, the
  * tag menu, Run all, or the single-test screen's own Run button. Watching the
- * scope rather than wrapping each caller is what keeps that true of the next
- * caller too.
+ * run counter rather than wrapping each caller is what keeps that true of the
+ * next caller too. The counter moves on `beginRun` only; the scope also
+ * changes when the library changes, and that must not open the Runs tab.
  *
  * A run of one test keeps that test selected, so the switch lands on its
  * verdict — the thing the button was pressed for — rather than on a summary of
  * one row. A run asked for from outside a test clears the selection and lands
  * on the run's own summary.
  */
-watch(() => testRunScopeState.value?.startedAt, (startedAt) => {
-  if (!startedAt) return;
+watch(testRunsBegun, () => {
   activeSection.value = 'tests';
   testsTab.value = 'runs';
   // A run asked for from outside a test lands on the run's summary; one started

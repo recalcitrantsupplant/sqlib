@@ -197,6 +197,25 @@
   --kind-update: var(--amber-600);
 
   /*
+   * Access grants in the account menu. Library roles take one palette and
+   * backend levels another, so a library chip never reads as a backend level.
+   * Each role or level is a tinted surface with ink of the same hue.
+   */
+  --grant-view-surface: var(--cyan-50);
+  --grant-view-ink: var(--cyan-700);
+  --grant-run-surface: var(--violet-50);
+  --grant-run-ink: var(--violet-700);
+  --grant-edit-surface: var(--amber-50);
+  --grant-edit-ink: var(--amber-900);
+  --grant-manage-surface: var(--red-50);
+  --grant-manage-ink: var(--red-900);
+  --grant-adhoc-surface: var(--success-surface);
+  --grant-adhoc-ink: var(--green-700);
+  --grant-saved-surface: var(--action-surface);
+  --grant-saved-ink: var(--blue-700);
+  --grant-none-ink: var(--ink-disabled);
+
+  /*
    * The selected half of a segmented control, which the Build screen draws as
    * near-black on white rather than blue — blue is already the type chips, and
    * two blue selections in one filter row read as one control.
@@ -538,6 +557,21 @@
   --kind-boolean: #c4b5fd;
   --kind-graph: #67e8f9;
   --kind-update: #fcd34d;
+
+  /* Grant chips: dark tints of the same hues, with light ink. */
+  --grant-view-surface: #0e3b47;
+  --grant-view-ink: #67e8f9;
+  --grant-run-surface: #312a5e;
+  --grant-run-ink: #c4b5fd;
+  --grant-edit-surface: #3f3517;
+  --grant-edit-ink: #fcd34d;
+  --grant-manage-surface: #4a1f27;
+  --grant-manage-ink: #fca5a5;
+  --grant-adhoc-surface: var(--success-surface);
+  --grant-adhoc-ink: #86efac;
+  --grant-saved-surface: var(--action-surface);
+  --grant-saved-ink: #93c5fd;
+  --grant-none-ink: var(--ink-disabled);
 
   /* Barely-there again, but warm against the dark surface rather than pale. */
   --draft-surface: #241d10;
