@@ -244,8 +244,8 @@ describe('principal records', () => {
     const persistence = inMemoryPersistence();
     const first = new AuthStore(persistence);
     await first.load();
-    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user', 'alice@example.com');
-    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user', 'alice@new.example.com');
+    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user', { label: 'alice@example.com' });
+    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user', { label: 'alice@new.example.com' });
     await first.recordPrincipal(ALICE, 'd2amYK7g', 'user');
 
     const second = new AuthStore(persistence);

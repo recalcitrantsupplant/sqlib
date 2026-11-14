@@ -98,6 +98,8 @@ export interface DerivedPrincipals {
   rawByPrincipal: Map<string, string>;
   /** A readable name for the subject, from `labelOf`. Undefined when the token has none. */
   label?: string;
+  /** The name other people see for the subject, from `displayNameOf`. Undefined when the token has none. */
+  displayName?: string;
 }
 
 /**
@@ -115,6 +117,41 @@ export function labelOf(claims: Record<string, unknown>): string | undefined {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return undefined;
+}
+
+/**
+ * The name other people see beside the entities a person created or changed.
+ * The first of these that the token carries:
+ *
+ * 1. `name`;
+ * 2. `preferred_username`;
+ * 3. `given_name` and `family_name`, joined by a space.
+ *
+ * Rauthy access tokens carry no `name`, so the later claims are what most
+ * Rauthy deployments show.
+ *
+ * Every reader of a library sees these names, so an email address is never
+ * used: a claim that equals the `email` claim, or that has the form of an
+ * email address, is skipped. `label` keeps the email for the administrator's
+ * principal directory. A token with none of these gives no display name, and
+ * the web app shows the person as "Unknown".
+ */
+export function displayNameOf(claims: Record<string, unknown>): string | undefined {
+  const text = (claim: string): string | undefined => {
+    const value = claims[claim];
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  };
+  const email = text('email')?.toLowerCase();
+  const usable = (value: string | undefined): string | undefined =>
+    value && value.toLowerCase() !== email && !looksLikeEmail(value) ? value : undefined;
+
+  const given = [text('given_name'), text('family_name')].filter(Boolean).join(' ');
+  return usable(text('name')) ?? usable(text('preferred_username')) ?? usable(given || undefined);
+}
+
+/** A single token of the form `local@domain.tld`, the shape of an email address. */
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 /**
@@ -155,5 +192,6 @@ export function derivePrincipals(params: {
     tokenType: isClient ? 'client' : 'user',
     rawByPrincipal,
     label: isClient ? undefined : labelOf(claims),
+    displayName: isClient ? undefined : displayNameOf(claims),
   };
 }
