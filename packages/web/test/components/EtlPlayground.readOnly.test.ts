@@ -172,7 +172,7 @@ describe('EtlPlayground on a read-only deployment', () => {
     for (const editor of editors) expect(editor.attributes('disabled')).toBeDefined();
   });
 
-  it('asks for no preview and offers no Peek or examples', async () => {
+  it('asks for no preview and offers no Peek', async () => {
     vi.useFakeTimers();
     try {
       const area = await mountSaved();
@@ -182,7 +182,6 @@ describe('EtlPlayground on a read-only deployment', () => {
       const previewCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/etl-jobs/preview'));
       expect(previewCalls).toHaveLength(0);
       expect(area.find('.btn-peek').exists()).toBe(false);
-      expect(area.find('.example-select').exists()).toBe(false);
     } finally {
       vi.useRealTimers();
     }
@@ -195,6 +194,5 @@ describe('EtlPlayground on a read-only deployment', () => {
       .find((editor) => (editor.element as HTMLTextAreaElement).value === SAVED_SQL);
     expect(sql?.attributes('disabled')).toBeUndefined();
     expect(area.find('.btn-peek').exists()).toBe(true);
-    expect(area.find('.example-select').exists()).toBe(true);
   });
 });

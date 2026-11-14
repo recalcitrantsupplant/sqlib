@@ -397,7 +397,7 @@ export class ExecutionEngine {
     const outputs: RdfPayload[] = [];
     await etlService.runPipeline({
       sql: etlJobVersion.sql,
-      sparqlTemplate: etlJobVersion.sparqlTemplate,
+      sparqlTemplate: etlService.resolveTemplate(etlJobVersion).text,
       columnDefs: columns,
       executor,
       chunkSize: etlJobVersion.chunkSize || 1000,

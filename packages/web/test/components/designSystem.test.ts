@@ -1522,8 +1522,6 @@ describe('InlineNote', () => {
    * checked.
    */
   const RESIDUE: Record<string, string> = {
-    'components/EtlPlayground.vue: .iri-note':
-      'italic muted standing in for a value nobody entered — a fourth thing, not a third tone',
     'components/PrefixMappingsEditor.vue: .row-note':
       'line-height 1.4, and the primitive states 1.5: a parent override would tie on specificity',
     'components/query-work-area/QueryEditorFooter.vue: .footer-note':

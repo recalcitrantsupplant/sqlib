@@ -80,6 +80,16 @@ export const EtlExecutionSchema = {
     '@type': xsd.boolean,
     '@optional': true,
   },
+  /**
+   * The query version the template came from, when the job version names a
+   * saved query. For a floating reference this is the version the run
+   * resolved, so the run can be repeated.
+   */
+  templateQueryVersion: {
+    '@id': sqlib.templateQueryVersion,
+    '@type': sqlib.IRI,
+    '@optional': true,
+  },
   executionConfig: {
     '@id': sqlib.executionConfig,
     '@optional': true, // JSON string
@@ -113,5 +123,7 @@ export interface PersistedEtlExecution {
    * version chain.
    */
   outputReused?: boolean | null;
+  /** The QueryVersion the template came from, as resolved for this run. */
+  templateQueryVersion?: string | null;
   executionConfig?: string | null; // JSON string
 }
