@@ -86,6 +86,7 @@ export function useLibrariesStore() {
     libraries,
     visibleLibraries,
     loading: entities.loading,
+    initialLoading: entities.initialLoading,
     error: entities.error,
     concurrency: entities.concurrency,
     loadLibraries: entities.load,

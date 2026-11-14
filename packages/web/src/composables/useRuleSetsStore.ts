@@ -45,6 +45,7 @@ export function useRuleSetsStore() {
   return {
     ruleSets: entities.items,
     loading: entities.loading,
+    initialLoading: entities.initialLoading,
     error: entities.error,
     concurrency: entities.concurrency,
     fetchRuleSets: entities.load,

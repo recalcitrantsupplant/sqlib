@@ -36,7 +36,7 @@ const props = defineProps<{
   /** The graph axis's costs, for a rule-set case. Empty for every other kind. */
   graphSupport: GraphCostRow[];
   queryString: string | null;
-  queryLoading: boolean;
+  queryInitialLoading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -229,7 +229,7 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
         :content-type="isRuleSet ? 'application/srl' : 'application/sparql-query'"
         min-height="0"
       />
-      <InlineNote v-else-if="queryLoading">
+      <InlineNote v-else-if="queryInitialLoading">
         Loading the {{ isRuleSet ? 'rule set' : 'query' }}…
       </InlineNote>
       <InlineNote v-else>

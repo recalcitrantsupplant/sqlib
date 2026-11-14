@@ -42,11 +42,11 @@
                 :placeholder="queryPlaceholder"
                 :model-value="assignedQueryId"
                 :options="queryChoices"
-                :disabled="queryOptionsLoading || queryChoices.length === 0"
+                :disabled="queryOptionsInitialLoading || queryChoices.length === 0"
                 @update:model-value="emitAssignQuery"
               />
               <p v-if="queryOptionsError" class="field-hint field-hint-error">{{ queryOptionsError }}</p>
-              <p v-else-if="!queryOptionsLoading && queryChoices.length === 0" class="field-hint">
+              <p v-else-if="!queryOptionsInitialLoading && queryChoices.length === 0" class="field-hint">
                 This library has no saved query versions to assign yet.
               </p>
 
@@ -742,7 +742,7 @@ const props = defineProps<{
   libraryDefaultBackend?: string | null;
   /** The library's queries, each with its versions, for the query dropdown. */
   queryOptions?: QueryAssignmentOption[];
-  queryOptionsLoading?: boolean;
+  queryOptionsInitialLoading?: boolean;
   queryOptionsError?: string | null;
   tupleMembers: Record<string, TupleMemberRecord>;
   variables: Record<string, VariableRecord>;
@@ -1189,7 +1189,7 @@ const queryChoices = computed(() =>
 );
 
 const queryPlaceholder = computed(() => {
-  if (props.queryOptionsLoading) return 'Loading queries…';
+  if (props.queryOptionsInitialLoading) return 'Loading queries…';
   if (queryChoices.value.length === 0) return 'No queries available';
   return isPatchNode.value ? 'Select an update query' : 'Select a query';
 });

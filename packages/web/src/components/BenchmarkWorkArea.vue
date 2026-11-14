@@ -41,6 +41,7 @@ import type { BenchmarkExperimentVersion, BenchmarkRunResponse } from '@sparql-q
 import { useBenchmarksStore } from '@/composables/useBenchmarksStore';
 import { useBenchmarkExecution } from '@/composables/useBenchmarkExecution';
 import { useBackendsStore } from '@/composables/useBackendsStore';
+import { useLoadState } from '@/composables/useLoadState';
 import { useQueriesStore } from '@/composables/useQueriesStore';
 import { useQueryGroupsStore } from '@/composables/useQueryGroupsStore';
 import { useRuleSetsStore } from '@/composables/useRuleSetsStore';
@@ -177,7 +178,12 @@ const argumentSetLoading = ref(false);
 const selectedRunId = ref<string | null>(null);
 const observations = ref<RawObservation[]>([]);
 const iterationObservations = ref<RawIterationObservation[]>([]);
-const observationsLoading = ref(false);
+// Keyed by run: reading the same run again keeps its requests on screen.
+const {
+  initialLoading: observationsInitialLoading,
+  track: trackObservationsLoad,
+  reset: resetObservationsLoad,
+} = useLoadState();
 const selectedRequestKey = ref<string | null>(null);
 
 const isScratch = computed(() => Boolean(props.scratchId));
@@ -914,6 +920,9 @@ const selectedCaseQuery = computed(() => {
   return subjectIndex.value[versionId]?.queryString ?? null;
 });
 
+const caseQueryInitialLoading = computed(() =>
+  selectedCase.value?.subjectType === 'ruleSet' && ruleSetDocumentLoading.value && !selectedCaseQuery.value);
+
 watch(selectedCase, (planCase) => {
   if (planCase?.subjectType !== 'ruleSet' || !planCase.subjectId || !planCase.versionId) return;
   void loadRuleSetDocument(planCase.subjectId, planCase.versionId);
@@ -1038,6 +1047,8 @@ const shownArgumentSetId = computed(() => {
 
 const shownArgumentSet = computed(() =>
   (shownArgumentSetId.value ? argumentSetDetails.value[shownArgumentSetId.value] ?? null : null));
+
+const argumentSetInitialLoading = computed(() => argumentSetLoading.value && !shownArgumentSet.value);
 
 const shownArgumentUsedBy = computed(() => {
   const id = shownArgumentSetId.value;
@@ -1220,12 +1231,16 @@ function clearRunSelection() {
   observations.value = [];
   iterationObservations.value = [];
   selectedRequestKey.value = null;
+  resetObservationsLoad();
 }
 
 async function selectRun(id: string) {
   selectedRunId.value = id;
   selectedRequestKey.value = null;
-  observationsLoading.value = true;
+  await trackObservationsLoad(() => readRunObservations(id), id);
+}
+
+async function readRunObservations(id: string) {
   try {
     const transient = transientRunById(id);
     const { observations: loaded, iterationObservations: passes } = transient
@@ -1243,8 +1258,6 @@ async function selectRun(id: string) {
     observations.value = [];
     iterationObservations.value = [];
     toast.error(error instanceof Error ? error.message : 'Failed to load run observations');
-  } finally {
-    observationsLoading.value = false;
   }
 }
 
@@ -1818,7 +1831,7 @@ const runSubtitle = computed(() => {
         :support="support"
         :graph-support="graphSupport"
         :query-string="selectedCaseQuery"
-        :query-loading="selectedCase?.subjectType === 'ruleSet' && ruleSetDocumentLoading"
+        :query-initial-loading="caseQueryInitialLoading"
         @update:subjectType="handleCaseSubjectType"
         @update:subjectId="handleCaseSubject"
         @update:versionId="handleCaseVersion"
@@ -1869,7 +1882,7 @@ const runSubtitle = computed(() => {
       :passes="passIndex"
       :colour-for="colourFor"
       :selected-key="selectedRequestKey"
-      :loading="observationsLoading"
+      :initial-loading="observationsInitialLoading"
       :can-rerun="canRerun"
       @select-request="selectRequest"
       @rerun="runBenchmark"
@@ -1906,7 +1919,7 @@ const runSubtitle = computed(() => {
           <BenchmarkArgumentSetPanel
             v-if="tab === 'plan'"
             :argument-set="shownArgumentSet"
-            :loading="argumentSetLoading"
+            :initial-loading="argumentSetInitialLoading"
             :used-by="shownArgumentUsedBy"
             :is-no-arguments="shownArgumentSetId === NO_ARGUMENTS_IRI"
           />

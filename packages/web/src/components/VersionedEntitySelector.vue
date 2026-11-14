@@ -4,7 +4,7 @@
     <FilterBox v-model="filterText" class="filter-input" :placeholder="filterPlaceholder" />
 
     <div class="items-container" :class="{ 'fill-height': fillHeight }">
-      <div v-if="loading" class="loading-state">
+      <div v-if="initialLoading" class="loading-state">
         {{ loadingMessage }}
       </div>
       <div v-else-if="error" class="error-state">
@@ -118,7 +118,8 @@ export interface VersionedEntity {
 
 interface Props {
   items: VersionedEntity[];
-  loading?: boolean;
+  /** The list has not arrived yet. A reload keeps the rows in place. */
+  initialLoading?: boolean;
   error?: string;
   title: string;
   emptyMessage?: string;
@@ -131,7 +132,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  loading: false,
+  initialLoading: false,
   error: '',
   emptyMessage: 'No items available',
   emptyFilterMessage: 'No items match the filter',

@@ -56,6 +56,7 @@ export function useBackendsStore() {
   return {
     backends: entities.items,
     loading: entities.loading,
+    initialLoading: entities.initialLoading,
     error: entities.error,
     concurrency: entities.concurrency,
     loadBackends: entities.load,

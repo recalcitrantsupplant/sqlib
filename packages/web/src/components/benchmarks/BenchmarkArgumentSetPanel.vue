@@ -14,7 +14,8 @@ import type { ArgumentSetDetail } from '../../types/argument-sets';
 
 const props = defineProps<{
   argumentSet: ArgumentSetDetail | null;
-  loading: boolean;
+  /** The values have not arrived yet. */
+  initialLoading: boolean;
   /** Cases in this benchmark that will receive these values. */
   usedBy: { id: string; name: string }[];
   /** Shown when the axis holds the no-arguments marker rather than a real set. */
@@ -58,7 +59,7 @@ const scalars = computed(() => props.argumentSet?.currentVersion?.scalarBindings
     <div class="panel-body">
       <InlineNote v-if="isNoArguments">Each case runs once without arguments.</InlineNote>
 
-      <template v-else-if="loading">
+      <template v-else-if="initialLoading">
         <InlineNote>Loading the values…</InlineNote>
       </template>
 

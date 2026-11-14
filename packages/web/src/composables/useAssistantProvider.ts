@@ -12,6 +12,7 @@
  * the assistant is until it has auth, and the panel says so.
  */
 import { computed, ref, watch } from 'vue';
+import { useLoadState } from './useLoadState';
 
 const STORAGE_KEY = 'sparql-query-lib-assistant-provider';
 
@@ -86,7 +87,8 @@ let watching = false;
  * a model saved an hour ago — is an inconvenience rather than a wall.
  */
 const models = ref<ProviderModel[]>([]);
-const modelsLoading = ref(false);
+// Keyed by provider settings: a refresh keeps the current models on screen.
+const modelsLoad = useLoadState();
 const modelsError = ref<string | null>(null);
 /** Which credentials produced `models`, so a no-op refresh stays a no-op. */
 let modelsFetchedFor = '';
@@ -158,30 +160,29 @@ export function useAssistantProvider() {
 
     const key = `${provider}|${apiKey.trim()}|${baseUrl.trim()}`;
     if (!options.force && key === modelsFetchedFor && models.value.length > 0) return;
-    if (modelsLoading.value) return;
+    if (modelsLoad.loading.value) return;
 
-    modelsLoading.value = true;
     modelsError.value = null;
-    try {
-      const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/assistant/models`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          provider,
-          apiKey: apiKey.trim() || undefined,
-          baseUrl: baseUrl.trim() || undefined,
-        }),
-      });
-      const payload = (await response.json()) as { models?: ProviderModel[]; error?: string };
-      if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`);
-      models.value = payload.models ?? [];
-      modelsFetchedFor = key;
-    } catch (error) {
-      models.value = [];
-      modelsError.value = error instanceof Error ? error.message : String(error);
-    } finally {
-      modelsLoading.value = false;
-    }
+    await modelsLoad.track(async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/assistant/models`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            provider,
+            apiKey: apiKey.trim() || undefined,
+            baseUrl: baseUrl.trim() || undefined,
+          }),
+        });
+        const payload = (await response.json()) as { models?: ProviderModel[]; error?: string };
+        if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`);
+        models.value = payload.models ?? [];
+        modelsFetchedFor = key;
+      } catch (error) {
+        models.value = [];
+        modelsError.value = error instanceof Error ? error.message : String(error);
+      }
+    }, key);
   }
 
   function clear() {
@@ -200,7 +201,8 @@ export function useAssistantProvider() {
     setProvider,
     clear,
     models,
-    modelsLoading,
+    modelsLoading: modelsLoad.loading,
+    modelsInitialLoading: modelsLoad.initialLoading,
     modelsError,
     loadModels,
   };

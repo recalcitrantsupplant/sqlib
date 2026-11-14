@@ -45,7 +45,7 @@
           that all refuse to import.
         -->
         <div v-else class="source-pane">
-          <div v-if="loading" class="list-note">Loading queries…</div>
+          <div v-if="initialLoading" class="list-note">Loading queries…</div>
           <div v-else-if="loadError" class="list-note error">{{ loadError }}</div>
           <div v-else-if="importableQueries.length === 0" class="list-note">
             Nothing in this library converts to a rule. A rule is built from a CONSTRUCT or an
@@ -189,6 +189,7 @@ import {
 } from '../ui/dialog';
 import { useApiClient, type SparqlImportResult } from '@/composables/useApiClient';
 import { useQueriesStore } from '@/composables/useQueriesStore';
+import { useLoadState } from '@/composables/useLoadState';
 import { fuzzyFilter } from '@/lib/fuzzy';
 import FilterBox from '@/components/shared/FilterBox.vue';
 import { QueryTypeIri } from '@sparql-query-lib/types';
@@ -238,7 +239,8 @@ const queryFilter = ref('');
 const visibleQueries = computed(() =>
   fuzzyFilter(queryFilter.value, importableQueries.value, (entry) => entry.name),
 );
-const loading = ref(false);
+// Keyed by library, so reopening the dialog keeps the list while it reloads.
+const { initialLoading, start: startLoad } = useLoadState();
 const loadError = ref<string | null>(null);
 
 const result = ref<SparqlImportResult | null>(null);
@@ -340,7 +342,7 @@ async function convert(query: string) {
 }
 
 async function loadImportableQueries() {
-  loading.value = true;
+  const endLoad = startLoad(props.libraryId);
   loadError.value = null;
   try {
     await queriesStore.loadQueries();
@@ -390,7 +392,7 @@ async function loadImportableQueries() {
     loadError.value = error instanceof Error ? error.message : 'Failed to load queries';
     importableQueries.value = [];
   } finally {
-    loading.value = false;
+    endLoad();
   }
 }
 

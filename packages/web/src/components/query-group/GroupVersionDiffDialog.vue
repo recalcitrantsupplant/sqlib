@@ -9,7 +9,7 @@
         </DialogDescription>
       </DialogHeader>
 
-      <p v-if="loading" class="diff-note">Loading both versions…</p>
+      <p v-if="initialLoading" class="diff-note">Loading both versions…</p>
       <p v-else-if="error" class="diff-note diff-error">{{ error }}</p>
       <p v-else-if="diff?.same" class="diff-note" data-testid="group-diff-same">
         The two versions draw the same group. Only node positions or notes can differ.
@@ -44,7 +44,8 @@ const props = defineProps<{
   open: boolean;
   title: string;
   diff: GroupVersionDiff | null;
-  loading: boolean;
+  /** The two versions have not arrived yet. */
+  initialLoading: boolean;
   error: string | null;
 }>();
 

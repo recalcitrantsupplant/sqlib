@@ -1,7 +1,7 @@
 <template>
   <div class="sources-editor" data-testid="memory-sources-editor">
     <InlineNote v-if="graphsError" tone="danger">{{ graphsError }}</InlineNote>
-    <InlineNote v-else-if="!loading && dataGraphs.length === 0 && rows.length === 0">
+    <InlineNote v-else-if="!initialLoading && dataGraphs.length === 0 && rows.length === 0">
       No data graphs in the library yet. Create one under Data, or start the store unseeded.
     </InlineNote>
 
@@ -162,7 +162,7 @@ interface SourceRow {
 
 const store = useDataGraphsStore();
 const dataGraphs = store.dataGraphs;
-const loading = store.loading;
+const initialLoading = store.initialLoading;
 const graphsError = ref<string | null>(null);
 
 const rows = ref<SourceRow[]>([]);

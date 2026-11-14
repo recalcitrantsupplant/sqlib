@@ -390,7 +390,7 @@
               </div>
 
               <div class="env-table" data-testid="backend-env-table">
-                <InlineNote v-if="envLoading" class="env-message">Reading the runner…</InlineNote>
+                <InlineNote v-if="envInitialLoading" class="env-message">Reading the runner…</InlineNote>
                 <InlineNote v-else-if="envError" tone="danger" class="env-message">{{ envError }}</InlineNote>
                 <InlineNote v-else-if="envVariables.length === 0" class="env-message">
                   No environment key, so this backend reads no credentials.
@@ -597,7 +597,7 @@
 
     <div v-else class="record-empty">
       <p v-if="loadError" class="form-error">{{ loadError }}</p>
-      <p v-else-if="loading">Loading backend…</p>
+      <p v-else-if="backendInitialLoading">Loading backend…</p>
       <p v-else>Select a backend, or add one with +.</p>
     </div>
 
@@ -712,6 +712,7 @@ import {
 import { useApiClient, type BackendEnv, type BackendProbe, type BackendUsage } from '../composables/useApiClient';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useBackendsStore } from '../composables/useBackendsStore';
+import { useLoadState } from '../composables/useLoadState';
 import { isBrowserBackendId, useBrowserBackends, type BrowserBackendInput } from '../composables/useBrowserBackends';
 import { validateEndpoint } from '../lib/endpointUrl';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
@@ -828,12 +829,13 @@ const { copyToClipboard } = useCopyToClipboard();
 const canEdit = computed(() => props.canEdit);
 
 const backend = ref<Backend | null>(null);
-const loading = ref(false);
+const { initialLoading: backendInitialLoading, track: trackBackendLoad } = useLoadState();
 const loadError = ref<string | null>(null);
 const testing = ref(false);
 
 const env = ref<BackendEnv | null>(null);
-const envLoading = ref(false);
+// Keyed by backend: a reload after the environment key changes keeps the rows.
+const { initialLoading: envInitialLoading, track: trackEnvLoad, reset: resetEnvLoad } = useLoadState();
 const envError = ref<string | null>(null);
 const usage = ref<BackendUsage | null>(null);
 const probeHistory = ref<BackendProbe[]>([]);
@@ -1087,7 +1089,10 @@ function backendName(id: string | null | undefined): string {
  * ------------------------------------------------------------------ */
 
 async function loadBackend(id: string) {
-  loading.value = true;
+  await trackBackendLoad(() => readBackend(id), id);
+}
+
+async function readBackend(id: string) {
   loadError.value = null;
   /*
    * A browser backend has no server record to fetch; asking for one is a 404
@@ -1099,7 +1104,6 @@ async function loadBackend(id: string) {
     const record = browserBackends.get(id);
     backend.value = record ? browserBackends.toBackend(record) : null;
     loadError.value = record ? null : 'This browser backend is no longer registered in this browser.';
-    loading.value = false;
     return;
   }
   try {
@@ -1108,23 +1112,20 @@ async function loadBackend(id: string) {
   } catch (error: any) {
     backend.value = null;
     loadError.value = error?.message ?? 'Failed to load backend';
-  } finally {
-    loading.value = false;
   }
 }
 
 async function loadEnv(id: string) {
-  envLoading.value = true;
   envError.value = null;
-  try {
-    env.value = await client.getBackendEnv(id);
-  } catch (error: any) {
-    env.value = null;
-    // A library member is allowed to fail here; the record still reads.
-    envError.value = error?.message ?? 'Failed to read the environment';
-  } finally {
-    envLoading.value = false;
-  }
+  await trackEnvLoad(async () => {
+    try {
+      env.value = await client.getBackendEnv(id);
+    } catch (error: any) {
+      env.value = null;
+      // A library member is allowed to fail here; the record still reads.
+      envError.value = error?.message ?? 'Failed to read the environment';
+    }
+  }, id);
 }
 
 async function loadUsage(id: string) {
@@ -1139,6 +1140,7 @@ watch(
   () => props.backendId,
   async (id) => {
     env.value = null;
+    resetEnvLoad();
     usage.value = null;
     probeHistory.value = [];
     historyOpen.value = false;

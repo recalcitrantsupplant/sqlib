@@ -197,6 +197,7 @@ export function useQueriesStore() {
   return {
     queries,
     loading,
+    initialLoading: entities.initialLoading,
     error,
     concurrency: entities.concurrency,
     versions: state.versions,

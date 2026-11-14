@@ -10,7 +10,7 @@
       </DialogHeader>
 
       <div class="tag-rows">
-        <p v-if="tagsStore.loading.value" class="manager-note">Loading…</p>
+        <p v-if="tagsStore.initialLoading.value" class="manager-note">Loading…</p>
         <p v-else-if="rows.length === 0" class="manager-note" data-testid="tag-manager-empty">
           No tags yet. Add one from any entity's Details panel — a tag is created where it is first used.
         </p>

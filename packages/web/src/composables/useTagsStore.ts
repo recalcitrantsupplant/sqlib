@@ -14,13 +14,13 @@
 import { computed, reactive } from 'vue';
 import type { Tag } from '@sparql-query-lib/contracts';
 import { useApiClient } from './useApiClient';
+import { useLoadState } from './useLoadState';
 import { nextFreeTagColor, normalizeTagColor } from '../lib/tagPalette';
 
 type TagsState = {
   tags: Tag[];
   /** The library `tags` was loaded for; null before the first load. */
   loadedLibrary: string | null;
-  loading: boolean;
   error: string | null;
   concurrency: Record<string, string | null>;
 };
@@ -28,10 +28,11 @@ type TagsState = {
 const state = reactive<TagsState>({
   tags: [],
   loadedLibrary: null,
-  loading: false,
   error: null,
   concurrency: {},
 });
+// Keyed by library: reopening the tag manager keeps the rows while they reload.
+const listLoad = useLoadState();
 
 /** Names fold for comparison the way the server folds them, and only for that. */
 function nameKey(name: string): string {
@@ -46,7 +47,7 @@ export function useTagsStore() {
   const apiClient = useApiClient();
 
   const tags = computed(() => state.tags);
-  const loading = computed(() => state.loading);
+  const { loading, initialLoading } = listLoad;
   const error = computed(() => state.error);
 
   /** `id → tag`, which is what a row of dots needs and a list scan does not. */
@@ -58,7 +59,7 @@ export function useTagsStore() {
       state.loadedLibrary = null;
       return [];
     }
-    state.loading = true;
+    const endLoad = listLoad.start(libraryId);
     state.error = null;
     try {
       const loaded = await apiClient.listTags(libraryId);
@@ -71,13 +72,13 @@ export function useTagsStore() {
       state.loadedLibrary = null;
       return [];
     } finally {
-      state.loading = false;
+      endLoad();
     }
   }
 
   /** Load once per library; the sidebar calls this on every render path. */
   async function ensureLoaded(libraryId: string | null): Promise<void> {
-    if (!libraryId || state.loadedLibrary === libraryId || state.loading) return;
+    if (!libraryId || state.loadedLibrary === libraryId || loading.value) return;
     await loadTags(libraryId);
   }
 
@@ -130,6 +131,7 @@ export function useTagsStore() {
     tags,
     tagsById,
     loading,
+    initialLoading,
     error,
     nextColor,
     loadTags,

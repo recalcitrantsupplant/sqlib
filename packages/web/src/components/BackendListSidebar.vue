@@ -98,7 +98,7 @@
         </button>
       </div>
 
-      <InlineNote v-if="loading && backends.length === 0" class="list-message">Loading backends…</InlineNote>
+      <InlineNote v-if="initialLoading" class="list-message">Loading backends…</InlineNote>
       <InlineNote v-else-if="error" tone="danger" class="list-message">{{ error }}</InlineNote>
       <InlineNote v-else-if="backends.length === 0 && !draft" class="list-message">
         No backends yet. Add one with +.
@@ -213,7 +213,8 @@ const props = defineProps<{
   /** An unsaved backend being filled in, pinned above the saved rows. */
   draft: boolean;
   draftName?: string;
-  loading?: boolean;
+  /** The list has not arrived yet. A reload keeps the rows in place. */
+  initialLoading?: boolean;
   error?: string | null;
 }>();
 

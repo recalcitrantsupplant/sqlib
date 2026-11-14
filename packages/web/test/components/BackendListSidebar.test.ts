@@ -124,15 +124,16 @@ describe('BackendListSidebar', () => {
 
   it('keeps the rows in place while the list reloads', () => {
     // Every saved edit reloads the list. A loading line above the rows would
-    // push them down and back on each edit.
-    const wrapper = mountSidebar({ loading: true });
+    // push them down and back on each edit. The store reports a reload as
+    // `initialLoading: false` (test/composables/useLoadState.test.ts).
+    const wrapper = mountSidebar({ initialLoading: false });
 
     expect(wrapper.text()).not.toContain('Loading backends');
     expect(wrapper.findAll('[data-testid="backend-row"]')).toHaveLength(3);
   });
 
   it('says it is loading before the first list arrives', () => {
-    const wrapper = mountSidebar({ backends: [], loading: true });
+    const wrapper = mountSidebar({ backends: [], initialLoading: true });
 
     expect(wrapper.text()).toContain('Loading backends');
   });

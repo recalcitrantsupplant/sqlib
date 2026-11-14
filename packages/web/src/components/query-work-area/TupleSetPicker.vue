@@ -18,7 +18,7 @@
         </button>
       </header>
 
-      <InlineNote v-if="loading">Loading…</InlineNote>
+      <InlineNote v-if="initialLoading">Loading…</InlineNote>
       <InlineNote v-else-if="error" tone="danger" data-testid="tuple-set-picker-error">{{ error }}</InlineNote>
       <InlineNote v-else-if="candidates.length === 0">
         No tuple sets here yet. Save a table under Tuples and it becomes available
@@ -211,6 +211,7 @@ import { Table2, X, Link2, Copy } from '@lucide/vue';
 import InlineNote from '../shared/InlineNote.vue';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
+import { useLoadState } from '@/composables/useLoadState';
 import { bareVariable, tupleSetFit, type Compatibility } from '@/lib/argumentSignature';
 import { fuzzyFilter } from '@/lib/fuzzy';
 import FilterBox from '@/components/shared/FilterBox.vue';
@@ -259,7 +260,8 @@ const store = useTupleSetsStore();
 const { activeLibraryId } = useActiveLibrary();
 
 const open = ref(false);
-const loading = ref(false);
+// Keyed by library, so reopening the picker keeps the list while it reloads.
+const { initialLoading, start: startLoad } = useLoadState();
 const error = ref<string | null>(null);
 const replace = ref(false);
 const candidates = ref<Candidate[]>([]);
@@ -287,7 +289,7 @@ async function refresh() {
     return;
   }
 
-  loading.value = true;
+  const endLoad = startLoad(libraryId);
   error.value = null;
   try {
     await store.loadTupleSets({ library: libraryId });
@@ -308,7 +310,7 @@ async function refresh() {
     error.value = err instanceof Error ? err.message : 'Could not load tuple sets';
     candidates.value = [];
   } finally {
-    loading.value = false;
+    endLoad();
   }
 }
 
