@@ -261,7 +261,7 @@
     </div>
 
     <!-- Results Focus Mode Overlay -->
-    <div v-if="showResultsFocus" class="focus-overlay" @click.self="showResultsFocus = false">
+    <div v-if="showResultsFocus" class="focus-overlay" data-testid="results-focus" @click.self="showResultsFocus = false">
       <div class="focus-container">
         <PanelHeader title="Query Results" size="lg" sunken>
           <template #actions>
@@ -971,6 +971,13 @@ const executeQuery = async (options: { allowEmptyDataset?: boolean } = {}) => {
 
   // Switch to the results tab to show query results
   activeResultsTab.value = 'results';
+
+  // Run from the popped-out editor opens the popped-out results. The editor
+  // covers the page, so the results tab behind it would not be seen.
+  if (editorExpanded.value) {
+    editorExpansion.collapse();
+    showResultsFocus.value = true;
+  }
 
   // Execute the query
   return await executeQueryOriginal();
