@@ -18,6 +18,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { patchApplyJsonSchema, patchPreviewJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
 import { typedRoute } from './route-helpers.js';
+import { datasetFromRequest } from '../lib/dataset.js';
+import { assertUpdateTextTakesDataset, UpdateDatasetError } from '../lib/updateDataset.js';
+import { ValidationError } from '../lib/validationError.js';
 import { requireBackendMode } from '../auth/enforce.js';
 import { patchLogReadMode } from '../auth/graphPolicy.js';
 import { getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
@@ -48,7 +51,7 @@ const SWEEP_INTERVAL_MS = Number(process.env.PATCH_SWEEP_INTERVAL_MS ?? 10 * 60 
 
 const errorResponseSchema = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  properties: { error: { type: 'string' }, code: { type: 'string' } },
   required: ['error'],
   additionalProperties: false,
 } as const;
@@ -181,6 +184,12 @@ async function handled<T>(reply: FastifyReply, run: () => Promise<T>): Promise<u
     if (error instanceof UnsupportedUpdateError) {
       return reply.status(400).send({ error: error.message });
     }
+    if (error instanceof UpdateDatasetError) {
+      return reply.status(error.statusCode).send({ error: error.message, code: error.code });
+    }
+    if (error instanceof ValidationError) {
+      return reply.status(400).send({ error: error.message });
+    }
     throw error;
   }
 }
@@ -202,18 +211,23 @@ export default async function (fastify: FastifyInstance) {
       body: patchPreviewJsonSchema,
       response: { 200: patchResponseSchema, 400: errorResponseSchema, 404: errorResponseSchema },
     }, async (request, reply) => {
-    const { updateString, backendId, enumerateGraphOps, enumerationCap } = request.body;
+    const { updateString, backendId, enumerateGraphOps, enumerationCap, defaultGraphs, namedGraphs } = request.body;
     // Read-only by construction, so `use` is the right grant — and deliberately
     // not `write`: being shown what a write would do is the thing a reviewer
     // needs and a proposer should not have to be trusted with.
     requireBackendMode(request, backendId, 'update:adhoc');
 
     return handled(reply, async () => {
+      // The graphs the update's WHERE clauses read. Refused, as on a run, when
+      // the text names its own graphs or is DELETE WHERE.
+      const dataset = datasetFromRequest({ defaultGraphs, namedGraphs });
+      assertUpdateTextTakesDataset(updateString, dataset);
       const patch = await previewUpdate({
         backendId,
         updateString,
         enumerateGraphOps,
         enumerationCap,
+        dataset,
         origin: clientId(request),
       });
       // The same content negotiation `GET /:id` offers, because a caller that

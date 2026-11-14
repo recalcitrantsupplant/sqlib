@@ -44,6 +44,13 @@ only. Under `SQLIB_AUTH_MODE=required`, the two ETL routes that take SQL (`POST 
 and `POST /playground/etl/execute`) need administrator access. A valid token is not sufficient.
 This walkthrough needs no wider permission than that.
 
+Under `required`, each call needs a bearer token. To get one, sign in to the web app. Then click
+**Copy token** on a Code tab, or **Copy API token** in the account menu. Both copy
+`export SQLIB_TOKEN='…'`. Paste that line into your terminal, and add
+`-H "Authorization: Bearer $SQLIB_TOKEN"` to each call. The snippets on the Code tab already
+include that header. The token carries your own grants. It expires with the identity provider's
+lifetime for access tokens (60 to 90 minutes on Entra ID). After that, copy a new one.
+
 ---
 
 ## 1. Create a library

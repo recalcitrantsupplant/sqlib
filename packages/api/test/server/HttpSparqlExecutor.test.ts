@@ -826,5 +826,18 @@ describe('HttpSparqlExecutor', () => {
             expect(form.getAll('named-graph-uri')).toEqual(['urn:sqlib:empty-dataset']);
             expect(form.has('default-graph-uri')).toBe(false);
         });
+
+        it('sends an update dataset as using-graph-uri and using-named-graph-uri', async () => {
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(204, ''));
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, updateUrl: defaultUpdateUrl });
+            const text = 'DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }';
+            await executor.update(text, { dataset: { defaultGraphs: ['http://example.org/a'], namedGraphs: [] } });
+
+            const form = sentForm();
+            expect(form.get('update')).toBe(text);
+            expect(form.getAll('using-graph-uri')).toEqual(['http://example.org/a']);
+            expect(form.getAll('using-named-graph-uri')).toEqual(['urn:sqlib:empty-dataset']);
+            expect(form.has('default-graph-uri')).toBe(false);
+        });
     });
 });

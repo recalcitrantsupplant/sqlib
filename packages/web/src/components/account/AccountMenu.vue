@@ -62,6 +62,15 @@
 
       <template v-if="state !== 'guest'">
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          v-if="tokenAvailable"
+          :title="`Copies export ${TOKEN_ENV}=… for your terminal`"
+          data-testid="account-copy-token"
+          @select="copyToken()"
+        >
+          <KeyRound :size="14" aria-hidden="true" />Copy API token
+          <span v-if="expiresLabel" class="token-expiry" data-testid="account-token-expiry">until {{ expiresLabel }}</span>
+        </DropdownMenuItem>
         <DropdownMenuItem v-if="state === 'expired'" data-testid="account-sign-in" @select="login()">
           <LogIn :size="14" aria-hidden="true" />Sign in again
         </DropdownMenuItem>
@@ -75,7 +84,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { LogIn, LogOut, Users } from '@lucide/vue';
+import { KeyRound, LogIn, LogOut, Users } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,12 +95,15 @@ import {
 import Avatar from '../shared/Avatar.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { useAuth } from '../../composables/useAuth';
+import { useApiTokenCopy } from '../../composables/useApiTokenCopy';
+import { TOKEN_ENV } from '../../lib/codeSnippets';
 import { useActiveLibrary } from '../../composables/useActiveLibrary';
 import { useBackendsStore } from '../../composables/useBackendsStore';
 import { initialsOf, issuerHost } from '../../lib/account';
 import { describeBackendModes, describeLibraryModes } from '../../lib/accessModel';
 
 const { account, me, login, logout } = useAuth();
+const { available: tokenAvailable, expiresLabel, copyToken } = useApiTokenCopy();
 const { libraries } = useActiveLibrary();
 const { backends } = useBackendsStore();
 
@@ -239,5 +251,12 @@ const backendRows = computed(() =>
 .access-level {
   flex-shrink: 0;
   color: var(--ink-muted);
+}
+
+.token-expiry {
+  margin-left: auto;
+  padding-left: var(--space-4);
+  color: var(--ink-muted);
+  font-size: var(--text-label);
 }
 </style>

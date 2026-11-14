@@ -221,6 +221,25 @@ describe('httpExecutor updates', () => {
     expect(init.body).toBe(updateText);
   });
 
+  it('sends a dataset as using-graph-uri pairs in a form body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const executor = httpExecutor('https://example.org/query', {
+      fetch: fetchMock,
+      updateEndpoint: 'https://example.org/update',
+    });
+    const updateText = 'INSERT { ?s <urn:q> ?o } WHERE { ?s <urn:p> ?o }';
+
+    await executor.update!({ updateText, dataset: { defaultGraphs: ['urn:g1'], namedGraphs: [] } });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://example.org/update');
+    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+    const body = new URLSearchParams(init.body);
+    expect(body.get('update')).toBe(updateText);
+    expect(body.getAll('using-graph-uri')).toEqual(['urn:g1']);
+    expect(body.getAll('using-named-graph-uri')).toEqual([EMPTY_DATASET_GRAPH]);
+  });
+
   it('raises SparqlEndpointError when the update is refused', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('no', { status: 403, statusText: 'Forbidden' }));
     const executor = httpExecutor('https://example.org/query', {

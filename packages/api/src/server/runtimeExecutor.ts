@@ -78,11 +78,12 @@ export function toRuntimeExecutor(
       }
     },
 
-    async update({ updateText, signal }: UpdateRequest): Promise<void> {
+    async update({ updateText, signal, dataset }: UpdateRequest): Promise<void> {
       // `ISparqlExecutor.update` takes no signal, so the abort is honoured
-      // before the update starts and not during it.
+      // before the update starts and not during it. An executor that cannot
+      // apply the dataset refuses it.
       signal?.throwIfAborted();
-      await executor.update(updateText);
+      await executor.update(updateText, dataset ? { dataset } : undefined);
     },
   };
 }

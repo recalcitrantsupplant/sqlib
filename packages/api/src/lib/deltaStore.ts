@@ -14,7 +14,7 @@
  */
 
 import * as oxigraph from 'oxigraph';
-import type { DeltaStore, QuadLike, TermLike } from '@sparql-query-lib/rdf-delta';
+import type { DeltaReadOptions, DeltaStore, QuadLike, TermLike } from '@sparql-query-lib/rdf-delta';
 import { oxigraphDeltaStore } from '@sparql-query-lib/rdf-delta';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { SparqlResultsJson } from './query-chaining.js';
@@ -49,14 +49,15 @@ type ResultTerm =
  */
 export function executorDeltaStore(executor: ISparqlExecutor): DeltaStore {
   return {
-    async construct(sparql: string): Promise<QuadLike[]> {
-      const { result } = await executor.constructQueryParsed(sparql, { acceptHeader: N_QUADS });
+    async construct(sparql: string, options?: DeltaReadOptions): Promise<QuadLike[]> {
+      const { result } = await executor.constructQueryParsed(sparql, { acceptHeader: N_QUADS, dataset: options?.dataset });
       return parseNQuads(typeof result === 'string' ? result : '');
     },
 
-    async select(sparql: string): Promise<Array<Record<string, TermLike>>> {
+    async select(sparql: string, options?: DeltaReadOptions): Promise<Array<Record<string, TermLike>>> {
       const { result } = await executor.selectQueryParsed(sparql, {
         acceptHeader: 'application/sparql-results+json',
+        dataset: options?.dataset,
       });
       if (typeof result === 'string') {
         throw new Error('Backend returned SELECT results as text where JSON was requested');

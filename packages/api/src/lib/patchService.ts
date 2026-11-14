@@ -84,6 +84,7 @@ export async function previewUpdate(params: PreviewParams): Promise<PersistedPat
     status: 'previewed',
     sourceKind: 'updateString',
     updateString: params.updateString,
+    dataset: params.dataset,
     origin: params.origin ?? null,
   });
 }
@@ -98,6 +99,7 @@ export async function applyUpdate(params: PreviewParams): Promise<PersistedPatch
     status: 'applied',
     sourceKind: 'updateString',
     updateString: params.updateString,
+    dataset: params.dataset,
     origin: params.origin ?? null,
     dateApplied: new Date().toISOString(),
   });
@@ -130,13 +132,14 @@ export interface RecordParams extends PreviewParams {
  */
 export async function recordPassthroughUpdate(params: RecordParams): Promise<PersistedPatch> {
   const target = await resolvePatchTarget(params.backendId);
-  const delta = await derivePatch(params.updateString, target.deltaStore);
+  const delta = await derivePatch(params.updateString, target.deltaStore, { dataset: params.dataset });
 
   const common = {
     backendId: params.backendId,
     // sqlib did not apply this one; the backend did, from the caller's SPARQL.
     sourceKind: 'proxyUpdate' as const,
     updateString: params.updateString,
+    dataset: params.dataset,
     origin: params.origin ?? null,
   };
 
@@ -257,7 +260,19 @@ function deriveOptions(params: DeriveOptions): DeriveOptions {
   return {
     enumerateGraphOps: params.enumerateGraphOps,
     enumerationCap: params.enumerationCap,
+    dataset: params.dataset,
   };
+}
+
+/** The update dataset as stored on a patch: JSON, or null for none. */
+function storedDataset(dataset: DeriveOptions['dataset']): string | null {
+  if (!dataset || (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined)) return null;
+  return JSON.stringify(dataset);
+}
+
+/** The update dataset a stored patch was derived with. */
+function datasetOfStored(stored: PersistedPatch): DeriveOptions['dataset'] {
+  return stored.updateDataset ? JSON.parse(stored.updateDataset) as DeriveOptions['dataset'] : undefined;
 }
 
 interface PersistOptions {
@@ -265,6 +280,8 @@ interface PersistOptions {
   status: PatchStatus;
   sourceKind: PatchSourceKind;
   updateString?: string;
+  /** The dataset the update's WHERE clauses read, kept so an apply re-derives the same patch. */
+  dataset?: DeriveOptions['dataset'];
   inverseOf?: string;
   origin: string | null;
   /**
@@ -300,6 +317,7 @@ async function persist(delta: DeltaPatch, options: PersistOptions): Promise<Pers
     contentHash: hashSides(deletions, additions),
     sourceKind: options.sourceKind,
     updateString: options.updateString ?? null,
+    updateDataset: storedDataset(options.dataset),
     inverseOf: options.inverseOf ?? null,
     origin: options.origin,
     dateApplied: options.dateApplied ?? null,
@@ -396,6 +414,7 @@ async function resolveDelta(
   const fresh = await derivePatch(stored.updateString, target.deltaStore, {
     enumerateGraphOps: params.enumerateGraphOps ?? enumerationWasUsed(stored),
     enumerationCap: params.enumerationCap,
+    dataset: datasetOfStored(stored),
   });
   if (params.force !== true) {
     const { additions, deletions } = await serialiseSides(fresh);

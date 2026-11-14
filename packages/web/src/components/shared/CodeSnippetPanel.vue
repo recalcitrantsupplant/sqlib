@@ -58,6 +58,7 @@
 
     <div class="snippet-header">
       <span class="snippet-label">{{ activeLabel }} · {{ activeVariant.request.method }}</span>
+      <CopyTokenButton class="snippet-token" />
       <button
         type="button"
         class="copy-button"
@@ -132,6 +133,7 @@ export interface CodeSnippetVariant {
 import { computed, ref, watch } from 'vue';
 import { Check, Copy, TriangleAlert } from '@lucide/vue';
 import InlineNote from './InlineNote.vue';
+import CopyTokenButton from './CopyTokenButton.vue';
 import {
   SNIPPET_LANGUAGES,
   renderSnippet,
@@ -357,6 +359,10 @@ async function copy() {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-muted);
+}
+
+.snippet-token {
+  margin-left: auto;
 }
 
 .copy-button {

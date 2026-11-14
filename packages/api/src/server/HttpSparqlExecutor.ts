@@ -1,6 +1,7 @@
 import { Dispatcher, Agent } from 'undici'; // Import Agent
-import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult, type SparqlDataset } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
+import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult, type SparqlDataset, type SparqlUpdateOptions } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
 import { datasetProtocolParameters, hasDataset } from '../lib/dataset.js';
+import { updateDatasetProtocolParameters } from '../lib/updateDataset.js';
 import { config } from './config.js';
 import { log } from '../lib/log.js';
 // Define a simpler config type specifically for the HTTP executor's needs
@@ -146,7 +147,11 @@ async function executeHttpRequestRaw(
     // --- SPARQL Update (POST) ---
     // UPDATE operations MUST use POST per SPARQL 1.1 Protocol specification.
     // QUERY (RFC 10008) is a safe method, so it never carries an update.
-    const body = `update=${encodeURIComponent(query)}`;
+    // A dataset goes in the same form body as `using-graph-uri` and
+    // `using-named-graph-uri` pairs (Protocol §2.2.3).
+    const body = [['update', query], ...updateDatasetProtocolParameters(dataset)]
+      .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
+      .join('&');
     return send({
       method: 'POST',
       headers: {
@@ -227,6 +232,8 @@ async function checkHttpResponseStatus(response: Dispatcher.ResponseData): Promi
  */
 export class HttpSparqlExecutor implements ISparqlExecutor {
   private executorConfig: HttpExecutorConfig; // Store the simpler config
+  /** Sent as `using-graph-uri` and `using-named-graph-uri`. */
+  readonly supportsUpdateDataset = true;
 
   constructor(executorConfig: HttpExecutorConfig) { // Accept simpler config
     // Validate the configuration
@@ -341,9 +348,9 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
   /**
    * Executes a SPARQL UPDATE query (e.g., INSERT, DELETE).
    */
-  async update(sparqlUpdateQuery: string): Promise<SparqlExecutionResult<void>> {
+  async update(sparqlUpdateQuery: string, options?: SparqlUpdateOptions): Promise<SparqlExecutionResult<void>> {
     // Use the stored executorConfig, executeHttpRequestRaw handles using updateUrl
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlUpdateQuery, '*/*', true);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlUpdateQuery, '*/*', true, undefined, options?.dataset);
     await checkHttpResponseStatus(response); // Check status even for updates
     return { result: undefined, duration };
   }

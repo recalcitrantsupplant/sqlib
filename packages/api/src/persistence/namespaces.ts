@@ -561,6 +561,7 @@ export const sqlib = createNamespace({
     "rawDeleteCount",
     "graphScope",
     "graphOps",
+    "updateDataset",
     "patchStatus",
     "applyMode",
     "revertible",

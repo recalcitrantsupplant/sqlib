@@ -11,7 +11,10 @@
  *    job may read through the same executor it later writes through.
  * 2. **The backend's graph policy, on reads.** The policy dataset is
  *    intersected with the dataset the call asked for, so a read sees only the
- *    graphs the policy allows (`graphPolicy.ts`).
+ *    graphs the policy allows (`graphPolicy.ts`). The `WHERE` clause of an
+ *    update is a read too, and is narrowed the same way, through the update's
+ *    dataset (`lib/updateDataset.ts`). An update that cannot be narrowed is
+ *    refused with 403. The policy does not limit the graphs an update writes to.
  *
  * Streams get the same treatment as parsed reads.
  */
@@ -22,8 +25,11 @@ import type {
   SparqlExecutionResult,
   SparqlQueryOptions,
   SparqlSelectJsonOutput,
+  SparqlDataset,
+  SparqlUpdateOptions,
 } from '../server/ISparqlExecutor.js';
 import { intersectDatasets } from '../lib/dataset.js';
+import { updateDatasetShape } from '../lib/updateDataset.js';
 import { auditDecision } from './audit.js';
 import { authOf, requireBackendMode } from './enforce.js';
 import { GraphPolicyError, clearGraphPolicyCache, graphPolicyDataset, isAuthBackend, mentionsService } from './graphPolicy.js';
@@ -31,6 +37,36 @@ import { backendModeFor, isEnforcingMode, type QueryTextSource } from './types.j
 
 export const SERVICE_UNDER_POLICY_WARNING =
   'This query uses SERVICE. The graph policy on this backend does not apply inside a SERVICE pattern.';
+
+export type GraphPolicyUpdateErrorCode =
+  | 'GRAPH_POLICY_UPDATE_NAMES_GRAPHS'
+  | 'GRAPH_POLICY_UPDATE_DELETE_WHERE'
+  | 'GRAPH_POLICY_UPDATE_UNSUPPORTED';
+
+const POLICY_UPDATE_MESSAGES: Record<GraphPolicyUpdateErrorCode, (backendId: string) => string> = {
+  GRAPH_POLICY_UPDATE_NAMES_GRAPHS: (backendId) =>
+    `A graph policy limits what you can read on backend ${backendId}, and this update names its graphs `
+    + 'with USING, USING NAMED or WITH. Remove those clauses and give the graphs as defaultGraphs and namedGraphs.',
+  GRAPH_POLICY_UPDATE_DELETE_WHERE: () =>
+    'A graph policy applies, so DELETE WHERE cannot run. Write it as DELETE { … } WHERE { … }.',
+  GRAPH_POLICY_UPDATE_UNSUPPORTED: (backendId) =>
+    `A graph policy applies, and backend ${backendId} cannot limit the graphs an update reads.`,
+};
+
+/**
+ * Refused: a graph policy applies to the caller, and the `WHERE` clause of the
+ * update cannot be narrowed without a change to its text. The text names its
+ * own graphs, or is `DELETE WHERE`, or the backend cannot take an update
+ * dataset (docs/proposals/update-dataset.md, "Graph policy").
+ */
+export class GraphPolicyUpdateError extends Error {
+  readonly statusCode = 403;
+
+  constructor(readonly backendId: string, readonly code: GraphPolicyUpdateErrorCode = 'GRAPH_POLICY_UPDATE_NAMES_GRAPHS') {
+    super(POLICY_UPDATE_MESSAGES[code](backendId));
+    this.name = 'GraphPolicyUpdateError';
+  }
+}
 
 export interface ExecutorGuard {
   request: FastifyRequest;
@@ -49,6 +85,10 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
     private readonly guard: ExecutorGuard,
   ) {}
 
+  get supportsUpdateDataset(): boolean {
+    return this.inner.supportsUpdateDataset;
+  }
+
   /** The executor being guarded. */
   get delegate(): ISparqlExecutor {
     return this.inner;
@@ -62,12 +102,20 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
   /** The options a read runs with: the mode checked, and the dataset narrowed. */
   private async readOptions(query: string, options?: SparqlQueryOptions): Promise<SparqlQueryOptions | undefined> {
     this.checkMode('query');
+    const narrowed = await this.policyDataset(query, options?.dataset);
+    return narrowed === undefined ? options : { ...options, dataset: narrowed };
+  }
 
+  /**
+   * The dataset a read runs over under the caller's graph policy, or
+   * `undefined` when no policy narrows it and the asked-for dataset stands.
+   */
+  private async policyDataset(query: string, dataset: SparqlDataset | undefined): Promise<SparqlDataset | undefined> {
     const { request, backendId } = this.guard;
     const context = authOf(request);
     // Server identity and administrators are not policed, as grants do not
     // bind them. `Test as` shows an administrator what a caller would see.
-    if (context.fullAccess || context.grants.admin) return options;
+    if (context.fullAccess || context.grants.admin) return undefined;
 
     let policy;
     try {
@@ -83,11 +131,11 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
           matchedGrant: null,
           detail: 'The graph policy could not be evaluated.',
         });
-        return options;
+        return undefined;
       }
       throw error instanceof GraphPolicyError ? error : new GraphPolicyError(backendId, error);
     }
-    if (!policy) return options;
+    if (!policy) return undefined;
 
     if (mentionsService(query)) this.guard.onWarning?.(SERVICE_UNDER_POLICY_WARNING);
 
@@ -101,10 +149,10 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
         matchedGrant: null,
         detail: `A graph policy would narrow this read to ${policy.defaultGraphs.length} default and ${policy.namedGraphs.length} named graphs.`,
       });
-      return options;
+      return undefined;
     }
 
-    return { ...options, dataset: intersectDatasets(policy, options?.dataset) };
+    return intersectDatasets(policy, dataset);
   }
 
   async selectQueryParsed(
@@ -130,9 +178,27 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
     return this.inner.askQuery(sparqlAskQuery, await this.readOptions(sparqlAskQuery, options));
   }
 
-  async update(sparqlUpdateQuery: string): Promise<SparqlExecutionResult<void>> {
+  /**
+   * The options an update runs with: the dataset its `WHERE` clause reads,
+   * narrowed by the caller's graph policy. The text is parsed only when a
+   * policy applies. Only an update with a `WHERE` clause is narrowed: a
+   * dataset on `INSERT DATA` or a graph-management operation means nothing.
+   */
+  private async updateOptions(text: string, options?: SparqlUpdateOptions): Promise<SparqlUpdateOptions | undefined> {
+    const narrowed = await this.policyDataset(text, options?.dataset);
+    if (narrowed === undefined) return options;
+    const shape = updateDatasetShape(text);
+    if (!shape?.reads) return options;
+    const { backendId } = this.guard;
+    if (shape.namesDataset) throw new GraphPolicyUpdateError(backendId, 'GRAPH_POLICY_UPDATE_NAMES_GRAPHS');
+    if (shape.deleteWhere) throw new GraphPolicyUpdateError(backendId, 'GRAPH_POLICY_UPDATE_DELETE_WHERE');
+    if (!this.inner.supportsUpdateDataset) throw new GraphPolicyUpdateError(backendId, 'GRAPH_POLICY_UPDATE_UNSUPPORTED');
+    return { ...options, dataset: narrowed };
+  }
+
+  async update(sparqlUpdateQuery: string, options?: SparqlUpdateOptions): Promise<SparqlExecutionResult<void>> {
     this.checkMode('update');
-    const result = await this.inner.update(sparqlUpdateQuery);
+    const result = await this.inner.update(sparqlUpdateQuery, await this.updateOptions(sparqlUpdateQuery, options));
     // An update to an auth backend may change what a policy answers. When
     // that cannot be told, clearing costs only a policy run.
     let touchesPolicyData = true;

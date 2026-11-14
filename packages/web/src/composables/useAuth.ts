@@ -271,6 +271,31 @@ export function useAuth() {
     return user.value?.access_token ?? null;
   };
 
+  /**
+   * A token for the person to use outside the app, with when it expires.
+   *
+   * With a refresh token it asks for a new access token first, so the copy
+   * lasts its full lifetime. Without one it returns the current token: a
+   * silent renew without a refresh token uses a hidden iframe, which can wait
+   * for its full timeout on a broker that refuses framing.
+   */
+  const freshAccessToken = async (): Promise<{ token: string; expiresAt: Date | null } | null> => {
+    if (!signsIn()) return null;
+    if (user.value?.refresh_token) {
+      manager ??= buildManager();
+      try {
+        const renewed = await manager?.signinSilent();
+        if (renewed && !renewed.expired) user.value = renewed;
+      } catch {
+        // Keep the current token; it still works until it expires.
+      }
+    }
+    const token = await accessToken();
+    if (!token || !user.value) return null;
+    const expiresAt = user.value.expires_at ? new Date(user.value.expires_at * 1000) : null;
+    return { token, expiresAt };
+  };
+
   return {
     mode: computed(() => mode.value),
     /** True only when the API or the deployment demands a token and we do not have one. */
@@ -290,6 +315,7 @@ export function useAuth() {
     completeLogin,
     logout,
     accessToken,
+    freshAccessToken,
     refreshMe,
     /** UI convenience: does the caller hold `mode` on this library? */
     canLibrary: (libraryIri: string, libraryMode: string): boolean => {

@@ -79,6 +79,20 @@ export function datasetParameters(dataset: SparqlDataset | undefined): Array<[st
 export interface UpdateRequest {
   updateText: string;
   signal?: AbortSignal;
+  /**
+   * The dataset each `DELETE/INSERT` operation's `WHERE` clause reads, as
+   * `USING` and `USING NAMED` would name it (SPARQL 1.1 Protocol §2.2.3).
+   * Executors that cannot apply one must refuse it.
+   */
+  dataset?: SparqlDataset;
+}
+
+/** The protocol's `using-graph-uri` / `using-named-graph-uri` pairs for an update's dataset. */
+export function updateDatasetParameters(dataset: SparqlDataset | undefined): Array<[string, string]> {
+  return datasetParameters(dataset).map(([parameter, graph]) => [
+    parameter === 'default-graph-uri' ? 'using-graph-uri' : 'using-named-graph-uri',
+    graph,
+  ]);
 }
 
 /**
@@ -175,14 +189,25 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
   let queryRefusedAt: number | null = null;
   const queryRefused = () => queryRefusedAt !== null && Date.now() - queryRefusedAt <= QUERY_REFUSAL_TTL_MS;
 
-  const update = async ({ updateText, signal }: UpdateRequest): Promise<void> => {
-    const response = await doFetch(updateEndpoint!, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/sparql-update', ...headers },
-      body: updateText,
-      credentials,
-      signal,
-    });
+  const update = async ({ updateText, signal, dataset }: UpdateRequest): Promise<void> => {
+    // With a dataset, a form body carries the `using-graph-uri` pairs: it has
+    // no URL length limit. Without one, the direct POST, as before.
+    const graphs = updateDatasetParameters(dataset);
+    const response = await doFetch(updateEndpoint!, graphs.length > 0
+      ? {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+        body: new URLSearchParams([['update', updateText], ...graphs]).toString(),
+        credentials,
+        signal,
+      }
+      : {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sparql-update', ...headers },
+        body: updateText,
+        credentials,
+        signal,
+      });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       throw new SparqlEndpointError(

@@ -1,8 +1,9 @@
 # Graph selection for updates
 
-Status: proposed. Not implemented. Supersedes the in-process part of
-[#165](https://github.com/recalcitrantsupplant/sqlib/pull/165), which adds
-`USING` clauses to the update text.
+Status: implemented in
+[#165](https://github.com/recalcitrantsupplant/sqlib/pull/165). An earlier
+version of #165 added `USING` clauses to the update text. This proposal
+replaced that design, and #165 now follows it.
 
 ## Decision
 
@@ -193,8 +194,8 @@ checks before it sends anything:
   [Interaction with the update text](#interaction-with-the-update-text).
 
 An endpoint that ignores unknown parameters would run the `WHERE` clause over
-its whole dataset. sqlib cannot detect this from the response. See
-[Open questions](#open-questions).
+its whole dataset. sqlib cannot detect this from the response. A backend check for it is
+deferred (see [Decisions](#decisions)).
 
 ### In-process Oxigraph
 
@@ -257,8 +258,8 @@ prepared.on_store(&self.store).execute().map_err(JsError::from)?;
   expect no change to `oxigraph` or `spareval`.
 - `pyoxigraph` has the same gap, I think. sqlib does not use it.
 
-I have not opened the upstream issue or pull request. Tell me if you want me
-to.
+The upstream issue and pull request are not open yet (see
+[Decisions](#decisions)).
 
 #### sqlib side
 
@@ -409,9 +410,8 @@ the policy does not narrow updates at all, and `security-model.md` says that
 `update:*` modes allow every graph. After this change, a policed update that
 reads fails on an in-process backend until the upstream release. Administrators
 and full-access callers are not policed, so they are not affected. An
-alternative is to keep today's documented behaviour on those backends. I
-recommend the refusal, because otherwise one grant means different things on
-two backend types.
+alternative was to keep today's documented behaviour on those backends. The
+refusal was chosen, so one grant means the same thing on both backend types.
 
 The policy still does not limit the graphs that an update writes to.
 `security-model.md` keeps that statement.
@@ -605,19 +605,16 @@ No test needs a text comparison of a rewritten update, because there is none.
 | Derive the patch with the dataset, then apply it with `Store.add` and `Store.delete` | no new Oxigraph API | It runs derived `CONSTRUCT` text in place of the update, so the update that runs is not the caller's. A program with more than one operation needs a fork of the store, which costs a copy of the data. |
 | New fields `usingGraphs` and `usingNamedGraphs` | makes the update meaning explicit | One picker and one field pair serve both. The operation type already decides the meaning, as `using-graph-uri` and `default-graph-uri` share one meaning by request type. |
 
-## Open questions
+## Decisions
 
-These need an answer from David.
+David answered the open questions on #166:
 
 1. Open the upstream Oxigraph issue and pull request for the `Store.update`
-   options? I recommend yes.
-2. Refuse policed updates that read on in-process backends until the upstream
-   release, or keep today's behaviour there? I recommend the refusal.
-3. Rework #165 to this design, or close it and open a new pull request? I
-   recommend a rework on the same branch, because most of its code stays.
-4. Add a backend check that an HTTP endpoint honours `using-graph-uri`? It must
-   write to the endpoint (insert into a scratch graph, then drop it), so it
-   would be an explicit admin action. I have not designed it.
+   options: yes. David will add points to raise upstream first.
+2. Policed updates that read, on in-process backends, are refused until the
+   upstream release.
+3. #165 is reworked to this design on its own branch.
+4. No backend check that an HTTP endpoint honours `using-graph-uri` for now.
 
 ## Not in scope
 

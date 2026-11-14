@@ -64,6 +64,7 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   // OxigraphStoreManager above, and both declare.
   'src/lib/dataGraphContent.ts': { calls: 2, marks: 0, why: 'parse validation' },
   'src/lib/deltaStore.ts': { calls: 1, marks: 0, why: 'a document read into a store' },
+  'src/lib/oxigraphUpdateDataset.ts': { calls: 2, marks: 0, why: 'the update-dataset probe, on its own store' },
   'src/lib/orchestration/rdfHandoff.ts': { calls: 1, marks: 0, why: 'RDF between group nodes, parsed to re-serialise' },
   'src/lib/patchLog.ts': { calls: 1, marks: 0, why: 'parsing a patch side that uses RDF 1.2 syntax' },
   'src/lib/rdfCanonicalizer.ts': { calls: 1, marks: 0, why: 'canonicalisation' },

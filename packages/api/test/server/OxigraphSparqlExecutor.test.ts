@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setOxigraphUpdateDatasetSupport } from '../../src/lib/oxigraphUpdateDataset.js';
 import { OxigraphSparqlExecutor } from '../../src/server/OxigraphSparqlExecutor.js';
 import { SparqlSelectJsonOutput } from '../../src/server/ISparqlExecutor.js';
 import * as oxigraph from 'oxigraph';
@@ -328,6 +329,51 @@ describe('OxigraphSparqlExecutor', () => {
         it('applies to ASK', async () => {
             const { result } = await executor.askQuery('ASK { ?s <http://example.org/p> "two" }', { dataset: { defaultGraphs: [g1.value] } });
             expect(result).toBe(false);
+        });
+
+        it('reads an empty default graph when only named graphs are given, as FROM NAMED does', async () => {
+            store.add(oxigraph.quad(oxigraph.namedNode('http://example.org/s0'), p, oxigraph.literal('default')));
+            expect(await values('SELECT ?o WHERE { ?s <http://example.org/p> ?o }', { namedGraphs: [g1.value] })).toEqual([]);
+            expect(await values('SELECT ?o WHERE { GRAPH ?g { ?s <http://example.org/p> ?o } }', { defaultGraphs: [g1.value] }))
+                .toEqual([]);
+        });
+
+        describe('on an update', () => {
+            const COPY = 'INSERT { GRAPH <http://example.org/out> { ?s <http://example.org/copied> ?o } } '
+                + 'WHERE { ?s <http://example.org/p> ?o }';
+
+            afterEach(() => setOxigraphUpdateDatasetSupport(undefined));
+
+            it('refuses a dataset when the binding cannot apply it, and writes nothing', async () => {
+                // Oxigraph 0.5.13 ignores dataset options on Store.update.
+                expect(executor.supportsUpdateDataset).toBe(false);
+                const before = store.size;
+                await expect(executor.update(COPY, { dataset: { defaultGraphs: [g2.value] } }))
+                    .rejects.toMatchObject({ code: 'UPDATE_DATASET_UNSUPPORTED', statusCode: 400 });
+                expect(store.size).toBe(before);
+            });
+
+            it('runs an update with no dataset as written', async () => {
+                await executor.update(COPY);
+                expect(store.match(null, oxigraph.namedNode('http://example.org/copied'), null, null)).toHaveLength(0);
+                await executor.update('INSERT DATA { <http://example.org/s9> <http://example.org/p> "nine" }');
+                expect(store.match(oxigraph.namedNode('http://example.org/s9'), null, null, null)).toHaveLength(1);
+            });
+
+            it('passes the dataset as Store.update options when the binding applies them', async () => {
+                setOxigraphUpdateDatasetSupport(true);
+                const calls: Array<{ text: string; options: unknown }> = [];
+                const fake = { size: 0, update: (text: string, options: unknown) => { calls.push({ text, options }); } };
+                const supported = new OxigraphSparqlExecutor(fake as unknown as oxigraph.Store);
+                expect(supported.supportsUpdateDataset).toBe(true);
+
+                await supported.update(COPY, { dataset: { namedGraphs: [g1.value] } });
+                expect(calls[0].text).toBe(COPY);
+                const options = calls[0].options as { default_graph: Array<{ value: string }>; named_graphs: Array<{ value: string }> };
+                // SPARQL 1.1 Query §13.2: named graphs alone give an empty default graph.
+                expect(options.default_graph).toEqual([]);
+                expect(options.named_graphs.map((node) => node.value)).toEqual([g1.value]);
+            });
         });
     });
 });
