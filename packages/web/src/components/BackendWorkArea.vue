@@ -324,7 +324,7 @@
                 <span class="field-name">
                   Query method
                   <InfoHint label="query method">
-                    POST is the standard. Use GET only for endpoints with SSL or query-size limits.
+                    POST is the standard. Use GET only for endpoints with SSL or query-size limits. QUERY reads with the HTTP QUERY method, and uses POST where the endpoint refuses it.
                   </InfoHint>
                 </span>
                 <div class="field-value">
@@ -754,6 +754,7 @@ const emit = defineEmits<{
 const QUERY_METHODS = [
   { value: 'post' as const, label: 'POST (recommended)' },
   { value: 'get' as const, label: 'GET (for compatibility)' },
+  { value: 'query' as const, label: 'QUERY' },
 ];
 
 const BACKEND_KINDS = [
@@ -1252,7 +1253,7 @@ async function commitSources(payload: { sources: MemoryStoreSource[]; complete: 
   await commitMemoryConfig(memoryConfig.value.mode, payload.sources);
 }
 
-async function commitQueryMethod(method: 'post' | 'get') {
+async function commitQueryMethod(method: 'post' | 'get' | 'query') {
   const current = backend.value;
   if (!current || !canEdit.value || (current.queryMethod ?? 'post') === method) return;
   if (isBrowserBackendId(current.id)) {
@@ -1496,7 +1497,7 @@ const draftForm = reactive({
   kind: 'http' as 'http' | 'oxigraphMemory' | 'browser',
   endpoint: '',
   description: '',
-  queryMethod: 'post' as 'post' | 'get',
+  queryMethod: 'post' as 'post' | 'get' | 'query',
   authEnvKey: '',
 });
 const draftMode = ref<MemoryStoreMode>('readOnly');
@@ -1944,13 +1945,16 @@ function relativeTime(iso: string): string {
 }
 
 .segmented {
+  --segment-border: 1px;
   display: flex;
 }
 
 .segment {
+  position: relative;
   height: var(--control-h-sm);
   padding: 0 var(--space-5);
-  border: 1px solid var(--border-default);
+  border: var(--segment-border) solid var(--border-default);
+  border-radius: 0;
   background: var(--surface);
   color: var(--ink-muted);
   font-family: inherit;
@@ -1958,16 +1962,23 @@ function relativeTime(iso: string): string {
   cursor: pointer;
 }
 
+/* Each segment draws all four borders, and the next one overlaps it by one
+   border width, so two neighbours share one line. The selected segment sits
+   above its neighbours, so its blue border shows on both sides. */
+.segment + .segment {
+  margin-left: calc(-1 * var(--segment-border));
+}
+
 .segment:first-child {
   border-radius: var(--radius-panel) 0 0 var(--radius-panel);
 }
 
 .segment:last-child {
-  border-left: none;
   border-radius: 0 var(--radius-panel) var(--radius-panel) 0;
 }
 
 .segment.active {
+  z-index: 1;
   border-color: var(--action);
   background: var(--action-surface);
   color: var(--action-ink);

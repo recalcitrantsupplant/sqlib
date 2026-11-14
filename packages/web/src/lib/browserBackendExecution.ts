@@ -28,6 +28,30 @@ const MAX_URL_LENGTH = 1800;
 
 const RESULTS_ACCEPT = 'application/sparql-results+json';
 
+/** How long an endpoint that refused QUERY is sent POST instead. */
+const QUERY_METHOD_REFUSAL_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Endpoints that answered QUERY (RFC 10008) with 405 or 501, and when. A
+ * SPARQL query is safe to send again, so the same query goes out as a POST.
+ */
+const queryMethodRefusals = new Map<string, number>();
+
+function queryMethodRefused(endpoint: string): boolean {
+  const at = queryMethodRefusals.get(endpoint);
+  if (at === undefined) return false;
+  if (Date.now() - at > QUERY_METHOD_REFUSAL_TTL_MS) {
+    queryMethodRefusals.delete(endpoint);
+    return false;
+  }
+  return true;
+}
+
+/** Forget every QUERY refusal. For tests. */
+export function resetQueryMethodRefusals(): void {
+  queryMethodRefusals.clear();
+}
+
 /**
  * The update verbs, for the fallback when a caller has no query type to pass.
  *
@@ -139,25 +163,40 @@ export async function executeOnBrowserBackend(
    */
   const useGet =
     !isUpdate && (backend.queryMethod === 'get' || (backend.queryMethod === null && getUrl.length <= MAX_URL_LENGTH));
+  /*
+   * QUERY carries the query as its body, as a direct POST does, and the
+   * dataset in the same URL. It is never used for an update: RFC 10008 makes
+   * QUERY a safe method. Every browser QUERY is preflighted, as is a POST with
+   * this content type.
+   */
+  const useQuery = !isUpdate && backend.queryMethod === 'query' && !queryMethodRefused(endpoint);
+  const contentType = updateForm
+    ? 'application/x-www-form-urlencoded'
+    : isUpdate ? 'application/sparql-update' : 'application/sparql-query';
+  const postInit = (method: 'POST' | 'QUERY'): RequestInit => ({
+    method,
+    headers: { Accept: accept, 'Content-Type': contentType, ...backend.headers },
+    body: updateForm ?? query,
+    signal,
+  });
 
   let response: Response;
   try {
-    if (useGet) {
+    if (useQuery) {
+      response = await fetchImpl(postUrl, postInit('QUERY'));
+      if (response.status === 405 || response.status === 501) {
+        await response.text().catch(() => '');
+        queryMethodRefusals.set(endpoint, Date.now());
+        response = await fetchImpl(postUrl, postInit('POST'));
+      }
+    } else if (useGet) {
       response = await fetchImpl(getUrl, {
         method: 'GET',
         headers: { Accept: accept, ...backend.headers },
         signal,
       });
     } else {
-      const contentType = updateForm
-        ? 'application/x-www-form-urlencoded'
-        : isUpdate ? 'application/sparql-update' : 'application/sparql-query';
-      response = await fetchImpl(postUrl, {
-        method: 'POST',
-        headers: { Accept: accept, 'Content-Type': contentType, ...backend.headers },
-        body: updateForm ?? query,
-        signal,
-      });
+      response = await fetchImpl(postUrl, postInit('POST'));
     }
   } catch (error) {
     // An abort is the caller's own doing; everything else here is the browser

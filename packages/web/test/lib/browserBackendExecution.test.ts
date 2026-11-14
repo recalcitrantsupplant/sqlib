@@ -8,6 +8,7 @@ import {
   executeOnBrowserBackend,
   looksLikeUpdate,
   BrowserBackendUnreachableError,
+  resetQueryMethodRefusals,
 } from '../../src/lib/browserBackendExecution';
 import type { BrowserBackend } from '../../src/composables/useBrowserBackends';
 
@@ -161,5 +162,50 @@ describe('when it goes wrong', () => {
     expect(error).toBeInstanceOf(SparqlEndpointError);
     expect(error.status).toBe(400);
     expect(error.body).toContain('malformed query');
+  });
+});
+
+describe('the QUERY method', () => {
+  const queryBackend: BrowserBackend = { ...backend, queryMethod: 'query' };
+
+  it('sends a read as QUERY, with the dataset in the URL', async () => {
+    resetQueryMethodRefusals();
+    const fetchImpl = ok('{}');
+    await executeOnBrowserBackend(
+      {
+        backend: queryBackend,
+        query: 'SELECT ?s WHERE { ?s ?p ?o }',
+        operation: 'query',
+        dataset: { defaultGraphs: ['http://example.org/a'] },
+      },
+      fetchImpl
+    );
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(init!.method).toBe('QUERY');
+    expect(init!.body).toBe('SELECT ?s WHERE { ?s ?p ?o }');
+    expect((init!.headers as Record<string, string>)['Content-Type']).toBe('application/sparql-query');
+    expect(new URL(String(url)).searchParams.getAll('default-graph-uri')).toEqual(['http://example.org/a']);
+  });
+
+  it('sends an update as POST', async () => {
+    resetQueryMethodRefusals();
+    const fetchImpl = ok('');
+    await executeOnBrowserBackend(
+      { backend: queryBackend, query: 'INSERT DATA { <urn:s> <urn:p> <urn:o> }', operation: 'update' },
+      fetchImpl
+    );
+    expect(fetchImpl.mock.calls[0]![1]!.method).toBe('POST');
+  });
+
+  it('retries as POST after a 405, and sends POST next time', async () => {
+    resetQueryMethodRefusals();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('no', { status: 405 }))
+      .mockImplementation(async () => new Response('{}', { status: 200 }));
+    const request = { backend: queryBackend, query: 'SELECT ?s WHERE { ?s ?p ?o }', operation: 'query' as const };
+    await executeOnBrowserBackend(request, fetchImpl);
+    await executeOnBrowserBackend(request, fetchImpl);
+    expect(fetchImpl.mock.calls.map((call) => call[1].method)).toEqual(['QUERY', 'POST', 'POST']);
   });
 });

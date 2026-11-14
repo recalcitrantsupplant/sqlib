@@ -5,6 +5,7 @@ import {
   clauseKey,
   compatibility,
   locateValuesClauses,
+  locateScalarParameters,
   pruneUndef,
   summariseRow,
   tupleSignature,
@@ -147,5 +148,17 @@ describe('summariseRow', () => {
     expect(
       summariseRow(['postcode', 'state'], { postcode: { type: 'literal', value: '6000' } }),
     ).toBe('6000 · —');
+  });
+});
+
+describe('locateScalarParameters', () => {
+  it('finds the line of each named LIMIT and OFFSET clause', () => {
+    const query = ['SELECT * WHERE { ?s ?p ?o }', 'ORDER BY ?s', 'LIMIT 0001', 'offset 00012'].join('\n');
+    expect(locateScalarParameters(query)).toEqual({ 'limit:1': 3, 'offset:12': 4 });
+  });
+
+  it('keeps the first line of a name used twice and skips plain numbers', () => {
+    const query = ['SELECT * { { SELECT * { ?s ?p ?o } LIMIT 0001 } }', 'LIMIT 0001', 'LIMIT 10'].join('\n');
+    expect(locateScalarParameters(query)).toEqual({ 'limit:1': 1 });
   });
 });

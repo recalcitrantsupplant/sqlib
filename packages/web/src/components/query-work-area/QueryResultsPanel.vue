@@ -78,6 +78,7 @@
           <ArgumentScalarsPanel
             :limit-parameters="signature.limitParameters"
             :offset-parameters="signature.offsetParameters"
+            :lines="signature.scalarLines"
             :model-value="args.scalarBindings.value"
             @update:model-value="handleScalarsChange"
           />
