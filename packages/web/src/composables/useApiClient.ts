@@ -228,8 +228,25 @@ export const environmentPointerSchema = z.object({
   entityName: z.string().nullable().optional(),
   version: z.string(),
   versionNumber: z.number().nullable().optional(),
+  movedBy: z.string().nullable().optional(),
+  movedAt: z.string().nullable().optional(),
 });
 export type EnvironmentPointer = z.infer<typeof environmentPointerSchema>;
+
+/** One row of `GET /environments/:id/moves`, newest first. */
+export const environmentMoveSchema = z.object({
+  id: z.string(),
+  entity: z.string(),
+  entityType: z.string().nullable().optional(),
+  entityName: z.string().nullable().optional(),
+  fromVersion: z.string().nullable().optional(),
+  fromVersionNumber: z.number().nullable().optional(),
+  toVersion: z.string().nullable().optional(),
+  toVersionNumber: z.number().nullable().optional(),
+  movedBy: z.string().nullable().optional(),
+  movedAt: z.string().nullable().optional(),
+});
+export type EnvironmentMove = z.infer<typeof environmentMoveSchema>;
 
 /** Create an environment; `startFrom` ("latest" or an environment id) seeds its pointers. */
 export type EnvironmentCreateRequest = {
@@ -695,6 +712,11 @@ export const grantSchema = z.object({
 });
 export type Grant = z.infer<typeof grantSchema>;
 
+export const principalNameSchema = z.object({
+  iri: z.string(),
+  displayName: z.string(),
+});
+
 export const principalSchema = z.object({
   iri: z.string(),
   rawClaim: z.string(),
@@ -965,6 +987,7 @@ export function useApiClient() {
     libraries: Array<{ id: string; name: string }>;
     queries: Array<{ id: string; name: string }>;
     etlJobs: Array<{ id: string; name: string }>;
+    environments: Array<{ id: string; name: string; library: string }>;
   }> => {
     return requestData(
       buildUrl(`/backends/${encodeURIComponent(id)}/references`),
@@ -1006,6 +1029,17 @@ export function useApiClient() {
       buildUrl(`/auth/principals${q ? `?q=${encodeURIComponent(q)}` : ''}`),
       { method: 'GET' },
       (payload) => principalSchema.array().parse(payload),
+    );
+
+  /**
+   * Display names for principal IRIs, for the `createdBy` and `modifiedBy`
+   * fields. Users without a name, groups and unknown IRIs are left out.
+   */
+  const lookupPrincipalNames = (iris: string[]) =>
+    requestData(
+      buildUrl(`/auth/names?${iris.map((iri) => `iri=${encodeURIComponent(iri)}`).join('&')}`),
+      { method: 'GET' },
+      (payload) => principalNameSchema.array().parse(payload),
     );
 
   const testGraphPolicy = (
@@ -2212,9 +2246,10 @@ export function useApiClient() {
   };
 
   /** The environments a library defines (dev, prod), in chain order. */
-  const listEnvironments = (library: string) =>
+  /** One library's environments, or every readable environment when `library` is null. */
+  const listEnvironments = (library: string | null) =>
     requestData(
-      buildUrl(`/environments?library=${encodeURIComponent(library)}`),
+      buildUrl(library ? `/environments?library=${encodeURIComponent(library)}` : '/environments'),
       { method: 'GET' },
       (payload) => environmentSchema.array().parse(payload),
     );
@@ -2250,6 +2285,19 @@ export function useApiClient() {
       { method: 'GET' },
       (payload) => environmentPointerSchema.array().parse(payload),
     );
+
+  /** The recorded pointer moves of an environment, newest first; `entity` narrows them to one. */
+  const listEnvironmentMoves = (id: string, options: { entity?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (options.entity) params.set('entity', options.entity);
+    if (options.limit) params.set('limit', String(options.limit));
+    const query = params.toString();
+    return requestData(
+      buildUrl(`/environments/${encodeURIComponent(id)}/moves${query ? `?${query}` : ''}`),
+      { method: 'GET' },
+      (payload) => environmentMoveSchema.array().parse(payload),
+    );
+  };
 
   /**
    * Move one pointer. `from` is the version the caller saw (null for none):
@@ -3308,11 +3356,13 @@ export function useApiClient() {
     updateEnvironment,
     deleteEnvironment,
     listEnvironmentPointers,
+    listEnvironmentMoves,
     moveEnvironmentPointer,
     listGrants,
     createGrant,
     deleteGrant,
     listPrincipals,
+    lookupPrincipalNames,
     testGraphPolicy,
     getGraphPolicy,
     listLibraries,

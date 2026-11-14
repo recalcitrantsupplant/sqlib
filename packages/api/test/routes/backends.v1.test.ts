@@ -25,6 +25,10 @@ const queryRepo = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
+const environmentRepo = vi.hoisted(() => ({
+  list: vi.fn(),
+  update: vi.fn(),
+}));
 const etlJobRepo = vi.hoisted(() => ({
   list: vi.fn(),
   update: vi.fn(),
@@ -36,6 +40,7 @@ overrideCacheCoordinatorProvider({
     Library: libraryRepo,
     Query: queryRepo,
     EtlJob: etlJobRepo,
+    Environment: environmentRepo,
   }),
 });
 
@@ -75,6 +80,9 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
     etlJobRepo.list.mockReset();
     etlJobRepo.update.mockReset();
     etlJobRepo.list.mockReturnValue([]);
+    environmentRepo.list.mockReset();
+    environmentRepo.update.mockReset();
+    environmentRepo.list.mockReturnValue([]);
   });
 
   afterAll(async () => {
@@ -388,12 +396,13 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
       expect(repo.delete).toHaveBeenCalledWith(backendId);
     });
 
-    it('clears the default backend of every library, query and ETL job that named it', async () => {
+    it('clears the default backend of every library, environment, query and ETL job that named it', async () => {
       repo.get.mockReturnValue({ $id: backendId, '@type': 'Backend' });
       repo.delete.mockResolvedValue(undefined);
       libraryRepo.list.mockReturnValue([{ $id: 'lib1', defaultBackend: backendId }, { $id: 'lib2', defaultBackend: 'other' }]);
       queryRepo.list.mockReturnValue([{ $id: 'q1', defaultBackend: backendId }]);
       etlJobRepo.list.mockReturnValue([{ $id: 'etl1', defaultBackend: backendId }, { $id: 'etl2' }]);
+      environmentRepo.list.mockReturnValue([{ $id: 'env1', defaultBackend: backendId }, { $id: 'env2', defaultBackend: 'other' }]);
 
       const response = await app.inject({ method: 'DELETE', url: `/backends/${backendId}` });
 
@@ -401,6 +410,7 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
       expect(libraryRepo.update.mock.calls).toEqual([['lib1', { defaultBackend: null }]]);
       expect(queryRepo.update.mock.calls).toEqual([['q1', { defaultBackend: null }]]);
       expect(etlJobRepo.update.mock.calls).toEqual([['etl1', { defaultBackend: null }]]);
+      expect(environmentRepo.update.mock.calls).toEqual([['env1', { defaultBackend: null }]]);
     });
 
     it('should return 500 if delete fails', async () => {

@@ -57,12 +57,20 @@ export interface PrincipalRecord {
   seenAt?: string;
   /** A person's email, username or name from their last token, for display. */
   label?: string;
+  /** The name other readers see for a person, from their last token (`displayNameOf`). Never the email. */
+  displayName?: string;
   /**
    * For a user or client: the group principals its last token carried.
    * Kept so an administrator can test a graph policy as that user; never
    * consulted to decide a request, which reads the token in hand.
    */
   groups?: string[];
+}
+
+/** The names a token gives its subject. Both are optional: a token may carry neither. */
+export interface PrincipalNames {
+  label?: string;
+  displayName?: string;
 }
 
 export interface CreateGrantInput {
@@ -346,6 +354,7 @@ export class AuthStore {
       kind: this.objectsOf(iri, auth.principalKind)[0] ?? 'user',
       seenAt: this.objectsOf(iri, auth.seenAt)[0],
       label: this.objectsOf(iri, auth.label)[0],
+      displayName: this.objectsOf(iri, auth.displayName)[0],
     };
   }
 
@@ -411,7 +420,9 @@ export class AuthStore {
     if (!query) return records;
     const needle = query.toLowerCase();
     return records.filter(record =>
-      record.rawClaim.toLowerCase().includes(needle) || record.label?.toLowerCase().includes(needle));
+      record.rawClaim.toLowerCase().includes(needle)
+      || record.label?.toLowerCase().includes(needle)
+      || record.displayName?.toLowerCase().includes(needle));
   }
 
   async createGrant(input: CreateGrantInput): Promise<Grant> {
@@ -506,14 +517,20 @@ export class AuthStore {
   }
 
   /**
-   * Records a principal so admins can find it in the share dialog. Written
-   * once per principal, and again only when its label changes, so this is
-   * not a hot write path.
+   * Records a principal so admins can find it in the share dialog, and so
+   * readers can see the name of whoever created or changed an entity. Written
+   * once per principal, and again only when a name changes, so this is not a
+   * hot write path.
    */
-  async recordPrincipal(iri: string, rawClaim: string, kind: string, label?: string): Promise<void> {
+  async recordPrincipal(iri: string, rawClaim: string, kind: string, names: PrincipalNames = {}): Promise<void> {
     const known = this.principalRecords.get(iri);
     if (known) {
-      if (label && label !== known.label) await this.relabelPrincipal(known, label);
+      for (const field of ['label', 'displayName'] as const) {
+        const value = names[field];
+        if (value && value !== this.principalRecords.get(iri)?.[field]) {
+          await this.renamePrincipal(this.principalRecords.get(iri) ?? known, field, value);
+        }
+      }
       return;
     }
 
@@ -532,25 +549,42 @@ export class AuthStore {
       ),
     ];
 
+    const { label, displayName } = names;
     if (label) quads.push(oxigraph.quad(subject, iriTerm(auth.label), oxigraph.literal(label), graph));
+    if (displayName) {
+      quads.push(oxigraph.quad(subject, iriTerm(auth.displayName), oxigraph.literal(displayName), graph));
+    }
 
     await this.persistence.apply({ insert: quads.map(quad => this.serializeQuad(quad)).join('\n') });
     for (const quad of quads) this.store.add(quad);
-    this.principalRecords.set(iri, { iri, rawClaim, kind, seenAt, ...(label ? { label } : {}) });
+    this.principalRecords.set(iri, {
+      iri,
+      rawClaim,
+      kind,
+      seenAt,
+      ...(label ? { label } : {}),
+      ...(displayName ? { displayName } : {}),
+    });
   }
 
-  private async relabelPrincipal(record: PrincipalRecord, label: string): Promise<void> {
+  /** Replaces one name literal of a recorded principal. */
+  private async renamePrincipal(
+    record: PrincipalRecord,
+    field: keyof PrincipalNames,
+    value: string,
+  ): Promise<void> {
     const graph = iriTerm(AUTH_GRAPH_IRI);
     const subject = iriTerm(record.iri);
-    const removed = [...this.store.match(subject, iriTerm(auth.label), null, graph)];
-    const added = oxigraph.quad(subject, iriTerm(auth.label), oxigraph.literal(label), graph);
+    const predicate = iriTerm(auth[field]);
+    const removed = [...this.store.match(subject, predicate, null, graph)];
+    const added = oxigraph.quad(subject, predicate, oxigraph.literal(value), graph);
     await this.persistence.apply({
       delete: removed.length ? removed.map(quad => this.serializeQuad(quad)).join('\n') : undefined,
       insert: this.serializeQuad(added),
     });
     for (const quad of removed) this.store.delete(quad);
     this.store.add(added);
-    this.principalRecords.set(record.iri, { ...record, label });
+    this.principalRecords.set(record.iri, { ...record, [field]: value });
   }
 
   /** The groups a user's last token carried, or undefined if none was seen. */

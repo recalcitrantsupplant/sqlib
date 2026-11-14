@@ -26,6 +26,35 @@ export interface QuerySignature {
   clauses: SignatureClause[];
   limitParameters: string[];
   offsetParameters: string[];
+  /**
+   * 1-based line of each named LIMIT / OFFSET clause, keyed by `scalarKey`.
+   * Advisory in the same way as `SignatureClause.line`: empty without the
+   * query text, and a parameter that is not found has no entry.
+   */
+  scalarLines: Record<string, number>;
+}
+
+/** The key for one named LIMIT / OFFSET parameter, such as `limit:1`. */
+export function scalarKey(kind: 'limit' | 'offset', name: string): string {
+  return `${kind}:${name}`;
+}
+
+/**
+ * Recover the line of each named LIMIT / OFFSET clause.
+ *
+ * A named clause is `LIMIT 000<name>` or `OFFSET 000<name>`, so `LIMIT 0001`
+ * names `1`. The first occurrence of a name gives its line; a name used twice
+ * is one parameter, and its first clause is where the reader looks for it.
+ */
+export function locateScalarParameters(queryText: string): Record<string, number> {
+  const lines: Record<string, number> = {};
+  queryText.split(/\r?\n/).forEach((text, index) => {
+    for (const match of text.matchAll(/\b(LIMIT|OFFSET)\s+000([A-Za-z0-9_]+)/gi)) {
+      const key = scalarKey(match[1].toLowerCase() as 'limit' | 'offset', match[2]);
+      lines[key] ??= index + 1;
+    }
+  });
+  return lines;
 }
 
 /** How well a set's bindings answer a signature. `mismatch` is greyed out. */
@@ -113,6 +142,7 @@ export function buildQuerySignature(
       : valuesInputs.map((variables) => ({ variables: variables.map(bareVariable) })),
     limitParameters: detected?.limitParameters ?? [],
     offsetParameters: detected?.offsetParameters ?? [],
+    scalarLines: queryText ? locateScalarParameters(queryText) : {},
   };
 }
 

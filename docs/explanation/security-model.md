@@ -114,9 +114,9 @@ only the versions it points to). Library modes never include them. See
 
 Library grants and backend grants are separate. `execute` on a library runs its
 saved entities, and each backend they run on needs its own backend grant. A
-`defaultBackend`, on a query or a library, is for the UI only. It chooses the
-backend that a client offers first, and it grants nothing. `/execute` never uses
-it as a fallback. A query run must name its `backendId`. All backend checks
+`defaultBackend`, on a query, a library or an environment, is for clients and
+published tools only. It chooses the backend that a client offers first, and it
+grants nothing. `/execute` never uses it as a fallback. A query run must name its `backendId`. All backend checks
 happen in `GuardedSparqlExecutor`, which wraps each executor that a request
 gets. A saved update reached through `/execute` therefore needs `update:saved`,
 the same as any other route.
@@ -250,11 +250,22 @@ auth backend, take effect within the cache time.
   access (each caller in `disabled` mode) or with the administrator grant. It
   also does not narrow its own internal queries (`{ internal: true }`). To see
   what a person would read, use `Test as` on the Access screen.
-- **Updates.** The policy narrows reads only. An update names its target graphs
-  in its own text, and the dataset parameters limit only the `WHERE` clause of
-  an update. sqlib does not narrow that `WHERE` clause either. The `update:*`
-  modes therefore allow writes to any graph of the backend. Give update modes
-  only to callers who can read and write the whole backend.
+- **Updates.** The policy narrows the `WHERE` clause of an update, as it
+  narrows a read. sqlib sends the narrowed dataset as `using-graph-uri` and
+  `using-named-graph-uri`, and does not change the update text. sqlib refuses
+  with `403` a policed update in these cases:
+  - The text has `USING`, `USING NAMED` or `WITH`, because the protocol does
+    not let a dataset replace those clauses
+    (`GRAPH_POLICY_UPDATE_NAMES_GRAPHS`).
+  - The text has `DELETE WHERE`, which cannot take a dataset
+    (`GRAPH_POLICY_UPDATE_DELETE_WHERE`).
+  - The backend cannot apply an update dataset, as with an in-process Oxigraph
+    0.5.13 store (`GRAPH_POLICY_UPDATE_UNSUPPORTED`).
+
+  The policy does not limit the graphs an update writes to: an
+  update names them in its own text. The `update:*` modes therefore allow
+  writes to any graph of the backend. Give update modes only to callers who can
+  write the whole backend.
 - **Browser backends and exported bundles.** These send queries from the
   browser directly to the endpoint, so sqlib never sees them.
 - **Data graphs.** An in-process backend loaded from data graphs has the same

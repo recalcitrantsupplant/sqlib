@@ -23,6 +23,7 @@ import type { Diagnostic } from './queryGroupCompatibility';
 import type { CanvasTemplate } from './canvasTemplates';
 import type { TupleDefinition, TupleEditorUpdatePayload } from '../types/tuple-editor';
 import type { VersionOption } from '../components/shared/VersionToolbar.vue';
+import type { EntityStamps } from '../lib/entityStamps';
 
 export type ApiClient = ReturnType<typeof useApiClient>;
 export type QueryGroupsStore = ReturnType<typeof useQueryGroupsStore>;
@@ -89,6 +90,8 @@ export interface VersionMeta {
   dateModified: string | null;
   /** The version's note, shown and edited on the Details version row. */
   comment: string | null;
+  /** The principal IRI that saved the version, where the server recorded one. */
+  createdBy: string | null;
 }
 
 export type NormalizedStartTuplePayload = {
@@ -319,6 +322,8 @@ export interface UseQueryGroupVersionsResult {
   loadVersionById: (groupId: string, versionId: string) => Promise<void>;
   /** Bumped each time a version has been put on the canvas. */
   loadCount: Ref<number>;
+  /** Start ports of the loaded version that were read as group inputs. A save writes them that way. */
+  legacyStartPortsConverted: Ref<string[]>;
   reloadVersionsAndSelect: (groupId: string, versionId: string | null, versions?: QueryGroupVersion[]) => Promise<void>;
   findVersionIdByNumber: (versionNumber: number | null) => string | null;
   setSelectedVersion: (versionId: string | null) => void;
@@ -341,6 +346,7 @@ export interface UseQueryGroupStateResult {
   queryGroupName: Ref<string>;
   queryGroupDescription: Ref<string>;
   queryGroupLibraryId: Ref<string>;
+  queryGroupStamps: Ref<EntityStamps>;
   versionComment: Ref<string>;
   isSaving: Ref<boolean>;
   isLoading: Ref<boolean>;

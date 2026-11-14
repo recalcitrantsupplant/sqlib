@@ -247,7 +247,7 @@ export function materialize(raw: RawCase): GeneratedCase {
     const target = externalOnlyHead ? oracleNodes[0] : oracleNodes[1];
     const slotVars = target.template.inputSlots[0];
     if (!externalOnlyHead) {
-      declaredPorts.push({ key: 'startParam', type: 'QueryOutputTuple', vars: slotVars, attachTo: START, attachAs: 'outputs' });
+      declaredPorts.push({ key: 'startParam', type: 'QueryInputTuple', vars: slotVars, attachTo: START, attachAs: 'outputs' });
       edges.push({
         from: START, to: target.key, flow: 'VARIABLE_BINDINGS',
         source: { declared: 'startParam' }, target: { node: target.key, input: 0 },

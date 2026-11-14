@@ -79,6 +79,7 @@ export function backendTypeKeyToIriSafe(key: string): BackendTypeValue | undefin
 export const QueryMethodIri = {
   post: sqlibQueryMethod.post,
   get: sqlibQueryMethod.get,
+  query: sqlibQueryMethod.query,
 } as const;
 
 export type QueryMethodKey = keyof typeof QueryMethodIri;

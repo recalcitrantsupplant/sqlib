@@ -1098,6 +1098,244 @@ describe('GraphBuilder', () => {
       expect(graph.edges.find((edge) => edge.id === edgeQueryId)?.dataFlowType).toBe('QUERY_ID');
       expect(graph.nodes.get(dynamicNodeId)?.raw['@type']).toBe('DynamicQueryNode');
     });
+
+    // The canvas writes a Start node port as a QueryInputTuple, because it is
+    // a group input. This check used to demand a QueryOutputTuple, so every
+    // QUERY_ID edge the canvas drew from the Start node failed at run time.
+    it('accepts a QUERY_ID edge from a Start node input tuple', () => {
+      const backendId = 'urn:backend:dynamic';
+      cache.set(backendId, { $id: backendId, '@type': 'Backend' });
+
+      const outputVarId = 'urn:var:queryId';
+      cache.set(outputVarId, { $id: outputVarId, '@type': 'QueryOutput', variableName: 'queryId' });
+      const tupleMemberId = 'urn:tuple:member:queryId';
+      cache.set(tupleMemberId, { $id: tupleMemberId, '@type': 'TupleMember', position: 0, variable: outputVarId });
+      const queryIdTupleId = 'urn:tuple:queryId';
+      cache.set(queryIdTupleId, { $id: queryIdTupleId, '@type': 'QueryInputTuple', memberEntries: [tupleMemberId] });
+
+      const queryIdInputId = 'urn:queryid:input';
+      cache.set(queryIdInputId, { $id: queryIdInputId, '@type': 'QueryIdInput' });
+
+      const selectQueryVersionId = 'urn:qv:dispatcher';
+      cache.set(selectQueryVersionId, {
+        $id: selectQueryVersionId,
+        '@type': 'QueryVersion',
+        queryString: 'SELECT ?queryId WHERE { VALUES (?queryId) {(<urn:sqlib:query:foo>)} }',
+        queryType: QueryTypeIri.select,
+      });
+
+      const dynamicQueryVersionId = 'urn:qv:dynamic';
+      cache.set(dynamicQueryVersionId, {
+        $id: dynamicQueryVersionId,
+        '@type': 'QueryVersion',
+        queryString: 'SELECT ?s WHERE { ?s ?p ?o }',
+        queryType: QueryTypeIri.select,
+      });
+
+      const selectorNodeId = 'urn:node:selector';
+      cache.set(selectorNodeId, {
+        $id: selectorNodeId,
+        '@type': 'QueryNode',
+        backendId,
+        queryId: selectQueryVersionId,
+        outputs: [queryIdTupleId],
+      });
+
+      // The dynamic node saves a result tuple so the EndNode has something
+      // to return; an EndNode fed only by control flow is rejected outright.
+      const dynamicOutVarId = 'urn:var:dynamic:s';
+      cache.set(dynamicOutVarId, { $id: dynamicOutVarId, '@type': 'QueryOutput', variableName: 's' });
+      const dynamicOutMemberId = 'urn:tuple:member:dynamic:s';
+      cache.set(dynamicOutMemberId, { $id: dynamicOutMemberId, '@type': 'TupleMember', position: 0, variable: dynamicOutVarId });
+      const dynamicOutTupleId = 'urn:tuple:dynamic:s';
+      cache.set(dynamicOutTupleId, { $id: dynamicOutTupleId, '@type': 'QueryOutputTuple', memberEntries: [dynamicOutMemberId] });
+
+      const dynamicNodeId = 'urn:node:dynamic';
+      cache.set(dynamicNodeId, {
+        $id: dynamicNodeId,
+        '@type': 'DynamicQueryNode',
+        backendId,
+        queryId: dynamicQueryVersionId,
+        inputs: [queryIdInputId],
+        outputs: [dynamicOutTupleId],
+      });
+
+      const startNodeId = 'urn:node:start:dynamic';
+      cache.set(startNodeId, {
+        $id: startNodeId,
+        '@type': 'StartNode',
+        outputs: [queryIdTupleId],
+      });
+
+      const endNodeId = 'urn:node:end:dynamic';
+      cache.set(endNodeId, {
+        $id: endNodeId,
+        '@type': 'EndNode',
+        inputs: [dynamicOutTupleId],
+      });
+
+      const edgeStart = 'urn:edge:start:dynamic';
+      const edgeQueryId = 'urn:edge:queryId';
+      const edgeEnd = 'urn:edge:end:dynamic';
+
+      cache.set(edgeStart, {
+        $id: edgeStart,
+        '@type': 'QueryEdge',
+        sourceNodeId: startNodeId,
+        targetNodeId: selectorNodeId,
+        dataFlowType: 'CONTROL_FLOW',
+      });
+
+      cache.set(edgeQueryId, {
+        $id: edgeQueryId,
+        '@type': 'QueryEdge',
+        sourceNodeId: startNodeId,
+        targetNodeId: dynamicNodeId,
+        dataFlowType: 'QUERY_ID',
+        sourceOutputId: queryIdTupleId,
+        targetInputId: queryIdInputId,
+      });
+
+      cache.set(edgeEnd, {
+        $id: edgeEnd,
+        '@type': 'QueryEdge',
+        sourceNodeId: dynamicNodeId,
+        targetNodeId: endNodeId,
+        dataFlowType: 'VARIABLE_BINDINGS',
+        sourceOutputId: dynamicOutTupleId,
+        targetInputId: dynamicOutTupleId,
+      });
+
+      const qgvId = 'urn:qgv:dynamic';
+      cache.set(qgvId, {
+        $id: qgvId,
+        '@type': 'QueryGroupVersion',
+        executionNodes: [startNodeId, selectorNodeId, dynamicNodeId, endNodeId],
+        edges: [edgeStart, edgeQueryId, edgeEnd],
+      });
+
+      const graph = graphBuilder.buildFromGroupVersionId(qgvId);
+      expect(graph.edges.find((edge) => edge.id === edgeQueryId)?.dataFlowType).toBe('QUERY_ID');
+      expect(graph.nodes.get(dynamicNodeId)?.raw['@type']).toBe('DynamicQueryNode');
+    });
+
+    // Versions saved before the writer checked Start ports keep running.
+    it('still runs a QUERY_ID edge from a Start port saved as a result tuple', () => {
+      const backendId = 'urn:backend:dynamic';
+      cache.set(backendId, { $id: backendId, '@type': 'Backend' });
+
+      const outputVarId = 'urn:var:queryId';
+      cache.set(outputVarId, { $id: outputVarId, '@type': 'QueryOutput', variableName: 'queryId' });
+      const tupleMemberId = 'urn:tuple:member:queryId';
+      cache.set(tupleMemberId, { $id: tupleMemberId, '@type': 'TupleMember', position: 0, variable: outputVarId });
+      const queryIdTupleId = 'urn:tuple:queryId';
+      cache.set(queryIdTupleId, { $id: queryIdTupleId, '@type': 'QueryOutputTuple', memberEntries: [tupleMemberId] });
+
+      const queryIdInputId = 'urn:queryid:input';
+      cache.set(queryIdInputId, { $id: queryIdInputId, '@type': 'QueryIdInput' });
+
+      const selectQueryVersionId = 'urn:qv:dispatcher';
+      cache.set(selectQueryVersionId, {
+        $id: selectQueryVersionId,
+        '@type': 'QueryVersion',
+        queryString: 'SELECT ?queryId WHERE { VALUES (?queryId) {(<urn:sqlib:query:foo>)} }',
+        queryType: QueryTypeIri.select,
+      });
+
+      const dynamicQueryVersionId = 'urn:qv:dynamic';
+      cache.set(dynamicQueryVersionId, {
+        $id: dynamicQueryVersionId,
+        '@type': 'QueryVersion',
+        queryString: 'SELECT ?s WHERE { ?s ?p ?o }',
+        queryType: QueryTypeIri.select,
+      });
+
+      const selectorNodeId = 'urn:node:selector';
+      cache.set(selectorNodeId, {
+        $id: selectorNodeId,
+        '@type': 'QueryNode',
+        backendId,
+        queryId: selectQueryVersionId,
+        outputs: [queryIdTupleId],
+      });
+
+      // The dynamic node saves a result tuple so the EndNode has something
+      // to return; an EndNode fed only by control flow is rejected outright.
+      const dynamicOutVarId = 'urn:var:dynamic:s';
+      cache.set(dynamicOutVarId, { $id: dynamicOutVarId, '@type': 'QueryOutput', variableName: 's' });
+      const dynamicOutMemberId = 'urn:tuple:member:dynamic:s';
+      cache.set(dynamicOutMemberId, { $id: dynamicOutMemberId, '@type': 'TupleMember', position: 0, variable: dynamicOutVarId });
+      const dynamicOutTupleId = 'urn:tuple:dynamic:s';
+      cache.set(dynamicOutTupleId, { $id: dynamicOutTupleId, '@type': 'QueryOutputTuple', memberEntries: [dynamicOutMemberId] });
+
+      const dynamicNodeId = 'urn:node:dynamic';
+      cache.set(dynamicNodeId, {
+        $id: dynamicNodeId,
+        '@type': 'DynamicQueryNode',
+        backendId,
+        queryId: dynamicQueryVersionId,
+        inputs: [queryIdInputId],
+        outputs: [dynamicOutTupleId],
+      });
+
+      const startNodeId = 'urn:node:start:dynamic';
+      cache.set(startNodeId, {
+        $id: startNodeId,
+        '@type': 'StartNode',
+        outputs: [queryIdTupleId],
+      });
+
+      const endNodeId = 'urn:node:end:dynamic';
+      cache.set(endNodeId, {
+        $id: endNodeId,
+        '@type': 'EndNode',
+        inputs: [dynamicOutTupleId],
+      });
+
+      const edgeStart = 'urn:edge:start:dynamic';
+      const edgeQueryId = 'urn:edge:queryId';
+      const edgeEnd = 'urn:edge:end:dynamic';
+
+      cache.set(edgeStart, {
+        $id: edgeStart,
+        '@type': 'QueryEdge',
+        sourceNodeId: startNodeId,
+        targetNodeId: selectorNodeId,
+        dataFlowType: 'CONTROL_FLOW',
+      });
+
+      cache.set(edgeQueryId, {
+        $id: edgeQueryId,
+        '@type': 'QueryEdge',
+        sourceNodeId: startNodeId,
+        targetNodeId: dynamicNodeId,
+        dataFlowType: 'QUERY_ID',
+        sourceOutputId: queryIdTupleId,
+        targetInputId: queryIdInputId,
+      });
+
+      cache.set(edgeEnd, {
+        $id: edgeEnd,
+        '@type': 'QueryEdge',
+        sourceNodeId: dynamicNodeId,
+        targetNodeId: endNodeId,
+        dataFlowType: 'VARIABLE_BINDINGS',
+        sourceOutputId: dynamicOutTupleId,
+        targetInputId: dynamicOutTupleId,
+      });
+
+      const qgvId = 'urn:qgv:dynamic';
+      cache.set(qgvId, {
+        $id: qgvId,
+        '@type': 'QueryGroupVersion',
+        executionNodes: [startNodeId, selectorNodeId, dynamicNodeId, endNodeId],
+        edges: [edgeStart, edgeQueryId, edgeEnd],
+      });
+
+      const graph = graphBuilder.buildFromGroupVersionId(qgvId);
+      expect(graph.edges.find((edge) => edge.id === edgeQueryId)?.dataFlowType).toBe('QUERY_ID');
+      expect(graph.nodes.get(dynamicNodeId)?.raw['@type']).toBe('DynamicQueryNode');
+    });
   });
 
   describe('structured validation errors', () => {

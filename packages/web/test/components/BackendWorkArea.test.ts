@@ -55,6 +55,8 @@ const api = vi.hoisted(() => ({
   listQueries: vi.fn(),
   getQuery: vi.fn(),
   updateQuery: vi.fn(),
+  listEnvironments: vi.fn(),
+  updateEnvironment: vi.fn(),
 }));
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
 
@@ -138,6 +140,7 @@ describe('BackendWorkArea', () => {
       { id: 'dg:regions', name: 'Regions', description: null, currentVersion: 'dgv:regions:1', currentVersionNumber: 1, isPartOf: ['lib:qa'] },
     ]);
     api.listQueries.mockResolvedValue([]);
+    api.listEnvironments.mockResolvedValue([]);
     api.getQuery.mockImplementation(async (id: string) => ({
       data: { id, name: id, isPartOf: ['lib:qa'], defaultBackend: null, dateModified: '2026-08-01T00:00:00.000Z' },
       etag: '"q"',
@@ -154,7 +157,7 @@ describe('BackendWorkArea', () => {
     ]);
   });
 
-  it('reads the record: name, health, environment variables and usage', async () => {
+  it('reads the record: name, health, environment variables and defaults', async () => {
     const wrapper = await mountRecord();
 
     expect(wrapper.find('[data-testid="backend-record-name"]').text()).toBe('Wikidata Public');
@@ -163,12 +166,9 @@ describe('BackendWorkArea', () => {
     expect(wrapper.find('[data-testid="backend-probe-summary"]').text()).toContain('never probed');
     expect(wrapper.find('[data-testid="backend-env-table"]').text()).toContain('SQLIB_BACKEND_WIKIDATA_PUBLIC_USERNAME');
     expect(wrapper.find('[data-testid="backend-env-table"]').text()).toContain('not set');
-    // Rows, not tiles, and no libraries row — the card above already lists them.
-    expect(wrapper.findAll('[data-testid="usage-row"]').map((row) => row.find('.usage-label').text()))
-      .toEqual(['Queries', 'Query groups', 'Benchmarks']);
-    expect(wrapper.findAll('[data-testid="usage-row"]').map((row) => row.find('.usage-count').text()))
-      .toEqual(['41', '6', '3']);
     expect(wrapper.find('[data-testid="attached-library"]').text()).toContain('Ontology QA');
+    // The reference counts moved to the delete confirm; there is no second card.
+    expect(wrapper.find('[data-testid="usage-row"]').exists()).toBe(false);
   });
 
   it('commits one field on its own, with no page-level save', async () => {
@@ -313,23 +313,6 @@ describe('BackendWorkArea', () => {
     expect(wrapper.find('[data-testid="probe-history-list"]').text()).toContain('HTTP 403 Forbidden');
   });
 
-  it('follows a Used by row to the list that holds them, and leaves zeroes inert', async () => {
-    const wrapper = await mountRecord();
-    const rows = wrapper.findAll('[data-testid="usage-row"]');
-
-    await rows[0].trigger('click');
-    expect(wrapper.emitted('open-usage')?.[0]).toEqual(['queries']);
-
-    api.getBackendUsage.mockResolvedValue({
-      queries: { count: 0, sample: [] },
-      queryGroups: { count: 0, sample: [] },
-      benchmarks: { count: 0, sample: [] },
-      libraries: { count: 0, sample: [] },
-    });
-    const empty = await mountRecord();
-    expect(empty.find('[data-testid="usage-row"]').attributes('disabled')).toBeDefined();
-  });
-
   it('creates an in-memory backend hydrated from a data graph', async () => {
     const wrapper = await mountRecord({ backendId: null, draft: true });
 
@@ -470,7 +453,8 @@ describe('BackendWorkArea', () => {
     it('lists the libraries, queries and ETL jobs that default here, by kind', async () => {
       const wrapper = await mountRecord();
 
-      expect(wrapper.findAll('[data-testid="attached-library"]').map((chip) => chip.text())).toEqual(['Ontology QA']);
+      expect(wrapper.findAll('[data-testid="attached-library"]').map((chip) => chip.text())).toEqual(['Ontology QA all']);
+      expect(wrapper.find('[data-testid="default-for-library"]').text()).toContain('Libraries 1');
       expect(wrapper.findAll('[data-testid="default-for-chip-query"]').map((chip) => chip.text()))
         .toEqual(['Cities in a country']);
       expect(wrapper.findAll('[data-testid="default-for-chip-etlJob"]').map((chip) => chip.text()))
@@ -479,15 +463,16 @@ describe('BackendWorkArea', () => {
       expect(wrapper.find('.card-empty').exists()).toBe(false);
     });
 
-    it('shows five of a kind, then a count that opens the rest', async () => {
+    it('shows one of a kind with its count, then a button that opens the rest', async () => {
       api.listQueries.mockResolvedValue(
         Array.from({ length: 8 }, (_, i) => ({ id: `q:${i}`, name: `Query ${i}`, isPartOf: ['lib:qa'], defaultBackend: backend.id })),
       );
       const wrapper = await mountRecord();
 
-      expect(wrapper.findAll('[data-testid="default-for-chip-query"]')).toHaveLength(5);
+      expect(wrapper.findAll('[data-testid="default-for-chip-query"]')).toHaveLength(1);
+      expect(wrapper.find('[data-testid="default-for-query"] [data-testid="default-for-count"]').text()).toBe('8');
       const more = wrapper.find('[data-testid="default-for-more-query"]');
-      expect(more.text()).toBe('+3 more');
+      expect(more.text()).toBe('+7 more');
       expect(wrapper.find('[data-testid="default-for-more-library"]').exists()).toBe(false);
 
       await more.trigger('click');
@@ -500,7 +485,8 @@ describe('BackendWorkArea', () => {
       await openAddMenu(wrapper);
 
       const names = (kind: string) =>
-        wrapper.findAll(`[data-testid="default-for-option-${kind}"]`).map((item) => item.find('.default-for-option-name').text());
+        wrapper.findAll(`[data-testid="default-for-option-${kind === 'library' ? 'library-row' : kind}"]`)
+          .map((item) => item.find('.default-for-option-name').text());
       expect(names('library')).toEqual(['Other']);
       expect(names('query')).toEqual(['Rivers', 'Lakes']);
       expect(names('etlJob')).toEqual(['Load regions']);
@@ -584,6 +570,55 @@ describe('BackendWorkArea', () => {
 
       expect(api.updateLibrary).toHaveBeenCalledTimes(1);
       expect(api.updateLibrary.mock.calls[0][1]).toMatchObject({ defaultBackend: null });
+    });
+
+    describe('per environment', () => {
+      const prod = { id: 'env:prod', name: 'prod', isPartOf: 'lib:other', position: 2, defaultBackend: backend.id };
+      const dev = { id: 'env:dev', name: 'dev', isPartOf: 'lib:other', position: 0, defaultBackend: null };
+
+      beforeEach(() => {
+        api.listEnvironments.mockResolvedValue([dev, prod]);
+        api.updateEnvironment.mockImplementation(async (id: string, input: Record<string, unknown>) => ({
+          data: { ...(id === dev.id ? dev : prod), ...input },
+          etag: '"e"',
+        }));
+      });
+
+      it('lists a library default for one environment with that environment, before library-wide ones', async () => {
+        const wrapper = await mountRecord();
+
+        expect(api.listEnvironments).toHaveBeenCalledWith(null);
+        expect(wrapper.find('[data-testid="default-for-library"] [data-testid="default-for-count"]').text()).toBe('2');
+        await wrapper.find('[data-testid="default-for-more-library"]').trigger('click');
+        expect(wrapper.findAll('[data-testid="attached-library"]').map((chip) => chip.text()))
+          .toEqual(['Other prod', 'Ontology QA all']);
+      });
+
+      it('offers each environment of a library, and sets the default of the one picked', async () => {
+        const wrapper = await mountRecord();
+        await openAddMenu(wrapper);
+
+        const row = wrapper.findAll('[data-testid="default-for-option-library-row"]')
+          .find((candidate) => candidate.find('.default-for-option-name').text() === 'Other');
+        expect(row?.findAll('.env-choice').map((choice) => choice.text())).toEqual(['all', 'dev', 'prod']);
+        const devChoice = row!.findAll('[data-testid="default-for-option-environment"]')
+          .find((choice) => choice.text() === 'dev');
+        await devChoice!.trigger('click');
+        await flushPromises();
+
+        expect(api.updateEnvironment).toHaveBeenCalledWith('env:dev', { defaultBackend: backend.id });
+        await closeAddMenu(wrapper);
+      });
+
+      it('clears an environment default from its chip without a confirm', async () => {
+        const wrapper = await mountRecord();
+
+        await wrapper.find('[data-testid="default-for-remove-environment"]').trigger('click');
+        await flushPromises();
+
+        expect(api.updateEnvironment).toHaveBeenCalledWith('env:prod', { defaultBackend: null });
+        expect(document.body.textContent).not.toContain('Stop defaulting');
+      });
     });
   });
 

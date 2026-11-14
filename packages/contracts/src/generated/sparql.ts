@@ -20,7 +20,7 @@ export const sparqlRequestSchema = z
     query: z.string().min(1, 'Query is required'),
     backendId: iriString.optional(),
     endpoint: z.string().url('Endpoint must be a valid URL').optional(),
-    queryMethod: z.enum(['get', 'post']).optional(),
+    queryMethod: z.enum(['get', 'post', 'query']).optional(),
     // The execution payload, reused rather than restated: a raw query runs its
     // arguments through the same substitution a stored one does.
     arguments: z.array(executionArgumentSchema).optional(),

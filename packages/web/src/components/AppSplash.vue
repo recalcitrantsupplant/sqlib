@@ -48,6 +48,7 @@
           <span class="command-placeholder">Run, open or create anything…</span>
           <span class="command-key">{{ paletteBinding }}</span>
         </button>
+        <SplashLatencyNotice />
       </header>
 
       <section class="grid" aria-label="What this library holds">
@@ -243,6 +244,7 @@ import LibraryExportDialog from './LibraryExportDialog.vue';
 import SplashCountCard from './splash/SplashCountCard.vue';
 import SplashActivityLog from './splash/SplashActivityLog.vue';
 import SplashStatusStrip, { type StripFact } from './splash/SplashStatusStrip.vue';
+import SplashLatencyNotice from './splash/SplashLatencyNotice.vue';
 import { RAIL_ENTRIES } from '../lib/railEntries';
 import type { RailSection } from '../lib/railSections';
 import { formatBinding } from '../lib/keys';

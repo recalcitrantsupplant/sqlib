@@ -46,6 +46,7 @@ export const backendSchema = {
       "enum": [
         "post",
         "get",
+        "query",
         null
       ],
       "nullable": true
@@ -2991,6 +2992,10 @@ export const patchSchema = {
       "type": "string",
       "nullable": true
     },
+    "updateDataset": {
+      "type": "string",
+      "nullable": true
+    },
     "inverseOf": {
       "type": "string",
       "format": "iri",
@@ -3041,6 +3046,64 @@ export const patchSchema = {
     "revertible",
     "contentHash",
     "sourceKind"
+  ]
+} as const;
+
+export const pointermoveSchema = {
+  "$id": "pointermove",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "movedEntity": {
+      "type": "string",
+      "format": "iri"
+    },
+    "fromVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "toVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "movedEntity"
   ]
 } as const;
 
@@ -5412,6 +5475,7 @@ export interface PatchRestApi {
   sourceKind: string;
   sourceRef?: string | null;
   updateString?: string | null;
+  updateDataset?: string | null;
   inverseOf?: string | null;
   origin?: string | null;
   dateCreated?: string | null;
@@ -5419,6 +5483,18 @@ export interface PatchRestApi {
   createdBy?: string | null;
   modifiedBy?: string | null;
   dateApplied?: string | null;
+}
+
+export interface PointerMoveRestApi {
+  id: string;
+  isPartOf: string;
+  movedEntity: string;
+  fromVersion?: string | null;
+  toVersion?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface QueryEdgeRestApi {

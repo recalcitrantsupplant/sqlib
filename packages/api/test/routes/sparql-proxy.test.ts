@@ -12,6 +12,7 @@ const hoisted = vi.hoisted(() => {
     selectQueryStream: vi.fn(),
     constructQueryStream: vi.fn(),
     executorConfig: {},
+    supportsUpdateDataset: true,
   });
 
   return {
@@ -132,7 +133,7 @@ describe('SPARQL proxy routes', () => {
     expect(res.statusCode).toBe(204);
     expect(res.headers['server-timing']).toMatch(/db;dur=12\.34/);
     expect(res.body).toBe('');
-    expect(hoisted.executorInstance.update).toHaveBeenCalledWith('INSERT DATA { <http://example.org/s> <http://example.org/p> <http://example.org/o> }');
+    expect(hoisted.executorInstance.update).toHaveBeenCalledWith('INSERT DATA { <http://example.org/s> <http://example.org/p> <http://example.org/o> }', { dataset: undefined });
   });
 
   it('POST /sparql handles SELECT queries with PREFIX declarations', async () => {
@@ -174,7 +175,7 @@ describe('SPARQL proxy routes', () => {
     expect(res.statusCode).toBe(204);
     expect(res.headers['server-timing']).toMatch(/db;dur=12\.34/);
     expect(res.body).toBe('');
-    expect(hoisted.executorInstance.update).toHaveBeenCalledWith('LOAD <http://example.org/data.ttl> INTO GRAPH <http://example.org/graph>');
+    expect(hoisted.executorInstance.update).toHaveBeenCalledWith('LOAD <http://example.org/data.ttl> INTO GRAPH <http://example.org/graph>', { dataset: undefined });
   });
 
   it('GET /sparql refuses an UPDATE with 405, before resolving a backend', async () => {
@@ -595,18 +596,34 @@ describe('SPARQL proxy routes', () => {
       expect(hoisted.executorInstance.selectQueryParsed).not.toHaveBeenCalled();
     });
 
-    it('refuses a dataset on an update with 400', async () => {
+    it('passes a dataset on an update to the executor', async () => {
+      hoisted.executorInstance.update.mockResolvedValue({ result: undefined, duration: 1 });
+      const query = 'DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }';
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sparql',
+        payload: { query, backendId: 'urn:backend:1', defaultGraphs: ['http://example.org/a'] },
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(hoisted.executorInstance.update).toHaveBeenCalledWith(query, {
+        dataset: { defaultGraphs: ['http://example.org/a'] },
+      });
+    });
+
+    it('refuses a dataset on an update that has USING or WITH, with 400', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/sparql',
         payload: {
-          query: 'INSERT DATA { <http://example.org/s> <http://example.org/p> <http://example.org/o> }',
+          query: 'DELETE { ?s ?p ?o } USING <http://example.org/b> WHERE { ?s ?p ?o }',
           backendId: 'urn:backend:1',
           defaultGraphs: ['http://example.org/a'],
         },
       });
 
       expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/USING, USING NAMED or WITH/);
       expect(hoisted.executorInstance.update).not.toHaveBeenCalled();
     });
   });

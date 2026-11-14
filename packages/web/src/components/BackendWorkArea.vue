@@ -324,7 +324,7 @@
                 <span class="field-name">
                   Query method
                   <InfoHint label="query method">
-                    POST is the standard. Use GET only for endpoints with SSL or query-size limits.
+                    POST is the standard. Use GET only for endpoints with SSL or query-size limits. QUERY reads with the HTTP QUERY method, and uses POST where the endpoint refuses it.
                   </InfoHint>
                 </span>
                 <div class="field-value">
@@ -455,33 +455,36 @@
             </section>
 
             <section class="sidecar-card" data-testid="default-for-card">
-              <h2 class="backend-section-label">
-                Default backend for
-                <InfoHint label="default backend for">
-                  The libraries, queries and ETL jobs that run here unless told otherwise. A query with
-                  no default of its own uses its library's. Members can run against it; they cannot see
-                  the endpoint URL or change it.
-                </InfoHint>
-              </h2>
+              <h2 class="backend-section-label">Default backend for</h2>
               <p v-if="defaultForCount === 0" class="card-empty">Nothing defaults to this backend.</p>
               <template v-for="group in defaultForGroups" :key="group.kind">
                 <div v-if="group.entries.length > 0" class="default-for-group" :data-testid="`default-for-${group.kind}`">
-                  <InlineNote as="span" size="xs">{{ group.label }}</InlineNote>
+                  <span class="default-for-facet">
+                    {{ group.label }}
+                    <span class="default-for-count" data-testid="default-for-count">{{ group.entries.length }}</span>
+                  </span>
                   <div class="chip-row">
                     <span
                       v-for="entry in shownEntries(group)"
-                      :key="entry.id"
+                      :key="entryKey(entry)"
                       class="chip"
                       :title="entry.hint ?? undefined"
                       :data-testid="group.kind === 'library' ? 'attached-library' : `default-for-chip-${group.kind}`"
                     >
                       {{ entry.name }}
+                      <StatusBadge
+                        v-if="group.kind === 'library'"
+                        :tone="entry.kind === 'environment' ? 'action' : 'neutral'"
+                        size="xs"
+                        :dot="false"
+                        data-testid="default-for-environment"
+                      >{{ entry.kind === 'environment' ? entry.environmentName : 'all' }}</StatusBadge>
                       <button
                         v-if="canAssignDefaults"
                         class="chip-remove"
-                        :title="`Stop defaulting ${entry.name} to this backend`"
-                        :aria-label="`Stop defaulting ${entry.name} to this backend`"
-                        :data-testid="`default-for-remove-${group.kind}`"
+                        :title="`Stop defaulting ${entryLabel(entry)} to this backend`"
+                        :aria-label="`Stop defaulting ${entryLabel(entry)} to this backend`"
+                        :data-testid="`default-for-remove-${entry.kind}`"
                         @click="requestRemoveDefault(entry)"
                       >
                         <X :size="12" />
@@ -518,6 +521,37 @@
                       data-testid="default-for-filter"
                       @keydown="onAddFilterKeydown"
                     />
+                    <template v-if="addableLibraries.length > 0">
+                      <SectionLabel class="default-for-menu-label">Libraries</SectionLabel>
+                      <div
+                        v-for="match in addableLibraries"
+                        :key="match.item.id"
+                        class="default-for-library-row"
+                        data-testid="default-for-option-library-row"
+                      >
+                        <span class="default-for-option-name">
+                          <template v-for="(segment, index) in match.segments" :key="index">
+                            <mark v-if="segment.matched" class="default-for-hit">{{ segment.text }}</mark>
+                            <template v-else>{{ segment.text }}</template>
+                          </template>
+                        </span>
+                        <span class="default-for-env-choices">
+                          <DropdownMenuItem
+                            v-for="target in match.item.targets"
+                            :key="entryKey(target)"
+                            class="env-choice"
+                            :disabled="target.defaultBackend === backend.id"
+                            :title="target.defaultBackend && target.defaultBackend !== backend.id
+                              ? `Now ${backendName(target.defaultBackend)}`
+                              : undefined"
+                            :data-testid="target.kind === 'library' ? 'default-for-option-library' : 'default-for-option-environment'"
+                            @select="requestAddDefault(target)"
+                          >
+                            {{ target.kind === 'environment' ? target.environmentName : 'all' }}
+                          </DropdownMenuItem>
+                        </span>
+                      </div>
+                    </template>
                     <template v-for="group in addableGroups" :key="group.kind">
                       <template v-if="group.matches.length > 0">
                         <SectionLabel class="default-for-menu-label">{{ group.label }}</SectionLabel>
@@ -545,30 +579,6 @@
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </section>
-
-            <section class="sidecar-card">
-              <h2 class="backend-section-label">
-                Used by
-                <InfoHint label="used by">
-                  Counted across every library. Rule sets are absent because nothing in a rule set names
-                  a backend — it borrows one at execution time.
-                </InfoHint>
-              </h2>
-              <button
-                v-for="row in usageRows"
-                :key="row.section"
-                class="usage-row"
-                :class="{ 'usage-row--empty': row.count === 0 }"
-                :disabled="row.count === 0"
-                :title="row.title"
-                data-testid="usage-row"
-                @click="emit('open-usage', row.section)"
-              >
-                <span class="usage-label">{{ row.label }}</span>
-                <span class="usage-count">{{ row.count }}</span>
-                <ChevronRight :size="13" class="usage-chevron" />
-              </button>
             </section>
           </aside>
         </div>
@@ -642,7 +652,7 @@
     <AlertDialog v-model:open="replaceConfirmOpen">
       <AlertDialogContent data-testid="replace-default-dialog">
         <AlertDialogHeader>
-          <AlertDialogTitle>Change the default backend of “{{ replaceTarget?.name }}”?</AlertDialogTitle>
+          <AlertDialogTitle>Change the default backend of “{{ replaceTarget ? entryLabel(replaceTarget) : '' }}”?</AlertDialogTitle>
           <AlertDialogDescription>
             {{ replaceWarning }}
           </AlertDialogDescription>
@@ -662,7 +672,6 @@ import {
   Activity,
   AlertTriangle,
   Check,
-  ChevronRight,
   CircleCheck,
   CircleHelp,
   Copy,
@@ -673,7 +682,7 @@ import {
   X,
 } from '@lucide/vue';
 import { toast } from 'vue-sonner';
-import type { Backend } from '@sparql-query-lib/contracts';
+import type { Backend, Environment } from '@sparql-query-lib/contracts';
 import {
   EPHEMERAL_BACKEND_ID,
   buildBackendAuthEnvVarNames,
@@ -709,7 +718,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { useApiClient, type BackendEnv, type BackendProbe, type BackendUsage } from '../composables/useApiClient';
+import { useApiClient, type BackendEnv, type BackendProbe } from '../composables/useApiClient';
+import { useActiveEnvironment } from '../composables/useActiveEnvironment';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { isBrowserBackendId, useBrowserBackends, type BrowserBackendInput } from '../composables/useBrowserBackends';
@@ -747,13 +757,12 @@ const emit = defineEmits<{
   (e: 'discard-draft'): void;
   (e: 'draft-name', name: string): void;
   (e: 'delete-request', payload: { backendId: string; backendName: string }): void;
-  /** A Used by row was followed — the rail section that lists that kind. */
-  (e: 'open-usage', section: 'queries' | 'queryGroups' | 'benchmarks'): void;
 }>();
 
 const QUERY_METHODS = [
   { value: 'post' as const, label: 'POST (recommended)' },
   { value: 'get' as const, label: 'GET (for compatibility)' },
+  { value: 'query' as const, label: 'QUERY' },
 ];
 
 const BACKEND_KINDS = [
@@ -835,7 +844,6 @@ const testing = ref(false);
 const env = ref<BackendEnv | null>(null);
 const envLoading = ref(false);
 const envError = ref<string | null>(null);
-const usage = ref<BackendUsage | null>(null);
 const probeHistory = ref<BackendProbe[]>([]);
 const historyOpen = ref(false);
 
@@ -885,38 +893,15 @@ const healthMessage = computed(() => {
 const envVariables = computed(() => env.value?.variables ?? []);
 
 /*
- * Rows, not tiles, and no libraries row: the section directly above already
- * names every library defaulting here, so a tile counting them was the same fact told
- * twice. A row with a zero is dimmed and inert — there is nothing to open.
- */
-const usageRows = computed(() => {
-  const groups = usage.value;
-  const describe = (
-    section: 'queries' | 'queryGroups' | 'benchmarks',
-    label: string,
-    group: { count: number; sample: Array<{ name: string }> } | undefined,
-  ) => ({
-    section,
-    label,
-    count: group?.count ?? 0,
-    title: group && group.sample.length > 0
-      ? `${group.sample.map((entry) => entry.name).join(', ')}${group.count > group.sample.length ? ', …' : ''}`
-      : `Nothing here uses this backend`,
-  });
-  return [
-    describe('queries', 'Queries', groups?.queries),
-    describe('queryGroups', 'Query groups', groups?.queryGroups),
-    describe('benchmarks', 'Benchmarks', groups?.benchmarks),
-  ];
-});
-
-/*
  * "Default backend for" is every `defaultBackend` pointer aimed at this
- * backend — a library's, a query's or an ETL job's. Those pointers are the only
- * backend↔entity relation the model has, so adding one here means "make this
- * the entity's default", and removing one clears it.
+ * backend: a library's, an environment's, a query's or an ETL job's. Adding
+ * one here makes this the entity's default, and removing one clears it. An
+ * environment belongs to one library, so its default reads as "library X in
+ * environment Y" and is listed with the libraries; a library's own default
+ * applies to every environment that names none, and shows as "all".
  */
-type DefaultKind = 'library' | 'query' | 'etlJob';
+type DefaultKind = 'library' | 'environment' | 'query' | 'etlJob';
+type FacetKind = 'library' | 'query' | 'etlJob';
 
 interface DefaultEntry {
   kind: DefaultKind;
@@ -925,13 +910,21 @@ interface DefaultEntry {
   /** Which libraries it sits in, for telling two same-named queries apart. */
   hint: string | null;
   defaultBackend: string | null;
+  /** For an environment: its name, and the library it belongs to. */
+  environmentName?: string;
+  libraryId?: string;
 }
 
-const DEFAULT_KINDS: Array<{ kind: DefaultKind; label: string }> = [
+const FACETS: Array<{ kind: FacetKind; label: string }> = [
   { kind: 'library', label: 'Libraries' },
   { kind: 'query', label: 'Queries' },
   { kind: 'etlJob', label: 'ETL jobs' },
 ];
+
+const facetOf = (kind: DefaultKind): FacetKind => (kind === 'environment' ? 'library' : kind);
+const entryKey = (entry: DefaultEntry) => `${entry.kind}:${entry.id}`;
+const entryLabel = (entry: DefaultEntry) =>
+  entry.kind === 'environment' ? `${entry.name} in ${entry.environmentName}` : entry.name;
 
 const visibleLibraryIds = computed(() => new Set(librariesStore.visibleLibraries.value.map((library) => library.id)));
 const libraryNames = computed(
@@ -953,14 +946,45 @@ function hintFor(parents: string[] | undefined): string | null {
   return names.length > 0 ? names.join(', ') : null;
 }
 
-const defaultEntries = computed<DefaultEntry[]>(() => [
-  ...librariesStore.visibleLibraries.value.map((library) => ({
+/** Every environment the caller can read, across libraries. */
+const environments = ref<Environment[]>([]);
+
+async function loadEnvironments() {
+  try {
+    environments.value = await client.listEnvironments(null);
+  } catch {
+    // A server without environments, or a caller who cannot list them.
+    environments.value = [];
+  }
+}
+
+const libraryEntries = computed<DefaultEntry[]>(() =>
+  librariesStore.visibleLibraries.value.map((library) => ({
     kind: 'library' as const,
     id: library.id,
     name: library.name,
     hint: null,
     defaultBackend: library.defaultBackend ?? null,
   })),
+);
+
+const environmentEntries = computed<DefaultEntry[]>(() =>
+  environments.value
+    .filter((env) => visibleLibraryIds.value.has(env.isPartOf))
+    .map((env) => ({
+      kind: 'environment' as const,
+      id: env.id,
+      name: libraryNames.value.get(env.isPartOf) ?? env.isPartOf,
+      hint: null,
+      defaultBackend: env.defaultBackend ?? null,
+      environmentName: env.name,
+      libraryId: env.isPartOf,
+    })),
+);
+
+const defaultEntries = computed<DefaultEntry[]>(() => [
+  ...libraryEntries.value,
+  ...environmentEntries.value,
   ...queriesStore.queries.value
     .filter((query) => isVisibleMember(query.isPartOf))
     .map((query) => ({
@@ -981,19 +1005,30 @@ const defaultEntries = computed<DefaultEntry[]>(() => [
     })),
 ]);
 
+/*
+ * In the Libraries facet, environment defaults first, sorted by library and
+ * then by the environment's place in the chain; library-wide defaults last.
+ */
 const defaultForGroups = computed(() =>
-  DEFAULT_KINDS.map(({ kind, label }) => ({
+  FACETS.map(({ kind, label }) => ({
     kind,
     label,
-    entries: defaultEntries.value.filter((entry) => entry.kind === kind && entry.defaultBackend === backend.value?.id),
+    entries: defaultEntries.value
+      .filter((entry) => facetOf(entry.kind) === kind && entry.defaultBackend === backend.value?.id)
+      .sort((a, b) => {
+        if (kind !== 'library') return 0;
+        if (a.kind !== b.kind) return a.kind === 'environment' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      }),
   })),
 );
 
 /*
- * Five of each kind, then a count: a backend that dozens of queries default to
- * otherwise pushes the rest of the sidecar off the screen.
+ * One of each kind, then a count that opens the rest in place: a backend that
+ * dozens of queries default to otherwise pushes the rest of the sidecar off
+ * the screen.
  */
-const DEFAULT_FOR_SHOWN = 5;
+const DEFAULT_FOR_SHOWN = 1;
 const expandedDefaultFor = ref(new Set<string>());
 
 function shownEntries<T>(group: { kind: string; entries: T[] }): T[] {
@@ -1024,8 +1059,28 @@ const addMenuOpen = ref(false);
 const addFilter = ref('');
 const addFilterInput = ref<HTMLInputElement | null>(null);
 
+/*
+ * A library is one row in the Add menu, with a choice per target: "all" for
+ * the library's own default, then each of its environments in chain order.
+ */
+const addableLibraries = computed(() => {
+  const targets = libraryEntries.value.map((library) => ({
+    id: library.id,
+    name: library.name,
+    targets: [
+      library,
+      ...environmentEntries.value.filter((env) => env.libraryId === library.id),
+    ],
+  }));
+  return fuzzyFilter(
+    addFilter.value,
+    targets.filter((library) => library.targets.some((target) => target.defaultBackend !== backend.value?.id)),
+    (library) => library.name,
+  );
+});
+
 const addableGroups = computed(() =>
-  DEFAULT_KINDS.map(({ kind, label }) => ({
+  FACETS.filter(({ kind }) => kind !== 'library').map(({ kind, label }) => ({
     kind,
     label,
     matches: fuzzyFilter(
@@ -1037,7 +1092,7 @@ const addableGroups = computed(() =>
 );
 
 const addableCount = computed(() =>
-  addableGroups.value.reduce((total, group) => total + group.matches.length, 0),
+  addableLibraries.value.length + addableGroups.value.reduce((total, group) => total + group.matches.length, 0),
 );
 
 watch(addMenuOpen, (open) => {
@@ -1067,7 +1122,10 @@ function onAddFilterKeydown(event: KeyboardEvent) {
   }
   if (event.key === 'Enter') {
     event.preventDefault();
-    const first = addableGroups.value.find((group) => group.matches.length > 0)?.matches[0]?.item;
+    const firstLibrary = addableLibraries.value[0]?.item.targets.find(
+      (target) => target.defaultBackend !== backend.value?.id,
+    );
+    const first = firstLibrary ?? addableGroups.value.find((group) => group.matches.length > 0)?.matches[0]?.item;
     if (!first) return;
     addMenuOpen.value = false;
     requestAddDefault(first);
@@ -1127,19 +1185,10 @@ async function loadEnv(id: string) {
   }
 }
 
-async function loadUsage(id: string) {
-  try {
-    usage.value = await client.getBackendUsage(id);
-  } catch {
-    usage.value = null;
-  }
-}
-
 watch(
   () => props.backendId,
   async (id) => {
     env.value = null;
-    usage.value = null;
     probeHistory.value = [];
     historyOpen.value = false;
     if (!id) {
@@ -1152,8 +1201,8 @@ watch(
     if (isBrowserBackendId(id)) return;
     // No wire, no credentials — the env table only means something over HTTP.
     if (backend.value.backendType === 'http') void loadEnv(id);
-    void loadUsage(id);
     void librariesStore.loadLibraries();
+    void loadEnvironments();
     void loadDefaultCandidates();
   },
   { immediate: true }
@@ -1252,7 +1301,7 @@ async function commitSources(payload: { sources: MemoryStoreSource[]; complete: 
   await commitMemoryConfig(memoryConfig.value.mode, payload.sources);
 }
 
-async function commitQueryMethod(method: 'post' | 'get') {
+async function commitQueryMethod(method: 'post' | 'get' | 'query') {
   const current = backend.value;
   if (!current || !canEdit.value || (current.queryMethod ?? 'post') === method) return;
   if (isBrowserBackendId(current.id)) {
@@ -1355,9 +1404,9 @@ const replaceWarning = computed(() => {
   if (!target) return '';
   const here = backendName(backend.value?.id);
   const base = `It currently defaults to ${replaceOldName.value}. It will default to ${here} instead.`;
-  return target.kind === 'library'
-    ? `${base} Queries in it without a default of their own will run on ${here}.`
-    : base;
+  if (target.kind === 'library') return `${base} Queries in it without a default of their own will run on ${here}.`;
+  if (target.kind === 'environment') return `${base} Queries in it will run on ${here} in ${target.environmentName}.`;
+  return base;
 });
 
 async function loadDefaultCandidates() {
@@ -1399,14 +1448,28 @@ async function setQueryBackend(id: string, backendId: string | null) {
   }
 }
 
-const KIND_NOUN: Record<DefaultKind, string> = { library: 'library', query: 'query', etlJob: 'ETL job' };
+const KIND_NOUN: Record<DefaultKind, string> = {
+  library: 'library',
+  environment: 'environment',
+  query: 'query',
+  etlJob: 'ETL job',
+};
+
+const activeEnvironment = useActiveEnvironment();
+
+async function setEnvironmentBackend(id: string, backendId: string | null) {
+  const { data: updated } = await client.updateEnvironment(id, { defaultBackend: backendId });
+  environments.value = environments.value.map((env) => (env.id === id ? { ...env, ...updated } : env));
+  // The run bar reads the active library's environments; they changed.
+  void activeEnvironment.reload();
+}
 
 async function applyDefault(entry: DefaultEntry, backendId: string | null) {
   try {
     if (entry.kind === 'library') await setLibraryBackend(entry.id, backendId);
+    else if (entry.kind === 'environment') await setEnvironmentBackend(entry.id, backendId);
     else if (entry.kind === 'query') await setQueryBackend(entry.id, backendId);
     else await etlJobsStore.updateEtlJob(entry.id, { defaultBackend: backendId });
-    if (backend.value) void loadUsage(backend.value.id);
   } catch (error: any) {
     toast.error(error?.message ?? `Failed to update the ${KIND_NOUN[entry.kind]}`);
   }
@@ -1496,7 +1559,7 @@ const draftForm = reactive({
   kind: 'http' as 'http' | 'oxigraphMemory' | 'browser',
   endpoint: '',
   description: '',
-  queryMethod: 'post' as 'post' | 'get',
+  queryMethod: 'post' as 'post' | 'get' | 'query',
   authEnvKey: '',
 });
 const draftMode = ref<MemoryStoreMode>('readOnly');
@@ -1944,13 +2007,16 @@ function relativeTime(iso: string): string {
 }
 
 .segmented {
+  --segment-border: 1px;
   display: flex;
 }
 
 .segment {
+  position: relative;
   height: var(--control-h-sm);
   padding: 0 var(--space-5);
-  border: 1px solid var(--border-default);
+  border: var(--segment-border) solid var(--border-default);
+  border-radius: 0;
   background: var(--surface);
   color: var(--ink-muted);
   font-family: inherit;
@@ -1958,16 +2024,23 @@ function relativeTime(iso: string): string {
   cursor: pointer;
 }
 
+/* Each segment draws all four borders, and the next one overlaps it by one
+   border width, so two neighbours share one line. The selected segment sits
+   above its neighbours, so its blue border shows on both sides. */
+.segment + .segment {
+  margin-left: calc(-1 * var(--segment-border));
+}
+
 .segment:first-child {
   border-radius: var(--radius-panel) 0 0 var(--radius-panel);
 }
 
 .segment:last-child {
-  border-left: none;
   border-radius: 0 var(--radius-panel) var(--radius-panel) 0;
 }
 
 .segment.active {
+  z-index: 1;
   border-color: var(--action);
   background: var(--action-surface);
   color: var(--action-ink);
@@ -2237,9 +2310,53 @@ function relativeTime(iso: string): string {
 }
 
 .default-for-group {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.default-for-facet {
+  display: inline-flex;
   gap: var(--space-2);
+  padding-top: var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--text-label);
+}
+
+.default-for-count {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.default-for-library-row {
+  display: flex;
+  font-size: var(--text-body);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-3);
+}
+
+.default-for-env-choices {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.env-choice {
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--text-micro);
+  color: var(--ink-secondary);
+}
+
+.env-choice[data-disabled] {
+  background: var(--segment-selected);
+  color: var(--segment-selected-ink);
+  opacity: 1;
 }
 
 .default-for-menu {
@@ -2286,55 +2403,6 @@ function relativeTime(iso: string): string {
   background: none;
   color: var(--action);
   font-weight: var(--weight-semibold);
-}
-
-.usage-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  width: 100%;
-  padding: var(--space-3) var(--space-2);
-  border: none;
-  border-bottom: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--ink);
-  font-family: inherit;
-  font-size: var(--text-body-lg);
-  text-align: left;
-  cursor: pointer;
-}
-
-.usage-row:last-child {
-  border-bottom: none;
-}
-
-.usage-row:hover:not(:disabled) {
-  background: var(--surface-subtle);
-}
-
-.usage-label {
-  flex: 1;
-  min-width: 0;
-}
-
-.usage-count {
-  font-family: var(--font-mono);
-  font-weight: var(--weight-semibold);
-}
-
-.usage-chevron {
-  color: var(--border-strong);
-  flex-shrink: 0;
-}
-
-/* A zero has nothing to open, so the row stops looking like a door. */
-.usage-row--empty {
-  color: var(--ink-muted);
-  cursor: default;
-}
-
-.usage-row--empty .usage-chevron {
-  color: var(--surface-raised);
 }
 
 .record-empty {

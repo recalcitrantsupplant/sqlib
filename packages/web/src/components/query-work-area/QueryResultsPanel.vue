@@ -78,6 +78,7 @@
           <ArgumentScalarsPanel
             :limit-parameters="signature.limitParameters"
             :offset-parameters="signature.offsetParameters"
+            :lines="signature.scalarLines"
             :model-value="args.scalarBindings.value"
             @update:model-value="handleScalarsChange"
           />
@@ -307,6 +308,9 @@ type QueryDetailsProps = {
   /** False while scratch, or with nothing to compare against: no diff to open. */
   canCompareVersions?: boolean;
   createdAt?: string | null;
+  createdBy?: string | null;
+  modifiedAt?: string | null;
+  modifiedBy?: string | null;
   canDelete?: boolean;
   deleting?: boolean;
 };

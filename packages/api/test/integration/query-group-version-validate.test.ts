@@ -281,4 +281,94 @@ describe('Query Group Version Validation', () => {
       ]),
     );
   });
+
+  /**
+   * A version saved before the writer checked Start node ports can carry one
+   * typed as a QueryOutputTuple. It still runs, so it is not an error, but the
+   * canvas reports it and a new version with it is refused. The route names
+   * the edge with a warning, so the two say the same thing.
+   */
+  it('warns about a Start node port saved as a result tuple', async () => {
+    const backendId = 'urn:sqlib:backend:legacy-start';
+    const queryVersionId = 'urn:sqlib:query-version:legacy-start';
+    const inputVarId = 'urn:sqlib:input:legacy-start';
+    const inputMemberId = 'urn:sqlib:tuple-member:legacy-start-in';
+    const inputTupleId = 'urn:sqlib:input-tuple:legacy-start';
+    const startVarId = 'urn:sqlib:output:legacy-start-param';
+    const startMemberId = 'urn:sqlib:tuple-member:legacy-start-param';
+    const startPortId = 'urn:sqlib:output-tuple:legacy-start-param';
+    const outputVarId = 'urn:sqlib:output:legacy-start';
+    const outputMemberId = 'urn:sqlib:tuple-member:legacy-start-out';
+    const outputTupleId = 'urn:sqlib:output-tuple:legacy-start';
+    const nodeId = 'urn:sqlib:node:legacy-start';
+    const edgeStartId = 'urn:sqlib:edge:legacy-start';
+    const edgeEndId = 'urn:sqlib:edge:legacy-end';
+
+    await cacheManager.create({ $id: backendId, '@type': 'Backend' }, 'Backend');
+    await cacheManager.create({
+      $id: queryVersionId,
+      '@type': 'QueryVersion',
+      queryString: 'SELECT ?s WHERE { VALUES (?s) { (UNDEF) } ?s ?p ?o }',
+      queryType: QueryTypeIri.select,
+    }, 'QueryVersion');
+    await cacheManager.create({ $id: inputVarId, '@type': 'QueryInputVariable', variableName: 's' }, 'QueryInputVariable');
+    await cacheManager.create({ $id: inputMemberId, '@type': 'TupleMember', position: 0, variable: inputVarId }, 'TupleMember');
+    await cacheManager.create({ $id: inputTupleId, '@type': 'QueryInputTuple', memberEntries: [inputMemberId] }, 'QueryInputTuple');
+    await cacheManager.create({ $id: startVarId, '@type': 'QueryOutputVariable', variableName: 's' }, 'QueryOutputVariable');
+    await cacheManager.create({ $id: startMemberId, '@type': 'TupleMember', position: 0, variable: startVarId }, 'TupleMember');
+    await cacheManager.create({ $id: startPortId, '@type': 'QueryOutputTuple', memberEntries: [startMemberId] }, 'QueryOutputTuple');
+    await cacheManager.create({ $id: outputVarId, '@type': 'QueryOutputVariable', variableName: 's' }, 'QueryOutputVariable');
+    await cacheManager.create({ $id: outputMemberId, '@type': 'TupleMember', position: 0, variable: outputVarId }, 'TupleMember');
+    await cacheManager.create({ $id: outputTupleId, '@type': 'QueryOutputTuple', memberEntries: [outputMemberId] }, 'QueryOutputTuple');
+    await cacheManager.update('start-node-id', { outputs: [startPortId] }, 'StartNode');
+    await cacheManager.update('end-node-id', { inputs: [outputTupleId] }, 'EndNode');
+    await cacheManager.create({
+      $id: nodeId,
+      '@type': 'QueryNode',
+      backendId,
+      queryId: queryVersionId,
+      inputs: [inputTupleId],
+      outputs: [outputTupleId],
+    }, 'QueryNode');
+    await cacheManager.create({
+      $id: edgeStartId,
+      '@type': 'QueryEdge',
+      sourceNodeId: 'start-node-id',
+      targetNodeId: nodeId,
+      dataFlowType: 'VARIABLE_BINDINGS',
+      sourceOutputId: startPortId,
+      targetInputId: inputTupleId,
+    }, 'QueryEdge');
+    await cacheManager.create({
+      $id: edgeEndId,
+      '@type': 'QueryEdge',
+      sourceNodeId: nodeId,
+      targetNodeId: 'end-node-id',
+      dataFlowType: 'VARIABLE_BINDINGS',
+      sourceOutputId: outputTupleId,
+      targetInputId: outputTupleId,
+    }, 'QueryEdge');
+    await setVersionGraph(testGroupVersionId, {
+      executionNodes: [nodeId],
+      edges: [edgeStartId, edgeEndId],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.valid).toBe(true);
+    expect(body.errors).toEqual([]);
+    expect(body.issues).toEqual([
+      expect.objectContaining({
+        level: 'warning',
+        code: 'EDGE_START_PORT_LEGACY_TYPE',
+        entityType: 'edge',
+        entityId: edgeStartId,
+      }),
+    ]);
+    expect(body.warnings[0]).toContain('needs a QueryInputTuple');
+  });
 });

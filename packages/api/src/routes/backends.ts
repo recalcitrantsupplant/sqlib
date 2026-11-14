@@ -6,8 +6,11 @@ import {
   backendTypeKeyToIri,
   isOxigraphStoreMode,
   OXIGRAPH_STORE_MODES,
+  queryMethodIriToKey,
+  queryMethodKeyToIri,
   resolveOxigraphConfig,
   type BackendTypeKey,
+  type QueryMethodKey,
   type PersistedBackend,
   type OxigraphConfig,
 } from '../persistence/schemas/BackendSchema.js';
@@ -53,6 +56,7 @@ import { toPatchView } from './patches.js';
 import { buildPatchLog, PATCH_LOG_STATUSES } from '../lib/patchLog.js';
 import { PatchLogService, PatchLogUnavailableError } from '../lib/PatchLogService.js';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
+import { oxigraphStorageDir } from '../lib/oxigraphSettings.js';
 import { markStoreWritten } from '../lib/storeWrites.js';
 import { MultipartFile } from '@fastify/multipart';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
@@ -69,6 +73,7 @@ import {
 import { getAuthStore } from '../auth/AuthStore.js';
 import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
 import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
 import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -90,7 +95,7 @@ class BackendPayloadError extends Error {
 }
 
 function getOxigraphRoot(): string {
-  return path.resolve(process.env.OXIGRAPH_STORAGE_DIR || './storage/oxigraph');
+  return oxigraphStorageDir();
 }
 
 function normalizePersistPath(rawPath: unknown): string {
@@ -155,6 +160,10 @@ function serializeBackend(entity: PersistedBackend): Backend {
     oxigraphConfig: typeof rest.oxigraphConfig === 'object' && rest.oxigraphConfig !== null
       ? JSON.stringify(rest.oxigraphConfig)
       : rest.oxigraphConfig,
+    // Stored as an IRI, sent as the key the contract enumerates.
+    queryMethod: typeof rest.queryMethod === 'string'
+      ? queryMethodIriToKey(rest.queryMethod) ?? null
+      : rest.queryMethod,
   };
   // No zod parse here. Verified redundant: `toRestApi` already yields exactly
   // the response shape (nothing stripped, added, or changed), and every backend
@@ -247,6 +256,14 @@ function validateOxigraphMemoryConfig(
   }
 }
 
+/** The stored form of a request's `queryMethod`: an IRI, `null` to clear it, or `undefined` to leave it. */
+function mapQueryMethod(value: QueryMethodKey | null | undefined): PersistedBackend['queryMethod'] | undefined {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  return queryMethodKeyToIri(value);
+}
+
 function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (Partial<PersistedBackend> & { $id: string }) {
   const {
     id: _dropId,
@@ -275,6 +292,10 @@ function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (
   }
   if (endpoint !== undefined && endpoint !== null) {
     payload.endpoint = endpoint;
+  }
+  const queryMethod = mapQueryMethod(input.queryMethod);
+  if (queryMethod) {
+    payload.queryMethod = queryMethod;
   }
   const resolvedAuthKey = ensureAuthEnvKey({ provided: authEnvKey ?? undefined, fallbackName: name });
   if (resolvedAuthKey && (backendTypeKey === 'http' || authEnvKey)) {
@@ -564,6 +585,10 @@ function buildUpdateBackendPayload(input: BackendUpdate): Partial<PersistedBacke
       const normalizedKey = normalizeAuthEnvKey(authEnvKey);
       payload.authEnvKey = normalizedKey ?? null;
     }
+  }
+  const queryMethod = mapQueryMethod(input.queryMethod);
+  if (queryMethod !== undefined) {
+    payload.queryMethod = queryMethod;
   }
 
   const mappedConfig = mapOxigraphConfig(oxigraphConfig);
@@ -1226,6 +1251,7 @@ export default async function (
       libraries: Array<{ id: string; name: string }>;
       queries: Array<{ id: string; name: string }>;
       etlJobs: Array<{ id: string; name: string }>;
+      environments: Array<{ id: string; name: string; library: string }>;
     } | ErrorResponse
   }>(
     '/:id/references',
@@ -1270,6 +1296,17 @@ export default async function (
                     name: { type: 'string' }
                   }
                 }
+              },
+              environments: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    library: { type: 'string' }
+                  }
+                }
               }
             }
           }
@@ -1301,10 +1338,15 @@ export default async function (
         .filter(job => job.defaultBackend === id)
         .map(job => ({ id: job.$id, name: job.name }));
 
+      const referencingEnvironments = (repos.Environment.list() as PersistedEnvironment[])
+        .filter(env => env.defaultBackend === id)
+        .map(env => ({ id: env.$id, name: env.name, library: env.isPartOf }));
+
       return reply.send({
         libraries: referencingLibraries,
         queries: referencingQueries,
         etlJobs: referencingEtlJobs,
+        environments: referencingEnvironments,
       });
     })
   );
@@ -1341,6 +1383,15 @@ export default async function (
         if (query.defaultBackend === id) {
           request.log.info(`Clearing defaultBackend reference in Query: ${query.$id}`);
           await repos.Query.update(query.$id, { defaultBackend: null });
+        }
+      }
+
+      // An environment whose default goes away falls back to the query's and
+      // the library's defaults.
+      for (const env of repos.Environment.list() as PersistedEnvironment[]) {
+        if (env.defaultBackend === id) {
+          request.log.info(`Clearing defaultBackend reference in Environment: ${env.$id}`);
+          await repos.Environment.update(env.$id, { defaultBackend: null });
         }
       }
 

@@ -5,6 +5,7 @@ import type {
   VersionMeta,
 } from './queryGroupTypes';
 import { createGraphStateFromExpanded } from './useQueryGroupGraph';
+import { upgradeLegacyStartPorts } from './queryGroupLegacyStartPorts';
 import type { QueryGroupVersion } from '@sparql-query-lib/contracts';
 import type { QueryGroupGraphState } from './useQueryGroupGraph';
 
@@ -48,7 +49,7 @@ const normalizeVersionNumber = (value: unknown): number | null => {
 export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQueryGroupVersionsResult {
   const { graph, io, queryGroupsStore, queriesStore, apiClient } = deps;
 
-  const versionOptions = ref<Array<{ value: string; label: string; dateModified?: string | null }>>([]);
+  const versionOptions = ref<Array<{ value: string; label: string; dateModified?: string | null; createdBy?: string | null }>>([]);
   const versionMetadata = ref<Record<string, VersionMeta>>({});
   const concurrencyTokens = ref<Record<string, string | null>>({});
   const selectedVersionId = ref<string | null>(null);
@@ -70,7 +71,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
 
   const buildVersionOptionsList = (versions: QueryGroupVersion[]) => {
     const metadata: Record<string, VersionMeta> = {};
-    const options: Array<{ value: string; label: string; dateModified?: string | null }> = [];
+    const options: Array<{ value: string; label: string; dateModified?: string | null; createdBy?: string | null }> = [];
 
     for (const entry of versions) {
       const versionNumber = normalizeVersionNumber(entry.version);
@@ -86,12 +87,14 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
         versionNumber,
         dateModified,
         comment: entry.comment ?? null,
+        createdBy: entry.createdBy ?? null,
       };
 
       options.push({
         value: optionValue,
         label: `v${versionNumber}`,
         dateModified,
+        createdBy: entry.createdBy ?? null,
       });
     }
 
@@ -123,12 +126,14 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     if (existing) {
       existing.label = `v${meta.versionNumber}`;
       existing.dateModified = meta.dateModified;
+      existing.createdBy = meta.createdBy;
       return;
     }
     versionOptions.value.push({
       value: meta.id,
       label: `v${meta.versionNumber}`,
       dateModified: meta.dateModified,
+      createdBy: meta.createdBy,
     });
     versionOptions.value.sort((a, b) => {
       const metaA = versionMetadata.value[a.value]?.version ?? 0;
@@ -151,7 +156,11 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     }
 
     const result = await apiClient.getQueryGroupVersion(groupId, meta.version);
-    const expanded = result.data;
+    // An old Start port typed as a result tuple is read as the group input it
+    // is, so the canvas shows it as one and the next save writes it as one.
+    const upgrade = upgradeLegacyStartPorts(result.data);
+    const expanded = upgrade.expanded;
+    legacyStartPortsConverted.value = upgrade.converted;
     concurrencyTokens.value[expanded.queryGroupVersion.id] = result.etag ?? null;
 
     const normalizedVersion =
@@ -162,6 +171,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
       versionNumber: normalizedVersion,
       dateModified: expanded.queryGroupVersion.dateModified ?? expanded.queryGroupVersion.dateCreated ?? null,
       comment: expanded.queryGroupVersion.comment ?? null,
+      createdBy: expanded.queryGroupVersion.createdBy ?? null,
     };
     versionMetadata.value[expanded.queryGroupVersion.id] = updatedMeta;
     ensureOptionForMeta(updatedMeta);
@@ -278,6 +288,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
    * edit from a load.
    */
   const loadCount = ref(0);
+  const legacyStartPortsConverted = ref<string[]>([]);
 
   const setSelectedVersion = (versionId: string | null) => {
     selectedVersionId.value = versionId;
@@ -312,6 +323,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     loadVersionList,
     loadVersionById,
     loadCount,
+    legacyStartPortsConverted,
     reloadVersionsAndSelect,
     findVersionIdByNumber,
     setSelectedVersion,

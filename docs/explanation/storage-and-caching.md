@@ -206,7 +206,7 @@ the library. A server can have any number of backends, of three types:
 | Modes | none | `readOnly` (the default), `ephemeral`, `durable` | none |
 | Writes | as the endpoint allows | refused in `readOnly`; kept in memory in `ephemeral`; kept and saved in `durable` | kept in memory |
 | Survives a restart | yes | `readOnly` and `ephemeral` are built again from their sources; `durable` restores its `.nq` snapshot | no |
-| Checkpoint | the endpoint's own | `durable` only: a `.nq` file under `OXIGRAPH_STORAGE_DIR`, on the checkpoint timer and at shutdown | none |
+| Checkpoint | the endpoint's own | `durable` only: a `.nq` file under `OXIGRAPH_STORAGE_DIR`, on the checkpoint timer and at shutdown, for every library store type | none |
 | Size limit | the endpoint's | process memory | process memory |
 | Extra process | yes | no | no |
 

@@ -6,7 +6,8 @@
  * proven by the API suite (`test/phase2/legality-artifact.test.ts` against the
  * oracle, `legality-matrix.test.ts` against the real GraphBuilder). This side
  * realizes each of its 160 cells as a canvas edge wired the same way - the
- * source contributes its natural port, the target the port the flow demands -
+ * source contributes the port the artifact names, the target the port the
+ * flow demands -
  * and asserts agreement in both directions:
  *
  * - A cell the backend REJECTS must not be silent on the canvas: an error
@@ -36,6 +37,8 @@ import legalityTable from '../../../contracts/fixtures/query-group-edge-legality
 
 type ArtifactCell = {
   source: string;
+  /** The port the source offers, as the API suite wired it ('none' for UPDATE). */
+  sourcePort: IoEntityKind | 'none';
   flow: EdgeFlowType;
   target: string;
   code: string | null;
@@ -51,22 +54,6 @@ const SOURCE_NODE_KIND: Record<string, GraphNodeKind> = {
   dynamic: 'dynamic',
   ruleset: 'ruleset',
   start: 'start',
-};
-
-/**
- * The natural output port per source kind, in the canvas's own model - which
- * is why `start` differs from the artifact's backend-side table: the canvas
- * models what the Start node saves as the group's input tuples.
- */
-const SOURCE_PORT_KIND: Record<string, IoEntityKind | null> = {
-  select: 'QueryOutputTuple',
-  construct: 'TriplesQuadsIO',
-  describe: 'TriplesQuadsIO',
-  ask: 'BooleanIO',
-  update: null,
-  dynamic: 'QueryOutputTuple',
-  ruleset: 'TriplesQuadsIO',
-  start: 'QueryInputTuple',
 };
 
 /** The input port the flow demands of a non-End target. */
@@ -89,7 +76,7 @@ const node = (id: string, kind: GraphNodeKind, inputs: IoEntityKind[], outputs: 
 type Verdict = 'error' | 'unresolvable' | 'clean';
 
 function canvasVerdict(cell: ArtifactCell): Verdict {
-  const sourcePortKind = SOURCE_PORT_KIND[cell.source];
+  const sourcePortKind = cell.sourcePort === 'none' ? null : cell.sourcePort;
   const sourceNode = node('src', SOURCE_NODE_KIND[cell.source], [], sourcePortKind ? [sourcePortKind] : []);
   const targetKind = cell.target as GraphNodeKind & ('query' | 'dynamic' | 'ruleset' | 'end');
   const targetNode =

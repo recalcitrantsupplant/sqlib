@@ -1,6 +1,8 @@
 import { Readable } from 'node:stream';
 import { Dispatcher } from 'undici'; // Still needed for interface compatibility
-import {ISparqlExecutor, SparqlExecutionResult, SparqlSelectJsonOutput, SparqlQueryOptions} from './ISparqlExecutor.js';
+import {ISparqlExecutor, SparqlExecutionResult, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlUpdateOptions} from './ISparqlExecutor.js';
+import { UpdateDatasetError, unsupportedError } from '../lib/updateDataset.js';
+import { oxigraphSupportsUpdateDataset } from '../lib/oxigraphUpdateDataset.js';
 import { toError } from '../lib/toError.js';
 import * as oxigraph from 'oxigraph';
 import { quadToNQuad, termToNQuad } from '../lib/nquads.js';
@@ -23,18 +25,20 @@ type SparqlJsonTerm =
  *
  * `default_graph` and `named_graphs` take the place of `FROM` and `FROM NAMED`,
  * and win over them, as the protocol requires of an endpoint. A part left out
- * is left to the store: its own default graph, or all of its named graphs. An
- * empty list is passed as it is, and matches nothing.
+ * of a dataset that gives the other part is passed as an empty list, as
+ * SPARQL 1.1 Query §13.2 says and as Fuseki does over HTTP. Without this,
+ * Oxigraph would read its own default graph, or all of its named graphs, for
+ * that part. An empty list matches nothing.
  */
-function datasetQueryOptions(options?: SparqlQueryOptions): {
+export function datasetQueryOptions(options?: { dataset?: SparqlQueryOptions['dataset'] }): {
     default_graph?: oxigraph.NamedNode[];
     named_graphs?: oxigraph.NamedNode[];
 } {
     const dataset = options?.dataset;
-    if (!dataset) return {};
+    if (!dataset || (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined)) return {};
     return {
-        ...(dataset.defaultGraphs ? { default_graph: dataset.defaultGraphs.map((iri) => oxigraph.namedNode(iri)) } : {}),
-        ...(dataset.namedGraphs ? { named_graphs: dataset.namedGraphs.map((iri) => oxigraph.namedNode(iri)) } : {}),
+        default_graph: (dataset.defaultGraphs ?? []).map((iri) => oxigraph.namedNode(iri)),
+        named_graphs: (dataset.namedGraphs ?? []).map((iri) => oxigraph.namedNode(iri)),
     };
 }
 
@@ -57,6 +61,8 @@ function debugLog(message: string): void {
  */
 export class OxigraphSparqlExecutor implements ISparqlExecutor {
     private store: oxigraph.Store;
+    /** True when the binding applies dataset options on `Store.update`. */
+    readonly supportsUpdateDataset = oxigraphSupportsUpdateDataset();
 
     constructor(store?: oxigraph.Store) {
         this.store = store || new oxigraph.Store();
@@ -319,11 +325,16 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
     /**
      * Executes a SPARQL UPDATE query (e.g., INSERT, DELETE) against the Oxigraph store.
      */
-    async update(sparqlUpdateQuery: string): Promise<SparqlExecutionResult<void>> {
+    async update(sparqlUpdateQuery: string, options?: SparqlUpdateOptions): Promise<SparqlExecutionResult<void>> {
         debugLog(`Executing Oxigraph UPDATE: ${sparqlUpdateQuery.substring(0, 100)}...`);
         const startTime = performance.now();
         try {
-            this.store.update(sparqlUpdateQuery);
+            // The dataset goes in the options of `Store.update`, the same
+            // options `Store.query` takes. An older binding ignores them with
+            // no error, so it is refused here rather than run over every graph.
+            const datasetOptions = datasetQueryOptions(options);
+            if (Object.keys(datasetOptions).length > 0 && !this.supportsUpdateDataset) throw unsupportedError(undefined);
+            this.store.update(sparqlUpdateQuery, datasetOptions as never);
             // The one place a SPARQL write reaches an in-process store, so it
             // is where the periodic checkpoint learns that a durable store is
             // no longer the file on disk (#443). Marked on success only: a
@@ -333,6 +344,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             const duration = performance.now() - startTime;
             return { result: undefined, duration };
         } catch (error__u: unknown) {
+            if (error__u instanceof UpdateDatasetError) throw error__u;
       const error = toError(error__u);
             log.error({ err: error }, 'Oxigraph UPDATE failed');
             throw new Error(`SPARQL UPDATE query execution failed: ${error?.message || error}`);

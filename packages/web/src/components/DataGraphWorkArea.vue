@@ -152,6 +152,8 @@
                 :left-label="diffLeftLabel"
                 :right-label="diffRightLabel"
                 :content-type="diffContentType"
+                :left-format="diffLeftFormat"
+                :right-format="diffRightFormat"
                 testid="data-graph-diff-pane"
                 @update-left-version="(value) => (diffLeftVersion = value)"
                 @update-right-version="(value) => (diffRightVersion = value)"
@@ -269,6 +271,7 @@ import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useEntityDraft } from '@/composables/useEntityDraft';
 import type { DataGraphVersion } from '@/composables/useApiClient';
+import { NO_STAMPS, stampsOf, type EntityStamps } from '@/lib/entityStamps';
 import { useServerLimits } from '@/composables/useServerLimits';
 import type { DataGraphFormat } from '@/types/data-graphs';
 
@@ -313,6 +316,8 @@ const isSaving = ref(false);
 const isDeleting = ref(false);
 const saveError = ref<string | null>(null);
 const graphCreatedAt = ref<string | null>(null);
+/** When the graph was made and last changed, and by whom, for the Details footer. */
+const graphStamps = ref<EntityStamps>(NO_STAMPS);
 
 /**
  * Which version the editor was loaded from, and what it held.
@@ -420,6 +425,15 @@ const diffLeftText = computed(() => sideText(diffLeftVersion.value));
 const diffRightText = computed(() => sideText(diffRightVersion.value));
 const diffLeftLabel = computed(() => sideLabel(diffLeftVersion.value));
 const diffRightLabel = computed(() => sideLabel(diffRightVersion.value));
+
+/** Each side's RDF format, for the triple view; the draft is the editor's. */
+function sideFormat(side: string | null): string | null {
+  if (side === DRAFT_SIDE) return contentFormat.value;
+  const version = versionById(side);
+  return version ? (version.contentFormat ?? contentFormat.value) : null;
+}
+const diffLeftFormat = computed(() => sideFormat(diffLeftVersion.value));
+const diffRightFormat = computed(() => sideFormat(diffRightVersion.value));
 
 /** Highlighted as the newer side is written; the draft is the editor's format. */
 const diffContentType = computed(() => {
@@ -530,6 +544,7 @@ const detailsProps = computed(() => ({
   // one that should look selected.
   draftSelected: editCount.value > 0
     && contentString.value.trim() !== loadedVersionContent.value.trim(),
+  ...(isScratch.value ? NO_STAMPS : graphStamps.value),
   createdAt: isScratch.value ? null : graphCreatedAt.value,
   // A scratch graph lives in this browser: Discard in the save bar is what
   // removes it, and there is no server entity for Delete to address.
@@ -556,6 +571,7 @@ const versionOptions = computed(() =>
       comment: version.comment ?? null,
       summary: versionSummary(version),
       dateModified: version.dateModified ?? version.dateCreated ?? null,
+      createdBy: version.createdBy ?? null,
     })),
 );
 
@@ -943,6 +959,7 @@ let loadSequence = 0;
 function clearRecord() {
   graphLibraryId.value = null;
   graphCreatedAt.value = null;
+  graphStamps.value = NO_STAMPS;
   loadedVersionId.value = null;
   loadedVersionContent.value = '';
   savedContent.value = '';
@@ -974,6 +991,7 @@ async function load(id: string) {
     description.value = graph.description ?? '';
     currentVersionId.value = graph.currentVersion ?? null;
     graphCreatedAt.value = (graph as { dateCreated?: string | null }).dateCreated ?? null;
+    graphStamps.value = stampsOf(graph);
     graphLibraryId.value = (graph as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
     versions.value = graphVersions;

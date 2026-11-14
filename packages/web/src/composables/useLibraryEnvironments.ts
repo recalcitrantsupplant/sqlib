@@ -8,7 +8,7 @@
  */
 import { computed, ref } from 'vue';
 import type { Environment } from '@sparql-query-lib/contracts';
-import { useApiClient, type EnvironmentPointer } from '@/composables/useApiClient';
+import { useApiClient, type EnvironmentMove, type EnvironmentPointer } from '@/composables/useApiClient';
 import { useActiveEnvironment } from '@/composables/useActiveEnvironment';
 import {
   buildBoard,
@@ -211,6 +211,11 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
       .sort((a, b) => b.version - a.version);
   }
 
+  /** The recorded moves of one entity's pointer in one environment, newest first. */
+  async function movesOf(environment: string, entity: PromotableEntity): Promise<EnvironmentMove[]> {
+    return api.listEnvironmentMoves(environment, { entity: entity.id });
+  }
+
   return {
     environments,
     entities,
@@ -226,5 +231,6 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
     remove,
     movePointer,
     versionsOf,
+    movesOf,
   };
 }

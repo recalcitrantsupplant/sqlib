@@ -420,7 +420,7 @@ declare function httpExecutor(endpoint: string, options?: HttpExecutorOptions): 
 ```ts
 interface HttpExecutorOptions {
     headers?: Record<string, string>;
-    method?: 'auto' | 'GET' | 'POST';
+    method?: 'auto' | 'GET' | 'POST' | 'QUERY';
     maxUrlLength?: number;
     fetch?: typeof globalThis.fetch;
     credentials?: RequestCredentials;
@@ -810,6 +810,7 @@ interface TypedExportBundle<TName extends string> extends ExportBundle {
 interface UpdateRequest {
     updateText: string;
     signal?: AbortSignal;
+    dataset?: SparqlDataset;
 }
 ```
 

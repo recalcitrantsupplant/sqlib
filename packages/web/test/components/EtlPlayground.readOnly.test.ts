@@ -1,7 +1,8 @@
 /**
  * The ETL screen on a read-only deployment: Run sends the saved version to
  * `/etl-jobs/:id/execute`, never SQL to the playground route, and the editors
- * cannot be changed.
+ * cannot be changed. The deployment refuses `/etl-jobs/preview`, so the screen
+ * neither calls it nor offers the controls that would.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
@@ -171,11 +172,27 @@ describe('EtlPlayground on a read-only deployment', () => {
     for (const editor of editors) expect(editor.attributes('disabled')).toBeDefined();
   });
 
+  it('asks for no preview and offers no Peek', async () => {
+    vi.useFakeTimers();
+    try {
+      const area = await mountSaved();
+      await vi.advanceTimersByTimeAsync(2000);
+      await flushPromises();
+
+      const previewCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/etl-jobs/preview'));
+      expect(previewCalls).toHaveLength(0);
+      expect(area.find('.btn-peek').exists()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps the playground route on a deployment that writes', async () => {
     mode.readOnly = false;
     const area = await mountSaved();
     const sql = area.findAll('textarea')
       .find((editor) => (editor.element as HTMLTextAreaElement).value === SAVED_SQL);
     expect(sql?.attributes('disabled')).toBeUndefined();
+    expect(area.find('.btn-peek').exists()).toBe(true);
   });
 });

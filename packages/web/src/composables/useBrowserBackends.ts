@@ -46,7 +46,7 @@ export interface BrowserBackend {
   /** Where queries go. The reason the record exists. */
   endpoint: string;
   /** `null` leaves the choice to the executor's length heuristic. */
-  queryMethod: 'post' | 'get' | null;
+  queryMethod: 'post' | 'get' | 'query' | null;
   /** Extra request headers — an API key, say. Never sent to the sqlib server. */
   headers: Record<string, string>;
   createdAt: string;
@@ -94,7 +94,8 @@ function normalize(value: unknown): BrowserBackend | null {
   const endpoint = typeof value.endpoint === 'string' ? value.endpoint.trim() : '';
   if (!id || !endpoint) return null;
   const now = new Date().toISOString();
-  const queryMethod = value.queryMethod === 'post' || value.queryMethod === 'get' ? value.queryMethod : null;
+  const queryMethod =
+    value.queryMethod === 'post' || value.queryMethod === 'get' || value.queryMethod === 'query' ? value.queryMethod : null;
   return {
     id,
     name: typeof value.name === 'string' && value.name.trim() ? value.name : endpoint,

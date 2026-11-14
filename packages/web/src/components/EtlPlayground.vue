@@ -74,6 +74,7 @@
           <PanelHeader title="DuckDB SQL Query" sunken>
             <template #actions>
               <button
+                v-if="!isReadOnly"
                 @click="peekSqlResults"
                 class="btn-peek"
                 :disabled="!sqlQuery.trim() || isPeeking"
@@ -539,6 +540,7 @@ import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useEtlJobsStore, type EtlJobVersion } from '../composables/useEtlJobsStore';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import { mergeColumnMappings } from '../lib/etlColumnMappings';
+import { NO_STAMPS, stampsOf, type EntityStamps } from '../lib/entityStamps';
 
 const config = useRuntimeConfig();
 
@@ -756,6 +758,8 @@ const selectedVersionId = ref<string | null>(null);
 const currentVersionId = ref<string | null>(null);
 /** The job's default backend; the in-memory store stands for "none set". */
 const jobDefaultBackend = ref<string>(EPHEMERAL_BACKEND_ID);
+/** When the job was made and last changed, and by whom, for the Details footer. */
+const jobStamps = ref<EntityStamps>(NO_STAMPS);
 const detailsPanelRef = ref<InstanceType<typeof EntityDetailsPanel> | null>(null);
 
 const currentVersionNumber = computed(() => {
@@ -915,7 +919,9 @@ const detailsProps = computed(() => ({
     label: String(version.version),
     comment: version.comment ?? null,
     dateModified: version.dateModified ?? null,
+    createdBy: version.createdBy ?? null,
   })),
+  ...(isScratch.value ? NO_STAMPS : jobStamps.value),
   selectedVersion: selectedVersionId.value,
   currentVersion: currentVersionId.value,
   canAnnotateVersions: !isScratch.value && !!props.etlJobId,
@@ -1034,6 +1040,7 @@ const loadEtlJob = async (id: string) => {
     pipelineName.value = job.name;
     pipelineDescription.value = job.description ?? '';
     jobDefaultBackend.value = job.defaultBackend || EPHEMERAL_BACKEND_ID;
+    jobStamps.value = stampsOf(job);
     jobVersions.value = versions;
     currentVersionId.value = job.currentVersionId ?? versions[0]?.id ?? null;
     const target = versions.find((version) => version.id === currentVersionId.value) ?? versions[0];
@@ -1423,6 +1430,9 @@ const DETECTION_SAMPLE_ROWS = 100;
  * SQL is the one the mapping was loaded with, the mapping does not change.
  */
 const executePreview = async () => {
+  // A read-only deployment refuses the preview route; the saved job's
+  // mappings stand as they were saved.
+  if (isReadOnly.value) return;
   const sql = sqlQuery.value;
   isDetectingColumns.value = true;
   try {

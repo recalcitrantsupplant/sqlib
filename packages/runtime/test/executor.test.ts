@@ -151,6 +151,51 @@ describe('httpExecutor', () => {
   });
 });
 
+describe('httpExecutor with method QUERY', () => {
+  const empty = { head: { vars: [] }, results: { bindings: [] } };
+
+  it('sends the query as an application/sparql-query body, with the dataset in the URL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(empty));
+    await httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'QUERY' }).execute({
+      ...SELECT,
+      dataset: { defaultGraphs: ['http://example.org/a'] },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe('QUERY');
+    expect(init.body).toBe(SELECT.queryText);
+    expect(init.headers['Content-Type']).toBe('application/sparql-query');
+    const params = new URL(url).searchParams;
+    expect(params.has('query')).toBe(false);
+    expect(params.getAll('default-graph-uri')).toEqual(['http://example.org/a']);
+  });
+
+  it('sends a POST form when the dataset makes the URL too long', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(empty));
+    const graphs = Array.from({ length: 100 }, (_, i) => `http://example.org/graph/${i}`);
+    await httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'QUERY' }).execute({
+      ...SELECT,
+      dataset: { defaultGraphs: graphs },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe('POST');
+    expect(url).toBe('https://example.org/sparql');
+    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+  });
+
+  it('retries as POST after a 501, and sends POST next time', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('no', { status: 501 }))
+      .mockImplementation(async () => jsonResponse(empty));
+    const executor = httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'QUERY' });
+    await executor.execute(SELECT);
+    await executor.execute(SELECT);
+    expect(fetchMock.mock.calls.map((call) => call[1].method)).toEqual(['QUERY', 'POST', 'POST']);
+  });
+});
+
 describe('httpExecutor updates', () => {
   it('has no update method unless an update endpoint is given', () => {
     const executor = httpExecutor('https://example.org/sparql', { fetch: vi.fn() });
@@ -174,6 +219,25 @@ describe('httpExecutor updates', () => {
     expect(init.headers['Content-Type']).toBe('application/sparql-update');
     expect(init.headers.Authorization).toBe('Bearer t');
     expect(init.body).toBe(updateText);
+  });
+
+  it('sends a dataset as using-graph-uri pairs in a form body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const executor = httpExecutor('https://example.org/query', {
+      fetch: fetchMock,
+      updateEndpoint: 'https://example.org/update',
+    });
+    const updateText = 'INSERT { ?s <urn:q> ?o } WHERE { ?s <urn:p> ?o }';
+
+    await executor.update!({ updateText, dataset: { defaultGraphs: ['urn:g1'], namedGraphs: [] } });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://example.org/update');
+    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+    const body = new URLSearchParams(init.body);
+    expect(body.get('update')).toBe(updateText);
+    expect(body.getAll('using-graph-uri')).toEqual(['urn:g1']);
+    expect(body.getAll('using-named-graph-uri')).toEqual([EMPTY_DATASET_GRAPH]);
   });
 
   it('raises SparqlEndpointError when the update is refused', async () => {

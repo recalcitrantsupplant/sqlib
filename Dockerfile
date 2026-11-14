@@ -221,6 +221,49 @@ ENV HTTP_PORT=3000
 ENV MCP_HTTP_HOST=0.0.0.0
 ENV MCP_HTTP_PORT=3333
 
+# `docker run <image>` runs with the defaults of `just`: the SQLite library
+# store, every feature flag on, and auth disabled. A deployment overrides any
+# of these with its own environment.
+#
+# Every state directory is under the volume below. The default paths are
+# relative to the working directory, which is packages/mcp-server in the
+# dual-http and mcp-http modes. That directory is root-owned, so without these
+# the node user cannot create its store and the server keeps no data.
+ENV INTERNAL_BACKEND_TYPE=sqlite \
+    LIBRARY_STORAGE_DIR=/app/packages/api/storage/library-store \
+    SQLIB_AUTH_STORE_DIR=/app/packages/api/storage/auth \
+    OXIGRAPH_STORAGE_DIR=/app/packages/api/storage/oxigraph \
+    ETL_OUTPUT_DIR=/app/packages/api/storage/etl-output \
+    SQLIB_AUTH_MODE=disabled
+
+# Every feature flag on, including the ones that are off in the code's own
+# defaults (ETL, the assistant, OGC API Features, the SRL extensions). The
+# Justfile's `all_features` sets the same list, and
+# packages/api/test/deployment/dockerfileDefaults.test.ts checks that both name every
+# flag. ETL runs arbitrary DuckDB SQL, so with auth disabled publish the port
+# on a network you control only (docs/guides/running-and-configuring.md).
+ENV FEATURE_NOTEBOOK=true \
+    FEATURE_QUERIES=true \
+    FEATURE_QUERY_GROUPS=true \
+    FEATURE_RULES_SUITE=true \
+    FEATURE_BENCHMARKS=true \
+    FEATURE_TESTS=true \
+    FEATURE_DATA_GRAPHS=true \
+    FEATURE_TUPLE_SETS=true \
+    FEATURE_ARGUMENT_SETS=true \
+    FEATURE_MCP=true \
+    FEATURE_ETL=true \
+    FEATURE_BACKENDS=true \
+    FEATURE_SETTINGS=true \
+    FEATURE_RULES_ALLOW_INVALID_SAVE=true \
+    FEATURE_RULE_TUPLES=true \
+    FEATURE_RULE_AGGREGATES=true \
+    FEATURE_PLAYGROUND_QUERIES=true \
+    FEATURE_PLAYGROUND_RULES=true \
+    FEATURE_PLAYGROUND_ETL=true \
+    FEATURE_ASSISTANT=true \
+    FEATURE_OGC=true
+
 # Create the storage directory *before* declaring it a volume, owned by the
 # `node` user the container runs as (issue #466).
 #

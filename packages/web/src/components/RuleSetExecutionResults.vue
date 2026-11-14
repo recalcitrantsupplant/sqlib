@@ -77,6 +77,7 @@
             <Download :size="14" />
             <span class="btn-action-label">Inference graph</span>
           </button>
+          <TableWrapToggle v-if="viewMode === 'graph'" />
           <TermDisplayToggle v-if="viewMode === 'graph'" />
           <button
             type="button"
@@ -370,6 +371,7 @@
                 <Download :size="14" />
                 <span class="btn-action-label">Inference graph</span>
               </button>
+              <TableWrapToggle v-if="viewMode === 'graph'" />
               <TermDisplayToggle v-if="viewMode === 'graph'" />
             </template>
           </ResultsActionBar>
@@ -586,6 +588,7 @@ import EmptyState from './shared/EmptyState.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import ResultsActionBar from './shared/ResultsActionBar.vue';
 import TermDisplayToggle from './shared/TermDisplayToggle.vue';
+import TableWrapToggle from './shared/TableWrapToggle.vue';
 import ResultsFooter from './shared/ResultsFooter.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import SegmentedToggle from './shared/SegmentedToggle.vue';

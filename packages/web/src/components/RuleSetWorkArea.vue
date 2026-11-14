@@ -316,6 +316,7 @@ import {
 import { parseTupleDeclarations } from '../lib/tupleSetLabels';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import type { Library, RuleSetUpdateInput } from '@sparql-query-lib/contracts';
+import { NO_STAMPS, stampsOf, type EntityStamps } from '@/lib/entityStamps';
 
 // Bound rather than written inline: vue-tsc 3.3.12 misreads a literal `<…>` in
 // a static attribute and loses the slot props that follow it.
@@ -384,12 +385,21 @@ const ruleSetIdValue = ref<string | null>(null);
 const ruleSetName = ref('');
 const ruleSetDescription = ref('');
 const ruleSetLibraryId = ref('');
+/** When the rule set was made and last changed, and by whom, for the Details footer. */
+const ruleSetStamps = ref<EntityStamps>(NO_STAMPS);
 const ruleSetLoading = ref(false);
 const ruleSetConcurrency = ref<string | null>(null);
 const ruleSetCurrentVersionId = ref<string | null>(null);
 const currentVersionNumberForDisplay = ref<number | null>(null);
 const ruleSetVersions = ref<RuleSetVersion[]>([]);
-const versionOptions = ref<Array<{ value: string; label: string; version: number; comment?: string | null; dateModified?: string | null }>>([]);
+const versionOptions = ref<Array<{
+  value: string;
+  label: string;
+  version: number;
+  comment?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+}>>([]);
 const selectedVersionId = ref<string | null>(null);
 
 // --- The document -----------------------------------------------------------
@@ -976,7 +986,9 @@ const detailsProps = computed(() => ({
     label: String(option.version),
     comment: option.comment ?? null,
     dateModified: option.dateModified,
+    createdBy: option.createdBy ?? null,
   })),
+  ...(isScratch.value ? NO_STAMPS : ruleSetStamps.value),
   selectedVersion: selectedVersionId.value,
   currentVersion: ruleSetCurrentVersionId.value,
   canAnnotateVersions: !isScratch.value && !!ruleSetIdValue.value,
@@ -1221,6 +1233,7 @@ const resetState = () => {
   ruleSetName.value = '';
   ruleSetDescription.value = '';
   ruleSetLibraryId.value = '';
+  ruleSetStamps.value = NO_STAMPS;
   ruleSetVersions.value = [];
   versionOptions.value = [];
   selectedVersionId.value = null;
@@ -1267,6 +1280,7 @@ const loadRuleSetVersions = async (
       version: entry.version,
       comment: entry.comment ?? null,
       dateModified: entry.dateModified,
+      createdBy: entry.createdBy ?? null,
     }));
     const currentMatch = sorted.find((entry) => entry.id === ruleSetCurrentVersionId.value);
     currentVersionNumberForDisplay.value = currentMatch?.version ?? sorted[0]?.version ?? null;
@@ -1450,6 +1464,7 @@ const loadRuleSet = async (id: string) => {
     ruleSetDescription.value = ruleSet.description ?? '';
     ruleSetLibraryId.value = Array.isArray(ruleSet.isPartOf) ? ruleSet.isPartOf[0] : ruleSet.isPartOf;
     ruleSetCurrentVersionId.value = (ruleSet.currentVersion ?? null) as string | null;
+    ruleSetStamps.value = stampsOf(ruleSet);
     ruleSetConcurrency.value = ifMatch ?? ruleSetsStore.concurrency[ruleSet.id] ?? null;
     executionResult.value = null;
     executionTimestamp.value = null;

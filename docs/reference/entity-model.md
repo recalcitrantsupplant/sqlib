@@ -207,6 +207,35 @@ leave them out. The rules:
 Entities saved before these fields existed, or while auth was disabled, have
 neither field.
 
+#### Names for the IRIs
+
+`GET /auth/names?iri=<iri>&iri=<iri>` turns up to 100 principal IRIs into
+display names. Every caller may use it. It answers only for user principals
+that the server has a display name for, and leaves out groups, clients and
+unknown IRIs.
+
+The display name comes from the person's last token. It is the first of these
+claims that the token carries:
+
+1. `name`.
+2. `preferred_username`. Rauthy access tokens carry no `name`, so Rauthy
+   deployments usually show this one.
+3. `given_name` and `family_name`, joined by a space.
+
+The server skips a claim that equals the `email` claim or has the form of an
+email address. Every reader of a library sees these names, and the email stays
+in the administrator's `GET /auth/principals`. A token with none of these
+claims gives no display name, and the web app shows "Unknown". The server
+records the name beside the principal in the auth graph (`auth:displayName`),
+and updates it at the person's next request with a token.
+
+The web app shows the person in the Details panel footer ("Created … by",
+"Edited … by"), on each version row, and in the version menu of the editor
+toolbar. It shows the signed-in caller as "You", and an IRI with no name as
+"Unknown". An entity with no `createdBy` shows its date only. The Library page
+shows who moved each environment pointer, from the `PointerMove` records (see
+[environments](../explanation/environments.md#moving-a-pointer)).
+
 ## Containment
 
 Containment is `sdo:isPartOf`. The target of the predicate depends on the kind:
@@ -220,6 +249,7 @@ Containment is `sdo:isPartOf`. The target of the predicate depends on the kind:
 | `TestCase`, `TestCaseDataGraph` | Their `TestVersion` |
 | `BrowserDefaultDataGraph` | Its `QueryGroup` or `RuleSet` |
 | `Patch` | The `Backend` whose data it describes. One predicate gives containment and target, so read access follows the path of the backend |
+| `PointerMove` | The `Environment` whose pointer moved. Read access follows the environment's library |
 | `Backend` | Nothing. Backends are at account level, and each library can use them |
 | `BenchmarkExperiment` | A `Library`. Required on create. An experiment stored before this field existed has none, and only administrators can use it until `scripts/backfill-benchmark-ownership.ts` sets one |
 
