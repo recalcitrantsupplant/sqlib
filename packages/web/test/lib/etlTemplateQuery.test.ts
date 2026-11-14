@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { QueryTypeIri } from '@sparql-query-lib/types';
 import { templateRefusal } from '@/lib/etlTemplateQuery';
 
 describe('templateRefusal', () => {
@@ -9,6 +10,10 @@ describe('templateRefusal', () => {
 
   it('accepts a single-variable slot and a lower-case query type', () => {
     expect(templateRefusal('CONSTRUCT { ?s a ?t } WHERE { VALUES ?s { UNDEF } }', 'construct')).toBeNull();
+  });
+
+  it('accepts the query type IRI that the API stores', () => {
+    expect(templateRefusal('CONSTRUCT { ?s a ?t } WHERE { VALUES ?s { UNDEF } }', QueryTypeIri.construct)).toBeNull();
   });
 
   it('refuses a SELECT', () => {

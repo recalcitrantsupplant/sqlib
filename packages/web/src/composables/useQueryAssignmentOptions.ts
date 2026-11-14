@@ -14,6 +14,8 @@ export interface QueryAssignmentVersion {
   id: string;
   version: number;
   isCurrent: boolean;
+  /** The version's query form, as the version listing gives it. */
+  queryType?: string | null;
 }
 
 export interface QueryAssignmentOption {
@@ -26,7 +28,7 @@ export interface QueryAssignmentOption {
 interface QueriesStoreLike {
   queries: Ref<Query[]>;
   loadQueries: () => Promise<void>;
-  loadQueryVersions: (queryId: string) => Promise<Array<{ id: string; version: number }>>;
+  loadQueryVersions: (queryId: string) => Promise<Array<{ id: string; version: number; queryType?: string | null }>>;
 }
 
 const belongsTo = (query: Query, libraryId: string): boolean =>
@@ -64,6 +66,7 @@ export function useQueryAssignmentOptions(libraryId: Ref<string>, queriesStore: 
                   id: entry.id,
                   version: entry.version,
                   isCurrent: entry.id === query.currentVersion,
+                  queryType: entry.queryType ?? null,
                 }))
                 .sort((a, b) => b.version - a.version),
             };
