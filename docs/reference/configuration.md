@@ -178,6 +178,25 @@ sends no credentials.
 | `SQLIB_PREFIX_DETECT` | on | Set to `off` to skip detecting a backend's namespace prefixes during the probe. Any other value leaves detection on. |
 | `SQLIB_PREFIX_TIMEOUT_MS` | `10000` | Timeout for the prefix-detection query. See [prefixes](../guides/prefixes.md). |
 
+## Execution backend query method
+
+An HTTP `Backend` has a `queryMethod`: `post` (the default), `get` or `query`.
+It sets the HTTP method of a SPARQL query. An update is sent as a `POST` for
+each value, as SPARQL 1.1 Protocol §2.2 requires.
+
+| Value | Request for a query |
+| --- | --- |
+| `post` | `POST` form body with `query` and the dataset parameters. |
+| `get` | `GET` with `query` in the URL. A query with a dataset is sent as `post`. |
+| `query` | `QUERY` ([RFC 10008](https://www.rfc-editor.org/info/rfc10008)) with an `application/sparql-query` body, and the dataset parameters in the URL. A URL longer than 1800 characters is sent as `post`. |
+
+A `query` backend that answers `QUERY` with `405` or `501` is sent the same
+query again as a `POST`. The server then sends `POST` to that endpoint for 10
+minutes, and logs one warning. Oxigraph server 0.5.8 and later, and Fuseki in
+Jena 6.2.0 and later, accept `QUERY`. See
+[the proposal](../proposals/http-query-method.md) for other servers, proxies and
+CORS.
+
 ## Caching
 
 | Name | Default | Effect |

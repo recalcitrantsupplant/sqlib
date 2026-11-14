@@ -3022,7 +3022,7 @@ export const sparqlRequestJsonSchema = {
     query: { type: 'string', minLength: 1 },
     backendId: { type: 'string', minLength: 1, format: 'iri' },
     endpoint: { type: 'string', format: 'uri' },
-    queryMethod: { type: 'string', enum: ['get', 'post'] },
+    queryMethod: { type: 'string', enum: ['get', 'post', 'query'] },
     /*
      * The same three fields `POST /execute` takes, applied by the same code to
      * an ad-hoc query string instead of a stored version. Without them an
@@ -3136,7 +3136,7 @@ export const sparqlQuerystringJsonSchema = {
     query: { type: 'string', minLength: 1 },
     backendId: { type: 'string', minLength: 1, format: 'iri' },
     endpoint: { type: 'string', format: 'uri' },
-    queryMethod: { type: 'string', enum: ['get', 'post'] },
+    queryMethod: { type: 'string', enum: ['get', 'post', 'query'] },
     record: sparqlRecordJsonSchema,
     /*
      * SPARQL 1.1 Protocol §2.1.4, by the protocol's names, each repeatable.

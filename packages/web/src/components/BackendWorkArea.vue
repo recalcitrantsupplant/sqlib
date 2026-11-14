@@ -324,7 +324,7 @@
                 <span class="field-name">
                   Query method
                   <InfoHint label="query method">
-                    POST is the standard. Use GET only for endpoints with SSL or query-size limits.
+                    POST is the standard. Use GET only for endpoints with SSL or query-size limits. QUERY reads with the HTTP QUERY method, and uses POST where the endpoint refuses it.
                   </InfoHint>
                 </span>
                 <div class="field-value">
@@ -754,6 +754,7 @@ const emit = defineEmits<{
 const QUERY_METHODS = [
   { value: 'post' as const, label: 'POST (recommended)' },
   { value: 'get' as const, label: 'GET (for compatibility)' },
+  { value: 'query' as const, label: 'QUERY' },
 ];
 
 const BACKEND_KINDS = [
@@ -1252,7 +1253,7 @@ async function commitSources(payload: { sources: MemoryStoreSource[]; complete: 
   await commitMemoryConfig(memoryConfig.value.mode, payload.sources);
 }
 
-async function commitQueryMethod(method: 'post' | 'get') {
+async function commitQueryMethod(method: 'post' | 'get' | 'query') {
   const current = backend.value;
   if (!current || !canEdit.value || (current.queryMethod ?? 'post') === method) return;
   if (isBrowserBackendId(current.id)) {
@@ -1496,7 +1497,7 @@ const draftForm = reactive({
   kind: 'http' as 'http' | 'oxigraphMemory' | 'browser',
   endpoint: '',
   description: '',
-  queryMethod: 'post' as 'post' | 'get',
+  queryMethod: 'post' as 'post' | 'get' | 'query',
   authEnvKey: '',
 });
 const draftMode = ref<MemoryStoreMode>('readOnly');

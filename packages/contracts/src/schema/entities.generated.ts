@@ -46,6 +46,7 @@ export const backendSchema = {
       "enum": [
         "post",
         "get",
+        "query",
         null
       ],
       "nullable": true

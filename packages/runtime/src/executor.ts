@@ -128,8 +128,13 @@ export interface HttpExecutorOptions {
    * `auto` (the default) sends short queries as `GET` so they hit HTTP caches and
    * CORS preflight is skipped, and anything longer as `POST`. Force one when the
    * endpoint only speaks the other.
+   *
+   * `QUERY` sends the HTTP QUERY method (RFC 10008), with the query as the body
+   * and the dataset in the URL. A URL longer than `maxUrlLength` is sent as a
+   * `POST` form. An endpoint that answers QUERY with 405 or 501 is sent the
+   * same query as a `POST`, and gets `POST` for the next 10 minutes.
    */
-  method?: 'auto' | 'GET' | 'POST';
+  method?: 'auto' | 'GET' | 'POST' | 'QUERY';
   /** URL length above which `auto` switches to POST. Conservative by default. */
   maxUrlLength?: number;
   /** Override the fetch implementation (tests, or a custom retry wrapper). */
@@ -148,6 +153,9 @@ export interface HttpExecutorOptions {
 }
 
 const RESULTS_ACCEPT = 'application/sparql-results+json';
+
+/** How long an endpoint that refused QUERY is sent POST instead. */
+const QUERY_REFUSAL_TTL_MS = 10 * 60 * 1000;
 
 function acceptFor(queryType: ExportedQueryType, rdfAccept: string): string {
   return queryType === 'CONSTRUCT' || queryType === 'DESCRIBE' ? rdfAccept : RESULTS_ACCEPT;
@@ -177,6 +185,9 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
   }
 
   const { updateEndpoint } = options;
+  // When the endpoint last refused QUERY; `null` when it has not.
+  let queryRefusedAt: number | null = null;
+  const queryRefused = () => queryRefusedAt !== null && Date.now() - queryRefusedAt <= QUERY_REFUSAL_TTL_MS;
 
   const update = async ({ updateText, signal, dataset }: UpdateRequest): Promise<void> => {
     // With a dataset, a form body carries the `using-graph-uri` pairs: it has
@@ -218,8 +229,29 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
       const form = new URLSearchParams([['query', queryText], ...graphs]).toString();
       const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${graphs.length > 0 ? form : `query=${encodeURIComponent(queryText)}`}`;
       const useGet = method === 'GET' || (method === 'auto' && getUrl.length <= maxUrlLength);
+      const queryUrl =
+        graphs.length > 0 ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}${new URLSearchParams(graphs).toString()}` : endpoint;
+      const useQuery = method === 'QUERY' && !queryRefused() && queryUrl.length <= maxUrlLength;
 
-      const response = useGet
+      let queried: Response | null = null;
+      if (useQuery) {
+        queried = await doFetch(queryUrl, {
+          method: 'QUERY',
+          headers: { Accept: accept, 'Content-Type': 'application/sparql-query', ...headers },
+          body: queryText,
+          credentials,
+          signal,
+        });
+        if (queried.status === 405 || queried.status === 501) {
+          await queried.text().catch(() => '');
+          queryRefusedAt = Date.now();
+          queried = null;
+        }
+      }
+
+      const response = queried
+        ? queried
+        : useGet
         ? await doFetch(getUrl, {
             method: 'GET',
             headers: { Accept: accept, ...headers },
