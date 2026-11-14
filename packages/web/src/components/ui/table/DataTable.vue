@@ -249,7 +249,10 @@ const cellStyle = (columnId: string) => {
   if (fixed !== undefined) {
     return { width: `${fixed}px`, minWidth: `${fixed}px`, maxWidth: `${fixed}px` }
   }
-  return { maxWidth: `${defaultMaxWidth.value}px` }
+  // `min-width: 100%` lets the box fill a cell that the table stretched past
+  // the cap. A percentage counts as 0 when the browser sizes the column, so
+  // the cap still sets the column's own width.
+  return { maxWidth: `${defaultMaxWidth.value}px`, minWidth: "100%" }
 }
 
 let dragCleanup: (() => void) | null = null
