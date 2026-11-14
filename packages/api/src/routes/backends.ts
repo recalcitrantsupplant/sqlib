@@ -53,6 +53,7 @@ import { toPatchView } from './patches.js';
 import { buildPatchLog, PATCH_LOG_STATUSES } from '../lib/patchLog.js';
 import { PatchLogService, PatchLogUnavailableError } from '../lib/PatchLogService.js';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
+import { oxigraphStorageDir } from '../lib/oxigraphSettings.js';
 import { markStoreWritten } from '../lib/storeWrites.js';
 import { MultipartFile } from '@fastify/multipart';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
@@ -90,7 +91,7 @@ class BackendPayloadError extends Error {
 }
 
 function getOxigraphRoot(): string {
-  return path.resolve(process.env.OXIGRAPH_STORAGE_DIR || './storage/oxigraph');
+  return oxigraphStorageDir();
 }
 
 function normalizePersistPath(rawPath: unknown): string {
