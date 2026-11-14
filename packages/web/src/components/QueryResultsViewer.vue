@@ -224,6 +224,9 @@ const isNTriples = computed(() => isNTriplesContentType(props.contentType));
 const isNQuads = computed(() => isNQuadsContentType(props.contentType));
 const isCsv = computed(() => isCsvContentType(props.contentType));
 const isTsv = computed(() => isTsvContentType(props.contentType));
+const isPatch = computed(
+  () => normalizedContentType.value === 'text/rdf-patch' || normalizedContentType.value === 'application/rdf-patch',
+);
 const isTabular = computed(
   () => isNTriples.value || isNQuads.value || isCsv.value || isTsv.value,
 );
@@ -566,7 +569,7 @@ defineExpose({
           <span v-if="serialisationLabel" class="btn-action-label">{{ serialisationLabel }}</span>
         </button>
         <TableWrapToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
-        <TermDisplayToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
+        <TermDisplayToggle v-if="(activeTab === 'table' && hasStructuredOrTabularResults) || (activeTab === 'raw' && isPatch)" />
         <button
           v-if="canExpand"
           type="button"
