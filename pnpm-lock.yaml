@@ -656,8 +656,8 @@ importers:
         specifier: 0.7.0
         version: 0.7.0
       '@kurrawongai/codemirror-lang-turtle12':
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.4.0
+        version: 0.4.0
       '@lezer/common':
         specifier: ^1.5.5
         version: 1.5.5
@@ -2184,6 +2184,9 @@ packages:
 
   '@kurrawongai/codemirror-lang-turtle12@0.3.0':
     resolution: {integrity: sha512-MxYpvKndgMpoOM7/gNqFETeB8gxdjImuZe7kLWqRnoGYRERieD/SlfqKIeYxLkNcqXuGU82dF3tbV7411CvySg==}
+
+  '@kurrawongai/codemirror-lang-turtle12@0.4.0':
+    resolution: {integrity: sha512-lYGeSa+E9gLyJITxR7m9ug4BweE9N8fbL1/gu29hIr+pwHZGOnPiZy/hAHntfTx1CCaMd6mKyyOg0xDC2TV6hQ==}
 
   '@lezer/common@1.5.5':
     resolution: {integrity: sha512-Pw7PVCndruF1pb3ebCxpSVpkMHSDjwRCLcTRw+RizUKco5QbWylwq2g4lnG/RYN7yTTQDXE9F77MwtkAyphrjg==}
@@ -9695,6 +9698,16 @@ snapshots:
       '@lezer/lr': 1.4.12
 
   '@kurrawongai/codemirror-lang-turtle12@0.3.0':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.4
+      '@codemirror/language': 6.13.1
+      '@codemirror/lint': 6.9.7
+      '@codemirror/state': 6.7.6
+      '@lezer/common': 1.5.5
+      '@lezer/highlight': 1.2.5
+      '@lezer/lr': 1.4.12
+
+  '@kurrawongai/codemirror-lang-turtle12@0.4.0':
     dependencies:
       '@codemirror/autocomplete': 6.20.4
       '@codemirror/language': 6.13.1
