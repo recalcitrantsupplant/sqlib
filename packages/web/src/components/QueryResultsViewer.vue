@@ -17,6 +17,7 @@ import type { DataTableState } from '@/composables/useDataTable';
 import ResultsFooter from '@/components/shared/ResultsFooter.vue';
 import ResultsActionBar from '@/components/shared/ResultsActionBar.vue';
 import TermDisplayToggle from '@/components/shared/TermDisplayToggle.vue';
+import TableWrapToggle from '@/components/shared/TableWrapToggle.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import { Input } from '@/components/ui/input';
 import RdfTermTable from '@/components/shared/RdfTermTable.vue';
@@ -395,19 +396,24 @@ const renderSparqlCell = (binding: SparqlBindingValue | undefined) => {
 
   return h('div', { class: 'term-cell flex flex-col gap-1' }, [
     h('div', { class: `flex justify-between gap-2 ${supplementary.length > 0 ? 'items-center' : 'items-start'}` }, [
-      h(
-        'code',
-        {
-          class:
-            'flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
-        },
-        displayValue,
-      ),
-      binding.type === 'uri' && !fullIri ? renderPrefixAdder(binding.value) : null,
+      // The value and its "+ prefix" overlay share one box, so the button
+      // takes no width until the row is hovered (see InlinePrefixAdder).
+      h('span', { class: 'term-value-wrap' }, [
+        h(
+          'code',
+          {
+            class:
+              'term-value flex-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs font-mono',
+            title: displayValue,
+          },
+          displayValue,
+        ),
+        binding.type === 'uri' && !fullIri ? renderPrefixAdder(binding.value) : null,
+      ]),
       h(
         'div',
         {
-          class: 'flex flex-col items-end gap-1',
+          class: 'flex shrink-0 flex-col items-end gap-1',
         },
         [
           h(
@@ -559,6 +565,7 @@ defineExpose({
           <Download :size="14" />
           <span v-if="serialisationLabel" class="btn-action-label">{{ serialisationLabel }}</span>
         </button>
+        <TableWrapToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
         <TermDisplayToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
         <button
           v-if="canExpand"
