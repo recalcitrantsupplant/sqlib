@@ -151,7 +151,6 @@
         @discard-draft="backendDraft = false"
         @draft-name="backendDraftName = $event"
         @delete-request="handleDeleteBackendRequest"
-        @open-usage="handleRailSelect"
       />
       <!--
         The pane follows the rail. A record belongs to the section that lists
@@ -257,38 +256,22 @@
     <AlertDialog v-model:open="backendDeleteConfirmOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Backend?</AlertDialogTitle>
+          <AlertDialogTitle>Delete {{ backendDeleteTarget?.backendName }}?</AlertDialogTitle>
           <AlertDialogDescription>
-            <div>
-              Are you sure you want to delete "{{ backendDeleteTarget?.backendName }}"?
-            </div>
-            <div v-if="backendDeleteLoading" style="margin-top: var(--space-5); font-style: italic;">
-              Checking for references...
-            </div>
-            <div v-else-if="backendDeleteReferences && (backendDeleteReferences.libraries.length > 0 || backendDeleteReferences.queries.length > 0)" style="margin-top: var(--space-5);">
-              <p style="font-weight: 600; margin-bottom: var(--space-4);">This backend is used as the default by:</p>
-              <ul style="margin-left: var(--space-6); margin-bottom: var(--space-4);">
-                <li v-for="library in backendDeleteReferences.libraries" :key="library.id">
-                  Library: {{ library.name }}
-                </li>
-                <li v-for="query in backendDeleteReferences.queries" :key="query.id">
-                  Query: {{ query.name }}
-                </li>
-              </ul>
-              <p style="font-weight: 600;">Their defaultBackend will be set to None.</p>
-            </div>
-            <div v-else-if="backendDeleteReferences" style="margin-top: var(--space-4); font-style: italic;">
-              No entities are using this backend as their default.
-            </div>
-            <div style="margin-top: var(--space-5);">
-              This action cannot be undone.
-            </div>
+            <div v-if="backendDeleteLoading" style="font-style: italic;">Checking what uses it…</div>
+            <ul
+              v-else-if="backendDeleteEffects.length > 0"
+              style="margin-left: var(--space-6);"
+              data-testid="backend-delete-effects"
+            >
+              <li v-for="effect in backendDeleteEffects" :key="effect">{{ effect }}</li>
+            </ul>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction @click="confirmDeleteBackend" class="delete-action" :disabled="backendDeleteLoading">
-            Delete
+            Delete {{ backendDeleteTarget?.backendName }}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1728,7 +1711,51 @@ const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<{ libraryId: string; libraryName: string } | null>(null);
 const backendDeleteConfirmOpen = ref(false);
 const backendDeleteTarget = ref<{ backendId: string; backendName: string } | null>(null);
-const backendDeleteReferences = ref<{ libraries: Array<{ id: string; name: string }>; queries: Array<{ id: string; name: string }> } | null>(null);
+interface BackendDeleteReferences {
+  libraries: number;
+  environments: number;
+  queries: number;
+  etlJobs: number;
+  queryGroups: number;
+  benchmarks: number;
+}
+const backendDeleteReferences = ref<BackendDeleteReferences | null>(null);
+
+function countPhrase(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function joinPhrases(parts: string[]): string {
+  return parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+/*
+ * What deleting the backend does, in the user's terms: the defaults it
+ * clears, and the groups and benchmarks that still name it and then fail.
+ */
+const backendDeleteEffects = computed<string[]>(() => {
+  const refs = backendDeleteReferences.value;
+  if (!refs) return [];
+  const effects: string[] = [];
+  const defaults = [
+    refs.libraries ? countPhrase(refs.libraries, 'library', 'libraries') : '',
+    refs.environments ? countPhrase(refs.environments, 'environment', 'environments') : '',
+    refs.queries ? countPhrase(refs.queries, 'query', 'queries') : '',
+    refs.etlJobs ? countPhrase(refs.etlJobs, 'ETL job', 'ETL jobs') : '',
+  ].filter(Boolean);
+  if (defaults.length > 0) {
+    const total = refs.libraries + refs.environments + refs.queries + refs.etlJobs;
+    effects.push(`${joinPhrases(defaults)} ${total === 1 ? 'loses' : 'lose'} this default`);
+  }
+  const named = [
+    refs.queryGroups ? countPhrase(refs.queryGroups, 'query group', 'query groups') : '',
+    refs.benchmarks ? countPhrase(refs.benchmarks, 'benchmark', 'benchmarks') : '',
+  ].filter(Boolean);
+  if (named.length > 0) {
+    effects.push(`${joinPhrases(named)} name it and fail to run`);
+  }
+  return effects;
+});
 const backendDeleteLoading = ref(false);
 const backends = computed<Backend[]>(() => backendsStore.backends.value);
 
@@ -1955,20 +1982,32 @@ async function handleDeleteBackendRequest(payload: { backendId: string; backendN
   backendDeleteReferences.value = null;
   backendDeleteConfirmOpen.value = true;
 
+  const none: BackendDeleteReferences = {
+    libraries: 0, environments: 0, queries: 0, etlJobs: 0, queryGroups: 0, benchmarks: 0,
+  };
   try {
     // Nothing server-side can reference a backend the server has never seen.
     if (isBrowserBackendId(payload.backendId)) {
-      backendDeleteReferences.value = { libraries: [], queries: [] };
+      backendDeleteReferences.value = none;
       return;
     }
-    // Fetch references before showing the dialog
     const apiClient = useApiClient();
-    const references = await apiClient.getBackendReferences(payload.backendId);
-    backendDeleteReferences.value = references;
+    const [references, usage] = await Promise.all([
+      apiClient.getBackendReferences(payload.backendId),
+      apiClient.getBackendUsage(payload.backendId).catch(() => null),
+    ]);
+    backendDeleteReferences.value = {
+      libraries: references.libraries.length,
+      environments: references.environments?.length ?? 0,
+      queries: references.queries.length,
+      etlJobs: references.etlJobs?.length ?? 0,
+      queryGroups: usage?.queryGroups.count ?? 0,
+      benchmarks: usage?.benchmarks.count ?? 0,
+    };
   } catch (error) {
     console.error('Failed to fetch backend references:', error);
-    // Show dialog anyway, but without references
-    backendDeleteReferences.value = { libraries: [], queries: [] };
+    // Show the dialog anyway, without the effects.
+    backendDeleteReferences.value = none;
   } finally {
     backendDeleteLoading.value = false;
   }

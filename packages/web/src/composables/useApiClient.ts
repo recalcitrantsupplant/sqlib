@@ -965,6 +965,7 @@ export function useApiClient() {
     libraries: Array<{ id: string; name: string }>;
     queries: Array<{ id: string; name: string }>;
     etlJobs: Array<{ id: string; name: string }>;
+    environments: Array<{ id: string; name: string; library: string }>;
   }> => {
     return requestData(
       buildUrl(`/backends/${encodeURIComponent(id)}/references`),
@@ -2212,9 +2213,10 @@ export function useApiClient() {
   };
 
   /** The environments a library defines (dev, prod), in chain order. */
-  const listEnvironments = (library: string) =>
+  /** One library's environments, or every readable environment when `library` is null. */
+  const listEnvironments = (library: string | null) =>
     requestData(
-      buildUrl(`/environments?library=${encodeURIComponent(library)}`),
+      buildUrl(library ? `/environments?library=${encodeURIComponent(library)}` : '/environments'),
       { method: 'GET' },
       (payload) => environmentSchema.array().parse(payload),
     );

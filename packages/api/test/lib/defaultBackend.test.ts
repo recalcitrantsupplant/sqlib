@@ -43,4 +43,36 @@ describe('resolveQueryDefaultBackend', () => {
     const get = store([group]);
     expect(resolveQueryDefaultBackend(get(GROUP), get)).toBeNull();
   });
+
+  describe('in an environment', () => {
+    const environments: Record<string, { defaultBackend?: string | null }> = {
+      prod: { defaultBackend: 'urn:b:prod' },
+      test: { defaultBackend: null },
+    };
+    const findEnvironment = (libraryId: string, name: string) =>
+      libraryId === LIB ? environments[name] ?? null : null;
+
+    it("puts the environment's default before the query's own", () => {
+      const get = store([library('urn:b:lib'), group, query('urn:b:q'), version]);
+      expect(resolveQueryDefaultBackend(get(VERSION), get, { environment: 'prod', findEnvironment }))
+        .toEqual({ backendId: 'urn:b:prod', source: 'environment' });
+    });
+
+    it('falls back to the query and the library when the environment names no backend', () => {
+      const get = store([library('urn:b:lib'), group, query('urn:b:q')]);
+      expect(resolveQueryDefaultBackend(get(QUERY), get, { environment: 'test', findEnvironment }))
+        .toEqual({ backendId: 'urn:b:q', source: 'query' });
+      const bare = store([library('urn:b:lib'), group, query()]);
+      expect(resolveQueryDefaultBackend(bare(QUERY), bare, { environment: 'test', findEnvironment }))
+        .toEqual({ backendId: 'urn:b:lib', source: 'library' });
+    });
+
+    it('ignores `latest` and a name the library does not define', () => {
+      const get = store([library('urn:b:lib'), group, query('urn:b:q')]);
+      for (const environment of ['latest', 'staging']) {
+        expect(resolveQueryDefaultBackend(get(QUERY), get, { environment, findEnvironment }))
+          .toEqual({ backendId: 'urn:b:q', source: 'query' });
+      }
+    });
+  });
 });

@@ -99,6 +99,9 @@ export const backendReferencesSchema = z.object({
   queries: z.array(namedRefSchema),
   // Older servers do not list ETL jobs; read their absence as none.
   etlJobs: z.array(namedRefSchema).default([]),
+  // Environments whose default this backend is; `library` is the library IRI.
+  // Older servers do not list them; read their absence as none.
+  environments: z.array(namedRefSchema.extend({ library: z.string() })).default([]),
 });
 
 export type BackendReferences = z.infer<typeof backendReferencesSchema>;

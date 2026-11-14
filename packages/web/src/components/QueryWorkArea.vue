@@ -554,7 +554,7 @@ import { useEntityDraft } from '../composables/useEntityDraft';
 import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
-import { getLastBackend, resolveQueryBackend, setLastBackend } from '@/lib/backendDefaults';
+import { getLastBackend, queryDefaultSource, resolveQueryBackend, setLastBackend } from '@/lib/backendDefaults';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
@@ -1033,6 +1033,13 @@ const backendOptions = computed(() => {
   };
   ensureOption(defaultBackend.value);
   ensureOption(selectedBackend.value);
+  // The default this query starts on carries where it comes from.
+  const defaultId = effectiveDefaultBackend.value;
+  const source = effectiveDefaultSource.value;
+  if (defaultId && source && optionMap.has(defaultId)) {
+    const sourceLabel = source === 'environment' ? `${runEnvironmentName.value} default` : `${source} default`;
+    optionMap.set(defaultId, `${optionMap.get(defaultId)} · ${sourceLabel}`);
+  }
   return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
 });
 
@@ -1054,6 +1061,19 @@ const libraryDefaultBackend = computed<string | null>(() => {
   const libraryId = owningLibraryId.value;
   if (!libraryId) return null;
   return librariesStore.libraries.value.find((library) => library.id === libraryId)?.defaultBackend ?? null;
+});
+
+/*
+ * The active environment's default backend. It applies only to a query of the
+ * library the environment belongs to; under `latest` there is none.
+ */
+const runEnvironmentName = computed<string | null>(() => {
+  const env = activeEnvironment.value;
+  return env && env.isPartOf === owningLibraryId.value ? env.name : null;
+});
+const environmentDefaultBackend = computed<string | null>(() => {
+  const env = activeEnvironment.value;
+  return env && env.isPartOf === owningLibraryId.value ? env.defaultBackend ?? null : null;
 });
 
 function backendLabel(id: string | null | undefined): string {
@@ -1081,6 +1101,13 @@ const detailsBackendOptions = computed(() => {
       ? `Library default (${backendLabel(libraryDefaultBackend.value)})`
       : 'None — choose when running',
   );
+  // In an environment with its own default, that default runs instead of this one.
+  if (environmentDefaultBackend.value) {
+    optionMap.set(
+      NONE_BACKEND,
+      `${runEnvironmentName.value} default (${backendLabel(environmentDefaultBackend.value)})`,
+    );
+  }
   for (const backend of availableBackends.value) {
     optionMap.set(backend.id, backend.name);
   }
@@ -1091,10 +1118,18 @@ const detailsBackendOptions = computed(() => {
   return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
 });
 
-/** The default this query runs on: its own, else its library's. */
+/** The default this query runs on: the environment's, its own, else its library's. */
 const effectiveDefaultBackend = computed<string | null>(
-  () => toStoredBackend(defaultBackend.value) ?? libraryDefaultBackend.value,
+  () => environmentDefaultBackend.value ?? toStoredBackend(defaultBackend.value) ?? libraryDefaultBackend.value,
 );
+
+/** Which default the run bar starts on, for its label. */
+const effectiveDefaultSource = computed(() => queryDefaultSource({
+  environmentDefault: environmentDefaultBackend.value,
+  queryDefault: toStoredBackend(defaultBackend.value),
+  libraryDefault: libraryDefaultBackend.value,
+  isAvailable: isBackendAvailable,
+}));
 
 /*
  * Whether a backend can still be run against. Until the list has loaded every
@@ -1108,7 +1143,8 @@ function isBackendAvailable(id: string): boolean {
 /** Point the run bar where this query should start: last pick, default, library default. */
 function resolveRunBackend() {
   selectedBackend.value = resolveQueryBackend({
-    lastPick: getLastBackend('query', queryId.value),
+    lastPick: getLastBackend('query', queryId.value, runEnvironmentName.value),
+    environmentDefault: environmentDefaultBackend.value,
     queryDefault: toStoredBackend(defaultBackend.value),
     libraryDefault: libraryDefaultBackend.value,
     isAvailable: isBackendAvailable,
@@ -1118,7 +1154,7 @@ function resolveRunBackend() {
 /** The run bar's own choice, remembered in this browser for this query. */
 function pickRunBackend(value: string) {
   selectedBackend.value = value;
-  setLastBackend('query', queryId.value, value || null);
+  setLastBackend('query', queryId.value, value || null, runEnvironmentName.value);
 }
 
 
@@ -2041,7 +2077,7 @@ async function saveScratch(name: string) {
   // A backend picked in the run bar while this was a draft stays picked: the
   // saved query would otherwise reopen on its default.
   if (selectedBackend.value && selectedBackend.value !== effectiveDefaultBackend.value) {
-    setLastBackend('query', created.id, selectedBackend.value);
+    setLastBackend('query', created.id, selectedBackend.value, runEnvironmentName.value);
   }
   draftsStore.remove(scratchRecordId);
   toast.success(`Saved “${name}” as v1`);
@@ -2183,6 +2219,15 @@ watch(
     }
   },
 );
+
+/*
+ * Another environment, or its default changed: the run bar starts again from
+ * that environment's remembered pick and default.
+ */
+watch([runEnvironmentName, environmentDefaultBackend], () => {
+  if (queryLoading.value) return;
+  resolveRunBackend();
+});
 
 async function loadQuery(id: string, versionOverride?: number | null) {
   if (!id) {

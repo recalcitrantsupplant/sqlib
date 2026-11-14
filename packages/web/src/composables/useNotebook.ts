@@ -60,6 +60,7 @@ import { useApiClient } from './useApiClient';
 import { useCallables } from './useCallables';
 import { useRuleSetsStore } from './useRuleSetsStore';
 import { resolveQueryDefault } from '../lib/backendDefaults';
+import { useActiveEnvironment } from './useActiveEnvironment';
 
 /**
  * What a cell can be pointed at, flattened across the three entity kinds.
@@ -145,6 +146,7 @@ export function useNotebook(
   const apiClient = useApiClient();
   const defaultBackendId = defaultBackend;
   const callables = useCallables(libraryId);
+  const { activeEnvironment } = useActiveEnvironment();
   const ruleSetsStore = useRuleSetsStore();
 
   const notebook = ref<Notebook>(emptyNotebook(libraryId.value));
@@ -218,15 +220,19 @@ export function useNotebook(
   }
 
   /*
-   * The backend a cell runs on when it names none: the query's own default,
-   * then the library's — the order `lib/backendDefaults.ts` sets out. A group
+   * The backend a cell runs on when it names none: the active environment's
+   * default, the query's own, then the library's — the order
+   * `lib/backendDefaults.ts` sets out. A group
    * has none to fall back to (each of its nodes names its own, and the server
    * refuses a backend for a group), and a rule set runs in memory.
    */
   function defaultBackendFor(cell: RunCell): string | null {
     if (cell.kind !== 'query') return null;
     const callable = callables.callables.value.find((entry) => entry.id === cell.query);
+    const env = activeEnvironment.value;
+    const environmentDefault = env && callable?.libraryId === env.isPartOf ? env.defaultBackend ?? null : null;
     return resolveQueryDefault({
+      environmentDefault,
       queryDefault: callable?.defaultBackend ?? null,
       libraryDefault: defaultBackendId.value,
     });

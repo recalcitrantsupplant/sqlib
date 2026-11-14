@@ -372,27 +372,19 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Wait for confirmation dialog to appear
     await page.waitForTimeout(500);
 
-    // Verify dialog title
-    await expect(page.getByText('Delete Backend?')).toBeVisible();
-
-    // Verify backend name in dialog
-    await expect(page.getByText('"Test Backend 1"')).toBeVisible();
-
-    // Verify references are shown
-    await expect(page.getByText('This backend is used as the default by:')).toBeVisible();
-    await expect(page.getByText('Library: Library with Backend 1')).toBeVisible();
-    await expect(page.getByText('Query: Query with Backend 1')).toBeVisible();
-    await expect(page.getByText('Their defaultBackend will be set to None')).toBeVisible();
+    // The title names the backend, and the dialog counts what loses the default.
+    await expect(page.getByText('Delete Test Backend 1?')).toBeVisible();
+    await expect(page.getByTestId('backend-delete-effects')).toHaveText('1 library and 1 query lose this default');
 
     // Click Delete button in dialog
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete' });
+    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 1' });
     await confirmDeleteButton.click();
 
     // Wait for deletion to complete
     await page.waitForTimeout(500);
 
     // Dialog should close
-    await expect(page.getByText('Delete Backend?')).not.toBeVisible();
+    await expect(page.getByText('Delete Test Backend 1?')).not.toBeVisible();
 
     // Verify backend is deleted from mock data
     expect(mockBackends.find(b => b.id === 'urn:sqlib:backend:test-1')).toBeUndefined();
@@ -439,15 +431,16 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Wait for confirmation dialog
     await page.waitForTimeout(500);
 
-    // Verify message shows no references
-    await expect(page.getByText('No entities are using this backend as their default')).toBeVisible();
+    // Nothing uses it, so the dialog lists no effects.
+    await expect(page.getByText('Delete Unused Backend?')).toBeVisible();
+    await expect(page.getByTestId('backend-delete-effects')).toHaveCount(0);
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete' });
+    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Unused Backend' });
     await confirmDeleteButton.click();
 
     await page.waitForTimeout(500);
-    await expect(page.getByText('Delete Backend?')).not.toBeVisible();
+    await expect(page.getByText('Delete Unused Backend?')).not.toBeVisible();
   });
 
   test('should allow canceling backend deletion', async ({ page }) => {
@@ -471,7 +464,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.waitForTimeout(500);
 
     // Verify dialog is open
-    await expect(page.getByText('Delete Backend?')).toBeVisible();
+    await expect(page.getByText('Delete Test Backend 2?')).toBeVisible();
 
     // Click Cancel
     const cancelButton = page.getByRole('button', { name: 'Cancel' });
@@ -480,7 +473,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.waitForTimeout(300);
 
     // Dialog should close
-    await expect(page.getByText('Delete Backend?')).not.toBeVisible();
+    await expect(page.getByText('Delete Test Backend 2?')).not.toBeVisible();
 
     // Backend should NOT be deleted
     expect(mockBackends.length).toBe(initialBackendCount);
@@ -543,15 +536,14 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.waitForTimeout(500);
 
     // Verify references are shown in dialog
-    await expect(page.getByText('This backend is used as the default by:')).toBeVisible();
-    await expect(page.getByText('Library: New Library with Backend')).toBeVisible();
+    await expect(page.getByTestId('backend-delete-effects')).toContainText('lose this default');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete' });
+    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 1' });
     await confirmDeleteButton.click();
 
     await page.waitForTimeout(500);
-    await expect(page.getByText('Delete Backend?')).not.toBeVisible();
+    await expect(page.getByText('Delete Test Backend 1?')).not.toBeVisible();
 
     // Step 4: Verify library has its defaultBackend cleared to null
     expect(newLibrary.defaultBackend).toBeNull();
@@ -600,10 +592,10 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.waitForTimeout(500);
 
     // Verify references shown
-    await expect(page.getByText('Query: Query with Backend 2')).toBeVisible();
+    await expect(page.getByTestId('backend-delete-effects')).toHaveText('1 query loses this default');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete' });
+    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 2' });
     await confirmDeleteButton.click();
 
     await page.waitForTimeout(500);
@@ -678,13 +670,10 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.waitForTimeout(500);
 
     // Verify ALL references shown in dialog
-    await expect(page.getByText('Library: Library with Backend 1')).toBeVisible();
-    await expect(page.getByText('Library: Extra Library')).toBeVisible();
-    await expect(page.getByText('Query: Query with Backend 1')).toBeVisible();
-    await expect(page.getByText('Query: Extra Query')).toBeVisible();
+    await expect(page.getByTestId('backend-delete-effects')).toHaveText('2 libraries and 2 queries lose this default');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete' });
+    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 1' });
     await confirmDeleteButton.click();
 
     await page.waitForTimeout(500);
