@@ -343,39 +343,16 @@
       <slot />
     </div>
 
-    <!--
-      The foot of the panel: when this thing was made, and the one action that
-      unmakes it. Delete confirms in place rather than in a dialog — the strip
-      it sits in is where the answer is wanted, and a dialog over a panel this
-      small covers the thing being deleted.
-    -->
-    <div v-if="showFooter" class="details-footer" data-testid="details-footer">
-      <template v-if="deleteConfirming">
-        <InlineNote as="span" tone="danger" class="confirm-note">{{ deleteConfirmPrompt }}</InlineNote>
-        <button
-          class="confirm-delete"
-          data-testid="details-confirm-delete"
-          :disabled="deleting"
-          @click="confirmDelete"
-        >
-          {{ deleting ? 'Deleting…' : 'Delete' }}
-        </button>
-        <button class="confirm-cancel" data-testid="details-cancel-delete" @click="deleteConfirming = false">
-          Cancel
-        </button>
-      </template>
-      <template v-else>
-        <InlineNote v-if="createdLabel" as="span" data-testid="details-created">Created {{ createdLabel }}</InlineNote>
-        <button
-          v-if="canDelete"
-          class="delete-button"
-          data-testid="details-delete"
-          @click="deleteConfirming = true"
-        >
-          <Trash2 :size="12" />Delete {{ entityNoun }}
-        </button>
-      </template>
-    </div>
+    <RecordFooter
+      v-if="showFooter"
+      :noun="entityNoun"
+      :confirm-prompt="deleteConfirmPrompt"
+      :created-at="createdAt"
+      :can-delete="canDelete"
+      :deleting="deleting"
+      :reset-key="entityId"
+      @delete="emit('delete')"
+    />
   </div>
 </template>
 
@@ -416,13 +393,14 @@ export interface DetailsBackendOption {
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ChevronDown, ChevronUp, Copy, GitCompare, PencilLine, Trash2 } from '@lucide/vue';
+import { ChevronDown, ChevronUp, Copy, GitCompare, PencilLine } from '@lucide/vue';
 import { useCopyToClipboard } from '../../composables/useCopyToClipboard';
 import type { DetectInputsResponse } from '@sparql-query-lib/contracts';
 import { isBooleanQueryType, isGraphQueryType, isQueryTypeIri, isResultSetQueryType } from '@sparql-query-lib/types';
 import { formatRelativeTime, formatCompactAge, formatShortDate } from '../../lib/time';
 import EntityTagsField from '../tags/EntityTagsField.vue';
 import InlineNote from './InlineNote.vue';
+import RecordFooter from './RecordFooter.vue';
 import SearchSelect from './SearchSelect.vue';
 import type { TaggableKind } from '../../composables/useEntityTags';
 
@@ -696,8 +674,6 @@ const createdLabel = computed(() => formatShortDate(props.createdAt));
 
 const showFooter = computed(() => props.canDelete || !!createdLabel.value);
 
-const deleteConfirming = ref(false);
-
 const deleteConfirmPrompt = computed(() => {
   const count = props.versionOptions.length;
   if (count === 0) return `Delete this ${props.entityNoun}?`;
@@ -705,19 +681,12 @@ const deleteConfirmPrompt = computed(() => {
   return `Delete this ${props.entityNoun} and all ${count} versions?`;
 });
 
-function confirmDelete() {
-  emit('delete');
-}
-
 /*
- * Switching entity closes both: the history that was open was the other
- * entity's, and so was the delete being confirmed. A failed delete leaves the
- * confirm strip up with the button ready to try again — the host unmounts the
- * panel on success, so nothing here has to close it.
+ * Switching entity closes the history: it was the other entity's. The footer
+ * closes its own delete confirm on the same change.
  */
 watch(() => props.entityId, () => {
   historyOpen.value = false;
-  deleteConfirming.value = false;
 });
 
 const idLabel = computed(() => `${props.entityNoun.charAt(0).toUpperCase()}${props.entityNoun.slice(1)} ID`);
@@ -1271,87 +1240,5 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   color: var(--ink-secondary);
   font-family: var(--font-mono);
   font-size: var(--text-label);
-}
-
-.details-footer {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-4);
-  box-sizing: border-box;
-  /* Same band as the Results tab's footer: switching tabs must not move it. */
-  min-height: var(--panel-bar-h);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--surface-subtle);
-}
-
-/* Destructive, and last in the row: red enough to read as the one action here
-   that cannot be undone, quiet enough that it is not what the eye lands on. */
-.delete-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: var(--control-h-sm);
-  margin-left: auto;
-  padding: 0 var(--space-4);
-  border: none;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--danger-active);
-  font-family: inherit;
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
-
-.delete-button:hover {
-  background: var(--danger-surface);
-  color: var(--danger-ink);
-}
-
-/* The width is the footer row's fact: the prompt shrinks so the buttons do not. */
-.confirm-note {
-  min-width: 0;
-}
-
-.confirm-delete {
-  height: var(--control-h-sm);
-  margin-left: auto;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--radius);
-  background: var(--danger);
-  color: var(--danger-fg);
-  font-family: inherit;
-  font-size: var(--text-label);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-
-.confirm-delete:hover:not(:disabled) {
-  background: var(--danger-hover);
-}
-
-.confirm-delete:disabled {
-  cursor: default;
-  opacity: 0.7;
-}
-
-.confirm-cancel {
-  height: var(--control-h-sm);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink-secondary);
-  font-family: inherit;
-  font-size: var(--text-label);
-  cursor: pointer;
-}
-
-.confirm-cancel:hover {
-  border-color: var(--border-strong);
-  color: var(--ink);
 }
 </style>

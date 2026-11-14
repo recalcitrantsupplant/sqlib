@@ -120,9 +120,6 @@
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="$emit('delete')">
-              {{ deleteLabel }}
-            </DropdownMenuItem>
             <DropdownMenuItem @click="$emit('clone')">
               {{ cloneLabel }}
             </DropdownMenuItem>
@@ -199,7 +196,6 @@ const props = withDefaults(
     saveInvalidLabel?: string;
     focusTitle?: string;
     moreActionsTitle?: string;
-    deleteLabel?: string;
     cloneLabel?: string;
     moveLabel?: string;
     showInvalidSaveOption?: boolean;
@@ -225,7 +221,6 @@ const props = withDefaults(
     saveInvalidLabel: 'Save my sins',
     focusTitle: 'Focus Mode',
     moreActionsTitle: 'More actions',
-    deleteLabel: 'Delete',
     cloneLabel: 'Clone',
     moveLabel: 'Move',
     showInvalidSaveOption: false,
@@ -242,7 +237,6 @@ defineEmits<{
   (e: 'save-new-version'): void;
   (e: 'save-invalid'): void;
   (e: 'request-focus'): void;
-  (e: 'delete'): void;
   (e: 'clone'): void;
   (e: 'move'): void;
   (e: 'update:selectedVersion', value: string): void;

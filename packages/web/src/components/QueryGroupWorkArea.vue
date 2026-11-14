@@ -92,7 +92,6 @@
         :hide-version-selector="true"
         @update:selectedVersion="handleSelectedVersionChange"
         @save="saveNewVersion"
-        @delete="requestDeleteQueryGroup"
         @clone="requestCloneQueryGroup"
         @move="requestMoveQueryGroup"
         @copy-version-id="copyQueryGroupVersionId"
@@ -298,6 +297,7 @@
               @annotate-version="annotateVersion"
               @compare-version="compareVersion"
               @copy-id="copyQueryGroupId"
+              @delete="deleteQueryGroup"
             />
           </template>
 
@@ -511,23 +511,6 @@
     :error="diffError"
   />
 
-  <AlertDialog v-model:open="deleteConfirmOpen">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Delete query group?</AlertDialogTitle>
-        <AlertDialogDescription>
-          "{{ queryGroupName }}" and all of its versions, nodes and edges will be
-          deleted. This cannot be undone.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>Cancel</AlertDialogCancel>
-        <AlertDialogAction class="delete-action" @click="confirmDeleteQueryGroup">
-          Delete
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
 
   <RuleSetSelectorDialog
     :open="showRuleSetSelectorDialog"
@@ -572,16 +555,6 @@ import { useBrowserDefaults } from '@/composables/useBrowserDefaults';
 import SubjectTestsPanel from './tests/SubjectTestsPanel.vue';
 import { useTestsSurface } from '../composables/useTestsSurface';
 import type { DataGraphOption } from '@/types/data-graphs';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../components/ui/alert-dialog';
 import QueryResultsViewer from './QueryResultsViewer.vue';
 import type { SparqlResults } from '@sparql-query-lib/types';
 import { toast } from 'vue-sonner';
@@ -1983,6 +1956,11 @@ const detailsProps = computed(() => ({
   editCount: unsavedEditCount.value,
   draftSavedAt: groupDraft.locallySavedAt.value ?? groupDraft.openDraft.value?.updatedAt ?? null,
   draftSelected: unsavedEditCount.value > 0,
+  createdAt: isScratch.value
+    ? null
+    : (queryGroupsStore.queryGroups.value.find((group) => group.id === queryGroupId.value)?.dateCreated ?? null),
+  canDelete: !isScratch.value && !!queryGroupId.value,
+  deleting: isSaving.value,
 }));
 
 /**
@@ -2266,21 +2244,6 @@ const inspectorTabs = computed<InspectorTab[]>(() => [
   { id: 'code', label: 'Code' },
   { id: 'tests', label: 'Tests', hidden: !testSubjectId.value },
 ]);
-
-// Deleting cascades every version, node, edge and tuple on the API side, so it is
-// gated behind a confirmation rather than firing straight from the menu.
-const deleteConfirmOpen = ref(false);
-const requestDeleteQueryGroup = () => {
-  if (!queryGroupId.value) {
-    toast.error('No query group selected');
-    return;
-  }
-  deleteConfirmOpen.value = true;
-};
-const confirmDeleteQueryGroup = () => {
-  deleteConfirmOpen.value = false;
-  void deleteQueryGroup();
-};
 
 const transferDialogOpen = ref(false);
 const transferMode = ref<'clone' | 'move'>('clone');
@@ -3928,21 +3891,6 @@ onUnmounted(() => {
 
 
 <style scoped>
-
-/*
- * The destructive button in the delete dialog. The class was on the button and
- * styled only in `QueryWorkArea` and `pages/index.vue` — scoped styles do not
- * reach across components, so here it did nothing and the button read as an
- * ordinary one.
- */
-.delete-action {
-  background: var(--danger);
-  color: var(--danger-fg);
-}
-
-.delete-action:hover {
-  background: var(--danger-hover);
-}
 
 /*
  * The Vue Flow stylesheets, the split, the graph box and its controls are

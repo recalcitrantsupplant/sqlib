@@ -150,7 +150,8 @@
         @created="handleBackendCreated"
         @discard-draft="backendDraft = false"
         @draft-name="backendDraftName = $event"
-        @delete-request="handleDeleteBackendRequest"
+        :deleting="backendDeleting"
+        @delete-request="deleteBackend"
         @open-usage="handleRailSelect"
       />
       <!--
@@ -248,46 +249,6 @@
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction @click="confirmDeleteLibrary" class="delete-action">
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
-    <AlertDialog v-model:open="backendDeleteConfirmOpen">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete Backend?</AlertDialogTitle>
-          <AlertDialogDescription>
-            <div>
-              Are you sure you want to delete "{{ backendDeleteTarget?.backendName }}"?
-            </div>
-            <div v-if="backendDeleteLoading" style="margin-top: var(--space-5); font-style: italic;">
-              Checking for references...
-            </div>
-            <div v-else-if="backendDeleteReferences && (backendDeleteReferences.libraries.length > 0 || backendDeleteReferences.queries.length > 0)" style="margin-top: var(--space-5);">
-              <p style="font-weight: 600; margin-bottom: var(--space-4);">This backend is used as the default by:</p>
-              <ul style="margin-left: var(--space-6); margin-bottom: var(--space-4);">
-                <li v-for="library in backendDeleteReferences.libraries" :key="library.id">
-                  Library: {{ library.name }}
-                </li>
-                <li v-for="query in backendDeleteReferences.queries" :key="query.id">
-                  Query: {{ query.name }}
-                </li>
-              </ul>
-              <p style="font-weight: 600;">Their defaultBackend will be set to None.</p>
-            </div>
-            <div v-else-if="backendDeleteReferences" style="margin-top: var(--space-4); font-style: italic;">
-              No entities are using this backend as their default.
-            </div>
-            <div style="margin-top: var(--space-5);">
-              This action cannot be undone.
-            </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction @click="confirmDeleteBackend" class="delete-action" :disabled="backendDeleteLoading">
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -1726,10 +1687,7 @@ const backendDraft = ref(false);
 const backendDraftName = ref('');
 const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<{ libraryId: string; libraryName: string } | null>(null);
-const backendDeleteConfirmOpen = ref(false);
-const backendDeleteTarget = ref<{ backendId: string; backendName: string } | null>(null);
-const backendDeleteReferences = ref<{ libraries: Array<{ id: string; name: string }>; queries: Array<{ id: string; name: string }> } | null>(null);
-const backendDeleteLoading = ref(false);
+const backendDeleting = ref(false);
 const backends = computed<Backend[]>(() => backendsStore.backends.value);
 
 /* ------------------------------------------------------------------ *
@@ -1949,36 +1907,15 @@ function handleEditBackendRequest(payload: { backendId: string; backendName: str
   openBackendRecord(payload.backendId);
 }
 
-async function handleDeleteBackendRequest(payload: { backendId: string; backendName: string }) {
-  backendDeleteTarget.value = payload;
-  backendDeleteLoading.value = true;
-  backendDeleteReferences.value = null;
-  backendDeleteConfirmOpen.value = true;
-
+/*
+ * The backend record confirms in its own footer, with the records that default
+ * to it named there, so this deletes at once. The server clears each default
+ * that pointed at the backend.
+ */
+async function deleteBackend(payload: { backendId: string; backendName: string }) {
+  const deletedId = payload.backendId;
+  backendDeleting.value = true;
   try {
-    // Nothing server-side can reference a backend the server has never seen.
-    if (isBrowserBackendId(payload.backendId)) {
-      backendDeleteReferences.value = { libraries: [], queries: [] };
-      return;
-    }
-    // Fetch references before showing the dialog
-    const apiClient = useApiClient();
-    const references = await apiClient.getBackendReferences(payload.backendId);
-    backendDeleteReferences.value = references;
-  } catch (error) {
-    console.error('Failed to fetch backend references:', error);
-    // Show dialog anyway, but without references
-    backendDeleteReferences.value = { libraries: [], queries: [] };
-  } finally {
-    backendDeleteLoading.value = false;
-  }
-}
-
-async function confirmDeleteBackend() {
-  if (!backendDeleteTarget.value) return;
-
-  try {
-    const deletedId = backendDeleteTarget.value.backendId;
     // A browser backend has no server record to delete; removing it from this
     // browser's storage is the whole of it.
     if (isBrowserBackendId(deletedId)) {
@@ -1991,17 +1928,14 @@ async function confirmDeleteBackend() {
     if (selectedBackendId.value === deletedId) {
       selectedBackendId.value = backends.value[0]?.id ?? null;
     }
-    backendDeleteConfirmOpen.value = false;
     sidebarRefreshKey.value += 1;
   } catch (error) {
     console.error('Failed to delete backend:', error);
-    // Keep dialog open to show error
+    toast.error(`${payload.backendName} was not deleted: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
-    backendDeleteTarget.value = null;
-    backendDeleteReferences.value = null;
+    backendDeleting.value = false;
   }
 }
-
 
 /* ------------------------------------------------------------------ *
  * The Runs tab, and the run it is a tab of.
