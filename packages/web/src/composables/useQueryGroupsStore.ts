@@ -214,6 +214,7 @@ export function useQueryGroupsStore() {
   return {
     queryGroups,
     loading,
+    initialLoading: entities.initialLoading,
     error,
     concurrency: entities.concurrency,
     versions: state.versions,

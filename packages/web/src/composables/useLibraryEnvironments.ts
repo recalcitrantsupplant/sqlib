@@ -10,6 +10,7 @@ import { computed, ref } from 'vue';
 import type { Environment } from '@sparql-query-lib/contracts';
 import { useApiClient, type EnvironmentPointer } from '@/composables/useApiClient';
 import { useActiveEnvironment } from '@/composables/useActiveEnvironment';
+import { useLoadState } from '@/composables/useLoadState';
 import {
   buildBoard,
   indexPointers,
@@ -45,7 +46,8 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
   const environments = ref<Environment[]>([]);
   const entities = ref<PromotableEntity[]>([]);
   const pointers = ref<Record<string, EnvironmentPointer[]>>({});
-  const loading = ref(false);
+  // Keyed by library: a refresh after a change keeps the chain on screen.
+  const chainLoad = useLoadState();
   const loadError = ref<string | null>(null);
 
   const rows = computed<BoardRow[]>(() =>
@@ -92,7 +94,7 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
   async function load() {
     const library = libraryId();
     if (!library) return;
-    loading.value = true;
+    const endLoad = chainLoad.start(library);
     loadError.value = null;
     try {
       environments.value = await api.listEnvironments(library);
@@ -100,7 +102,7 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
     } catch (error) {
       loadError.value = errorText(error);
     } finally {
-      loading.value = false;
+      endLoad();
     }
   }
 
@@ -215,7 +217,8 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
     environments,
     entities,
     rows,
-    loading,
+    loading: chainLoad.loading,
+    initialLoading: chainLoad.initialLoading,
     loadError,
     load,
     refresh,

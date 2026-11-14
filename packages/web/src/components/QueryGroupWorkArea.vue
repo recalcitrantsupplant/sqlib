@@ -313,7 +313,7 @@
                   :query-default-backend="queryDefaultBackend"
                   :library-default-backend="libraryDefaultBackend"
                   :query-options="queryAssignmentOptions.options.value"
-                  :query-options-loading="queryAssignmentOptions.loading.value"
+                  :query-options-initial-loading="queryAssignmentOptions.initialLoading.value"
                   :query-options-error="queryAssignmentOptions.error.value"
                   :flow-type-options="edgeFlowTypeOptions"
                   :io-entities="currentGraphState.ioEntities"
@@ -507,7 +507,7 @@
     v-model:open="diffOpen"
     :title="diffTitle"
     :diff="diffResult"
-    :loading="diffLoading"
+    :initial-loading="diffLoading && !diffResult"
     :error="diffError"
   />
 

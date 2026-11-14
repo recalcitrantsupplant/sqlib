@@ -30,12 +30,12 @@
         as one immutable version.
       </InlineNote>
 
-      <InlineNote v-if="loading" size="xs" class="sink-note">Loading…</InlineNote>
+      <InlineNote v-if="initialLoading" size="xs" class="sink-note">Loading…</InlineNote>
       <InlineNote v-else-if="error" size="xs" tone="danger" class="sink-note" data-testid="etl-tuple-sink-error">
         {{ error }}
       </InlineNote>
 
-      <ul v-if="!loading && candidates.length > 0" class="sink-list">
+      <ul v-if="!initialLoading && candidates.length > 0" class="sink-list">
         <li v-for="set in candidates" :key="set.id" class="sink-choice">
           <span class="sink-name">{{ set.name }}</span>
           <span class="sink-meta">
@@ -114,6 +114,7 @@ import { Table2, X, Save, Plus } from '@lucide/vue';
 import { toast } from 'vue-sonner';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
+import { useLoadState } from '@/composables/useLoadState';
 import type { TupleSet } from '@sparql-query-lib/contracts';
 import InlineNote from '../shared/InlineNote.vue';
 
@@ -137,7 +138,8 @@ const store = useTupleSetsStore();
 const { activeLibraryId } = useActiveLibrary();
 
 const open = ref(false);
-const loading = ref(false);
+// Keyed by library, so reopening the panel keeps the list while it reloads.
+const { initialLoading, start: startLoad } = useLoadState();
 const saving = ref(false);
 const error = ref<string | null>(null);
 const candidates = ref<TupleSet[]>([]);
@@ -162,7 +164,7 @@ async function refresh() {
     return;
   }
 
-  loading.value = true;
+  const endLoad = startLoad(libraryId);
   error.value = null;
   try {
     await store.loadTupleSets({ library: libraryId });
@@ -171,7 +173,7 @@ async function refresh() {
     error.value = err instanceof Error ? err.message : 'Could not load tuple sets';
     candidates.value = [];
   } finally {
-    loading.value = false;
+    endLoad();
   }
 }
 

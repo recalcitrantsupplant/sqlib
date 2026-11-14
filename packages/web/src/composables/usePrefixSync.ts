@@ -14,6 +14,7 @@
 import { ref, computed } from 'vue';
 import { useApiClient, type RemotePrefixes } from '@/composables/useApiClient';
 import { usePrefixManager } from '@/composables/usePrefixManager';
+import { useLoadState } from '@/composables/useLoadState';
 import {
   DEFAULT_SYNC_OPTIONS,
   planPrefixSync,
@@ -84,7 +85,7 @@ export function usePrefixSync() {
 
   const remote = ref<RemotePrefixes | null>(null);
   const plan = ref<PrefixSyncPlan | null>(null);
-  const loading = ref(false);
+  const remoteLoad = useLoadState();
   const applying = ref(false);
   const error = ref<string | null>(null);
   const outcome = ref<ApplyOutcome | null>(null);
@@ -100,7 +101,9 @@ export function usePrefixSync() {
   );
 
   const loadRemote = async (backendId: string): Promise<RemotePrefixes | null> => {
-    loading.value = true;
+    // The plan is cleared below, so every read starts with nothing to show.
+    remoteLoad.reset();
+    const endLoad = remoteLoad.start(backendId);
     error.value = null;
     outcome.value = null;
     plan.value = null;
@@ -112,7 +115,7 @@ export function usePrefixSync() {
       error.value = err instanceof Error ? err.message : 'Failed to read the store\'s prefixes';
       return null;
     } finally {
-      loading.value = false;
+      endLoad();
     }
   };
 
@@ -242,7 +245,8 @@ export function usePrefixSync() {
   return {
     remote,
     plan,
-    loading,
+    loading: remoteLoad.loading,
+    initialLoading: remoteLoad.initialLoading,
     applying,
     error,
     outcome,

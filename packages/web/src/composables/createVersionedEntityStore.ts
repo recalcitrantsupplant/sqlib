@@ -20,6 +20,7 @@
  */
 import { computed, reactive } from 'vue';
 import type { ApiResult } from './useApiClient';
+import { useLoadState } from './useLoadState';
 
 interface Tokened {
   id: string;
@@ -121,29 +122,30 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
 ) {
   const state = reactive({
     items: [] as T[],
-    loading: false,
     error: null as string | null,
     concurrency: {} as Record<string, string | null>,
   });
+  // Shared by every caller, like `state`: a list that has loaded once stays
+  // on screen while it reloads after a create, an update or a delete.
+  const listLoad = useLoadState();
 
   return function useVersionedEntityStore() {
     const api = config.api();
 
     const items = computed(() => state.items as T[]);
-    const loading = computed(() => state.loading);
+    const { loading, initialLoading } = listLoad;
     const error = computed(() => state.error);
 
     async function load() {
-      state.loading = true;
       state.error = null;
-      try {
-        state.items = (await api.list()) as typeof state.items;
-      } catch (err: unknown) {
-        state.error = err instanceof Error ? err.message : `Failed to load ${config.nounPlural}`;
-        state.items = (config.fallbackItems?.() ?? []) as typeof state.items;
-      } finally {
-        state.loading = false;
-      }
+      await listLoad.track(async () => {
+        try {
+          state.items = (await api.list()) as typeof state.items;
+        } catch (err: unknown) {
+          state.error = err instanceof Error ? err.message : `Failed to load ${config.nounPlural}`;
+          state.items = (config.fallbackItems?.() ?? []) as typeof state.items;
+        }
+      });
     }
 
     /** Read one record, refreshing its token. */
@@ -190,7 +192,10 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
       /** The reactive state, for a store that keeps its own fields beside it. */
       state,
       items,
+      /** True while the list loads. Do not use it to choose what to render. */
       loading,
+      /** True while the list loads for the first time: show loading text only then. */
+      initialLoading,
       error,
       concurrency: state.concurrency,
       load,

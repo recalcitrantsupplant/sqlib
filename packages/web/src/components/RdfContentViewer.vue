@@ -18,7 +18,6 @@ const props = withDefaults(
     title?: string;
     showMetadata?: boolean;
     hideToolbar?: boolean;
-    loading?: boolean;
     error?: string | null;
     /**
      * Drop the nested Table / Raw pair. A caller whose own view set already
@@ -34,7 +33,6 @@ const props = withDefaults(
     title: undefined,
     showMetadata: true,
     hideToolbar: false,
-    loading: false,
     error: null,
     hideViewTabs: false,
     hideFilterRow: false,
@@ -175,13 +173,7 @@ const normalizedContentType = computed(() => {
     <!-- Content -->
     <div class="viewer-body">
       <div
-        v-if="loading"
-        class="viewer-message"
-      >
-        Loading RDF content…
-      </div>
-      <div
-        v-else-if="error"
+        v-if="error"
         class="viewer-message error"
         role="alert"
       >

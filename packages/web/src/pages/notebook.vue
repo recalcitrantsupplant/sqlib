@@ -126,7 +126,7 @@
         <span>{{ nb.notebook.value.cells.length }} cells</span>
         <span>floating · tracks current versions</span>
         <span v-if="documents.savedAt.value && (documents.openKind.value === 'scratch' || documents.editCount.value > 0)" data-testid="notebook-saved-note">edits kept in this browser</span>
-        <span v-if="nb.loading.value">loading the library…</span>
+        <span v-if="nb.initialLoading.value">loading the library…</span>
       </div>
 
       <p v-if="notice" class="notice notice--error" data-testid="notebook-notice">{{ notice }}</p>

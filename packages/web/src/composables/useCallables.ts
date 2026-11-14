@@ -14,6 +14,7 @@ import { ref, computed, type Ref } from 'vue';
 import type { Query, QueryGroup } from '@sparql-query-lib/contracts';
 import { useApiClient } from './useApiClient';
 import { useFeatureFlags } from './useFeatureFlags';
+import { useLoadState } from './useLoadState';
 import { useCallableDrafts, type CallableDraft } from './useCallableDrafts';
 import {
   callableFromQueryVersion,
@@ -88,21 +89,20 @@ export function useCallables(libraryId: Ref<string | null>) {
   });
 
   const live = ref<Callable[]>([]);
-  const loading = ref(false);
   const error = ref<string | null>(null);
   /**
-   * Which library `live` currently holds rows for, so a *refresh* of the
-   * library already on screen can be told apart from a *switch* to another one.
+   * Keyed by library, so a *refresh* of the library already on screen is told
+   * apart from a *switch* to another one.
    *
    * Only the switch may blank the table. The change feed refreshes this list
-   * every time an MCP client writes — and the Build screen replaces the whole
-   * table with a one-line "Loading callables…" while `loading` is true, so an
-   * unconditional flag moved everything below it up by the height of the table
-   * and back on every refresh. That measured as CLS 0.14 on /build, repeating
-   * for as long as the page stayed open. Rows stay on screen while the reload
-   * runs; they are replaced when it lands.
+   * every time an MCP client writes. A screen that replaced the table with a
+   * one-line "Loading callables…" on every load moved everything below it up
+   * by the height of the table and back on every refresh. That measured as
+   * CLS 0.14 on /build, repeating for as long as the page stayed open. Rows
+   * stay on screen while the reload runs; they are replaced when it lands.
    */
-  const loadedLibraryId = ref<string | null>(null);
+  const listLoad = useLoadState();
+  const { loading, initialLoading } = listLoad;
 
   async function loadQueryCallable(query: Query): Promise<Callable | null> {
     try {
@@ -151,11 +151,12 @@ export function useCallables(libraryId: Ref<string | null>) {
     const id = libraryId.value;
     if (!id) {
       live.value = [];
-      loadedLibraryId.value = null;
+      listLoad.reset();
       return;
     }
 
-    loading.value = loadedLibraryId.value !== id;
+    const endLoad = listLoad.start(id);
+    let succeeded = false;
     error.value = null;
     try {
       const [queries, groups] = await Promise.all([
@@ -177,14 +178,14 @@ export function useCallables(libraryId: Ref<string | null>) {
       live.value = [...queryCallables, ...groupCallables].filter(
         (callable): callable is Callable => callable !== null
       );
-      loadedLibraryId.value = id;
+      succeeded = true;
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : 'Failed to load callables';
       live.value = [];
       // Nothing is on screen to keep, so the next attempt is a first load again.
-      loadedLibraryId.value = null;
+      listLoad.reset();
     } finally {
-      loading.value = false;
+      endLoad(succeeded);
     }
   }
 
@@ -201,5 +202,5 @@ export function useCallables(libraryId: Ref<string | null>) {
   const liveCount = computed(() => live.value.length);
   const draftCount = computed(() => drafts.value.length);
 
-  return { callables, live, drafts, liveCount, draftCount, loading, error, load };
+  return { callables, live, drafts, liveCount, draftCount, loading, initialLoading, error, load };
 }

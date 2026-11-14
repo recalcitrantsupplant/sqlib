@@ -68,7 +68,7 @@
         </label>
 
         <InlineNote size="xs" class="field-hint" data-testid="provider-models-hint">
-          <span v-if="modelsLoading">Loading models…</span>
+          <span v-if="modelsInitialLoading">Loading models…</span>
           <span v-else-if="modelsError" class="field-hint-error">{{ modelsError }}</span>
           <template v-else-if="models.length">
             <span v-if="selectedModel">{{ modelSummary(selectedModel) }} · </span>
@@ -224,7 +224,7 @@ const { session, connected, sending, lastError, newSession, send, interrupt } = 
 // Once per page: receipts arrive mid-turn and should already have their wording.
 const assistantTools = useAssistantTools();
 onMounted(() => assistantTools.load());
-const { settings, setProvider, isConfigured, models, modelsLoading, modelsError, loadModels } =
+const { settings, setProvider, isConfigured, models, modelsInitialLoading, modelsError, loadModels } =
   useAssistantProvider();
 const { refreshEntities } = useLibraryRefresh();
 

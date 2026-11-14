@@ -47,7 +47,7 @@
 
             <template v-if="dataset.restricted.value">
               <div class="rows">
-                <p v-if="loading" class="row-note">Loading graphs…</p>
+                <p v-if="initialLoading" class="row-note">Loading graphs…</p>
                 <p v-else-if="loadError" class="row-note error">{{ loadError }}</p>
                 <template v-for="graph in visibleGraphs" :key="graph">
                   <div v-if="separate" class="row">
@@ -62,7 +62,7 @@
                     <span class="iri" :title="graph"><span class="pre">{{ splitIri(graph).head }}</span>{{ splitIri(graph).tail }}</span>
                   </label>
                 </template>
-                <p v-if="!loading && !loadError && visibleGraphs.length === 0" class="row-note">No graphs to show.</p>
+                <p v-if="!initialLoading && !loadError && visibleGraphs.length === 0" class="row-note">No graphs to show.</p>
               </div>
               <InlineNote v-if="truncated" size="xs" class="pad">The backend has more than {{ GRAPH_LIST_LIMIT }} graphs. Paste the others.</InlineNote>
               <div v-if="pasting" class="paste">
@@ -101,6 +101,7 @@ import { computed, ref, watch, type Ref } from 'vue';
 import { ChevronDown } from '@lucide/vue';
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui';
 import { useApiClient } from '@/composables/useApiClient';
+import { useLoadState } from '@/composables/useLoadState';
 import InlineNote from '@/components/shared/InlineNote.vue';
 import FilterBox from '@/components/shared/FilterBox.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
@@ -135,7 +136,8 @@ const open = ref(false);
 const available = ref<string[]>([]);
 const loadedFor = ref<string | null>(null);
 const truncated = ref(false);
-const loading = ref(false);
+// Keyed by backend: a new backend's graphs are a first load.
+const { initialLoading, start: startLoad, reset: resetLoad } = useLoadState();
 const loadError = ref<string | null>(null);
 const filter = ref('');
 const pasting = ref(false);
@@ -181,6 +183,7 @@ watch(open, (isOpen) => {
 watch(() => props.backendId, () => {
   available.value = [];
   loadedFor.value = null;
+  resetLoad();
   if (open.value) void loadGraphs();
 });
 
@@ -230,7 +233,7 @@ function runAnyway() {
 async function loadGraphs() {
   const backendId = props.backendId;
   if (!backendId) return;
-  loading.value = true;
+  const endLoad = startLoad(backendId);
   loadError.value = null;
   try {
     const response = await api.runSparql({ query: LIST_GRAPHS_QUERY, backendId });
@@ -242,7 +245,7 @@ async function loadGraphs() {
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error);
   } finally {
-    loading.value = false;
+    endLoad();
   }
 }
 </script>

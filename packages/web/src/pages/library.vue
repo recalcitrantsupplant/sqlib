@@ -17,7 +17,7 @@
       <div v-else-if="tab === 'environments'" class="env-tab">
         <p v-if="envs.loadError.value || chainError" class="error env-error" data-testid="chain-error">{{ envs.loadError.value ?? chainError }}</p>
         <div v-if="envs.environments.value.length === 0" class="body">
-          <EnvironmentSetup v-if="!envs.loading.value" :can-control="canControl" :busy="busy" @setup="setUp" />
+          <EnvironmentSetup v-if="!envs.initialLoading.value" :can-control="canControl" :busy="busy" @setup="setUp" />
         </div>
         <div v-else class="env-split">
           <EnvironmentList

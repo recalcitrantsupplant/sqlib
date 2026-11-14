@@ -771,6 +771,7 @@ export function useNotebook(
     defaultBackendFor,
     stateFor,
     loading: callables.loading,
+    initialLoading: callables.initialLoading,
     load: loadTargets,
     addCell,
     removeCell,

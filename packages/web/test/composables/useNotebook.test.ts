@@ -31,7 +31,7 @@ const callables = ref<unknown[]>([]);
 const load = vi.fn();
 
 vi.mock('@/composables/useCallables', () => ({
-  useCallables: () => ({ callables, loading: ref(false), load }),
+  useCallables: () => ({ callables, loading: ref(false), initialLoading: ref(false), load }),
 }));
 
 const ruleSets = ref<unknown[]>([]);

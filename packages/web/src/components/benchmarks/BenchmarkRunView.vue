@@ -39,7 +39,8 @@ const props = defineProps<{
   passes: PassIndex;
   colourFor: (backendId: string | null | undefined) => string;
   selectedKey: string | null;
-  loading: boolean;
+  /** The run's requests have not arrived yet. */
+  initialLoading: boolean;
   canRerun: boolean;
 }>();
 
@@ -192,7 +193,7 @@ const summary = computed(() => [
     </div>
 
     <div class="run-body">
-      <InlineNote v-if="loading">Loading the requests…</InlineNote>
+      <InlineNote v-if="initialLoading">Loading the requests…</InlineNote>
       <InlineNote v-else-if="requests.length === 0">
         No requests were recorded for this run.
       </InlineNote>

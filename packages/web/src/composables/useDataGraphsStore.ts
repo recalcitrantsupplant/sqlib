@@ -9,11 +9,11 @@
 import { computed, reactive } from 'vue';
 import type { DataGraph } from '@sparql-query-lib/contracts';
 import { useApiClient, type DataGraphVersion } from './useApiClient.js';
+import { useLoadState } from './useLoadState.js';
 
 type DataGraphsState = {
   dataGraphs: DataGraph[];
   versionsByGraph: Record<string, DataGraphVersion[]>;
-  loading: boolean;
   error: string | null;
   concurrency: Record<string, string | null>;
 };
@@ -21,29 +21,28 @@ type DataGraphsState = {
 const state = reactive<DataGraphsState>({
   dataGraphs: [],
   versionsByGraph: {},
-  loading: false,
   error: null,
   concurrency: {},
 });
+const listLoad = useLoadState();
 
 export function useDataGraphsStore() {
   const apiClient = useApiClient();
 
   const dataGraphs = computed(() => state.dataGraphs);
-  const loading = computed(() => state.loading);
+  const { loading, initialLoading } = listLoad;
   const error = computed(() => state.error);
 
   const loadDataGraphs = async () => {
-    state.loading = true;
     state.error = null;
-    try {
-      state.dataGraphs = await apiClient.listDataGraphs();
-    } catch (err: unknown) {
-      state.error = err instanceof Error ? err.message : 'Failed to load data graphs';
-      state.dataGraphs = [];
-    } finally {
-      state.loading = false;
-    }
+    await listLoad.track(async () => {
+      try {
+        state.dataGraphs = await apiClient.listDataGraphs();
+      } catch (err: unknown) {
+        state.error = err instanceof Error ? err.message : 'Failed to load data graphs';
+        state.dataGraphs = [];
+      }
+    });
   };
 
   const versionsFor = (graphId: string) => computed(() => state.versionsByGraph[graphId] ?? []);
@@ -114,6 +113,7 @@ export function useDataGraphsStore() {
   return {
     dataGraphs,
     loading,
+    initialLoading,
     error,
     loadDataGraphs,
     versionsFor,

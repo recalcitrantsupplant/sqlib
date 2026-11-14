@@ -1,5 +1,6 @@
 import { ref, watch, type Ref } from 'vue';
 import type { Query } from '@sparql-query-lib/contracts';
+import { useLoadState } from './useLoadState';
 
 /**
  * The queries a canvas node can be pointed at, each with its versions.
@@ -34,15 +35,16 @@ const belongsTo = (query: Query, libraryId: string): boolean =>
 
 export function useQueryAssignmentOptions(libraryId: Ref<string>, queriesStore: QueriesStoreLike) {
   const options = ref<QueryAssignmentOption[]>([]);
-  const loading = ref(false);
+  const optionsLoad = useLoadState();
   const error = ref<string | null>(null);
 
   /** The library the current `options` describe, so a repeat ask is free. */
   let loadedFor: string | null = null;
   let inFlight: Promise<void> | null = null;
 
-  const load = async (targetLibrary: string) => {
-    loading.value = true;
+  const load = (targetLibrary: string) => optionsLoad.track(() => read(targetLibrary), targetLibrary);
+
+  const read = async (targetLibrary: string) => {
     error.value = null;
     try {
       // The store's list is library-agnostic: it is fetched and then filtered
@@ -91,8 +93,6 @@ export function useQueryAssignmentOptions(libraryId: Ref<string>, queriesStore: 
       error.value = loadError instanceof Error ? loadError.message : 'Failed to load queries';
       options.value = [];
       loadedFor = null;
-    } finally {
-      loading.value = false;
     }
   };
 
@@ -117,5 +117,5 @@ export function useQueryAssignmentOptions(libraryId: Ref<string>, queriesStore: 
     options.value = [];
   });
 
-  return { options, loading, error, ensureLoaded };
+  return { options, loading: optionsLoad.loading, initialLoading: optionsLoad.initialLoading, error, ensureLoaded };
 }

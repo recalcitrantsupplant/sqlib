@@ -68,7 +68,7 @@
         </section>
 
         <p v-if="error" class="error" role="alert">{{ error }}</p>
-        <p v-if="loading" class="muted">Reading the store's prefixes…</p>
+        <p v-if="initialLoading" class="muted">Reading the store's prefixes…</p>
 
         <!-- 3. Conflicts, which gate Apply. -->
         <section v-if="conflicts.length" class="conflicts">
@@ -226,7 +226,7 @@ const backendsStore = useBackendsStore();
 const probes = useBackendProbes();
 const {
   plan,
-  loading,
+  initialLoading,
   applying,
   error,
   outcome,

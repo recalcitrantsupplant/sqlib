@@ -18,7 +18,7 @@
       :selected-id="backendDraft ? null : selectedBackendId"
       :draft="backendDraft"
       :draft-name="backendDraftName"
-      :loading="backendsStore.loading.value"
+      :initial-loading="backendsStore.initialLoading.value"
       :error="backendsStore.error.value"
       @select="handleSelectBackend"
       @discard-draft="backendDraft = false"
@@ -262,7 +262,7 @@
             <div>
               Are you sure you want to delete "{{ backendDeleteTarget?.backendName }}"?
             </div>
-            <div v-if="backendDeleteLoading" style="margin-top: var(--space-5); font-style: italic;">
+            <div v-if="!backendDeleteReferences" style="margin-top: var(--space-5); font-style: italic;">
               Checking for references...
             </div>
             <div v-else-if="backendDeleteReferences && (backendDeleteReferences.libraries.length > 0 || backendDeleteReferences.queries.length > 0)" style="margin-top: var(--space-5);">

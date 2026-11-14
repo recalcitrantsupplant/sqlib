@@ -11,7 +11,7 @@
       <div class="dialog-body">
         <VersionedEntitySelector
           :items="ruleSets"
-          :loading="ruleSetsLoading"
+          :initial-loading="ruleSetsInitialLoading"
           :error="ruleSetsError || undefined"
           title="RULESETS"
           empty-message="No rulesets available in this library"
@@ -58,6 +58,7 @@ import {
 import VersionedEntitySelector, { type VersionedEntity, type EntityVersion } from './VersionedEntitySelector.vue';
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useApiClient } from '../composables/useApiClient';
+import { useLoadState } from '../composables/useLoadState';
 import type { RuleSet, RuleSetVersion } from '@sparql-query-lib/contracts';
 
 interface Props {
@@ -79,7 +80,8 @@ const apiClient = useApiClient();
 
 const isOpen = ref(props.open);
 const ruleSets = ref<VersionedEntity[]>([]);
-const ruleSetsLoading = ref(false);
+// Keyed by library, so reopening the dialog keeps the list while it reloads.
+const { initialLoading: ruleSetsInitialLoading, track: trackRuleSetsLoad } = useLoadState();
 const ruleSetsError = ref<string | null>(null);
 const selectedRuleSet = ref<VersionedEntity | null>(null);
 const versionsCache = new Map<string, EntityVersion[]>();
@@ -221,18 +223,17 @@ const rebuildRuleSetsFromStore = async () => {
 };
 
 async function loadRuleSets() {
-  ruleSetsLoading.value = true;
   ruleSetsError.value = null;
-  try {
-    await ruleSetsStore.fetchRuleSets();
-    await rebuildRuleSetsFromStore();
-  } catch (error: any) {
-    console.error('[RuleSetSelectorDialog] Failed to load rulesets:', error);
-    ruleSetsError.value = error?.message ?? 'Failed to load rulesets';
-    ruleSets.value = [];
-  } finally {
-    ruleSetsLoading.value = false;
-  }
+  await trackRuleSetsLoad(async () => {
+    try {
+      await ruleSetsStore.fetchRuleSets();
+      await rebuildRuleSetsFromStore();
+    } catch (error: any) {
+      console.error('[RuleSetSelectorDialog] Failed to load rulesets:', error);
+      ruleSetsError.value = error?.message ?? 'Failed to load rulesets';
+      ruleSets.value = [];
+    }
+  }, props.libraryId);
 }
 
 function handleSelectionChange(selected: VersionedEntity[]) {
