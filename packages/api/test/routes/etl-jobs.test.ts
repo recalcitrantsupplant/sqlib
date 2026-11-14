@@ -241,11 +241,38 @@ describe('ETL Jobs Routes', () => {
         url: '/etl-jobs/test-id/versions',
         payload: {
           sql: 'SELECT 1',
-          // missing sparqlTemplate
+          // missing backendId
         },
       });
 
       expect(response.statusCode).toBe(400);
+    });
+
+    it('takes a saved query as the template, and reports the version it resolves to', async () => {
+      hoisted.createEtlJobVersion.mockResolvedValue({
+        id: 'v1',
+        isPartOf: 'test-id',
+        version: 1,
+        sql: 'SELECT 1',
+        sparqlTemplate: 'CONSTRUCT { ?s a <urn:t> } WHERE { VALUES (?s) { (UNDEF) } }',
+        templateQuery: 'urn:sqlib:query:q',
+        templateQueryVersion: 'urn:sqlib:query-version:q-2',
+        backendId: 'b',
+      });
+      const response = await app.inject({
+        method: 'POST',
+        url: '/etl-jobs/test-id/versions',
+        payload: { sql: 'SELECT 1', templateQuery: 'urn:sqlib:query:q', backendId: 'b' },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(hoisted.createEtlJobVersion).toHaveBeenCalledWith('test-id', expect.objectContaining({
+        templateQuery: 'urn:sqlib:query:q',
+      }));
+      expect(response.json()).toMatchObject({
+        templateQuery: 'urn:sqlib:query:q',
+        templateQueryVersion: 'urn:sqlib:query-version:q-2',
+      });
     });
   });
 

@@ -43,11 +43,18 @@ import {
 } from '../auth/executionScope.js';
 import { log } from './log.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
+import { EtlTemplateError, resolveEtlTemplate, resolveTemplateQuery, type EntityLookup, type ResolvedEtlTemplate } from './etlTemplate.js';
 
 // The row mapping and the chunk loop live in @sparql-query-lib/runtime-etl, so
 // the API and the CLI run one implementation. `toLexicalForm` is re-exported
 // for the callers that imported it from here.
 export { toLexicalForm };
+
+/** Reads entities from the cache, for `resolveEtlTemplate`. */
+function storeLookup(): EntityLookup {
+  const cache = getCacheCoordinator();
+  return (id) => cache.get(id) as ReturnType<EntityLookup>;
+}
 
 function warnAboutRow(message: string, context: Record<string, unknown>): void {
   log.warn(context, message);
@@ -64,7 +71,13 @@ export interface EtlJobInput {
 
 export interface EtlJobVersionInput {
   sql: string;
-  sparqlTemplate: string;
+  /** Inline template text. Give this or `templateQuery`, not both. */
+  sparqlTemplate?: string;
+  /**
+   * A saved CONSTRUCT query, as an IRI: a `QueryVersion` pins it, a `Query`
+   * floats to its current version at each run.
+   */
+  templateQuery?: string;
   backendId: string;
   chunkSize?: number;
   comment?: string;
@@ -177,7 +190,15 @@ export interface EtlJobVersionDetail {
   version: number;
   immutable?: boolean;
   sql: string;
+  /**
+   * The template text. For a version with `templateQuery`, the text of the
+   * query version it resolves to now, or empty when it cannot be resolved.
+   */
   sparqlTemplate: string;
+  /** The saved query the template comes from, as stored: a QueryVersion (pinned) or a Query (floating). */
+  templateQuery?: string;
+  /** The QueryVersion `templateQuery` resolves to now. */
+  templateQueryVersion?: string;
   backendId: string;
   currentColumnMappingVersionId?: string;
   chunkSize?: number;
@@ -225,6 +246,8 @@ export interface ExecutionDetail {
   outputTupleSetVersionId?: string;
   /** True when that version already held these rows, so the run cut none. */
   outputReused?: boolean;
+  /** The query version the template came from, as this run resolved it. */
+  templateQueryVersion?: string;
   executionConfig?: string;
 }
 
@@ -243,6 +266,8 @@ export interface ExecutionResult {
    * `maxRows` was within the cap. See `readOnlyEtlMaxRows`.
    */
   rowLimitApplied?: number;
+  /** The query version the template came from, when the job version names a saved query. */
+  templateQueryVersion?: string;
   /**
    * The run's record in the job's log. Absent on a read-only deployment, which
    * keeps no record: see `executeEtlJob`.
@@ -524,9 +549,10 @@ export class EtlService {
     nextVersion: number,
   ): Promise<EtlJobVersionDetail> {
     const cacheCoordinator = getCacheCoordinator();
+    const template = this.checkTemplateInput(etlJobUrn, input);
     // An ETL run has no signed-in caller, and its output is stored and shared,
     // so its template cannot read the caller.
-    const callerSlots = declaredReservedSlots(input.sparqlTemplate);
+    const callerSlots = declaredReservedSlots(template.text);
     if (callerSlots.length > 0) {
       throw Object.assign(
         new Error(
@@ -547,7 +573,9 @@ export class EtlService {
       // created in a state where it could still change.
       immutable: true,
       sql: input.sql,
-      sparqlTemplate: input.sparqlTemplate,
+      ...(input.templateQuery
+        ? { templateQuery: input.templateQuery }
+        : { sparqlTemplate: input.sparqlTemplate ?? '' }),
       backendId: this.toUrn(input.backendId, 'backend'),
       chunkSize: input.chunkSize,
       comment: input.comment,
@@ -565,7 +593,10 @@ export class EtlService {
       version: nextVersion,
       immutable: true,
       sql: input.sql,
-      sparqlTemplate: input.sparqlTemplate,
+      sparqlTemplate: template.text,
+      ...(input.templateQuery
+        ? { templateQuery: input.templateQuery, templateQueryVersion: template.queryVersionId ?? undefined }
+        : {}),
       backendId: input.backendId,
       chunkSize: input.chunkSize,
       comment: input.comment,
@@ -739,7 +770,7 @@ export class EtlService {
         version: persistedVersion.version,
         immutable: persistedVersion.immutable || undefined,
         sql: persistedVersion.sql,
-        sparqlTemplate: persistedVersion.sparqlTemplate,
+        ...this.templateDetail(persistedVersion),
         backendId: this.toShortId(persistedVersion.backendId),
         currentColumnMappingVersionId: persistedVersion.currentColumnMappingVersion
           ? this.toShortId(persistedVersion.currentColumnMappingVersion)
@@ -766,7 +797,7 @@ export class EtlService {
       version: persistedVersion.version,
       immutable: persistedVersion.immutable || undefined,
       sql: persistedVersion.sql,
-      sparqlTemplate: persistedVersion.sparqlTemplate,
+      ...this.templateDetail(persistedVersion),
       backendId: this.toShortId(persistedVersion.backendId),
       currentColumnMappingVersionId: persistedVersion.currentColumnMappingVersion
         ? this.toShortId(persistedVersion.currentColumnMappingVersion)
@@ -834,6 +865,68 @@ export class EtlService {
    */
   convertRowsToBindings(rows: Record<string, unknown>[], columnDefs: ColumnDefinition[]): SparqlBinding[] {
     return rowsToBindings(rows, columnDefs, warnAboutRow) as SparqlBinding[];
+  }
+
+  /**
+   * The template text a job version runs, resolved against the store.
+   *
+   * Every runner reads the template here: the execute route, a group's ETL
+   * node and a test. A floating `templateQuery` resolves to the query's
+   * current version at this call.
+   */
+  resolveTemplate(etlJobVersion: PersistedEtlJobVersion): ResolvedEtlTemplate {
+    return resolveEtlTemplate(etlJobVersion, storeLookup());
+  }
+
+  /**
+   * The template fields of a version's detail. A reference that no longer
+   * resolves reports empty text, so the version can still be listed and
+   * opened; a run of it fails with the reason.
+   */
+  private templateDetail(version: PersistedEtlJobVersion): {
+    sparqlTemplate: string;
+    templateQuery?: string;
+    templateQueryVersion?: string;
+  } {
+    if (!version.templateQuery) return { sparqlTemplate: version.sparqlTemplate ?? '' };
+    try {
+      const template = this.resolveTemplate(version);
+      return {
+        sparqlTemplate: template.text,
+        templateQuery: version.templateQuery,
+        templateQueryVersion: template.queryVersionId ?? undefined,
+      };
+    } catch (error) {
+      if (!(error instanceof EtlTemplateError)) throw error;
+      return { sparqlTemplate: '', templateQuery: version.templateQuery };
+    }
+  }
+
+  /**
+   * Check a new version's template fields, and resolve its text.
+   *
+   * A version has inline text or a query reference, not both. A query
+   * reference must resolve to a CONSTRUCT version, and the query must be in
+   * the job's library: a job reads only its own library's queries.
+   */
+  private checkTemplateInput(etlJobUrn: string, input: EtlJobVersionInput): ResolvedEtlTemplate {
+    const hasText = typeof input.sparqlTemplate === 'string' && input.sparqlTemplate.trim() !== '';
+    if (input.templateQuery && hasText) {
+      throw new EtlTemplateError('Give sparqlTemplate or templateQuery, not both.');
+    }
+    if (!input.templateQuery) {
+      if (!hasText) throw new EtlTemplateError('Give sparqlTemplate or templateQuery.');
+      return { text: input.sparqlTemplate ?? '', queryVersionId: null, queryId: null, floating: false };
+    }
+
+    const lookup = storeLookup();
+    const { queryId } = resolveTemplateQuery(input.templateQuery, lookup);
+    const job = lookup(etlJobUrn) as PersistedEtlJob | null;
+    const queryLibrary = resolveOwningLibrary(lookup(queryId));
+    if (!queryLibrary || !(job?.isPartOf ?? []).includes(queryLibrary)) {
+      throw new EtlTemplateError(`The template query ${queryId} is not in the library of this ETL job.`);
+    }
+    return resolveEtlTemplate(input, lookup);
   }
 
   /**
@@ -993,6 +1086,10 @@ export class EtlService {
 
     const chunkSize = config.chunkSize || etlJobVersion.chunkSize || 1000;
 
+    // Resolved once, before the log opens: a floating reference names the
+    // query version this run uses, and the record keeps it.
+    const template = this.resolveTemplate(etlJobVersion);
+
     /*
      * A read-only deployment runs the job and keeps nothing of it: no record in
      * the job's log and no output file, the RDF returned in the response
@@ -1007,7 +1104,7 @@ export class EtlService {
      */
     if (isReadOnlyDeployment()) {
       return this.runWithoutRecord({
-        etlJobVersion, columnDefs, executionScope, chunkSize, config,
+        etlJobVersion, template, columnDefs, executionScope, chunkSize, config,
       });
     }
 
@@ -1016,6 +1113,7 @@ export class EtlService {
     const executionId = await beginEtlExecution({
       etlJobVersionId: versionUrn,
       columnMappingVersionId: mapping.versionUrn,
+      templateQueryVersionId: template.queryVersionId,
       startedAt: new Date().toISOString(),
       executionConfig: { chunkSize, maxRows: config.maxRows, dryRun: config.dryRun },
     });
@@ -1041,7 +1139,7 @@ export class EtlService {
       // 6. Chunk loop, over one streamed execution of the source query (#201)
       const { totalRows, completedChunks } = await this.runPipeline({
         sql: etlJobVersion.sql,
-        sparqlTemplate: etlJobVersion.sparqlTemplate,
+        sparqlTemplate: template.text,
         columnDefs,
         executor,
         chunkSize,
@@ -1064,6 +1162,7 @@ export class EtlService {
       return {
         executionId: this.toShortId(executionId),
         status: 'completed',
+        ...(template.queryVersionId ? { templateQueryVersion: template.queryVersionId } : {}),
         outputFormat: written?.contentType,
         outputLocation: written?.location,
         totalChunks: completedChunks,
@@ -1094,6 +1193,7 @@ export class EtlService {
    */
   private async runWithoutRecord(run: {
     etlJobVersion: PersistedEtlJobVersion;
+    template: ResolvedEtlTemplate;
     columnDefs: ColumnDefinition[];
     executionScope: ExecutionAuthScope | undefined;
     chunkSize: number;
@@ -1130,7 +1230,7 @@ export class EtlService {
     try {
       pipelineResult = await this.runPipeline({
       sql: run.etlJobVersion.sql,
-      sparqlTemplate: run.etlJobVersion.sparqlTemplate,
+      sparqlTemplate: run.template.text,
       columnDefs: run.columnDefs,
       executor,
       chunkSize: run.chunkSize,
@@ -1158,6 +1258,7 @@ export class EtlService {
 
     return {
       ...(rowLimitApplied !== undefined ? { rowLimitApplied } : {}),
+      ...(run.template.queryVersionId ? { templateQueryVersion: run.template.queryVersionId } : {}),
       status: 'completed',
       outputFormat,
       output: chunks.join(''),
@@ -1260,6 +1361,7 @@ export class EtlService {
         ? this.toShortId(execution.outputTupleSetVersion)
         : undefined,
       outputReused: execution.outputReused ?? undefined,
+      templateQueryVersion: execution.templateQueryVersion || undefined,
       executionConfig: execution.executionConfig || undefined,
     };
   }
