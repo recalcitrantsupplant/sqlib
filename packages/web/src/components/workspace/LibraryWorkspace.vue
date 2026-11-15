@@ -151,7 +151,8 @@
         @created="handleBackendCreated"
         @discard-draft="backendDraft = false"
         @draft-name="backendDraftName = $event"
-        @delete-request="handleDeleteBackendRequest"
+        :deleting="backendDeleting"
+        @delete-request="deleteBackend"
       />
       <!--
         The pane follows the rail. A record belongs to the section that lists
@@ -249,30 +250,6 @@
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction @click="confirmDeleteLibrary" class="delete-action">
             Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
-    <AlertDialog v-model:open="backendDeleteConfirmOpen">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {{ backendDeleteTarget?.backendName }}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            <div v-if="backendDeleteLoading" style="font-style: italic;">Checking what uses it…</div>
-            <ul
-              v-else-if="backendDeleteEffects.length > 0"
-              style="margin-left: var(--space-6);"
-              data-testid="backend-delete-effects"
-            >
-              <li v-for="effect in backendDeleteEffects" :key="effect">{{ effect }}</li>
-            </ul>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction @click="confirmDeleteBackend" class="delete-action" :disabled="backendDeleteLoading">
-            Delete {{ backendDeleteTarget?.backendName }}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1723,54 +1700,7 @@ const backendDraft = ref(false);
 const backendDraftName = ref('');
 const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<{ libraryId: string; libraryName: string } | null>(null);
-const backendDeleteConfirmOpen = ref(false);
-const backendDeleteTarget = ref<{ backendId: string; backendName: string } | null>(null);
-interface BackendDeleteReferences {
-  libraries: number;
-  environments: number;
-  queries: number;
-  etlJobs: number;
-  queryGroups: number;
-  benchmarks: number;
-}
-const backendDeleteReferences = ref<BackendDeleteReferences | null>(null);
-
-function countPhrase(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
-
-function joinPhrases(parts: string[]): string {
-  return parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-}
-
-/*
- * What deleting the backend does, in the user's terms: the defaults it
- * clears, and the groups and benchmarks that still name it and then fail.
- */
-const backendDeleteEffects = computed<string[]>(() => {
-  const refs = backendDeleteReferences.value;
-  if (!refs) return [];
-  const effects: string[] = [];
-  const defaults = [
-    refs.libraries ? countPhrase(refs.libraries, 'library', 'libraries') : '',
-    refs.environments ? countPhrase(refs.environments, 'environment', 'environments') : '',
-    refs.queries ? countPhrase(refs.queries, 'query', 'queries') : '',
-    refs.etlJobs ? countPhrase(refs.etlJobs, 'ETL job', 'ETL jobs') : '',
-  ].filter(Boolean);
-  if (defaults.length > 0) {
-    const total = refs.libraries + refs.environments + refs.queries + refs.etlJobs;
-    effects.push(`${joinPhrases(defaults)} ${total === 1 ? 'loses' : 'lose'} this default`);
-  }
-  const named = [
-    refs.queryGroups ? countPhrase(refs.queryGroups, 'query group', 'query groups') : '',
-    refs.benchmarks ? countPhrase(refs.benchmarks, 'benchmark', 'benchmarks') : '',
-  ].filter(Boolean);
-  if (named.length > 0) {
-    effects.push(`${joinPhrases(named)} name it and fail to run`);
-  }
-  return effects;
-});
-const backendDeleteLoading = ref(false);
+const backendDeleting = ref(false);
 const backends = computed<Backend[]>(() => backendsStore.backends.value);
 
 /* ------------------------------------------------------------------ *
@@ -1990,48 +1920,15 @@ function handleEditBackendRequest(payload: { backendId: string; backendName: str
   openBackendRecord(payload.backendId);
 }
 
-async function handleDeleteBackendRequest(payload: { backendId: string; backendName: string }) {
-  backendDeleteTarget.value = payload;
-  backendDeleteLoading.value = true;
-  backendDeleteReferences.value = null;
-  backendDeleteConfirmOpen.value = true;
-
-  const none: BackendDeleteReferences = {
-    libraries: 0, environments: 0, queries: 0, etlJobs: 0, queryGroups: 0, benchmarks: 0,
-  };
+/*
+ * The backend record confirms in its own footer, with the records that default
+ * to it named there, so this deletes at once. The server clears each default
+ * that pointed at the backend.
+ */
+async function deleteBackend(payload: { backendId: string; backendName: string }) {
+  const deletedId = payload.backendId;
+  backendDeleting.value = true;
   try {
-    // Nothing server-side can reference a backend the server has never seen.
-    if (isBrowserBackendId(payload.backendId)) {
-      backendDeleteReferences.value = none;
-      return;
-    }
-    const apiClient = useApiClient();
-    const [references, usage] = await Promise.all([
-      apiClient.getBackendReferences(payload.backendId),
-      apiClient.getBackendUsage(payload.backendId).catch(() => null),
-    ]);
-    backendDeleteReferences.value = {
-      libraries: references.libraries.length,
-      environments: references.environments?.length ?? 0,
-      queries: references.queries.length,
-      etlJobs: references.etlJobs?.length ?? 0,
-      queryGroups: usage?.queryGroups.count ?? 0,
-      benchmarks: usage?.benchmarks.count ?? 0,
-    };
-  } catch (error) {
-    console.error('Failed to fetch backend references:', error);
-    // Show the dialog anyway, without the effects.
-    backendDeleteReferences.value = none;
-  } finally {
-    backendDeleteLoading.value = false;
-  }
-}
-
-async function confirmDeleteBackend() {
-  if (!backendDeleteTarget.value) return;
-
-  try {
-    const deletedId = backendDeleteTarget.value.backendId;
     // A browser backend has no server record to delete; removing it from this
     // browser's storage is the whole of it.
     if (isBrowserBackendId(deletedId)) {
@@ -2044,17 +1941,14 @@ async function confirmDeleteBackend() {
     if (selectedBackendId.value === deletedId) {
       selectedBackendId.value = backends.value[0]?.id ?? null;
     }
-    backendDeleteConfirmOpen.value = false;
     sidebarRefreshKey.value += 1;
   } catch (error) {
     console.error('Failed to delete backend:', error);
-    // Keep dialog open to show error
+    toast.error(`${payload.backendName} was not deleted: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
-    backendDeleteTarget.value = null;
-    backendDeleteReferences.value = null;
+    backendDeleting.value = false;
   }
 }
-
 
 /* ------------------------------------------------------------------ *
  * The Runs tab, and the run it is a tab of.

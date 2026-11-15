@@ -339,7 +339,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
   }
 
-  test('should show confirmation dialog with references when deleting backend', async ({ page }) => {
+  test('should name what defaults to the backend before deleting it', async ({ page }) => {
     // Setup GET /backends/:id/references endpoint
     await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       const url = route.request().url();
@@ -367,24 +367,17 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // the artifact tree went: pick it in the Backends sidebar, then Delete
     // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 1');
-    await page.locator('[data-testid="delete-backend"]').click();
+    await page.locator('[data-testid="backend-delete"]').click();
 
-    // Wait for confirmation dialog to appear
-    await page.waitForTimeout(500);
+    // The footer confirms in place and counts what the delete clears.
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 1 library and 1 query lose this default.');
 
-    // The title names the backend, and the dialog counts what loses the default.
-    await expect(page.getByText('Delete Test Backend 1?')).toBeVisible();
-    await expect(page.getByTestId('backend-delete-effects')).toHaveText('1 library and 1 query lose this default');
-
-    // Click Delete button in dialog
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 1' });
+    // Confirm in the footer
+    const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
     await confirmDeleteButton.click();
 
-    // Wait for deletion to complete
-    await page.waitForTimeout(500);
-
-    // Dialog should close
-    await expect(page.getByText('Delete Test Backend 1?')).not.toBeVisible();
+    // The record closes once the backend is gone.
+    await expect(confirmPrompt(page)).toHaveCount(0);
 
     // Verify backend is deleted from mock data
     expect(mockBackends.find(b => b.id === 'urn:sqlib:backend:test-1')).toBeUndefined();
@@ -396,7 +389,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     expect(mockQueries[0].defaultBackend).toBeNull();
   });
 
-  test('should show confirmation dialog without references when deleting unused backend', async ({ page }) => {
+  test('should ask a plain question when nothing defaults to the backend', async ({ page }) => {
     // Create a backend with no references
     const unusedBackend = {
       id: 'urn:sqlib:backend:unused',
@@ -426,21 +419,17 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went.
     await openBackendRecord(page, 'Unused Backend');
-    await page.locator('[data-testid="delete-backend"]').click();
+    await page.locator('[data-testid="backend-delete"]').click();
 
-    // Wait for confirmation dialog
-    await page.waitForTimeout(500);
-
-    // Nothing uses it, so the dialog lists no effects.
-    await expect(page.getByText('Delete Unused Backend?')).toBeVisible();
-    await expect(page.getByTestId('backend-delete-effects')).toHaveCount(0);
+    // Nothing defaults to it, so the prompt names no effects.
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend?');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Unused Backend' });
+    const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
     await confirmDeleteButton.click();
 
-    await page.waitForTimeout(500);
-    await expect(page.getByText('Delete Unused Backend?')).not.toBeVisible();
+    await expect(confirmPrompt(page)).toHaveCount(0);
+    expect(mockBackends.find(b => b.id === 'urn:sqlib:backend:unused')).toBeUndefined();
   });
 
   test('should allow canceling backend deletion', async ({ page }) => {
@@ -458,22 +447,15 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went.
     await openBackendRecord(page, 'Test Backend 2');
-    await page.locator('[data-testid="delete-backend"]').click();
+    await page.locator('[data-testid="backend-delete"]').click();
 
-    // Wait for dialog
-    await page.waitForTimeout(500);
+    await expect(confirmPrompt(page)).toBeVisible();
 
-    // Verify dialog is open
-    await expect(page.getByText('Delete Test Backend 2?')).toBeVisible();
+    await page.locator('[data-testid="backend-cancel-delete"]').click();
 
-    // Click Cancel
-    const cancelButton = page.getByRole('button', { name: 'Cancel' });
-    await cancelButton.click();
-
-    await page.waitForTimeout(300);
-
-    // Dialog should close
-    await expect(page.getByText('Delete Test Backend 2?')).not.toBeVisible();
+    // The footer goes back to its Delete button.
+    await expect(confirmPrompt(page)).toHaveCount(0);
+    await expect(page.locator('[data-testid="backend-delete"]')).toBeVisible();
 
     // Backend should NOT be deleted
     expect(mockBackends.length).toBe(initialBackendCount);
@@ -530,20 +512,16 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // the artifact tree went: pick it in the Backends sidebar, then Delete
     // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 1');
-    await page.locator('[data-testid="delete-backend"]').click();
+    await page.locator('[data-testid="backend-delete"]').click();
 
-    // Wait for confirmation dialog
-    await page.waitForTimeout(500);
-
-    // Verify references are shown in dialog
-    await expect(page.getByTestId('backend-delete-effects')).toContainText('lose this default');
+    // The new library is counted with the one the fixture already points here.
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 2 libraries and 1 query lose this default.');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 1' });
+    const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
     await confirmDeleteButton.click();
 
-    await page.waitForTimeout(500);
-    await expect(page.getByText('Delete Test Backend 1?')).not.toBeVisible();
+    await expect(confirmPrompt(page)).toHaveCount(0);
 
     // Step 4: Verify library has its defaultBackend cleared to null
     expect(newLibrary.defaultBackend).toBeNull();
@@ -586,19 +564,14 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // the artifact tree went: pick it in the Backends sidebar, then Delete
     // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 2');
-    await page.locator('[data-testid="delete-backend"]').click();
+    await page.locator('[data-testid="backend-delete"]').click();
 
-    // Wait for confirmation dialog
-    await page.waitForTimeout(500);
-
-    // Verify references shown
-    await expect(page.getByTestId('backend-delete-effects')).toHaveText('1 query loses this default');
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 1 query loses this default.');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 2' });
+    const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
     await confirmDeleteButton.click();
-
-    await page.waitForTimeout(500);
+    await expect(confirmPrompt(page)).toHaveCount(0);
 
     // Verify backend 2 is deleted
     expect(mockBackends.find(b => b.id === 'urn:sqlib:backend:test-2')).toBeUndefined();
@@ -664,19 +637,15 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // the artifact tree went: pick it in the Backends sidebar, then Delete
     // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 1');
-    await page.locator('[data-testid="delete-backend"]').click();
+    await page.locator('[data-testid="backend-delete"]').click();
 
-    // Wait for confirmation dialog
-    await page.waitForTimeout(500);
-
-    // Verify ALL references shown in dialog
-    await expect(page.getByTestId('backend-delete-effects')).toHaveText('2 libraries and 2 queries lose this default');
+    // Every record that defaults to backend 1 is counted.
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 2 libraries and 2 queries lose this default.');
 
     // Confirm deletion
-    const confirmDeleteButton = page.getByRole('button', { name: 'Delete Test Backend 1' });
+    const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
     await confirmDeleteButton.click();
-
-    await page.waitForTimeout(500);
+    await expect(confirmPrompt(page)).toHaveCount(0);
 
     // Verify ALL entities that referenced backend 1 now have null
     const entitiesWithBackend1 = [
@@ -691,6 +660,11 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     }
   });
 });
+
+/** The question the record's footer asks before it deletes. */
+function confirmPrompt(page: Page) {
+  return page.locator('[data-testid="backend-confirm-prompt"]');
+}
 
 /** A backend's record, opened from the Backends sidebar the rail leads to. */
 async function openBackendRecord(page: Page, backendName: string) {

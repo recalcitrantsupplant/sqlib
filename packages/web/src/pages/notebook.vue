@@ -39,8 +39,8 @@
     <main class="page">
       <!--
         The same bar every other work area opens with: the name, the scratch,
-        version and unsaved chips, Discard and Save vN, and Delete under the
-        ⋮ menu. The name is edited in the Details tab, as on a query.
+        version and unsaved chips, Discard and Save vN. The name and Delete
+        are in the Details tab, as on a query.
       -->
       <header class="page-header">
         <Button
@@ -66,11 +66,10 @@
           :show-format="false"
           :show-diff="false"
           :show-edit="false"
-          :show-more="documents.isSaved.value"
+          :show-more="false"
           @save="saveDocument"
           @needs-name="showDetails(true)"
           @discard="documents.discard()"
-          @delete="deleteOpen = true"
         >
           <template #status>
             <span v-if="activeLibrary" class="chip" data-testid="notebook-library-chip">{{ activeLibrary.name }}</span>
@@ -281,24 +280,36 @@
           testid="notebook-inspector"
         >
           <template #details>
-            <!-- The name lives here, as a query's does, not in the bar above. -->
-            <div class="details" data-testid="notebook-details">
-              <label class="details__label" for="notebook-title">Name</label>
-              <input
-                id="notebook-title"
-                ref="titleInput"
-                class="details__input"
-                type="text"
-                :value="nb.notebook.value.title"
-                data-testid="notebook-title"
-                @change="setTitle(($event.target as HTMLInputElement).value)"
+            <div class="details-pane">
+              <!-- The name lives here, as a query's does, not in the bar above. -->
+              <div class="details" data-testid="notebook-details">
+                <label class="details__label" for="notebook-title">Name</label>
+                <input
+                  id="notebook-title"
+                  ref="titleInput"
+                  class="details__input"
+                  type="text"
+                  :value="nb.notebook.value.title"
+                  data-testid="notebook-title"
+                  @change="setTitle(($event.target as HTMLInputElement).value)"
+                />
+                <span class="details__label">Library</span>
+                <span class="details__value">{{ activeLibrary?.name ?? '—' }}</span>
+                <span class="details__label">Kept</span>
+                <span class="details__value" data-testid="notebook-kept">
+                  {{ documents.isSaved.value ? `in the library, v${documents.versionNumber.value ?? 1}` : 'in this browser only (scratch)' }}
+                </span>
+              </div>
+              <RecordFooter
+                v-if="documents.isSaved.value"
+                noun="notebook"
+                :confirm-prompt="deleteConfirmPrompt"
+                :can-delete="!deployment.isReadOnly.value"
+                :deleting="deleting"
+                :reset-key="documents.openKind.value"
+                test-id-prefix="notebook"
+                @delete="confirmDelete"
               />
-              <span class="details__label">Library</span>
-              <span class="details__value">{{ activeLibrary?.name ?? '—' }}</span>
-              <span class="details__label">Kept</span>
-              <span class="details__value" data-testid="notebook-kept">
-                {{ documents.isSaved.value ? `in the library, v${documents.versionNumber.value ?? 1}` : 'in this browser only (scratch)' }}
-              </span>
             </div>
           </template>
           <template #outline>
@@ -367,22 +378,6 @@
       </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="deleteOpen">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Delete this notebook?</DialogTitle>
-          <DialogDescription>
-            Deletes "{{ nb.notebook.value.title }}" and all its versions from the library, for everyone
-            who can see it. The queries and other entities its cells use are not changed.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button size="sm" variant="outline" @click="deleteOpen = false">Cancel</Button>
-          <Button size="sm" variant="destructive" data-testid="notebook-delete-confirm" @click="confirmDelete">Delete</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
     <Dialog v-model:open="saveOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
@@ -419,6 +414,8 @@ import NotebookRail from '../components/notebook/NotebookRail.vue';
 import NotebookValuesPanel from '../components/notebook/NotebookValuesPanel.vue';
 import InspectorPanel from '../components/shared/InspectorPanel.vue';
 import SaveBar from '../components/shared/SaveBar.vue';
+import RecordFooter from '../components/shared/RecordFooter.vue';
+import { useDeploymentMode } from '../composables/useDeploymentMode';
 import RunBar from '../components/shared/RunBar.vue';
 import NotebookMarkdownCell from '../components/notebook/NotebookMarkdownCell.vue';
 import NotebookRunCell from '../components/notebook/NotebookRunCell.vue';
@@ -533,6 +530,8 @@ const testTarget = ref<{
  * whether tests exist at all — the reading the screen this replaced used.
  */
 const canWrite = computed(() => isEnabled('tests'));
+
+const deployment = useDeploymentMode();
 
 const inspectorTab = ref('outline');
 
@@ -743,17 +742,26 @@ const canSaveDocument = computed(() => {
   return nb.notebook.value.cells.length > 0;
 });
 
-const deleteOpen = ref(false);
+const deleting = ref(false);
+
+const deleteConfirmPrompt = computed(() => {
+  const count = documents.versionNumber.value ?? 1;
+  return count === 1
+    ? 'Delete this notebook and its one version?'
+    : `Delete this notebook and all ${count} versions?`;
+});
 
 async function confirmDelete() {
-  deleteOpen.value = false;
   notice.value = null;
+  deleting.value = true;
   try {
     await documents.deleteSaved();
     nb.setNotebook(emptyNotebook(libraryId.value));
     syncAddress();
   } catch (cause) {
     notice.value = `The notebook was not deleted: ${cause instanceof Error ? cause.message : String(cause)}`;
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -1159,7 +1167,19 @@ watch(libraryId, () => {
   margin-left: auto;
 }
 
+/* The details scroll; the footer stays at the foot of the panel. */
+.details-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .details {
+  flex: 1;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
   display: grid;
   grid-template-columns: max-content 1fr;
   align-items: center;
