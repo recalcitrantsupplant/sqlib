@@ -36,6 +36,8 @@ import { attachEtlJobsToBundle, etlJobSource } from '../lib/export/etlJobBundle.
 import { attachRuleSetsToBundle, ruleSetSource } from '../lib/export/ruleSetBundle.js';
 import { buildExportBundle, QueryExportError } from '../lib/export/queryBundle.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { libraryActivity, type ActivityFilter, type Entity as ActivityEntity } from '../lib/libraryActivity.js';
+import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 import {
   attachExamplesToBundle,
   type ExampleMode,
@@ -307,6 +309,79 @@ export default async function (fastify: FastifyInstance) {
    * because a bundle carries no authorization of its own. See
    * `docs/guides/static-export.md`.
    */
+  fastify.get(
+    '/:id/activity',
+    ...reposRoute(
+      {
+        tags: ['Library'],
+        summary: 'List what people did in a library, newest first',
+        description:
+          'Creates, edits, saved versions, environment pointer moves and deletes. `kind` keeps one kind ' +
+          '(`edited` keeps edits and saved versions), `actor` one principal. Pass `next` from a page as `before` ' +
+          'for the page after it.',
+        params: libraryIdParamSchema,
+        querystring: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: ['created', 'edited', 'moved', 'deleted'] },
+            actor: { type: 'string', minLength: 1 },
+            before: { type: 'string', minLength: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    kind: { type: 'string', enum: ['created', 'edited', 'saved', 'moved', 'deleted'] },
+                    at: { type: 'string', format: 'date-time' },
+                    actor: { type: 'string', nullable: true },
+                    entity: { type: 'string' },
+                    entityType: { type: 'string' },
+                    entityName: { type: 'string', nullable: true },
+                    versionNumber: { type: 'integer', nullable: true },
+                    environment: { type: 'string', nullable: true },
+                    environmentName: { type: 'string', nullable: true },
+                    fromVersionNumber: { type: 'integer', nullable: true },
+                    toVersionNumber: { type: 'integer', nullable: true },
+                  },
+                  required: ['id', 'kind', 'at', 'entity', 'entityType'],
+                  additionalProperties: false,
+                },
+              },
+              next: { type: 'string', nullable: true },
+            },
+            required: ['items'],
+          },
+          404: { type: 'object', properties: { error: { type: 'string' } } },
+        },
+      },
+      async ({ repos, reply, request }) => {
+        const { id } = request.params as { id: string };
+        if (!repos.Library.get(id)) return reply.status(404).send({ error: 'Not Found' });
+        requireLibraryMode(request, id, 'read');
+        const query = request.query as { kind?: ActivityFilter; actor?: string; before?: string; limit?: number };
+        const cache = getCacheCoordinator();
+        const page = libraryActivity(
+          {
+            get: (iri) => cache.get(iri) as unknown as ActivityEntity | null,
+            list: (type: EntityTypeName) => (cache.list(type as never) as unknown as ActivityEntity[] | null) ?? [],
+            readable: (items) => filterReadable(request, items),
+          },
+          { library: id, kind: query.kind, actor: query.actor, before: query.before, limit: query.limit ?? 50 },
+        );
+        return reply.send(page);
+      },
+    ),
+  );
+
   fastify.get(
     '/:id/export-bundle',
     ...reposRoute(
@@ -632,6 +707,11 @@ export default async function (fastify: FastifyInstance) {
       const { id } = request.params;
       requireLibraryMode(request, id, 'delete');
       await repos.Library.delete(id);
+      // The library's delete records name it, and a later library reusing
+      // the IRI must not inherit its feed.
+      for (const removal of repos.Removal.list().filter((item) => item.isPartOf === id)) {
+        await repos.Removal.delete(removal.$id);
+      }
       // Grants outlive nothing: a deleted library must not leave grants that a
       // later library reusing the IRI would silently inherit.
       await getAuthStore().deleteGrantsForLibrary(id);

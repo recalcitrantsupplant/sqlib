@@ -4,7 +4,9 @@ import { getKnownSystemEntityIds, loadSystemStore } from '../system-store/System
 import { assertMutableEntity } from './immutability.js';
 import { EntityByType, EntityType, getLensForType, getTtlForType } from './EntityRegistry.js';
 import { log } from './log.js';
-import { currentWriteActor, NO_REQUEST } from '../auth/writeActor.js';
+import { currentDeleteTarget, currentWriteActor, NO_REQUEST } from '../auth/writeActor.js';
+import { libraryOf, REMOVAL_KINDS } from './removals.js';
+import { mintId } from './id.js';
 
 type CacheErrorMode = 'log' | 'throw';
 
@@ -535,6 +537,34 @@ export class CacheCoordinator {
   }
 
   async delete<T extends EntityType>(type: T, id: string): Promise<void> {
+    const removal = this.removalFor(type, id);
+    await this.deleteOnly(type, id);
+    if (removal) await this.create('Removal', removal);
+  }
+
+  /**
+   * The `Removal` record a delete leaves, or null when it leaves none
+   * (`lib/removals.ts`). Read before the delete, while the entity's name and
+   * library can still be looked up.
+   */
+  private removalFor(type: EntityType, id: string) {
+    if (!REMOVAL_KINDS.has(type as never) || this._ephemeralIds.has(id)) return null;
+    if (currentWriteActor() === NO_REQUEST || currentDeleteTarget() !== id) return null;
+    type Lookup = Record<string, unknown> & { $id?: string; '@type'?: unknown };
+    const get = (iri: string) => this.get(iri) as unknown as Lookup | null;
+    const entity = get(id);
+    const library = libraryOf(entity, get);
+    if (!entity || !library) return null;
+    return {
+      $id: mintId('removal'),
+      isPartOf: library,
+      removedEntity: id,
+      removedType: type,
+      name: typeof entity.name === 'string' ? entity.name : null,
+    };
+  }
+
+  private async deleteOnly<T extends EntityType>(type: T, id: string): Promise<void> {
     this.recordWrite(id);
     if (this._ephemeralIds.has(id)) {
       this.removeFromCache(id);

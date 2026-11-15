@@ -60,6 +60,7 @@ export const NS = {
   environment: 'urn:sqlib:environment:',
   patch: 'urn:sqlib:patch:',
   pointerMove: 'urn:sqlib:pointer-move:',
+  removal: 'urn:sqlib:removal:',
   tupleSet: 'urn:sqlib:tuple-set:',
   tupleSetVersion: 'urn:sqlib:tuple-set-version:',
   notebook: 'urn:sqlib:notebook:',
@@ -219,6 +220,9 @@ const ALIAS_TO_KIND: Record<string, KnownKind> = {
 
   // environment pointer moves
   'pointermove': 'pointerMove',
+
+  // deletes of library entities
+  'removal': 'removal',
 
   // tuple sets
   'tupleset': 'tupleSet',

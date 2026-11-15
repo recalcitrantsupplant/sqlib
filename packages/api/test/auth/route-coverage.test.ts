@@ -775,6 +775,7 @@ const MANIFEST: Record<string, Protection> = {
   'DELETE /libraries/:id': 'delete',
   'GET /libraries/:id/export': 'read',
   'GET /libraries/:id/export-bundle': 'read',
+  'GET /libraries/:id/activity': 'read',
 
   /*
    * Query groups, swept with the question `argument-sets.ts` handed on — *does

@@ -19,6 +19,7 @@ import type { PersistedTag } from '../persistence/schemas/TagSchema.js';
 import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
 import type { PersistedPatch } from '../persistence/schemas/PatchSchema.js';
 import type { PersistedPointerMove } from '../persistence/schemas/PointerMoveSchema.js';
+import type { PersistedRemoval } from '../persistence/schemas/RemovalSchema.js';
 import type { PersistedTupleSet } from '../persistence/schemas/TupleSetSchema.js';
 import type { PersistedTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
 import type { PersistedNotebook } from '../persistence/schemas/NotebookSchema.js';
@@ -109,6 +110,7 @@ import { Tags } from '../persistence/utils/TagUtils.js';
 import { Environments } from '../persistence/utils/EnvironmentUtils.js';
 import { Patches } from '../persistence/utils/PatchUtils.js';
 import { PointerMoves } from '../persistence/utils/PointerMoveUtils.js';
+import { Removals } from '../persistence/utils/RemovalUtils.js';
 import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
 import { Notebooks, NotebookVersions } from '../persistence/utils/NotebookUtils.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
@@ -166,6 +168,7 @@ export const LENS_BY_TYPE = {
   Environment: Environments,
   Patch: Patches,
   PointerMove: PointerMoves,
+  Removal: Removals,
   TupleSet: TupleSets,
   TupleSetVersion: TupleSetVersions,
   Notebook: Notebooks,
@@ -227,6 +230,7 @@ export type EntityByType = {
   Environment: PersistedEnvironment;
   Patch: PersistedPatch;
   PointerMove: PersistedPointerMove;
+  Removal: PersistedRemoval;
   TupleSet: PersistedTupleSet;
   TupleSetVersion: PersistedTupleSetVersion;
   Notebook: PersistedNotebook;
@@ -277,6 +281,8 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
   // Written once by this process and never edited. Not infinite, so that a
   // move another process writes is seen.
   PointerMove: 120_000,
+  // Like PointerMove: written once by this process, never edited.
+  Removal: 120_000,
 };
 
 export function getTtlForType(type: EntityType): number {

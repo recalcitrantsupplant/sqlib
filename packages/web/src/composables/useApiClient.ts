@@ -248,6 +248,28 @@ export const environmentMoveSchema = z.object({
 });
 export type EnvironmentMove = z.infer<typeof environmentMoveSchema>;
 
+/** One item of `GET /libraries/:id/activity`. */
+export const libraryActivityItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['created', 'edited', 'saved', 'moved', 'deleted']),
+  at: z.string(),
+  actor: z.string().nullable().optional(),
+  entity: z.string(),
+  entityType: z.string(),
+  entityName: z.string().nullable().optional(),
+  versionNumber: z.number().nullable().optional(),
+  environment: z.string().nullable().optional(),
+  environmentName: z.string().nullable().optional(),
+  fromVersionNumber: z.number().nullable().optional(),
+  toVersionNumber: z.number().nullable().optional(),
+});
+export type LibraryActivityItem = z.infer<typeof libraryActivityItemSchema>;
+export const libraryActivityPageSchema = z.object({
+  items: z.array(libraryActivityItemSchema),
+  next: z.string().nullable().optional(),
+});
+export type LibraryActivityFilter = 'created' | 'edited' | 'moved' | 'deleted';
+
 /** Create an environment; `startFrom` ("latest" or an environment id) seeds its pointers. */
 export type EnvironmentCreateRequest = {
   name: string;
@@ -2286,6 +2308,24 @@ export function useApiClient() {
       (payload) => environmentPointerSchema.array().parse(payload),
     );
 
+  /** One page of a library's activity, newest first. Pass the page's `next` as `before` for the page after it. */
+  const listLibraryActivity = (
+    id: string,
+    options: { kind?: LibraryActivityFilter; actor?: string; before?: string; limit?: number } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (options.kind) params.set('kind', options.kind);
+    if (options.actor) params.set('actor', options.actor);
+    if (options.before) params.set('before', options.before);
+    if (options.limit) params.set('limit', String(options.limit));
+    const query = params.toString();
+    return requestData(
+      buildUrl(`/libraries/${encodeURIComponent(id)}/activity${query ? `?${query}` : ''}`),
+      { method: 'GET' },
+      (payload) => libraryActivityPageSchema.parse(payload),
+    );
+  };
+
   /** The recorded pointer moves of an environment, newest first; `entity` narrows them to one. */
   const listEnvironmentMoves = (id: string, options: { entity?: string; limit?: number } = {}) => {
     const params = new URLSearchParams();
@@ -3357,6 +3397,7 @@ export function useApiClient() {
     deleteEnvironment,
     listEnvironmentPointers,
     listEnvironmentMoves,
+    listLibraryActivity,
     moveEnvironmentPointer,
     listGrants,
     createGrant,

@@ -49,6 +49,18 @@ export function currentWriteActor(): string | null | typeof NO_REQUEST {
   return callerIdentityOf(authOf(scope.request))?.user ?? null;
 }
 
+/**
+ * The entity the current request asks to delete: the `:id` of a `DELETE`
+ * request, or null. A delete of anything else in the same request is part of
+ * that one (`lib/removals.ts`).
+ */
+export function currentDeleteTarget(): string | null {
+  const request = storage.getStore()?.request;
+  if (!request || request.method !== 'DELETE') return null;
+  const id = (request.params as { id?: unknown } | undefined)?.id;
+  return typeof id === 'string' && id ? id : null;
+}
+
 /** Run `fn` as a write made within `request`. For tests and for code with a request but no hook. */
 export function runWithWriteRequest<T>(request: FastifyRequest, fn: () => T): T {
   return storage.run({ request }, fn);

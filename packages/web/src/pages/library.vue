@@ -80,6 +80,8 @@
           </dl>
         </section>
 
+        <LibraryActivityTab v-else-if="tab === 'activity'" :library-id="libraryId" />
+
         <LibraryAccessTab
           v-else-if="tab === 'access'"
           :library-id="libraryId"
@@ -153,6 +155,7 @@ import AppNavRail from '@/components/AppNavRail.vue';
 import TabStrip from '@/components/shared/TabStrip.vue';
 import LibraryExportDialog from '@/components/LibraryExportDialog.vue';
 import EnvironmentDetail from '@/components/library-page/EnvironmentDetail.vue';
+import LibraryActivityTab from '@/components/library-page/LibraryActivityTab.vue';
 import EnvironmentList from '@/components/library-page/EnvironmentList.vue';
 import EnvironmentSetup from '@/components/library-page/EnvironmentSetup.vue';
 import InlineNote from '@/components/shared/InlineNote.vue';
@@ -177,7 +180,7 @@ import { useLibraryGrants } from '@/composables/useLibraryGrants';
 import { COMPARE_ALL, environmentView, type PointerMove, type PromotableKind } from '@/lib/environmentBoard';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '@/lib/railSections';
 
-type LibraryTab = 'overview' | 'environments' | 'access';
+type LibraryTab = 'overview' | 'environments' | 'activity' | 'access';
 
 const route = useRoute();
 const router = useRouter();
@@ -206,12 +209,13 @@ function canPromote(environment: string): boolean {
 const tabs = computed(() => [
   { value: 'overview', label: 'Overview', testId: 'library-tab-overview' },
   { value: 'environments', label: 'Environments', count: envs.environments.value.length, testId: 'library-tab-environments' },
+  { value: 'activity', label: 'Activity', testId: 'library-tab-activity' },
   ...(showsAccess.value ? [{ value: 'access', label: 'Access', testId: 'library-tab-access' }] : []),
 ]);
 
 function tabFromRoute(): LibraryTab {
   const value = route.query.tab;
-  return value === 'environments' || value === 'access' ? value : 'overview';
+  return value === 'environments' || value === 'activity' || value === 'access' ? value : 'overview';
 }
 
 const tab = ref<LibraryTab>(tabFromRoute());
