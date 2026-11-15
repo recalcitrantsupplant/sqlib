@@ -98,7 +98,7 @@
         </button>
       </div>
 
-      <InlineNote v-if="loading" class="list-message">Loading backends…</InlineNote>
+      <InlineNote v-if="loading && backends.length === 0" class="list-message">Loading backends…</InlineNote>
       <InlineNote v-else-if="error" tone="danger" class="list-message">{{ error }}</InlineNote>
       <InlineNote v-else-if="backends.length === 0 && !draft" class="list-message">
         No backends yet. Add one with +.

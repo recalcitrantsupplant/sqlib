@@ -18,6 +18,13 @@
  */
 
 import type { GraphNodeKind, GraphNodeState, GraphEdgeState } from './useQueryGroupGraph';
+import {
+  QUERY_GROUP_EDGE_FLOW_TYPES,
+  edgeSourcePortKinds,
+  edgeTargetPortKinds,
+  isEndNodePassThrough as sharedIsEndNodePassThrough,
+  type QueryGroupNodeRole,
+} from '@sparql-query-lib/contracts';
 import { canvasNodeLabel } from './queryGroupNodeLabel';
 import {
   describeArity,
@@ -30,13 +37,7 @@ import {
 
 export type EdgeFlowType = GraphEdgeState['flowType'];
 
-export const EDGE_FLOW_TYPES: readonly EdgeFlowType[] = [
-  'CONTROL_FLOW',
-  'VARIABLE_BINDINGS',
-  'RDF_GRAPH',
-  'BOOLEAN',
-  'QUERY_ID',
-];
+export const EDGE_FLOW_TYPES: readonly EdgeFlowType[] = QUERY_GROUP_EDGE_FLOW_TYPES;
 
 export type Diagnostic = {
   level: 'error' | 'warning' | 'info';
@@ -56,59 +57,38 @@ const NODE_KIND_RULES: Record<EdgeFlowType, { source?: GraphNodeKind[]; target?:
   QUERY_ID: { target: ['dynamic'] },
 };
 
+const roleOf = (node: GraphNodeState): QueryGroupNodeRole =>
+  node.kind === 'start' ? 'start' : node.kind === 'end' ? 'end' : 'step';
+
 /**
  * The port kinds a source node may offer for a flow type.
  *
- * The Start node is the exception worth spelling out: what it *saves* is
- * the group's input tuples, so its outputs are QueryInputTuple entities.
+ * The table is shared with the API (`@sparql-query-lib/contracts`), which
+ * checks every saved edge against it. The Start node's outputs are the group's
+ * input tuples, so they are QueryInputTuple entities.
+ *
+ * The canvas narrows one cell. The engine accepts an ASK result (`BooleanIO`)
+ * as a one-column binding source, but the canvas does not offer it, because
+ * the End-alias target rules would have to change with it. See the
+ * `ask|VARIABLE_BINDINGS|*` entries in `canvasBackendLegality.test.ts`.
  */
 export function legalSourcePortKinds(flowType: EdgeFlowType, sourceNode: GraphNodeState): IoEntityKind[] {
-  switch (flowType) {
-    case 'CONTROL_FLOW':
-      return [];
-    case 'RDF_GRAPH':
-      return ['TriplesQuadsIO'];
-    case 'BOOLEAN':
-      return ['BooleanIO'];
-    case 'QUERY_ID':
-      // The caller choosing which query a dynamic node runs is a group input
-      // like any other, so the Start node saves it the way it saves
-      // bindings. Without this the backend feature was not authorable: the
-      // canvas offered no candidate port and the edge could never resolve.
-      return sourceNode.kind === 'start' ? ['QueryInputTuple'] : ['QueryOutputTuple'];
-    case 'VARIABLE_BINDINGS':
-      return sourceNode.kind === 'start' ? ['QueryInputTuple'] : ['QueryOutputTuple'];
-    default:
-      return [];
-  }
+  const kinds = edgeSourcePortKinds(flowType, roleOf(sourceNode));
+  return flowType === 'VARIABLE_BINDINGS' ? kinds.filter(kind => kind !== 'BooleanIO') : [...kinds];
 }
 
 /**
- * The port kinds a target node may offer for a flow type.
- *
- * The End node consumes the group's results, which are output tuples, and it
- * aliases the source port rather than owning one (see the note at the top).
+ * The port kinds a target node may offer for a flow type, from the same
+ * shared table. The End node aliases the source port rather than owning one
+ * (see the note at the top).
  */
 export function legalTargetPortKinds(flowType: EdgeFlowType, targetNode: GraphNodeState): IoEntityKind[] {
-  switch (flowType) {
-    case 'CONTROL_FLOW':
-      return [];
-    case 'RDF_GRAPH':
-      return ['TriplesQuadsIO'];
-    case 'BOOLEAN':
-      return ['BooleanIO'];
-    case 'QUERY_ID':
-      return ['QueryIdInput'];
-    case 'VARIABLE_BINDINGS':
-      return targetNode.kind === 'end' ? ['QueryOutputTuple'] : ['QueryInputTuple'];
-    default:
-      return [];
-  }
+  return [...edgeTargetPortKinds(flowType, roleOf(targetNode))];
 }
 
 /** True when the edge's target port is an alias of its source port. */
 export function isEndNodePassThrough(flowType: EdgeFlowType, targetNode: GraphNodeState): boolean {
-  return flowType !== 'CONTROL_FLOW' && targetNode.kind === 'end';
+  return sharedIsEndNodePassThrough(flowType, roleOf(targetNode));
 }
 
 /**

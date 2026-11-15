@@ -14,7 +14,7 @@ const isoDateTime = z.string().datetime({ offset: true }).optional().nullable();
 const nullableString = z.string().optional().nullable();
 const nullableBoolean = z.boolean().optional().nullable();
 const backendTypeEnum = z.enum(['http', 'oxigraphEphemeral', 'oxigraphMemory']);
-const queryMethodEnum = z.enum(['post', 'get']);
+const queryMethodEnum = z.enum(['post', 'get', 'query']);
 // Reusable field definitions for Backend entity
 const backendShape = {
   id: iriString,

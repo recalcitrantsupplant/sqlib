@@ -3,7 +3,7 @@
  * Generated using EntityUtils for standardized CRUD operations
  */
 
-import { BackendSchema, backendTypeIriToKey, backendTypeKeyToIri, queryMethodKeyToIri, type PersistedBackend } from '../schemas/BackendSchema.js';
+import { BackendSchema, backendTypeIriToKey, backendTypeKeyToIri, queryMethodKeyToIri, type PersistedBackend, type QueryMethodKey } from '../schemas/BackendSchema.js';
 import { createEntityUtilsWithFields } from './EntityUtils.js';
 
 // Create standardized Backend utilities
@@ -42,7 +42,7 @@ export function createBackend(data: Parameters<typeof BackendUtils.create>[0]): 
 
   // Convert queryMethod key to IRI if provided
   if (data.queryMethod && typeof data.queryMethod === 'string') {
-    const queryMethodKey = data.queryMethod as 'post' | 'get';
+    const queryMethodKey = data.queryMethod as QueryMethodKey;
     payload.queryMethod = queryMethodKeyToIri(queryMethodKey);
   }
 
@@ -63,7 +63,7 @@ export function updateBackend(id: Parameters<typeof BackendUtils.update>[0], upd
 
   // Convert queryMethod key to IRI if provided
   if (updates && updates.queryMethod && typeof updates.queryMethod === 'string') {
-    const queryMethodKey = updates.queryMethod as 'post' | 'get';
+    const queryMethodKey = updates.queryMethod as QueryMethodKey;
     payload = { ...payload, queryMethod: queryMethodKeyToIri(queryMethodKey) };
   }
 

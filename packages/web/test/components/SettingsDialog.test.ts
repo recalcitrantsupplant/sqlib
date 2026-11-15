@@ -15,6 +15,57 @@ vi.mock('@/components/settings/TelemetryStatusSection.vue', () => ({
   default: { name: 'TelemetryStatusSection', render: () => null },
 }));
 
+/*
+ * The Connection section reads the round trip, the backend probes and the
+ * active library. Each is a stand-in here, so no test reaches the network.
+ */
+const connection = vi.hoisted(() => ({
+  roundTripMs: null as number | null,
+  location: null as string | null,
+  measure: (() => undefined) as () => unknown,
+  probe: (() => undefined) as (id: string) => unknown,
+  defaultBackend: null as string | null,
+  probes: {} as Record<string, { health: string; latencyMs: number | null; error: string | null }>,
+}));
+vi.mock('@/composables/useServerLatency', async () => {
+  const { computed } = await import('vue');
+  return {
+    SLOW_ROUND_TRIP_MS: 100,
+    useServerLatency: () => ({
+      roundTripMs: computed(() => connection.roundTripMs),
+      location: computed(() => connection.location),
+      measuring: computed(() => false),
+      ensureMeasured: async () => undefined,
+      measure: () => connection.measure(),
+    }),
+  };
+});
+vi.mock('@/composables/useBackendProbes', () => ({
+  useBackendProbes: () => ({
+    probeFor: (id: string | null | undefined) => (id ? connection.probes[id] ?? null : null),
+    isProbing: () => false,
+    probe: (id: string) => connection.probe(id),
+    loadProbes: async () => undefined,
+  }),
+}));
+vi.mock('@/composables/useActiveLibrary', async () => {
+  const { computed } = await import('vue');
+  return {
+    useActiveLibrary: () => ({
+      libraries: computed(() => [{ id: 'lib:a', name: 'A', defaultBackend: connection.defaultBackend }]),
+      activeLibraryId: computed(() => 'lib:a'),
+    }),
+  };
+});
+vi.mock('@/composables/useBackendsStore', async () => {
+  const { computed } = await import('vue');
+  return {
+    useBackendsStore: () => ({
+      backends: computed(() => [{ id: 'b:fuseki', name: 'Fuseki', backendType: 'http' }]),
+    }),
+  };
+});
+
 const mockLocalStorage: Record<string, string> = {};
 vi.stubGlobal('localStorage', {
   getItem: vi.fn((key: string) => mockLocalStorage[key] ?? null),
@@ -136,6 +187,62 @@ describe('SettingsDialog', () => {
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
   });
 
+  describe('Connection', () => {
+    beforeEach(() => {
+      connection.roundTripMs = null;
+      connection.location = null;
+      connection.defaultBackend = null;
+      connection.probes = {};
+    });
+
+    it('shows the round trip from this browser, in warning above 100 ms', async () => {
+      connection.roundTripMs = 350;
+      connection.location = 'Sydney';
+      await open();
+      const badge = query('[data-testid="settings-browser-latency"]');
+      expect(badge.textContent?.trim()).toBe('350 ms');
+      expect(badge.className).toContain('status-badge--warning');
+      expect(query('[data-testid="settings-connection"]').textContent).toContain('Sydney');
+    });
+
+    it('shows a short round trip as healthy', async () => {
+      connection.roundTripMs = 40;
+      await open();
+      expect(query('[data-testid="settings-browser-latency"]').className).toContain('status-badge--success');
+    });
+
+    it('measures again on request', async () => {
+      connection.measure = vi.fn();
+      await open();
+      await click(query('[data-testid="settings-measure-latency"]'));
+      expect(connection.measure).toHaveBeenCalledTimes(1);
+    });
+
+    it('has no backend row when the library has no default backend', async () => {
+      await open();
+      expect(document.querySelector('[data-testid="settings-backend-row"]')).toBeNull();
+    });
+
+    it('shows the last probe of the default backend, and tests it again', async () => {
+      connection.defaultBackend = 'b:fuseki';
+      connection.probes = { 'b:fuseki': { health: 'slow', latencyMs: 420, error: null } };
+      connection.probe = vi.fn();
+      await open();
+      expect(query('[data-testid="settings-backend-row"]').textContent).toContain('sqlib to Fuseki');
+      const badge = query('[data-testid="settings-backend-latency"]');
+      expect(badge.textContent?.trim()).toBe('420 ms');
+      expect(badge.className).toContain('status-badge--warning');
+      await click(query('[data-testid="settings-probe-backend"]'));
+      expect(connection.probe).toHaveBeenCalledWith('b:fuseki');
+    });
+
+    it('says when the default backend has not been tested', async () => {
+      connection.defaultBackend = 'b:fuseki';
+      await open();
+      expect(query('[data-testid="settings-backend-latency"]').textContent?.trim()).toBe('Not tested');
+    });
+  });
+
   it('closes on Done without committing anything — settings apply on change', async () => {
     const { wrapper, settings } = await open({ hofstadterMode: false });
     await click(switchFor('setting-hofstadter-mode'));
@@ -190,6 +297,15 @@ describe('SettingsDialog', () => {
 
       expect(document.querySelector('[data-testid="setting-hofstadter-mode"]')).toBeNull();
       expect(document.body.textContent).not.toContain('Advanced');
+    });
+
+    /* The probe route is refused there, so only the last result is shown. */
+    it('shows the backend probe without a Test button', async () => {
+      connection.defaultBackend = 'b:fuseki';
+      await openReadOnly();
+      expect(document.querySelector('[data-testid="settings-backend-row"]')).toBeTruthy();
+      expect(document.querySelector('[data-testid="settings-probe-backend"]')).toBeNull();
+      connection.defaultBackend = null;
     });
 
     /* Per browser, so flipping between deployments must not rewrite it. */

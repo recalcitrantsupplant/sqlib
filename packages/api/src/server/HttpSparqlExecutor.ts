@@ -14,7 +14,39 @@ interface HttpExecutorConfig {
     authHeader?: string; // Optional explicit Authorization header (Bearer, Basic, etc.)
     connectTimeout?: number; // Connection timeout in milliseconds (default: 60000)
     bodyTimeout?: number; // Body/response timeout in milliseconds (default: 120000)
-    queryMethod?: 'post' | 'get'; // HTTP method for SPARQL queries (default: 'post')
+    queryMethod?: 'post' | 'get' | 'query'; // HTTP method for SPARQL queries (default: 'post')
+}
+
+/**
+ * The longest URL sent with the QUERY method. A dataset goes in the URL of a
+ * QUERY request, so a long graph list is sent as a POST form instead. The
+ * value matches the browser and runtime executors.
+ */
+export const QUERY_METHOD_MAX_URL_LENGTH = 1800;
+
+/** How long a backend that refused QUERY is sent POST instead. */
+export const QUERY_METHOD_REFUSAL_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Query endpoints that answered QUERY with 405 or 501, and when. RFC 10008
+ * QUERY is new (June 2026), so a server or a proxy in front of it can refuse
+ * it. A SPARQL query is safe to send again, so sqlib retries it as a POST.
+ */
+const queryMethodRefusals = new Map<string, number>();
+
+function queryMethodRefused(endpoint: string): boolean {
+  const at = queryMethodRefusals.get(endpoint);
+  if (at === undefined) return false;
+  if (Date.now() - at > QUERY_METHOD_REFUSAL_TTL_MS) {
+    queryMethodRefusals.delete(endpoint);
+    return false;
+  }
+  return true;
+}
+
+/** Forget every QUERY refusal. For tests. */
+export function resetQueryMethodRefusals(): void {
+  queryMethodRefusals.clear();
 }
 
 
@@ -61,7 +93,6 @@ async function executeHttpRequestRaw(
   const basicAuth = username && password ? `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` : undefined;
   const effectiveAuth = basicAuth || authHeader || undefined;
 
-  let requestOptions: Dispatcher.RequestOptions; // Use the standard RequestOptions type
   const targetUrl = new URL(endpointUrl); // Start with the base URL as a URL object
 
   // Build common headers
@@ -71,15 +102,57 @@ async function executeHttpRequestRaw(
     ...(effectiveAuth ? { 'Authorization': effectiveAuth } : {})
   };
 
+  const send = async (requestOptions: Dispatcher.RequestOptions, url: URL) => {
+    const requestUrlString = url.toString(); // Get the full URL string for logging/request
+    const requestLabel = `HTTP SPARQL ${isUpdate ? 'UPDATE' : 'Query'} Request (${requestOptions.method}) to ${requestUrlString}`;
+    const startTime = performance.now();
+    try {
+      // Use keepAliveAgent.request instead of global request
+      const response = await keepAliveAgent.request({
+          origin: url.origin, // Need to provide origin separately for agent.request
+          ...requestOptions, // Spread the rest of the options (method, path, headers, body)
+          // Aborts the request and its body when the execution it serves stops.
+          ...(signal ? { signal } : {}),
+      });
+      const duration = performance.now() - startTime;
+      if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
+      return { response, duration };
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
+      log.error({ err: error, url: requestUrlString }, `Error executing ${requestLabel}`);
+      throw error; // Re-throw network or setup errors
+    }
+  };
+
+  // --- SPARQL Query (POST form) ---
+  // A dataset goes in the form body: one `default-graph-uri` or
+  // `named-graph-uri` pair per graph soon outgrows a URL (Fuseki answered 414
+  // at 10,000 graphs, and an 8 KB proxy limit holds about 145), so a GET
+  // backend is sent a POST when a dataset is present, and a QUERY backend when
+  // the URL would pass QUERY_METHOD_MAX_URL_LENGTH.
+  const postForm = (): Dispatcher.RequestOptions => ({
+    method: 'POST',
+    headers: {
+      ...baseHeaders,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: [['query', query], ...datasetProtocolParameters(dataset)]
+      .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
+      .join('&'),
+    path: targetUrl.pathname + targetUrl.search,
+  });
+
   if (isUpdate) {
     // --- SPARQL Update (POST) ---
     // UPDATE operations MUST use POST per SPARQL 1.1 Protocol specification.
+    // QUERY (RFC 10008) is a safe method, so it never carries an update.
     // A dataset goes in the same form body as `using-graph-uri` and
     // `using-named-graph-uri` pairs (Protocol §2.2.3).
     const body = [['update', query], ...updateDatasetProtocolParameters(dataset)]
       .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
       .join('&');
-    requestOptions = {
+    return send({
       method: 'POST',
       headers: {
         ...baseHeaders,
@@ -87,57 +160,50 @@ async function executeHttpRequestRaw(
       },
       body,
       path: targetUrl.pathname + targetUrl.search
-    };
-  } else if (queryMethod === 'get' && !hasDataset(dataset)) {
+    }, targetUrl);
+  }
+
+  if (queryMethod === 'get' && !hasDataset(dataset)) {
     // --- SPARQL Query (GET) ---
     targetUrl.searchParams.set('query', query);
-    requestOptions = {
+    return send({
       method: 'GET',
       headers: {
         ...baseHeaders,
       },
       path: targetUrl.pathname + targetUrl.search
-    };
-  } else {
-    // --- SPARQL Query (POST) ---
-    // A dataset always goes in a form body, whatever `queryMethod` says: one
-    // `default-graph-uri` or `named-graph-uri` pair per graph soon outgrows a
-    // URL (Fuseki answered 414 at 10,000 graphs, and an 8 KB proxy limit holds
-    // about 145), so a GET backend is sent a POST when a dataset is present.
-    const body = [['query', query], ...datasetProtocolParameters(dataset)]
-      .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
-      .join('&');
-    requestOptions = {
-      method: 'POST',
-      headers: {
-        ...baseHeaders,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body,
-      path: targetUrl.pathname + targetUrl.search
-    };
+    }, targetUrl);
   }
 
-  const requestUrlString = targetUrl.toString(); // Get the full URL string for logging/request
-  const requestLabel = `HTTP SPARQL ${isUpdate ? 'UPDATE' : 'Query'} Request (${requestOptions.method}) to ${requestUrlString}`;
-  const startTime = performance.now();
-  try {
-    // Use keepAliveAgent.request instead of global request
-    const response = await keepAliveAgent.request({
-        origin: targetUrl.origin, // Need to provide origin separately for agent.request
-        ...requestOptions, // Spread the rest of the options (method, path, headers, body)
-        // Aborts the request and its body when the execution it serves stops.
-        ...(signal ? { signal } : {}),
-    });
-    const duration = performance.now() - startTime;
-    if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
-    return { response, duration };
-  } catch (error) {
-    const duration = performance.now() - startTime;
-    if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
-    log.error({ err: error, url: requestUrlString }, `Error executing ${requestLabel}`);
-    throw error; // Re-throw network or setup errors
+  if (queryMethod === 'query' && !queryMethodRefused(queryUrl)) {
+    // --- SPARQL Query (QUERY, RFC 10008) ---
+    // The query is the body, as for a direct POST (SPARQL 1.2 Protocol §2.1),
+    // and the dataset goes in the URL. A form body is not used: Fuseki finds
+    // the `query` parameter through the servlet API, which reads a form body
+    // for POST only.
+    const queryTarget = new URL(targetUrl);
+    for (const [name, value] of datasetProtocolParameters(dataset)) queryTarget.searchParams.append(name, value);
+    if (queryTarget.toString().length <= QUERY_METHOD_MAX_URL_LENGTH) {
+      const sent = await send({
+        method: 'QUERY',
+        headers: {
+          ...baseHeaders,
+          'Content-Type': 'application/sparql-query',
+        },
+        body: query,
+        path: queryTarget.pathname + queryTarget.search,
+      }, queryTarget);
+      const status = sent.response.statusCode;
+      if (status !== 405 && status !== 501) return sent;
+      // The server, or a proxy in front of it, does not take QUERY. Send the
+      // same query as a POST, and keep sending POST for a while.
+      await sent.response.body.text().catch(() => undefined);
+      queryMethodRefusals.set(queryUrl, Date.now());
+      log.warn({ endpoint: queryUrl, status }, 'SPARQL endpoint refused the QUERY method; sending POST instead');
+    }
   }
+
+  return send(postForm(), targetUrl);
 }
 
 /**

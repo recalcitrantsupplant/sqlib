@@ -30,7 +30,7 @@
         v-if="canDelete"
         class="delete-button"
         :data-testid="`${testIdPrefix}-delete`"
-        @click="confirming = true"
+        @click="openConfirm"
       >
         <Trash2 :size="12" />Delete {{ noun }}
       </button>
@@ -82,10 +82,17 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
+  /** The user pressed Delete and the confirm strip is open. */
+  (e: 'confirm-open'): void;
   (e: 'delete'): void;
 }>();
 
 const confirming = ref(false);
+
+function openConfirm() {
+  confirming.value = true;
+  emit('confirm-open');
+}
 
 const createdLabel = computed(() => formatShortDate(props.createdAt));
 

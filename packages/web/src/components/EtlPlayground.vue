@@ -74,6 +74,7 @@
           <PanelHeader title="DuckDB SQL Query" sunken>
             <template #actions>
               <select
+                v-if="!isReadOnly"
                 v-model="selectedExample"
                 @change="onExampleChange"
                 class="example-select"
@@ -85,6 +86,7 @@
                 </option>
               </select>
               <button
+                v-if="!isReadOnly"
                 @click="peekSqlResults"
                 class="btn-peek"
                 :disabled="!sqlQuery.trim() || isPeeking"
@@ -1494,6 +1496,9 @@ const formatCellValue = (value: unknown): string => {
 
 // Methods
 const executePreview = async () => {
+  // A read-only deployment refuses the preview route; the saved job's
+  // mappings stand as they were saved.
+  if (isReadOnly.value) return;
   isExecuting.value = true;
   try {
     const apiBaseUrl = config.public.apiBaseUrl.replace(/\/$/, '');

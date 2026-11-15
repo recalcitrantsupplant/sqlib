@@ -1,24 +1,28 @@
 [
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -26,18 +30,21 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
@@ -45,12 +52,14 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -58,6 +67,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -65,6 +75,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -72,6 +83,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -79,6 +91,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -86,6 +99,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -93,6 +107,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -100,6 +115,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -107,6 +123,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -114,12 +131,14 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -127,6 +146,7 @@
   },
   {
     "source": "select",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -134,24 +154,28 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -159,6 +183,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -166,6 +191,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -173,6 +199,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -180,6 +207,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -187,6 +215,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
@@ -194,6 +223,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
@@ -201,18 +231,21 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": null
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -220,6 +253,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -227,6 +261,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -234,6 +269,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -241,6 +277,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -248,6 +285,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -255,6 +293,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -262,6 +301,7 @@
   },
   {
     "source": "construct",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -269,24 +309,28 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -294,6 +338,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -301,6 +346,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -308,6 +354,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -315,6 +362,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -322,6 +370,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
@@ -329,6 +378,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
@@ -336,18 +386,21 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": null
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -355,6 +408,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -362,6 +416,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -369,6 +424,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -376,6 +432,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -383,6 +440,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -390,6 +448,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -397,6 +456,7 @@
   },
   {
     "source": "describe",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -404,24 +464,28 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -429,18 +493,21 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
@@ -448,6 +515,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": "EDGE_TARGET_PORT_TYPE",
@@ -455,6 +523,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -462,6 +531,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -469,6 +539,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -476,6 +547,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -483,18 +555,21 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "BOOLEAN",
     "target": "query",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
@@ -502,12 +577,14 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "BOOLEAN",
     "target": "end",
     "code": null
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -515,6 +592,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -522,6 +600,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -529,6 +608,7 @@
   },
   {
     "source": "ask",
+    "sourcePort": "BooleanIO",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -536,24 +616,28 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -561,6 +645,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -568,6 +653,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -575,6 +661,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -582,6 +669,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -589,6 +677,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -596,6 +685,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -603,6 +693,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -610,6 +701,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -617,6 +709,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -624,6 +717,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -631,6 +725,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -638,6 +733,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -645,6 +741,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -652,6 +749,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -659,6 +757,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -666,6 +765,7 @@
   },
   {
     "source": "update",
+    "sourcePort": "none",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_DATA_FLOW_MISSING_IO",
@@ -673,24 +773,28 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -698,18 +802,21 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
@@ -717,12 +824,14 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -730,6 +839,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -737,6 +847,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -744,6 +855,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -751,6 +863,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -758,6 +871,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -765,6 +879,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -772,6 +887,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -779,6 +895,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -786,12 +903,14 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -799,6 +918,7 @@
   },
   {
     "source": "dynamic",
+    "sourcePort": "QueryOutputTuple",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -806,24 +926,28 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "END_NODE_NO_DATA_INPUT",
@@ -831,6 +955,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -838,6 +963,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -845,6 +971,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -852,6 +979,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -859,6 +987,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
@@ -866,6 +995,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
@@ -873,18 +1003,21 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": null
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -892,6 +1025,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -899,6 +1033,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -906,6 +1041,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -913,6 +1049,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -920,6 +1057,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -927,6 +1065,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -934,6 +1073,7 @@
   },
   {
     "source": "ruleset",
+    "sourcePort": "TriplesQuadsIO",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -941,24 +1081,28 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "CONTROL_FLOW",
     "target": "query",
     "code": null
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "CONTROL_FLOW",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "CONTROL_FLOW",
     "target": "ruleset",
     "code": null
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "CONTROL_FLOW",
     "target": "end",
     "code": "GRAPH_NO_EXECUTABLE_NODE",
@@ -966,18 +1110,21 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "query",
     "code": null
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "ruleset",
     "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
@@ -985,6 +1132,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "VARIABLE_BINDINGS",
     "target": "end",
     "code": "GRAPH_NO_EXECUTABLE_NODE",
@@ -992,6 +1140,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "RDF_GRAPH",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -999,6 +1148,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "RDF_GRAPH",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -1006,6 +1156,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "RDF_GRAPH",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -1013,6 +1164,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "RDF_GRAPH",
     "target": "end",
     "code": "GRAPH_NO_EXECUTABLE_NODE",
@@ -1020,6 +1172,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "BOOLEAN",
     "target": "query",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -1027,6 +1180,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "BOOLEAN",
     "target": "dynamic",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -1034,6 +1188,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "BOOLEAN",
     "target": "ruleset",
     "code": "EDGE_SOURCE_PORT_TYPE",
@@ -1041,6 +1196,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "BOOLEAN",
     "target": "end",
     "code": "GRAPH_NO_EXECUTABLE_NODE",
@@ -1048,6 +1204,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "QUERY_ID",
     "target": "query",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -1055,12 +1212,14 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "QUERY_ID",
     "target": "dynamic",
     "code": null
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "QUERY_ID",
     "target": "ruleset",
     "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
@@ -1068,6 +1227,7 @@
   },
   {
     "source": "start",
+    "sourcePort": "QueryInputTuple",
     "flow": "QUERY_ID",
     "target": "end",
     "code": "GRAPH_NO_EXECUTABLE_NODE",

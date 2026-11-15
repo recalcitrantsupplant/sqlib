@@ -13,14 +13,16 @@
  *   caller who resolves by name is affected.
  * - **A pointer moves only through `PUT /:id/pointers`.** That route checks the
  *   version belongs to an entity of this library, keeps one version per
- *   entity, can compare-and-set against the pointer the caller saw, and logs
- *   who moved it. The generic `PUT /:id` cannot touch `versions`.
+ *   entity, can compare-and-set against the pointer the caller saw, and
+ *   records who moved it as a `PointerMove`. The generic `PUT /:id` cannot
+ *   touch `versions`.
  */
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
+import type { PersistedPointerMove } from '../persistence/schemas/PointerMoveSchema.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -56,8 +58,42 @@ const pointerSchema = {
     entityName: { type: 'string', nullable: true },
     version: { type: 'string' },
     versionNumber: { type: 'integer', nullable: true },
+    /** Who moved the pointer to this version. Null when no move is recorded. */
+    movedBy: { type: 'string', nullable: true },
+    movedAt: { type: 'string', format: 'date-time', nullable: true },
   },
   required: ['entity', 'entityType', 'version'],
+  additionalProperties: false,
+} as const;
+
+const moveSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    entity: { type: 'string' },
+    entityType: { type: 'string', nullable: true },
+    entityName: { type: 'string', nullable: true },
+    fromVersion: { type: 'string', nullable: true },
+    fromVersionNumber: { type: 'integer', nullable: true },
+    toVersion: { type: 'string', nullable: true },
+    toVersionNumber: { type: 'integer', nullable: true },
+    movedBy: { type: 'string', nullable: true },
+    movedAt: { type: 'string', format: 'date-time', nullable: true },
+  },
+  required: ['id', 'entity'],
+  additionalProperties: false,
+} as const;
+
+const MOVES_DEFAULT_LIMIT = 20;
+const MOVES_MAX_LIMIT = 200;
+
+const movesQuerystringSchema = {
+  type: 'object',
+  properties: {
+    /** Only the moves of this query, query group or rule set. */
+    entity: { type: 'string', minLength: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: MOVES_MAX_LIMIT, default: MOVES_DEFAULT_LIMIT },
+  },
   additionalProperties: false,
 } as const;
 
@@ -144,9 +180,31 @@ function checkBackend(backend: unknown): string | null {
   return null;
 }
 
+/**
+ * The recorded moves of an environment, newest first. Two moves in the same
+ * millisecond keep the cache's order reversed, which is newest first for
+ * moves this process wrote (the sort is stable).
+ */
+function movesOf(repos: EntityRepositories, envId: string): PersistedPointerMove[] {
+  const moves = (repos.PointerMove.list() as PersistedPointerMove[]).filter(move => move.isPartOf === envId).reverse();
+  return moves.sort((a, b) => String(b.dateCreated ?? '').localeCompare(String(a.dateCreated ?? '')));
+}
+
+function versionNumberOf(versionId: string | null | undefined): number | null {
+  if (!versionId) return null;
+  const version = getCacheCoordinator().get(versionId) as Entity | null;
+  return typeof version?.version === 'number' ? version.version : null;
+}
+
 /** The pointers of an environment, one row per entity, for clients to display. */
-function pointersOf(env: PersistedEnvironment) {
+function pointersOf(repos: EntityRepositories, env: PersistedEnvironment) {
   const cache = getCacheCoordinator();
+  // The newest move to each version. A pointer set before moves were recorded,
+  // or copied in when the environment was created, has none.
+  const lastMoveTo = new Map<string, PersistedPointerMove>();
+  for (const move of movesOf(repos, env.$id)) {
+    if (move.toVersion && !lastMoveTo.has(move.toVersion)) lastMoveTo.set(move.toVersion, move);
+  }
   const rows = [];
   for (const versionId of env.versions ?? []) {
     const version = cache.get(versionId) as Entity | null;
@@ -158,6 +216,8 @@ function pointersOf(env: PersistedEnvironment) {
       entityName: typeof entity.name === 'string' ? entity.name : null,
       version: versionId,
       versionNumber: typeof version.version === 'number' ? version.version : null,
+      movedBy: lastMoveTo.get(versionId)?.createdBy ?? null,
+      movedAt: lastMoveTo.get(versionId)?.dateCreated ?? null,
     });
   }
   return rows;
@@ -186,7 +246,7 @@ export default async function (fastify: FastifyInstance) {
   // The pointer routes check their own mode: Read on the library to list
   // pointers, `promote` on the environment to move one. Exempt from the guard
   // so a reviewer with `promote` does not also need Write on the library.
-  registerEntityAuthGuard(fastify, { executeSuffixes: [], exemptSuffixes: ['/pointers'] });
+  registerEntityAuthGuard(fastify, { executeSuffixes: [], exemptSuffixes: ['/pointers', '/moves'] });
 
   fastify.get('/', ...reposRoute({
       tags: ['Environment'],
@@ -278,7 +338,40 @@ export default async function (fastify: FastifyInstance) {
     const env = repos.Environment.get(request.params.id) as PersistedEnvironment | null;
     if (!env) return reply.status(404).send({ error: 'Not Found' });
     requireLibraryMode(request, env.isPartOf, 'read');
-    return reply.send(pointersOf(env));
+    return reply.send(pointersOf(repos, env));
+  }));
+
+  fastify.get('/:id/moves', ...reposRoute({
+      tags: ['Environment'],
+      summary: 'List the pointer moves of an environment',
+      description: 'Newest first. With `entity`, only the moves of that query, query group or rule set.',
+      params: idParamSchema,
+      querystring: movesQuerystringSchema,
+      response: { 200: { type: 'array', items: moveSchema }, 404: errorResponseSchema },
+    }, async ({ repos, reply, request }) => {
+    const env = repos.Environment.get(request.params.id) as PersistedEnvironment | null;
+    if (!env) return reply.status(404).send({ error: 'Not Found' });
+    requireLibraryMode(request, env.isPartOf, 'read');
+    const { entity, limit = MOVES_DEFAULT_LIMIT } = request.query;
+    const cache = getCacheCoordinator();
+    const moves = movesOf(repos, env.$id)
+      .filter(move => !entity || move.movedEntity === entity)
+      .slice(0, limit);
+    return reply.send(moves.map(move => {
+      const moved = cache.get(move.movedEntity) as Entity | null;
+      return {
+        id: move.$id,
+        entity: move.movedEntity,
+        entityType: typeof moved?.['@type'] === 'string' ? moved['@type'] : null,
+        entityName: typeof moved?.name === 'string' ? moved.name : null,
+        fromVersion: move.fromVersion ?? null,
+        fromVersionNumber: versionNumberOf(move.fromVersion),
+        toVersion: move.toVersion ?? null,
+        toVersionNumber: versionNumberOf(move.toVersion),
+        movedBy: move.createdBy ?? null,
+        movedAt: move.dateCreated ?? null,
+      };
+    }));
   }));
 
   fastify.put('/:id', ...reposRoute({
@@ -392,7 +485,16 @@ export default async function (fastify: FastifyInstance) {
     const updated = await repos.Environment.update(id, { versions } as Partial<PersistedEnvironment>);
     if (!updated) return reply.status(404).send({ error: 'Not Found' });
 
-    if (current !== versionId) logPointerMove(request, env, entityId, current, versionId);
+    if (current !== versionId) {
+      logPointerMove(request, env, entityId, current, versionId);
+      await repos.PointerMove.create({
+        $id: mintId('pointerMove'),
+        isPartOf: env.$id,
+        movedEntity: entityId,
+        fromVersion: current,
+        toVersion: versionId,
+      } as Partial<PersistedPointerMove> & { $id: string });
+    }
     // A group promoted ahead of its parts is allowed; say how many parts the
     // environment holds at another version than the group pins.
     if (versionId !== null && entity['@type'] === 'QueryGroup') {
@@ -405,7 +507,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.delete('/:id', ...reposRoute({
       tags: ['Environment'],
       summary: 'Delete environment',
-      description: 'Its pointers go with it, and so do the grants that name it.',
+      description: 'Its pointers and their recorded moves go with it, and so do the grants that name it.',
       params: idParamSchema,
       response: { 204: { type: 'null' }, 404: errorResponseSchema },
     }, async ({ repos, reply, request }) => {
@@ -413,6 +515,7 @@ export default async function (fastify: FastifyInstance) {
     const env = repos.Environment.get(id) as PersistedEnvironment | null;
     if (!env) return reply.status(404).send({ error: 'Not Found' });
     requireLibraryMode(request, env.isPartOf, 'control');
+    for (const move of movesOf(repos, id)) await repos.PointerMove.delete(move.$id);
     await repos.Environment.delete(id);
     await getAuthStore().deleteGrantsForEnvironment(id);
     return reply.status(204).send();

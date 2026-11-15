@@ -369,8 +369,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await openBackendRecord(page, 'Test Backend 1');
     await page.locator('[data-testid="backend-delete"]').click();
 
-    // The footer confirms in place and counts what defaults to the backend.
-    await expect(confirmPrompt(page)).toHaveText('Delete this backend? It is the default for 1 library and 1 query.');
+    // The footer confirms in place and counts what the delete clears.
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 1 library and 1 query lose this default.');
 
     // Confirm in the footer
     const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
@@ -515,7 +515,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.locator('[data-testid="backend-delete"]').click();
 
     // The new library is counted with the one the fixture already points here.
-    await expect(confirmPrompt(page)).toHaveText('Delete this backend? It is the default for 2 libraries and 1 query.');
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 2 libraries and 1 query lose this default.');
 
     // Confirm deletion
     const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
@@ -566,7 +566,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await openBackendRecord(page, 'Test Backend 2');
     await page.locator('[data-testid="backend-delete"]').click();
 
-    await expect(confirmPrompt(page)).toHaveText('Delete this backend? It is the default for 1 query.');
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 1 query loses this default.');
 
     // Confirm deletion
     const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');
@@ -640,7 +640,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await page.locator('[data-testid="backend-delete"]').click();
 
     // Every record that defaults to backend 1 is counted.
-    await expect(confirmPrompt(page)).toHaveText('Delete this backend? It is the default for 2 libraries and 2 queries.');
+    await expect(confirmPrompt(page)).toHaveText('Delete this backend? 2 libraries and 2 queries lose this default.');
 
     // Confirm deletion
     const confirmDeleteButton = page.locator('[data-testid="backend-confirm-delete"]');

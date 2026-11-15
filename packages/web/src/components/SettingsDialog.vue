@@ -96,6 +96,70 @@
           </button>
         </section>
 
+        <div class="settings-divider" />
+
+        <!--
+          The two network hops a run crosses. The first is measured here in
+          the browser. The second is the server's last probe of the active
+          library's default backend, which only a writable deployment can
+          repeat.
+        -->
+        <section class="settings-section" data-testid="settings-connection">
+          <SectionLabel as="h3">Connection</SectionLabel>
+          <div class="setting-row">
+            <span class="setting-text">
+              <span class="setting-label">This browser to sqlib</span>
+              <span v-if="serverLocation" class="setting-description">{{ serverLocation }}</span>
+            </span>
+            <span class="connection-value">
+              <StatusBadge
+                :tone="browserTone"
+                size="xs"
+                dot
+                data-testid="settings-browser-latency"
+              >
+                {{ roundTripMs === null ? 'Not measured' : `${roundTripMs} ms` }}
+              </StatusBadge>
+              <button
+                type="button"
+                class="connection-action"
+                :disabled="measuring"
+                data-testid="settings-measure-latency"
+                @click="measure"
+              >
+                Measure again
+              </button>
+            </span>
+          </div>
+          <div v-if="defaultBackend" class="setting-row" data-testid="settings-backend-row">
+            <span class="setting-text">
+              <span class="setting-label">sqlib to {{ defaultBackend.name }}</span>
+              <span class="setting-description">Default backend</span>
+            </span>
+            <span class="connection-value">
+              <StatusBadge
+                :tone="backendTone"
+                size="xs"
+                dot
+                :title="backendProbe?.health === 'unreachable' ? backendProbe.error ?? undefined : undefined"
+                data-testid="settings-backend-latency"
+              >
+                {{ backendLatencyLabel }}
+              </StatusBadge>
+              <button
+                v-if="!isReadOnly"
+                type="button"
+                class="connection-action"
+                :disabled="isProbing(defaultBackend.id)"
+                data-testid="settings-probe-backend"
+                @click="probe(defaultBackend.id)"
+              >
+                Test
+              </button>
+            </span>
+          </div>
+        </section>
+
         <!--
           Advanced holds one setting, and a read-only deployment has no use for
           it: the System Library it reveals is hidden there whatever the switch
@@ -169,6 +233,7 @@ import { Dialog, DialogContent, DialogFooter } from './ui/dialog';
 import { Switch } from './ui/switch';
 import SectionLabel from './shared/SectionLabel.vue';
 import DialogTitleBar from './shared/DialogTitleBar.vue';
+import StatusBadge from './shared/StatusBadge.vue';
 import TelemetryStatusSection from './settings/TelemetryStatusSection.vue';
 import { useAuth } from '../composables/useAuth';
 import { Monitor, Sun, Moon, ChevronRightIcon } from '@lucide/vue';
@@ -177,6 +242,10 @@ import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useBuildInfo } from '../composables/useBuildInfo';
 import { useTheme } from '../composables/useTheme';
 import { usePrefixManager } from '../composables/usePrefixManager';
+import { useServerLatency, SLOW_ROUND_TRIP_MS } from '../composables/useServerLatency';
+import { useBackendProbes } from '../composables/useBackendProbes';
+import { useActiveLibrary } from '../composables/useActiveLibrary';
+import { useBackendsStore } from '../composables/useBackendsStore';
 import { DARK_THEMES, LIGHT_THEMES, type ThemeBase, type ThemeDefinition } from '../lib/themes';
 
 const props = defineProps<{
@@ -209,6 +278,54 @@ const buildTitle = computed(() => {
   const parts = [commit.value ? `Commit ${commit.value}` : '', builtOn.value ? `built ${builtOn.value}` : ''];
   return parts.filter(Boolean).join(', ');
 });
+
+/* ---------------------------------------------------------------- *
+ * Connection
+ * ---------------------------------------------------------------- */
+type Tone = 'success' | 'warning' | 'danger' | 'neutral';
+
+const { roundTripMs, location: serverLocation, measuring, ensureMeasured, measure } = useServerLatency();
+const { probeFor, isProbing, probe, loadProbes } = useBackendProbes();
+const { libraries, activeLibraryId } = useActiveLibrary();
+const backendsStore = useBackendsStore();
+
+const browserTone = computed<Tone>(() => {
+  if (roundTripMs.value === null) return 'neutral';
+  return roundTripMs.value >= SLOW_ROUND_TRIP_MS ? 'warning' : 'success';
+});
+
+const defaultBackend = computed(() => {
+  const id = libraries.value.find((library) => library.id === activeLibraryId.value)?.defaultBackend;
+  if (!id) return null;
+  return backendsStore.backends.value.find((backend) => backend.id === id) ?? null;
+});
+
+const backendProbe = computed(() => probeFor(defaultBackend.value?.id));
+
+const backendTone = computed<Tone>(() => {
+  const health = backendProbe.value?.health;
+  if (health === 'healthy') return 'success';
+  if (health === 'slow') return 'warning';
+  if (health === 'unreachable') return 'danger';
+  return 'neutral';
+});
+
+const backendLatencyLabel = computed(() => {
+  const result = backendProbe.value;
+  if (!result) return 'Not tested';
+  if (result.health === 'unreachable') return 'Unreachable';
+  return result.latencyMs === null ? 'Not tested' : `${result.latencyMs} ms`;
+});
+
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) return;
+    void ensureMeasured();
+    void loadProbes().catch(() => undefined);
+  },
+  { immediate: true },
+);
 
 const themeOptions: { value: ThemePreference; label: string; icon: unknown }[] = [
   { value: 'system', label: 'System', icon: Monitor },
@@ -326,6 +443,35 @@ function handleClose() {
 .setting-switch {
   flex-shrink: 0;
   margin-top: var(--space-1);
+}
+
+.connection-value {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.connection-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--action-ink);
+  font-family: inherit;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.connection-action:disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+
+.connection-action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .nav-row {

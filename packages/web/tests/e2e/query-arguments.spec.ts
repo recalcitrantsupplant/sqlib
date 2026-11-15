@@ -143,7 +143,10 @@ test.describe('Query arguments', () => {
   test('the body is the query signature — scalars and each VALUES clause', async ({ page }) => {
     await startScratchSet(page);
     await expect(page.locator('.arguments-content .scalars')).toContainText('LIMIT');
-    await expect(page.locator('.arguments-content .col-name input')).toHaveValue('pageSize');
+    // The name is the query's, so it reads as the clause and is not a field.
+    const limit = page.locator('[data-testid="argument-scalar-limit-pageSize"]');
+    await expect(limit.locator('.scalar-clause')).toHaveText(/LIMIT\s+000pageSize/);
+    await expect(limit.locator('input')).toHaveCount(1);
     await expect(page.locator('[data-testid="argument-clause"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="argument-clause"]')).toContainText('VALUES ?city');
   });

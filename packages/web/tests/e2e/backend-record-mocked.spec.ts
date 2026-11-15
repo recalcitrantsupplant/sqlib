@@ -4,7 +4,6 @@
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { sectionUrl } from './navigate';
 import { API_ORIGIN } from './api-origin';
 
 const existingBackend = {
@@ -183,15 +182,57 @@ test.describe('Backends record page (mocked)', () => {
     await expect(page.locator('[data-testid="backend-health-dot"]').first()).toHaveClass(/health-dot--healthy/);
   });
 
-  test('the observed half sits in a sidecar: health, libraries, usage', async ({ page }) => {
+  test('the observed half sits in a sidecar: health and defaults', async ({ page }) => {
     const sidecar = page.locator('[data-testid="backend-sidecar"]');
 
     await expect(sidecar.locator('[data-testid="backend-health-card"]')).toBeVisible();
     await expect(sidecar.getByText('Nothing defaults to this backend.')).toBeVisible();
-    // Three rows, no libraries row — the card above it already answers that.
-    await expect(sidecar.locator('[data-testid="usage-row"]')).toHaveCount(3);
-    await expect(sidecar.locator('[data-testid="usage-row"]').first()).toContainText('Queries');
-    await expect(sidecar.locator('[data-testid="usage-row"]').nth(1)).toBeDisabled();
+    // The reference counts are in the delete confirm, not in a second card.
+    await expect(sidecar.locator('[data-testid="usage-row"]')).toHaveCount(0);
+  });
+
+  test('lists library defaults per environment, one of each kind and a count', async ({ page }) => {
+    const lib = (id: string, name: string, defaultBackend: string | null) => ({
+      id, name, description: null, defaultBackend,
+      dateCreated: '2026-08-01T00:00:00.000Z', dateModified: '2026-08-01T00:00:00.000Z',
+    });
+    const env = (id: string, name: string, isPartOf: string, position: number, defaultBackend: string | null) => ({
+      id, name, isPartOf, position, defaultBackend, versions: [],
+    });
+    const libraries = [
+      lib('urn:sqlib:library:geo', 'Geochemistry', null),
+      lib('urn:sqlib:library:min', 'Mineral occurrences', null),
+      lib('urn:sqlib:library:scratch', 'Scratch', existingBackend.id),
+    ];
+    const environments = [
+      env('urn:sqlib:environment:geo-dev', 'dev', 'urn:sqlib:library:geo', 0, null),
+      env('urn:sqlib:environment:geo-prod', 'prod', 'urn:sqlib:library:geo', 2, existingBackend.id),
+      env('urn:sqlib:environment:min-prod', 'prod', 'urn:sqlib:library:min', 2, existingBackend.id),
+    ];
+    const queries = ['Boreholes by tenement', 'Assay summary', 'Sample sites'].map((name, i) => ({
+      id: `urn:sqlib:query:q${i}`, name, description: null, defaultBackend: existingBackend.id,
+      currentVersion: null, isPartOf: ['urn:sqlib:library:geo'],
+      dateCreated: '2026-08-01T00:00:00.000Z', dateModified: '2026-08-01T00:00:00.000Z',
+    }));
+    const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    await page.route(`${API_ORIGIN}/libraries`, (route) => route.fulfill(json(libraries)));
+    await page.route(`${API_ORIGIN}/queries`, (route) => route.fulfill(json(queries)));
+    await page.route(`${API_ORIGIN}/environments*`, (route) => route.fulfill(json(environments)));
+    await page.reload();
+
+    const card = page.locator('[data-testid="default-for-card"]');
+    await expect(card.locator('[data-testid="default-for-library"] [data-testid="default-for-count"]')).toHaveText('3');
+    await expect(card.locator('[data-testid="attached-library"]')).toHaveText(['Geochemistry prod']);
+    await expect(card.locator('[data-testid="default-for-more-library"]')).toHaveText('+2 more');
+    await expect(card.locator('[data-testid="default-for-query"] [data-testid="default-for-count"]')).toHaveText('3');
+
+    await card.locator('[data-testid="default-for-more-library"]').click();
+    await expect(card.locator('[data-testid="attached-library"]'))
+      .toHaveText(['Geochemistry prod', 'Mineral occurrences prod', 'Scratch all']);
+
+    await card.locator('[data-testid="attach-library"]').click();
+    const geo = page.locator('[data-testid="default-for-option-library-row"]', { hasText: 'Geochemistry' });
+    await expect(geo.locator('.env-choice')).toHaveText(['all', 'dev', 'prod']);
   });
 
   test('Probe history opens the last few observations', async ({ page }) => {
@@ -201,12 +242,6 @@ test.describe('Backends record page (mocked)', () => {
 
     await expect(page.locator('[data-testid="probe-history-list"]')).toContainText('HTTP 403 Forbidden');
     await expect(page.locator('.history-row')).toHaveCount(2);
-  });
-
-  test('a Used by row opens the list that holds them', async ({ page }) => {
-    await page.locator('[data-testid="usage-row"]').first().click();
-
-    await expect(page).toHaveURL(sectionUrl('queries'));
   });
 
   test('creation is a draft record: + adds an unsaved row and the pane fills it in', async ({ page }) => {

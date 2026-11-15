@@ -7,6 +7,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { EditorView, basicSetup } from 'codemirror'
+import { EditorState } from '@codemirror/state'
 import { languageExtensionsFor } from '@/lib/codeLanguage'
 import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight'
 import { MergeView } from '@codemirror/merge'
@@ -20,12 +21,15 @@ const props = withDefaults(
     height?: string
     /** The language both sides are highlighted as. */
     contentType?: string
+    /** Neither side can be edited, and there is no revert control. */
+    readOnly?: boolean
   }>(),
   {
     leftLabel: 'Original',
     rightLabel: 'Modified',
     height: '500px',
-    contentType: 'application/sparql-query'
+    contentType: 'application/sparql-query',
+    readOnly: false
   }
 )
 
@@ -49,6 +53,7 @@ function initializeMergeView() {
         ...languageExtensionsFor(props.contentType),
         rdfSyntaxHighlighting,
         EditorView.lineWrapping,
+        ...(props.readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
         EditorView.theme({
           "&": { height: props.height },
           ".cm-scroller": { overflow: "auto" }
@@ -62,6 +67,7 @@ function initializeMergeView() {
         ...languageExtensionsFor(props.contentType),
         rdfSyntaxHighlighting,
         EditorView.lineWrapping,
+        ...(props.readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
         EditorView.theme({
           "&": { height: props.height },
           ".cm-scroller": { overflow: "auto" }
@@ -70,7 +76,7 @@ function initializeMergeView() {
     },
     parent: mergeViewContainer.value,
     orientation: "a-b",
-    revertControls: "a-to-b",
+    revertControls: props.readOnly ? undefined : "a-to-b",
     highlightChanges: true,
     gutter: true,
     renderRevertControl() {
@@ -84,7 +90,7 @@ function initializeMergeView() {
 }
 
 // Watch for changes to the queries and reinitialize
-watch(() => [props.leftQuery, props.rightQuery, props.height], () => {
+watch(() => [props.leftQuery, props.rightQuery, props.height, props.contentType, props.readOnly], () => {
   initializeMergeView()
 })
 

@@ -6,12 +6,12 @@ import { ScenarioTestBaseUnmocked, type ScenarioTestContext } from '../fixtures/
  * Scenario 09c: External Parameters with Fan-Out (Complex Mode)
  *
  * Tests the FAN-OUT pattern with external parameters:
- * - StartNode defines custom QueryOutputTuple (independent entity)
+ * - StartNode defines custom QueryInputTuple (independent entity)
  * - Multiple edges from StartNode reference the SAME sourceOutputId
  * - Same external parameter feeds multiple parallel queries
  *
  * Expected flow:
- * 1. StartNode.outputs = [shared-params] (independent QueryOutputTuple)
+ * 1. StartNode.outputs = [shared-params] (independent QueryInputTuple)
  * 2. Edge1: StartNode → Query1 (sourceOutputId: shared-params)
  * 3. Edge2: StartNode → Query2 (sourceOutputId: shared-params) - SAME source!
  * 4. Both queries execute in parallel with the same external parameter
@@ -20,7 +20,7 @@ import { ScenarioTestBaseUnmocked, type ScenarioTestContext } from '../fixtures/
  * feeds multiple parallel execution paths.
  *
  * IMPORTANT: Cannot use query's inferredInputs as StartNode output for fan-out!
- * Must create independent QueryOutputTuple on StartNode.
+ * Must create independent QueryInputTuple on StartNode.
  */
 describe('External Parameters with Fan-Out', () => {
   let context: ScenarioTestContext;
@@ -104,15 +104,15 @@ describe('External Parameters with Fan-Out', () => {
     const node1Id = 'urn:ui-temp:filter-people';
     const node2Id = 'urn:ui-temp:count-people';
 
-    // Create INDEPENDENT output tuple for StartNode (not tied to any query)
+    // Create INDEPENDENT input tuple for StartNode (not tied to any query)
     // This is REQUIRED for fan-out pattern
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
       url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
-        // COMPLEX MODE: Create independent QueryOutputTuple for fan-out
-        outputs: [
+        // COMPLEX MODE: Create independent QueryInputTuple for fan-out
+        inputs: [
           {
             id: 'urn:ui-temp:shared-external-var',
             variableName: 'experienceLevel'
@@ -125,7 +125,7 @@ describe('External Parameters with Fan-Out', () => {
             variable: 'urn:ui-temp:shared-external-var'
           }
         ],
-        outputTuples: [
+        inputTuples: [
           {
             id: 'urn:ui-temp:shared-external-params',
             name: 'Shared Experience Parameter',
@@ -209,9 +209,9 @@ describe('External Parameters with Fan-Out', () => {
     expect(iriMap['urn:ui-temp:edge-2']).toMatch(/^urn:sqlib:edge:/);
     expect(iriMap['urn:ui-temp:edge-3']).toMatch(/^urn:sqlib:edge:/);
     expect(iriMap['urn:ui-temp:edge-4']).toMatch(/^urn:sqlib:edge:/);
-    expect(iriMap['urn:ui-temp:shared-external-params']).toMatch(/^urn:sqlib:output-tuple:/);
+    expect(iriMap['urn:ui-temp:shared-external-params']).toMatch(/^urn:sqlib:input-tuple:/);
     expect(iriMap['urn:ui-temp:shared-external-member']).toMatch(/^urn:sqlib:tuple-member:/);
-    expect(iriMap['urn:ui-temp:shared-external-var']).toMatch(/^urn:sqlib:output:/);
+    expect(iriMap['urn:ui-temp:shared-external-var']).toMatch(/^urn:sqlib:input:/);
 
     await context.app.inject({
       method: 'PUT',

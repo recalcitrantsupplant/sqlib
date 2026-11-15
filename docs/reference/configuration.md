@@ -28,12 +28,15 @@ For the reasons behind these settings, see
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
 | `MCP_CATALOGUE` | `both` | Which surfaces the server offers: `both`, `catalogue` or `published`. `catalogue` serves no published tools (`/mcp/{slug}` and `/tools/…` are 404). `published` serves only the published tools: `/mcp` lists them alone, every authoring route is 404, `POST /execute` runs only their pinned versions, and an invalid published tool stops the server at startup instead of being skipped. Anything else throws. See [publishing tools](../guides/publishing-tools.md). |
-| `SQLIB_OGC_BASE_URL` | unset | The absolute URL at the start of each OGC API Features link, such as `https://maps.example.org`. If it is not set, links use the scheme and host of the request, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
+| `SQLIB_OGC_BASE_URL` | unset | The absolute URL at the start of each OGC API Features link, such as `https://maps.example.org`. If it is not set, links use `SQLIB_PUBLIC_ORIGIN`, or else the scheme and host of the request, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
 | `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read API and `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers, and its preflight gets 404. Set to the empty string to allow none even in development. A production deployment whose SPA is served from another origin than the API must list that origin. The API (`packages/api/src/config/cors.ts`) and the MCP transport read it the same way, since in `dual-http` and `streamable-http` modes they share one instance; `/mcp` answers its own `OPTIONS /mcp` preflight, with the MCP headers, and the API's plugin leaves that path alone. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
+| `SQLIB_LOCATION` | unset | Where this server runs, such as `Sydney`. `/health` reports it, and the web UI shows it beside the warning for a slow round trip. See [Where to run sqlib](../guides/deploying.md#where-to-run-sqlib). |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
-| `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. |
+| `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. The MCP endpoint is served at `/mcp` and at `<prefix>/mcp`. |
 | `APP_PUBLIC_BASE_PATH` | value of `APP_BASE_PATH` | The prefix the server advertises in generated URLs, for a deployment behind a proxy that rewrites the path. |
+| `SQLIB_PUBLIC_ORIGIN` | unset | The scheme and host that clients use for this server, such as `https://data.example.org`. sqlib puts it at the start of the URLs it advertises: the protected-resource metadata, the 401 challenge, and OGC links when `SQLIB_OGC_BASE_URL` is not set. Set it behind a reverse proxy. If it is not set, those URLs use the scheme and host of the request. A value with a path, a query or another scheme stops startup with an error. |
+| `SQLIB_TRUST_PROXY` | `false` | Makes the server read `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For` from the request. `true` trusts every sender. A whole number trusts that number of proxy hops. Any other value is a comma-separated list of proxy addresses or CIDR ranges, such as `10.0.0.0/8`. Leave it off when clients can reach the server without the proxy, because a client can then set the advertised URLs with its own headers. |
 | `NODE_ENV` | unset | Standard Node convention. It selects the MCP transport default above, switches OTLP export on in `development` (see telemetry), and suppresses OpenTelemetry logging when it is `test`. |
 | `MCP_DEBUG_PORT` | `3334` | Port for `packages/mcp-server`'s echo server (`pnpm --filter @sparql-query-lib/mcp-server dev:debug-http`), a development aid, not part of the served application. |
 | `MCP_DEBUG_HOST` | `127.0.0.1` | Address for the same. |
@@ -54,11 +57,11 @@ against. Those backends are entities that you make through the API.
 | `LIBRARY_STORAGE_SPARQL_PASSWORD` | unset | Basic-auth password for the library endpoint. |
 | `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=sqlite`, the directory holding `library.sqlite` (and its `-wal` and `-shm` files); `:memory:` keeps the database in the process, for tests. With `oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. |
 | `INTERNAL_OXIGRAPH_STORE_ID` | `library-store` | Name of the persistent store within that directory. |
-| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. |
+| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often sqlib writes each durable Oxigraph store that has changed to its `.nq` file. It applies to the `oxigraph-persistent` library store and to each `durable` `oxigraphMemory` backend, for every `INTERNAL_BACKEND_TYPE`. `0` turns the timer off, and the stores are then written at shutdown only. A value that is not a whole number stops startup with an error. |
 | `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. |
 | `INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE` | unset | A JSON object describing the source for that load method. Invalid JSON is logged as a warning and ignored. |
-| `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for the in-process Oxigraph backends that you make as entities: the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. The library is not stored here. With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the library store is in `LIBRARY_STORAGE_DIR`. |
-| `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager even when the library is not in Oxigraph, so that Oxigraph-backed backend entities work. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. |
+| `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for the in-process Oxigraph backends that you make as entities: the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. It applies for every `INTERNAL_BACKEND_TYPE`, with or without `ENABLE_OXIGRAPH`. The library is not stored here. With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the library store is in `LIBRARY_STORAGE_DIR`. |
+| `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager at startup even when the library is not in Oxigraph. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. When it is not initialised at startup, the first use of an Oxigraph-backed backend entity initialises it, with the same directory and the same checkpoint timer. |
 | `DEBUG_OXIGRAPH` | `false` | Set to `true` to log every SPARQL operation the in-process Oxigraph executor runs. |
 
 ### How `oxigraph-persistent` stores data
@@ -70,6 +73,27 @@ They have no RocksDB-backed store, which the Rust and Python bindings have.
 `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` milliseconds, and reads those files
 at startup. A process killed between checkpoints loses the writes made since
 the last checkpoint. `oxigraph-memory` keeps nothing.
+
+### How durable Oxigraph backends store data
+
+An `oxigraphMemory` backend with mode `durable` is also an in-memory store.
+sqlib writes it to a `.nq` file in `OXIGRAPH_STORAGE_DIR` on the same timer and
+on shutdown, for every `INTERNAL_BACKEND_TYPE`. The timer starts when the first
+durable store is made. A process killed between checkpoints loses the writes
+made to the backend since the last checkpoint.
+
+Versions before this change kept the file in a different directory in two
+cases:
+
+- With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the file was in
+  `LIBRARY_STORAGE_DIR`.
+- With `ENABLE_OXIGRAPH` unset, the file was in `./storage/oxigraph`, resolved
+  against the working directory, whatever `OXIGRAPH_STORAGE_DIR` said.
+
+At the first use of such a backend, sqlib copies its file from the earlier
+directory when `OXIGRAPH_STORAGE_DIR` has no file for it. The original file
+stays in place. Make sure that `OXIGRAPH_STORAGE_DIR` is on a volume that
+survives the container.
 
 For a durable store, use the default `sqlite`. Or run a SPARQL server, such as
 the Oxigraph server or Fuseki, and use `INTERNAL_BACKEND_TYPE=http`.
@@ -153,6 +177,25 @@ sends no credentials.
 | `SQLIB_BACKEND_SLOW_MS` | `250` | Above this round-trip time a probed backend is reported as slow. |
 | `SQLIB_PREFIX_DETECT` | on | Set to `off` to skip detecting a backend's namespace prefixes during the probe. Any other value leaves detection on. |
 | `SQLIB_PREFIX_TIMEOUT_MS` | `10000` | Timeout for the prefix-detection query. See [prefixes](../guides/prefixes.md). |
+
+## Execution backend query method
+
+An HTTP `Backend` has a `queryMethod`: `post` (the default), `get` or `query`.
+It sets the HTTP method of a SPARQL query. An update is sent as a `POST` for
+each value, as SPARQL 1.1 Protocol §2.2 requires.
+
+| Value | Request for a query |
+| --- | --- |
+| `post` | `POST` form body with `query` and the dataset parameters. |
+| `get` | `GET` with `query` in the URL. A query with a dataset is sent as `post`. |
+| `query` | `QUERY` ([RFC 10008](https://www.rfc-editor.org/info/rfc10008)) with an `application/sparql-query` body, and the dataset parameters in the URL. A URL longer than 1800 characters is sent as `post`. |
+
+A `query` backend that answers `QUERY` with `405` or `501` is sent the same
+query again as a `POST`. The server then sends `POST` to that endpoint for 10
+minutes, and logs one warning. Oxigraph server 0.5.8 and later, and Fuseki in
+Jena 6.2.0 and later, accept `QUERY`. See
+[the proposal](../proposals/http-query-method.md) for other servers, proxies and
+CORS.
 
 ## Caching
 
@@ -456,6 +499,21 @@ The document lists the configured issuers as `authorization_servers`. It is
 public in each mode, and answers 404 when no issuer is configured. Each 401 has
 `WWW-Authenticate: Bearer resource_metadata="…"`. With this header, an MCP
 client finds the authorization server with no client configuration.
+
+The URL in `resource_metadata` depends on the base path:
+
+| Base path | `SQLIB_AUTH_RESOURCE` | `resource_metadata` |
+| --- | --- | --- |
+| none | a URL | `<origin of the resource>/.well-known/oauth-protected-resource<path of the resource>` |
+| none | not a URL, or unset | `<public origin>/.well-known/oauth-protected-resource` |
+| set | any | `<public origin><public base path>/.well-known/oauth-protected-resource` |
+
+The public origin is `SQLIB_PUBLIC_ORIGIN`. If that is not set, it is the
+origin of a URL resource, or else the scheme and host of the request. The
+public base path is `APP_PUBLIC_BASE_PATH`, or else `APP_BASE_PATH`.
+
+When no issuer has an audience and `SQLIB_AUTH_RESOURCE` is not set, the
+`resource` in the document is `<public origin><public base path>/mcp`.
 
 ## Environments
 

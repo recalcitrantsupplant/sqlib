@@ -6,6 +6,7 @@ import {
   resolveQueryBackend,
   resolveQueryDefault,
   resolveEtlBackend,
+  queryDefaultSource,
 } from '@/lib/backendDefaults';
 
 describe('backendDefaults', () => {
@@ -28,6 +29,14 @@ describe('backendDefaults', () => {
       expect(getLastBackend('query', 'q1')).toBeNull();
     });
 
+    it('is remembered per environment, with latest on the plain key', () => {
+      setLastBackend('query', 'q1', 'urn:b:dev', 'dev');
+      setLastBackend('query', 'q1', 'urn:b:latest', 'latest');
+      expect(getLastBackend('query', 'q1', 'dev')).toBe('urn:b:dev');
+      expect(getLastBackend('query', 'q1', 'prod')).toBeNull();
+      expect(getLastBackend('query', 'q1')).toBe('urn:b:latest');
+    });
+
     it('ignores an entity with no id yet', () => {
       setLastBackend('query', null, 'urn:b:one');
       expect(getLastBackend('query', null)).toBeNull();
@@ -38,6 +47,29 @@ describe('backendDefaults', () => {
       expect(getLastBackend('query', 'q1')).toBeNull();
       setLastBackend('query', 'q1', 'urn:b:one');
       expect(getLastBackend('query', 'q1')).toBe('urn:b:one');
+    });
+  });
+
+  describe('in an environment', () => {
+    const all = {
+      environmentDefault: 'urn:b:env',
+      queryDefault: 'urn:b:query',
+      libraryDefault: 'urn:b:lib',
+    };
+
+    it("puts the environment's default after the last pick and before the query's own", () => {
+      expect(resolveQueryBackend({ ...all, lastPick: 'urn:b:last' })).toBe('urn:b:last');
+      expect(resolveQueryBackend(all)).toBe('urn:b:env');
+      expect(resolveQueryDefault(all)).toBe('urn:b:env');
+      expect(resolveQueryDefault({ ...all, environmentDefault: null })).toBe('urn:b:query');
+    });
+
+    it('names the default it chose', () => {
+      expect(queryDefaultSource(all)).toBe('environment');
+      expect(queryDefaultSource({ ...all, environmentDefault: null })).toBe('query');
+      expect(queryDefaultSource({ libraryDefault: 'urn:b:lib' })).toBe('library');
+      expect(queryDefaultSource({ ...all, isAvailable: (id) => id === 'urn:b:lib' })).toBe('library');
+      expect(queryDefaultSource({})).toBeNull();
     });
   });
 

@@ -46,6 +46,10 @@ async function runDemoQuery(page: Page, queryName: string): Promise<string> {
   await expect(page.getByText('text/rdf-patch').first()).toBeVisible({ timeout: 20000 });
   await page.waitForTimeout(SETTLE_MS);
 
+  // The patch viewer shows prefixed names while the term display is on. The
+  // expectations below are the patch's own text, which is full IRIs.
+  await page.getByTestId('term-display-full').click();
+
   return page.locator('body').innerText();
 }
 

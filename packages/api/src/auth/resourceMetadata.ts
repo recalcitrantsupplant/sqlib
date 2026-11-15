@@ -10,6 +10,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AuthConfig } from './config.js';
+import { publicOrigin, publicOriginSetting } from '../config/publicUrl.js';
 
 export const PROTECTED_RESOURCE_METADATA_PATH = '/.well-known/oauth-protected-resource';
 
@@ -28,51 +29,68 @@ function absoluteUrl(value: string | undefined): URL | null {
   }
 }
 
-function requestOrigin(request: FastifyRequest): string {
-  return `${request.protocol}://${request.host}`;
-}
-
 /**
  * The resource identifier: `SQLIB_AUTH_RESOURCE`, else the audience. With
- * neither (an unchecked audience), the canonical URL of this host's `/mcp`,
+ * neither (an unchecked audience), the public URL of this server's `/mcp`,
  * because the document has to name something and that is what an MCP client
  * asks a token for.
+ *
+ * The public URL carries the public base path, because `/mcp` is served under
+ * it. An MCP client compares the resource with the URL it connects to, and
+ * refuses a document that names another path or another origin (#175).
  */
-export function resourceIdentifier(config: AuthConfig, request: FastifyRequest): string {
-  return config.resource ?? `${requestOrigin(request)}/mcp`;
+export function resourceIdentifier(config: AuthConfig, request: FastifyRequest, publicBasePath = ''): string {
+  return config.resource ?? `${publicOrigin(request)}${publicBasePath}/mcp`;
 }
 
 /**
- * Where the document lives, as RFC 9728 §3.1 builds it: the well-known path
- * inserted between the resource's origin and its path. A resource that is not
- * a URL (an audience such as `sqlib-api`) gives no origin to build from, so
- * the request's origin and the unsuffixed path are used.
+ * Where the 401 challenge says the document lives.
+ *
+ * With no base path, RFC 9728 §3.1 builds it: the well-known path inserted
+ * between the resource's origin and its path. A resource that is not a URL (an
+ * audience such as `sqlib-api`) gives no origin to build from, so the public
+ * origin and the unsuffixed path are used.
+ *
+ * Under a base path, the challenge names the copy under that path. A reverse
+ * proxy that routes only the base path to sqlib does not route the root
+ * `/.well-known/…` of the origin, and a client that reads the challenge
+ * fetches the URL in it and no other (RFC 9728 §5.1 allows any URL there).
+ *
+ * The origin is `SQLIB_PUBLIC_ORIGIN` when set, else the origin of a URL
+ * resource, else the origin of the request.
  */
-export function protectedResourceMetadataUrl(config: AuthConfig, request: FastifyRequest): string {
+export function protectedResourceMetadataUrl(
+  config: AuthConfig,
+  request: FastifyRequest,
+  publicBasePath = ''
+): string {
   const resource = absoluteUrl(config.resource);
-  if (!resource) return `${requestOrigin(request)}${PROTECTED_RESOURCE_METADATA_PATH}`;
+  const origin = publicOriginSetting() ?? resource?.origin ?? publicOrigin(request);
+  if (publicBasePath) return `${origin}${publicBasePath}${PROTECTED_RESOURCE_METADATA_PATH}`;
+  if (!resource) return `${origin}${PROTECTED_RESOURCE_METADATA_PATH}`;
   const path = resource.pathname.replace(/\/+$/, '');
-  return `${resource.origin}${PROTECTED_RESOURCE_METADATA_PATH}${path}`;
+  return `${origin}${PROTECTED_RESOURCE_METADATA_PATH}${path}`;
 }
 
 /** The `WWW-Authenticate` value for a 401. `error` is absent when no token was sent (RFC 6750 §3.1). */
 export function bearerChallenge(
   config: AuthConfig,
   request: FastifyRequest,
-  error?: { code: string; description: string }
+  error?: { code: string; description: string },
+  publicBasePath = ''
 ): string {
   const params: string[] = [];
   if (error) {
     params.push(`error="${error.code}"`, `error_description="${error.description}"`);
   }
-  params.push(`resource_metadata="${protectedResourceMetadataUrl(config, request)}"`);
+  params.push(`resource_metadata="${protectedResourceMetadataUrl(config, request, publicBasePath)}"`);
   if (config.scopes.length > 0) params.push(`scope="${config.scopes.join(' ')}"`);
   return `Bearer ${params.join(', ')}`;
 }
 
-export function protectedResourceMetadata(config: AuthConfig, request: FastifyRequest) {
+export function protectedResourceMetadata(config: AuthConfig, request: FastifyRequest, publicBasePath = '') {
   return {
-    resource: resourceIdentifier(config, request),
+    resource: resourceIdentifier(config, request, publicBasePath),
     authorization_servers: config.issuers.map(entry => entry.issuer),
     bearer_methods_supported: ['header'],
     ...(config.scopes.length > 0 ? { scopes_supported: config.scopes } : {}),
@@ -83,20 +101,21 @@ export function protectedResourceMetadata(config: AuthConfig, request: FastifyRe
  * `GET /.well-known/oauth-protected-resource`, plus every path-suffixed form
  * (`…/mcp`, `…/<base path>`), at the root of the instance; and, when the API
  * is mounted under a base path, the unsuffixed form under it too, which is
- * where the SPA looks. One document for all of them: the deployment is one
+ * where the SPA looks and where the 401 challenge points. One document for all of them: the deployment is one
  * resource. A 404 when no issuer is configured, since there is then nothing to
  * say. Public in every mode; `plugin.ts` exempts these routes.
  */
 export function registerProtectedResourceMetadataRoutes(
   app: FastifyInstance,
   config: AuthConfig,
-  basePath: string
+  basePath: string,
+  publicBasePath: string = basePath
 ): void {
   const handler = async (request: FastifyRequest, reply: FastifyReply) => {
     if (config.issuers.length === 0) {
       return reply.code(404).send({ error: 'No authorization server is configured.' });
     }
-    return reply.header('cache-control', 'public, max-age=300').send(protectedResourceMetadata(config, request));
+    return reply.header('cache-control', 'public, max-age=300').send(protectedResourceMetadata(config, request, publicBasePath));
   };
 
   const schema = { hide: true };

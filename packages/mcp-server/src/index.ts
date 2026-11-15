@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import Fastify, { type FastifyInstance, type InjectOptions } from 'fastify';
+import { trustProxyFromEnv } from './deployment.js';
 import {
   catalogueGuide,
   compileToolValidators,
@@ -250,6 +251,7 @@ async function buildApiApp(options: {
     Fastify({
       logger: options.fastifyLogger ?? true,
       bodyLimit: 100 * 1024 * 1024,
+      trustProxy: trustProxyFromEnv(),
     });
   if (options.skipAppSetup) {
     return { apiApp, teardown: async () => { /* no-op: lifecycle managed by caller */ } };

@@ -65,6 +65,7 @@ export const ENTITY_TYPE_NAMES = [
   'BrowserDefaultDataGraph',
   'Tag',
   'Environment',
+  'PointerMove',
   'Patch',
   'TupleSet',
   'TupleSetVersion',

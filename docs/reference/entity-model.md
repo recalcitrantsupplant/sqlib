@@ -232,7 +232,9 @@ and updates it at the person's next request with a token.
 The web app shows the person in the Details panel footer ("Created … by",
 "Edited … by"), on each version row, and in the version menu of the editor
 toolbar. It shows the signed-in caller as "You", and an IRI with no name as
-"Unknown". An entity with no `createdBy` shows its date only.
+"Unknown". An entity with no `createdBy` shows its date only. The Library page
+shows who moved each environment pointer, from the `PointerMove` records (see
+[environments](../explanation/environments.md#moving-a-pointer)).
 
 ## Containment
 
@@ -247,6 +249,7 @@ Containment is `sdo:isPartOf`. The target of the predicate depends on the kind:
 | `TestCase`, `TestCaseDataGraph` | Their `TestVersion` |
 | `BrowserDefaultDataGraph` | Its `QueryGroup` or `RuleSet` |
 | `Patch` | The `Backend` whose data it describes. One predicate gives containment and target, so read access follows the path of the backend |
+| `PointerMove` | The `Environment` whose pointer moved. Read access follows the environment's library |
 | `Backend` | Nothing. Backends are at account level, and each library can use them |
 | `BenchmarkExperiment` | A `Library`. Required on create. An experiment stored before this field existed has none, and only administrators can use it until `scripts/backfill-benchmark-ownership.ts` sets one |
 

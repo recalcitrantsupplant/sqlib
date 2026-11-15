@@ -589,6 +589,7 @@ const MANIFEST: Record<string, Protection> = {
   'POST /environments': 'write-from-body',
   'GET /environments/:id': 'read',
   'GET /environments/:id/pointers': 'handler',
+  'GET /environments/:id/moves': 'handler',
   'PUT /environments/:id': 'write',
   'PUT /environments/:id/pointers': 'handler',
   'DELETE /environments/:id': 'delete',

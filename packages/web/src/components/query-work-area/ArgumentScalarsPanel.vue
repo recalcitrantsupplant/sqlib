@@ -12,49 +12,41 @@
       <code class="hint-code">LIMIT 0001</code>.
     </InlineNote>
 
-    <table v-else class="scalars-table">
-      <thead>
-        <tr>
-          <th class="col-kind">kind</th>
-          <th class="col-name">name</th>
-          <th class="col-value">value</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in rows" :key="`${row.parameterKind}-${row.parameterId}`">
-          <td class="col-kind">
-            <span class="kind-chip">{{ row.parameterKind === 'limit' ? 'LIMIT' : 'OFFSET' }}</span>
-          </td>
-          <td class="col-name">
-            <input
-              type="text"
-              class="cell-input"
-              :value="row.parameterName"
-              :placeholder="row.parameterId"
-              :disabled="disabled"
-              @input="updateName(row, ($event.target as HTMLInputElement).value)"
-            />
-          </td>
-          <td class="col-value">
-            <input
-              type="number"
-              min="0"
-              class="cell-input cell-input--number"
-              :value="row.numericValue"
-              :placeholder="row.parameterKind === 'limit' ? '100' : '0'"
-              :disabled="disabled"
-              @input="updateValue(row, ($event.target as HTMLInputElement).value)"
-            />
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <ul v-else class="scalars-list">
+      <li
+        v-for="row in rows"
+        :key="`${row.parameterKind}-${row.parameterId}`"
+        class="scalar-row"
+        :data-testid="`argument-scalar-${row.parameterKind}-${row.parameterId}`"
+      >
+        <code class="scalar-clause">
+          {{ row.parameterKind === 'limit' ? 'LIMIT' : 'OFFSET' }}
+          <span class="scalar-zeros">000</span><span class="scalar-id">{{ row.parameterId }}</span>
+        </code>
+        <span
+          v-if="lineFor(row)"
+          class="clause-line"
+          :title="`${row.parameterKind === 'limit' ? 'LIMIT' : 'OFFSET'} clause on line ${lineFor(row)}`"
+        >L{{ lineFor(row) }}</span>
+        <input
+          type="number"
+          min="0"
+          class="cell-input cell-input--number"
+          :aria-label="`${row.parameterKind === 'limit' ? 'LIMIT' : 'OFFSET'} 000${row.parameterId}`"
+          :value="row.numericValue"
+          :placeholder="row.parameterKind === 'limit' ? '100' : '0'"
+          :disabled="disabled"
+          @input="updateValue(row, ($event.target as HTMLInputElement).value)"
+        />
+      </li>
+    </ul>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ArgumentScalarBinding } from '@/types/argument-sets';
+import { scalarKey } from '@/lib/argumentSignature';
 import InlineNote from '../shared/InlineNote.vue';
 
 /**
@@ -66,6 +58,10 @@ import InlineNote from '../shared/InlineNote.vue';
  *
  * The stored shape is kept as `{kind, name, value}` so the panel edits the
  * record rather than a flattened version of it (design §6).
+ *
+ * Each row reads as the clause is written in the query, `LIMIT 0001`, with
+ * the line it is on where the caller knows it. The name is the query's, so it
+ * is shown and not edited: a renamed binding matched no parameter.
  */
 const props = defineProps<{
   /** Parameter ids as detection reports them, in query order. */
@@ -73,6 +69,8 @@ const props = defineProps<{
   offsetParameters: string[];
   modelValue: ArgumentScalarBinding[];
   disabled?: boolean;
+  /** 1-based line of each clause, keyed by `scalarKey`; see `buildQuerySignature`. */
+  lines?: Record<string, number>;
 }>();
 
 const emit = defineEmits<{
@@ -121,8 +119,8 @@ function write(row: ScalarRow, patch: Partial<ArgumentScalarBinding>) {
   emit('update:modelValue', next);
 }
 
-function updateName(row: ScalarRow, value: string) {
-  write(row, { parameterName: value });
+function lineFor(row: ScalarRow): number | undefined {
+  return props.lines?.[scalarKey(row.parameterKind, row.parameterId)];
 }
 
 function updateValue(row: ScalarRow, value: string) {
@@ -175,45 +173,52 @@ function updateValue(row: ScalarRow, value: string) {
   padding: var(--space-4) var(--space-5);
 }
 
-.scalars-table {
-  width: 100%;
-  border-collapse: collapse;
+.scalars-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.scalars-table th {
-  padding: var(--space-2) var(--space-5);
-  text-align: left;
-  font-size: var(--text-micro);
-  font-weight: 500;
-  color: var(--ink-muted);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.scalars-table td {
+.scalar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
   padding: var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.scalars-table tr:last-child td {
+.scalar-row:last-child {
   border-bottom: none;
 }
 
-.col-kind {
-  width: 90px;
-}
-
-.col-value {
-  width: 120px;
-}
-
-.kind-chip {
+.scalar-clause {
   font-family: var(--font-mono);
   font-size: var(--text-micro);
   color: var(--ink-secondary);
 }
 
+.scalar-zeros {
+  color: var(--ink-muted);
+}
+
+.scalar-id {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.clause-line {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+  background: var(--surface-raised);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+}
+
+
 .cell-input {
-  width: 100%;
+  width: 110px;
+  margin-left: auto;
   height: 24px;
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border-strong);
@@ -222,6 +227,12 @@ function updateValue(row: ScalarRow, value: string) {
   color: var(--ink-secondary);
   font-family: inherit;
   font-size: var(--text-body);
+}
+
+.cell-input--number {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
 }
 
 .cell-input:focus {

@@ -36,7 +36,7 @@ import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
 import { AuthorizationError, requireLibraryMode, requireVersionExecute, resolveOwningLibrary } from '../auth/enforce.js';
-import { environmentsPointingTo, isEnvironmentVersionType, LATEST_ENVIRONMENT, isPromotableType, requestedEnvironment, resolveVersionIn } from '../lib/environments.js';
+import { environmentsPointingTo, findEnvironment, isEnvironmentVersionType, LATEST_ENVIRONMENT, isPromotableType, requestedEnvironment, resolveVersionIn } from '../lib/environments.js';
 import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
@@ -552,7 +552,10 @@ export default async function (
                 // A default backend is a UI convenience: it picks the backend a
                 // client offers first, and the client then names it here.
                 if (!backendId) {
-                    const hint = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id));
+                    const hint = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id), {
+                        environment: environmentName,
+                        findEnvironment,
+                    });
                     return reply.code(400).send({
                         error: hint
                             ? `backendId is required. The ${hint.source}'s default backend is ${hint.backendId}.`

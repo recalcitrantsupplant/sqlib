@@ -98,6 +98,11 @@ test.describe('Expanding an editor', () => {
     await page.locator('[data-testid="run-bar-run"]').click();
 
     await expect.poll(() => executed).toContain('SELECT');
+
+    // The pop-out covers the results tab, so a run swaps the editor for the
+    // popped-out results.
+    await expect(region(page)).not.toHaveClass(/expanded/);
+    await expect(page.locator('[data-testid="results-focus"]')).toBeVisible();
   });
 
   test('closes itself to show the arguments it was asked for', async ({ page }) => {

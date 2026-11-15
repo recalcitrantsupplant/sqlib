@@ -12,6 +12,10 @@ choice of reference broker, and the work, in the order it was done. The code cit
 so on). That note was never checked in; this page replaces it, and the appendix
 maps the citations onto it.
 
+**Update, 13 November 2026:** the embedded Better Auth option is now
+chosen as an optional package for social sign-in, beside Rauthy and direct
+Entra trust. See ["Decision, November 2026"](#decision-november-2026-embedded-better-auth-for-social-sign-in).
+
 Prices and vendor capabilities below were checked in October 2026 and will
 drift. Each is marked where it could not be confirmed on the vendor's own page.
 
@@ -199,15 +203,66 @@ generic OIDC and SAML through its SSO plugin, and account linking. It mounts on
 Fastify as one catch-all route, and the MCP specification allows the
 authorization server to be hosted with the resource server. Because sqlib's
 verifier only sees an issuer URL and a key set, it could point at itself with
-no change to enforcement. Deferred, not rejected, for three reasons that are
-posture rather than code: sqlib would hold the Google and GitHub client
-secrets, user sessions and a login page, which is the identity-provider role
-the previous paragraph refuses; its OAuth provider and MCP plugins carried
-three CVEs in 2026, two rated critical, so auth fixes would ride sqlib's
-release train; and it needs a SQL store (a SQLite file for one instance,
-Postgres for more) that sqlib does not have. If the one-container story proves
-to matter commercially, build it as a separate optional package behind the
-same seam. Nothing in this design has to change for that.
+no change to enforcement. First deferred in October 2026, now chosen as an
+optional package; see ["Decision, November 2026"](#decision-november-2026-embedded-better-auth-for-social-sign-in).
+Two reasons against it remain, and both concern posture. sqlib would
+hold the Google and GitHub client secrets, user sessions and a login page,
+which is the identity-provider role the previous paragraph refuses; and its
+OAuth provider and MCP plugins carried three CVEs in 2026, two rated critical,
+so auth fixes would ride sqlib's release train. A third reason, that it needs
+a SQL store sqlib does not have, no longer holds: sqlib keeps `library.sqlite`
+and `auth.sqlite` through `node:sqlite`, and Better Auth accepts a
+`DatabaseSync` instance directly.
+
+## Decision, November 2026: embedded Better Auth for social sign-in
+
+Decided 2026-11-13. Social sign-in (Google, GitHub) is wanted, and the typical
+enterprise customer already runs Entra ID. The two needs have different
+answers, so a deployment picks one of three shapes:
+
+| Shape | Who it serves | What runs | Secrets in sqlib |
+| --- | --- | --- | --- |
+| Entra direct | An organisation on Entra ID | Nothing new. Entra issues JWT access tokens with sqlib's audience; sqlib trusts the tenant as an issuer. | None |
+| Embedded Better Auth | Self-hosters and small teams who want Google and GitHub sign-in in one container | An optional package that mounts Better Auth in the API process and stores its tables in a SQLite file in `storageDir` | Google and GitHub client secrets, sessions |
+| Rauthy | Deployments that want the broker outside sqlib | The existing compose profile | None |
+
+```
+Enterprise user --> Entra ID ----------------------------+
+                                                         +--> JWT --> sqlib verifier
+Social user --> Google / GitHub --> Better Auth or Rauthy+
+```
+
+Why this shape:
+
+- Entra is already a valid issuer for sqlib, so the common enterprise case
+  needs no broker at all.
+- Google and GitHub cannot be issuers, so they still need a broker. Better
+  Auth gives that broker without a second container, and its social providers
+  are more mature than Rauthy's beta upstream providers.
+- The verifier does not change. It sees an issuer URL and a key set, whichever
+  shape mints the token. `SQLIB_AUTH_ISSUERS_JSON` already lets Entra and a
+  broker sit side by side.
+- The two posture costs are accepted only by deployments that turn the
+  package on. The core stays a pure resource server.
+
+What the package has to do:
+
+1. Live in its own workspace package, off by default, loaded only when
+   configured. The core must not import it.
+2. Use `@better-auth/mcp` (Better Auth 1.7 or later; the MCP plugin moved
+   there, with new paths) and the JWT plugin, so access tokens are JWTs with
+   sqlib's audience and the key set is published.
+3. Store its tables in a SQLite file beside `library.sqlite`, through
+   `node:sqlite`.
+4. Offer Google, GitHub and Microsoft sign-in, with account linking, so an
+   Entra user can also sign in through it when one SPA issuer is wanted.
+5. Serve CIMD for MCP clients; dynamic registration stays off unless set.
+6. Pin the Better Auth version and track its security advisories, because
+   its fixes now ride sqlib's releases.
+
+The SPA still signs in against one issuer. A deployment that trusts Entra
+directly and also runs Better Auth chooses one of them for the SPA, or lets
+Better Auth federate to Entra through its Microsoft provider.
 
 ## Broker requirements and candidates
 
@@ -490,9 +545,8 @@ is the free-tier line and should appear in the deployment guide.
    the audience. The canonical URL of the deployment's `/mcp` endpoint is the
    value the guides use (the MCP specification's canonical-URI rules apply),
    and each deployment has to fix it before any client is registered.
-5. **The embedded option.** Whether a one-container deployment matters enough
-   commercially to build the embedded Better Auth package described under
-   "Why not the alternatives". Not before items 1 to 4 ship.
+5. **The embedded option.** Resolved 2026-11-13: build it as an optional
+   package for social sign-in. See ["Decision, November 2026"](#decision-november-2026-embedded-better-auth-for-social-sign-in).
 
 ## Appendix: where the code's section citations point
 

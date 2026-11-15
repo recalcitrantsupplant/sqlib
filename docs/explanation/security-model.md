@@ -114,9 +114,9 @@ only the versions it points to). Library modes never include them. See
 
 Library grants and backend grants are separate. `execute` on a library runs its
 saved entities, and each backend they run on needs its own backend grant. A
-`defaultBackend`, on a query or a library, is for the UI only. It chooses the
-backend that a client offers first, and it grants nothing. `/execute` never uses
-it as a fallback. A query run must name its `backendId`. All backend checks
+`defaultBackend`, on a query, a library or an environment, is for clients and
+published tools only. It chooses the backend that a client offers first, and it
+grants nothing. `/execute` never uses it as a fallback. A query run must name its `backendId`. All backend checks
 happen in `GuardedSparqlExecutor`, which wraps each executor that a request
 gets. A saved update reached through `/execute` therefore needs `update:saved`,
 the same as any other route.

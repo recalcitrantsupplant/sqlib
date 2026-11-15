@@ -22,10 +22,11 @@ vi.mock('@/composables/useActiveLibrary', () => ({
   }),
 }));
 
-function mountSidebar(slots: Record<string, string> = {}) {
+function mountSidebar(slots: Record<string, string> = {}, extraProps: Record<string, unknown> = {}) {
   return mount(EntityListSidebar, {
     slots,
     props: {
+      ...extraProps,
       section: 'tests',
       saved: [{ id: 't:1', name: 'a saved test', tags: [] }],
       scratch: [],
@@ -46,6 +47,14 @@ describe('EntityListSidebar — a replaced body', () => {
     expect(wrapper.find('[data-testid="entity-filter"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="saved-row"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="new-scratch"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('drops New when the section cannot create', () => {
+    const wrapper = mountSidebar({}, { hideNew: true });
+
+    expect(wrapper.find('[data-testid="saved-row"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="new-scratch"]').exists()).toBe(false);
     wrapper.unmount();
   });
 

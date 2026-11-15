@@ -80,11 +80,24 @@ set on the edge (section 5). The port cannot hold it.
 | `dataFlowType` | Carries | Valid between |
 | --- | --- | --- |
 | `CONTROL_FLOW` | nothing; order only | any two nodes; the edge must name no ports |
-| `VARIABLE_BINDINGS` | SELECT rows | output tuple to input tuple |
+| `VARIABLE_BINDINGS` | SELECT rows | output tuple (or an ASK `BooleanIO`) to input tuple; from the start node, an input tuple |
 | `RDF_GRAPH` | triples/quads | `TriplesQuadsIO` to `TriplesQuadsIO` |
 | `BOOLEAN` | an ASK result | `BooleanIO` to `BooleanIO` |
-| `QUERY_ID` | a one-column tuple that names a query version | output tuple (arity 1) to the `QueryIdInput` of a dynamic node |
+| `QUERY_ID` | a one-column tuple that names a query version | output tuple (arity 1) to the `QueryIdInput` of a dynamic node; from the start node, an input tuple (arity 1) |
 | `DATASET` | a one-column tuple of graph IRIs | SELECT output tuple (arity 1) to the dataset of a query node; the edge names no `targetInputId` |
+
+The start node's tuple ports are the inputs of the group, so each one is a
+`QueryInputTuple`. Declare it in `inputTuples`, with its variables in `inputs`.
+The API and the canvas read one table of these port rules
+(`packages/contracts/src/hand-written/query-group-edge-rules.ts`):
+
+- The writer refuses a version with an edge that leaves the start node through
+  a port of another kind. The 422 names the field and has the code
+  `EDGE_SOURCE_PORT_TYPE`.
+- A version saved before this check can have a start port typed as a
+  `QueryOutputTuple`. It still runs, and `/validate` gives the warning
+  `EDGE_START_PORT_LEGACY_TYPE`. The canvas reads the port as an input tuple,
+  so a save from the canvas writes it in the current form.
 
 Two rules apply to `RDF_GRAPH`. The validator refuses an edge that breaks
 either rule (`GraphBuilder.validateGraph`):

@@ -8,6 +8,7 @@ import {
 } from '../../../web/src/composables/useQueryGroupGraph.js';
 import { useQueryGroupGraphState } from '../../../web/src/composables/useQueryGroupGraphState.js';
 import { useQueryGroupIO } from '../../../web/src/composables/useQueryGroupIO.js';
+import { upgradeLegacyStartPorts } from '../../../web/src/composables/queryGroupLegacyStartPorts.js';
 import { GroupHarness, START, END, type BuiltGroup } from '../phase2/harness/group-harness.js';
 import { ALL_TEMPLATES, queryIdSelect } from '../phase2/harness/query-templates.js';
 import { caseArbitrary, type GeneratedCase } from '../phase2/harness/graph-generator.js';
@@ -66,6 +67,10 @@ function loadCanvas(expanded: QueryGroupVersionExpandedWithIriMap): {
   const state = createGraphStateFromExpanded(expanded);
   const graph = useQueryGroupGraphState({ initialGraphState: state });
   const io = useQueryGroupIO({ graph, toast: noopToast, logger: quietLogger });
+  // As `useQueryGroupVersions.loadVersionById` does. Without it the Start
+  // node's input tuples are not loaded, and a save writes the Start node with
+  // no inputs.
+  io.populateFromExpanded(expanded);
   return {
     state,
     buildPayload: () => io.buildVersionCreatePayload({ versionComment: null }) as Record<string, unknown>,
@@ -333,6 +338,56 @@ describe('query group canvas round trip', () => {
     const resaved = await save(built, loaded.buildPayload());
     expect(fingerprint(createGraphStateFromExpanded(await expand(resaved)))).toBe(fingerprint(loaded.state));
   }, 120000);
+
+  /*
+   * A version saved through the API before the writer checked Start ports can
+   * type one as a QueryOutputTuple. The writer now refuses that form, so the
+   * stored shape is rebuilt here from a valid version's expansion. The canvas
+   * reads the port as a group input, and its save is accepted and runs to the
+   * same answer.
+   */
+  it('saves an old Start port typed as a result tuple as a group input', async () => {
+    const built = await harness.build({
+      nodes: [{ key: 'b', query: 'thingByThing' }],
+      declaredPorts: [{ key: 'startParam', type: 'QueryInputTuple', vars: ['thing'], attachTo: START, attachAs: 'outputs' }],
+      edges: [
+        { from: START, to: 'b', flow: 'VARIABLE_BINDINGS', source: { declared: 'startParam' }, target: { node: 'b', input: 0 } },
+        { from: 'b', to: END, flow: 'VARIABLE_BINDINGS', source: { node: 'b', port: 'outputTuple' }, target: { node: 'b', port: 'outputTuple' } },
+      ],
+    });
+    const current = await expand(built);
+    const startPort = current.startNode!.outputs![0];
+    const tuple = current.inputTuples!.find(entry => entry.id === startPort)!;
+    const memberIds = new Set(tuple.memberEntries ?? []);
+    const variableIds = new Set((current.tupleMembers ?? []).filter(m => memberIds.has(m.id)).map(m => m.variable));
+    const legacy = {
+      ...current,
+      inputTuples: current.inputTuples!.filter(entry => entry.id !== startPort),
+      outputTuples: [...(current.outputTuples ?? []), { id: tuple.id, name: tuple.name ?? 'startParam', memberEntries: tuple.memberEntries }],
+      inputs: (current.inputs ?? []).filter(v => !variableIds.has(v.id)),
+      outputs: [
+        ...(current.outputs ?? []),
+        ...(current.inputs ?? []).filter(v => variableIds.has(v.id)).map(v => ({ id: v.id, variableName: v.variableName, description: null })),
+      ],
+    } as QueryGroupVersionExpandedWithIriMap;
+
+    const upgrade = upgradeLegacyStartPorts(legacy);
+    expect(upgrade.converted).toEqual([startPort]);
+    const loaded = loadCanvas(upgrade.expanded as QueryGroupVersionExpandedWithIriMap);
+    expect(loaded.state.ioEntities[startPort]?.kind).toBe('QueryInputTuple');
+
+    const resaved = await save(built, loaded.buildPayload());
+    const reloaded = await expand(resaved);
+    const savedStartPort = reloaded.startNode!.outputs![0];
+    expect(reloaded.inputTuples!.some(entry => entry.id === savedStartPort)).toBe(true);
+    expect(fingerprint(createGraphStateFromExpanded(reloaded))).toBe(fingerprint(createGraphStateFromExpanded(current)));
+
+    const args = [{ head: { vars: ['thing'] }, results: { bindings: [{ thing: { type: 'uri', value: 'http://example.org/t1' } }] } }];
+    const before = await harness.execute(built, { arguments: args });
+    const after = await harness.execute(resaved, { target: 'version', arguments: args });
+    expect(before.statusCode).toBe(200);
+    expect(after.payload).toBe(before.payload);
+  }, 60000);
 
   it('is stable under a second save, so the canvas does not drift a version at a time', async () => {
     // One round trip catches a field dropped outright. A field that is *changed*

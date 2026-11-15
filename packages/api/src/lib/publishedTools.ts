@@ -14,7 +14,7 @@
  * tools with one name, or a pinned backend that is gone. `MCP_CATALOGUE`
  * decides what that costs (`config/catalogueMode.ts`).
  */
-import { requestedEnvironment, resolveVersionIn } from './environments.js';
+import { findEnvironment, requestedEnvironment, resolveVersionIn } from './environments.js';
 import {
   checkOgcObject,
   checkToolObject,
@@ -229,7 +229,10 @@ export function collectPublishedTools(): PublishedCatalogue {
 
     let defaultBackendId: string | undefined;
     if (kind === 'query') {
-      defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id))?.backendId;
+      defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id), {
+      environment: requestedEnvironment(undefined),
+      findEnvironment,
+    })?.backendId;
       if (defaultBackendId && !backendExists(defaultBackendId)) {
         problems.push(`${label}: its default backend ${defaultBackendId} does not exist.`);
         continue;
@@ -346,7 +349,10 @@ export function collectOgcCollections(problems: string[]): OgcCollectionSpec[] {
       problems.push(`${label}: library "${library.slug}" already has a collection "${ogc.collectionId}" (${clash.tool.targetId}).`);
       continue;
     }
-    const defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id))?.backendId;
+    const defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id), {
+      environment: requestedEnvironment(undefined),
+      findEnvironment,
+    })?.backendId;
     if (!defaultBackendId || !backendExists(defaultBackendId)) {
       problems.push(`${label}: the collection "${ogc.collectionId}" needs a default backend that exists.`);
       continue;

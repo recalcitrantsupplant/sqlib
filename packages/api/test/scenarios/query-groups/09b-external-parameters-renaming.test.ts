@@ -6,14 +6,14 @@ import { ScenarioTestBaseUnmocked, type ScenarioTestContext } from '../fixtures/
  * Scenario 09b: External Parameters with Variable Renaming (Complex Mode)
  *
  * Tests the COMPLEX mode of external parameters:
- * - StartNode defines custom QueryOutputTuple with different variable names
+ * - StartNode defines custom QueryInputTuple with different variable names
  * - Edge provides positional mapping between StartNode output and query input
  * - Demonstrates variable renaming at the boundary
  *
  * Expected flow:
  * 1. Query expects ?targetExperience
  * 2. External parameter is named ?experienceFilter
- * 3. StartNode.outputs = [custom-output-tuple] with ?experienceFilter
+ * 3. StartNode.outputs = [custom-input-tuple] with ?experienceFilter
  * 4. Edge maps position 0: ?experienceFilter → ?targetExperience
  *
  * This demonstrates how to rename variables at the query group boundary
@@ -38,7 +38,7 @@ describe('External Parameters with Variable Renaming', () => {
     await ScenarioTestBaseUnmocked.cleanupTestContext(context);
   });
 
-  it('should rename external parameter variable via custom output tuple', { timeout: 15000 }, async () => {
+  it('should rename external parameter variable via custom input tuple', { timeout: 15000 }, async () => {
     // Query expects ?targetExperience
     const queryString = `
       PREFIX ex: <http://example.org/>
@@ -79,14 +79,14 @@ describe('External Parameters with Variable Renaming', () => {
 
     const nodeId = 'urn:ui-temp:filter-people';
 
-    // Create custom output tuple for StartNode with RENAMED variable
+    // Create custom input tuple for StartNode with RENAMED variable
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
       url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
-        // COMPLEX MODE: Create custom output tuple with different variable name
-        outputs: [
+        // COMPLEX MODE: Create custom input tuple with different variable name
+        inputs: [
           {
             id: 'urn:ui-temp:external-var-exp-filter',
             variableName: 'experienceFilter'  // Different from query's ?targetExperience
@@ -99,15 +99,15 @@ describe('External Parameters with Variable Renaming', () => {
             variable: 'urn:ui-temp:external-var-exp-filter'
           }
         ],
-        outputTuples: [
+        inputTuples: [
           {
-            id: 'urn:ui-temp:external-output-tuple',
+            id: 'urn:ui-temp:external-input-tuple',
             name: 'External Experience Filter',
             memberEntries: ['urn:ui-temp:external-member-exp']
           }
         ],
         startNode: {
-          outputs: ['urn:ui-temp:external-output-tuple']  // Custom tuple, not query's inferredInputs
+          outputs: ['urn:ui-temp:external-input-tuple']  // Custom tuple, not query's inferredInputs
         },
         endNode: {
           mediaType: 'application/sparql-results+json'
@@ -129,7 +129,7 @@ describe('External Parameters with Variable Renaming', () => {
             sourceNodeId: 'urn:__START__',
             targetNodeId: nodeId,
             dataFlowType: 'VARIABLE_BINDINGS',
-            sourceOutputId: 'urn:ui-temp:external-output-tuple',  // Custom tuple
+            sourceOutputId: 'urn:ui-temp:external-input-tuple',  // Custom tuple
             targetInputId: queryInputTuple            // Query's inferred input
           },
           {
@@ -155,9 +155,9 @@ describe('External Parameters with Variable Renaming', () => {
     expect(iriMap[nodeId]).toMatch(/^urn:sqlib:node:/);
     expect(iriMap['urn:ui-temp:edge-1']).toMatch(/^urn:sqlib:edge:/);
     expect(iriMap['urn:ui-temp:edge-2']).toMatch(/^urn:sqlib:edge:/);
-    expect(iriMap['urn:ui-temp:external-output-tuple']).toMatch(/^urn:sqlib:output-tuple:/);
+    expect(iriMap['urn:ui-temp:external-input-tuple']).toMatch(/^urn:sqlib:input-tuple:/);
     expect(iriMap['urn:ui-temp:external-member-exp']).toMatch(/^urn:sqlib:tuple-member:/);
-    expect(iriMap['urn:ui-temp:external-var-exp-filter']).toMatch(/^urn:sqlib:output:/);
+    expect(iriMap['urn:ui-temp:external-var-exp-filter']).toMatch(/^urn:sqlib:input:/);
 
     await context.app.inject({
       method: 'PUT',

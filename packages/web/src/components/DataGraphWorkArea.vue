@@ -152,6 +152,8 @@
                 :left-label="diffLeftLabel"
                 :right-label="diffRightLabel"
                 :content-type="diffContentType"
+                :left-format="diffLeftFormat"
+                :right-format="diffRightFormat"
                 testid="data-graph-diff-pane"
                 @update-left-version="(value) => (diffLeftVersion = value)"
                 @update-right-version="(value) => (diffRightVersion = value)"
@@ -423,6 +425,15 @@ const diffLeftText = computed(() => sideText(diffLeftVersion.value));
 const diffRightText = computed(() => sideText(diffRightVersion.value));
 const diffLeftLabel = computed(() => sideLabel(diffLeftVersion.value));
 const diffRightLabel = computed(() => sideLabel(diffRightVersion.value));
+
+/** Each side's RDF format, for the triple view; the draft is the editor's. */
+function sideFormat(side: string | null): string | null {
+  if (side === DRAFT_SIDE) return contentFormat.value;
+  const version = versionById(side);
+  return version ? (version.contentFormat ?? contentFormat.value) : null;
+}
+const diffLeftFormat = computed(() => sideFormat(diffLeftVersion.value));
+const diffRightFormat = computed(() => sideFormat(diffRightVersion.value));
 
 /** Highlighted as the newer side is written; the draft is the editor's format. */
 const diffContentType = computed(() => {

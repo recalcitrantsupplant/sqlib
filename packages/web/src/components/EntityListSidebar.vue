@@ -86,7 +86,7 @@
         dialog the editor's own Import button opens on the rule set already in
         front of you — so the menu was a second door onto one room.
       -->
-      <div v-if="!$slots['list-body']" class="new-group">
+      <div v-if="!$slots['list-body'] && !hideNew" class="new-group">
         <button
           class="new-button"
           data-testid="new-scratch"
@@ -367,7 +367,7 @@
         </template>
         <template v-else>
           <span>No {{ nounPlural }} yet.</span>
-          <span class="list-empty-hint">{{ emptyHint }}</span>
+          <span v-if="!hideNew" class="list-empty-hint">{{ emptyHint }}</span>
         </template>
       </InlineNote>
     </div>
@@ -519,6 +519,11 @@ const props = defineProps<{
    * than no cluster.
    */
   supportsScratch?: boolean;
+  /**
+   * Hides + New. A read-only deployment sets it for ETL, where a new pipeline
+   * has nothing it could run.
+   */
+  hideNew?: boolean;
   /**
    * The saved kinds this section lists, in list order. One kind (or none
    * given) renders a flat run of rows; several render a subheading each.

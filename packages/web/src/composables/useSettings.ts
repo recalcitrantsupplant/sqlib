@@ -37,6 +37,8 @@ interface Settings {
   entityListDensity: EntityListDensity;
   /** Whether the Saved cluster is grouped, and by what. */
   entityListGrouping: EntityListGrouping;
+  /** Whether result tables wrap long values onto more lines. Off: one line per row, cut with an ellipsis. */
+  tableWrapEnabled: boolean;
   settingsVersion: number;
 }
 
@@ -58,6 +60,7 @@ const DEFAULT_SETTINGS: Settings = {
   darkTheme: DEFAULT_THEME_ID,
   entityListDensity: 'compact', // As drawn: more of the library on screen at once
   entityListGrouping: 'tag', // Grouped by tag; a library with no tags reads as flat
+  tableWrapEnabled: false, // One line per row; a long value ends in an ellipsis
   settingsVersion: SETTINGS_VERSION,
 };
 
@@ -151,6 +154,10 @@ export function useSettings() {
     settings.value.entityListGrouping = value;
   }
 
+  function setTableWrapEnabled(value: boolean): void {
+    settings.value.tableWrapEnabled = value;
+  }
+
   return {
     settings,
     setHofstadterMode,
@@ -160,5 +167,6 @@ export function useSettings() {
     setDarkTheme,
     setEntityListDensity,
     setEntityListGrouping,
+    setTableWrapEnabled,
   };
 }

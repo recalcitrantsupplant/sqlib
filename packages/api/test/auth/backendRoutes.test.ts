@@ -79,6 +79,7 @@ overrideCacheCoordinatorProvider((() => {
       QueryGroupVersion: repo('QueryGroupVersion'),
       BenchmarkExperiment: repo('BenchmarkExperiment'),
       EtlJob: repo('EtlJob'),
+      Environment: repo('Environment'),
       BenchmarkExperimentVersion: repo('BenchmarkExperimentVersion'),
       Patch: repo('Patch'),
     }),
@@ -288,6 +289,7 @@ describe('GET /:id/references', () => {
       libraries: [{ id: LIBRARY, name: 'Hydrology' }],
       queries: [{ id: QUERY, name: 'Gauges' }],
       etlJobs: [],
+      environments: [],
     });
   });
 

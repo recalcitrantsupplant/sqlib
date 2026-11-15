@@ -147,6 +147,11 @@ The client follows the
 4. Each later call to `/mcp` carries that token, and the API applies your
    grants.
 
+Under `APP_BASE_PATH`, the MCP URL is `<origin><base path>/mcp`, and the 401
+names `<origin><base path>/.well-known/oauth-protected-resource`. See
+[deploying](deploying.md#behind-a-reverse-proxy-or-under-a-path-prefix) for the
+settings behind a reverse proxy.
+
 This flow needs three settings:
 
 - `SQLIB_AUTH_RESOURCE` is the canonical URL of `/mcp`.

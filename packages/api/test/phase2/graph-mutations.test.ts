@@ -114,6 +114,19 @@ describe('Phase 2 graph mutations', () => {
       at: 'edge-chain',
     },
     {
+      // The Start node's ports are the group's inputs. A result tuple there
+      // ran, but the canvas reported it as broken, so the writer refuses it.
+      name: 'feeds a step from a Start port typed as a result tuple',
+      apply: spec => {
+        spec.declaredPorts = [{ key: 'startParam', type: 'QueryOutputTuple', vars: ['thing'], attachTo: START, attachAs: 'outputs' }];
+        spec.edges.push({
+          from: START, to: 'b', flow: 'VARIABLE_BINDINGS', id: 'urn:ui-temp:edge-start',
+          source: { declared: 'startParam' }, target: { node: 'b', input: 0 },
+        });
+      },
+      rejectedAtWrite: 'is a QueryOutputTuple; a VARIABLE_BINDINGS edge from the Start node needs a QueryInputTuple',
+    },
+    {
       name: 'dangles the source IO reference',
       apply: spec => {
         spec.edges[1].source = { literal: 'urn:sqlib:output-tuple:does-not-exist' };

@@ -122,6 +122,21 @@ describe('BackendListSidebar', () => {
     expect(wrapper.emitted('discard-draft')).toHaveLength(1);
   });
 
+  it('keeps the rows in place while the list reloads', () => {
+    // Every saved edit reloads the list. A loading line above the rows would
+    // push them down and back on each edit.
+    const wrapper = mountSidebar({ loading: true });
+
+    expect(wrapper.text()).not.toContain('Loading backends');
+    expect(wrapper.findAll('[data-testid="backend-row"]')).toHaveLength(3);
+  });
+
+  it('says it is loading before the first list arrives', () => {
+    const wrapper = mountSidebar({ backends: [], loading: true });
+
+    expect(wrapper.text()).toContain('Loading backends');
+  });
+
   it('says so when there are no backends at all', () => {
     const wrapper = mountSidebar({ backends: [] });
     expect(wrapper.text()).toContain('No backends yet');

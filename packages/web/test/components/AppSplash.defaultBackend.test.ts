@@ -38,6 +38,14 @@ vi.mock('@/composables/useBackendProbes', () => ({
 vi.mock('@/composables/useTestsStore', () => ({
   useTestsStore: () => ({ tests: computed(() => []), lastRunByTest: computed(() => ({})) }),
 }));
+vi.mock('@/composables/useServerLatency', () => ({
+  useServerLatency: () => ({
+    roundTripMs: computed(() => null),
+    location: computed(() => null),
+    isSlow: computed(() => false),
+    ensureMeasured: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('@/composables/useCommandPalette', () => ({ useCommandPalette: () => ({ openPalette: vi.fn() }) }));
 vi.mock('@/composables/useFeatureFlags', () => ({ useFeatureFlags: () => ({ isEnabled: () => true }) }));
 

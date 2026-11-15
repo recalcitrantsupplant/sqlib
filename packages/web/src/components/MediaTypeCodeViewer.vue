@@ -39,6 +39,9 @@ import {
 } from '@codemirror/language';
 import { languageExtensionsFor, normalizeContentType } from '@/lib/codeLanguage';
 import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
+import { prefixedNameDisplay } from '@/lib/rdfPatchView';
+import { usePrefixManager } from '@/composables/usePrefixManager';
+import { useTermDisplay } from '@/composables/useTermDisplay';
 
 const props = withDefaults(
   defineProps<{
@@ -127,14 +130,31 @@ const normalizedContentType = computed(() => normalizeContentType(props.contentT
 
 const languageExtensions = computed<Extension[]>(() => languageExtensionsFor(props.contentType));
 
+/*
+ * An RDF Patch keeps full IRIs in its text: its `PA` rows change the target
+ * dataset's prefixes and abbreviate nothing in the patch. So the term display
+ * switch shows prefixed names over the text and leaves the text as it is.
+ */
+const { isPrefixed } = useTermDisplay();
+const { abbreviateIri } = usePrefixManager();
+const isPatch = computed(() =>
+  normalizedContentType.value === 'text/rdf-patch' || normalizedContentType.value === 'application/rdf-patch',
+);
+const termDisplayExtensions = computed<Extension[]>(() => {
+  if (!isPatch.value || !isPrefixed.value) return [];
+  // Subscribes this computed to the prefix table, so a new prefix redraws.
+  abbreviateIri('');
+  return [prefixedNameDisplay((iri) => abbreviateIri(iri))];
+});
+
 const extensions = shallowRef<Extension[]>([]);
 
 const applyExtensions = () => {
   const theme = isDarkMode.value ? darkTheme : lightTheme;
-  extensions.value = [...baseExtensions, theme, ...languageExtensions.value];
+  extensions.value = [...baseExtensions, theme, ...languageExtensions.value, ...termDisplayExtensions.value];
 };
 
-watch([languageExtensions, isDarkMode], applyExtensions, { immediate: true });
+watch([languageExtensions, termDisplayExtensions, isDarkMode], applyExtensions, { immediate: true });
 
 
 const noop = () => {

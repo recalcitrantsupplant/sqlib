@@ -19,6 +19,7 @@ describe('server/config', () => {
     delete process.env.INTERNAL_OXIGRAPH_LOAD_METHOD;
     delete process.env.INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE;
     delete process.env.INTERNAL_OXIGRAPH_STORE_ID;
+    delete process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS;
 
     // Clear module cache to force re-evaluation of config
     vi.resetModules();
@@ -206,8 +207,35 @@ describe('server/config', () => {
         loadMethod: 'none',
         sourceConfig: undefined,
         storageDir: path.resolve('./storage/library-store'),
-        checkpointIntervalMs: 60000,
       });
+    });
+
+    it.each(['sqlite', 'oxigraph-persistent', 'oxigraph-memory', 'http'])(
+      'should read the checkpoint interval for the %s library store',
+      async backendType => {
+        // The interval applies to each durable Oxigraph store, so it is read
+        // for every library store type (#178).
+        process.env.INTERNAL_BACKEND_TYPE = backendType;
+        process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS = '5000';
+
+        const { config } = await import('../../src/server/config.js');
+
+        expect(config.oxigraphCheckpointIntervalMs).toBe(5000);
+      },
+    );
+
+    it('should default the checkpoint interval to one minute', async () => {
+      const { config } = await import('../../src/server/config.js');
+
+      expect(config.oxigraphCheckpointIntervalMs).toBe(60000);
+    });
+
+    it('should refuse a checkpoint interval that is not a number', async () => {
+      process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS = 'one minute';
+
+      await expect(import('../../src/server/config.js')).rejects.toThrow(
+        /INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS/,
+      );
     });
 
     it('should honor custom persistent settings and bootstrap source', async () => {
@@ -234,7 +262,6 @@ describe('server/config', () => {
           importQuery: 'CONSTRUCT WHERE { ?s ?p ?o }'
         },
         storageDir: path.resolve('/data/library'),
-        checkpointIntervalMs: 60000,
       });
     });
   });
@@ -301,6 +328,7 @@ describe('server/config', () => {
         cachePreloadEnabled: true,
         enableTimingLogs: true,
         cacheWriteThroughEnabled: true,
+        oxigraphCheckpointIntervalMs: 60000,
         internalBackend: {
           type: 'http',
           baseUrl: 'http://test.example.com/fuseki/test',

@@ -31,6 +31,9 @@ export interface BoardCell {
   version: string | null;
   versionNumber: number | null;
   state: 'current' | 'behind' | 'missing';
+  /** Who moved the pointer to this version, and when. Null when no move is recorded. */
+  movedBy?: string | null;
+  movedAt?: string | null;
 }
 
 export interface BoardRow {
@@ -74,6 +77,8 @@ export function buildBoard(
         version: pointer?.version ?? null,
         versionNumber: number,
         state: !pointer ? 'missing' : behind ? 'behind' : 'current',
+        movedBy: pointer?.movedBy ?? null,
+        movedAt: pointer?.movedAt ?? null,
       });
     }
     return { entity, cells };

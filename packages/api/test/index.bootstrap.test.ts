@@ -50,6 +50,7 @@ const hoisted = vi.hoisted(() => ({
     getPersistentStore: vi.fn(() => null),
     createPersistentStore: vi.fn(async () => ({ store: true })),
     initialize: vi.fn().mockResolvedValue(undefined),
+    adoptSnapshotsFrom: vi.fn(),
     shutdown: vi.fn().mockResolvedValue(undefined),
     getAllStoreStats: vi.fn(() => new Map()),
   },

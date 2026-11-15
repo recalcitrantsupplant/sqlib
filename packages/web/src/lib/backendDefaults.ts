@@ -4,10 +4,16 @@
  * The order is the same everywhere a query runs — the query screen, a notebook
  * cell, a query group node:
  *
- *   1. the backend this browser last ran this query on,
- *   2. the query's own default,
- *   3. its library's default,
- *   4. nothing — the run bar stays empty and Run waits for a choice.
+ *   1. the backend this browser last ran this query on, in this environment,
+ *   2. the active environment's default, when the query's library has one,
+ *   3. the query's own default,
+ *   4. its library's default,
+ *   5. nothing — the run bar stays empty and Run waits for a choice.
+ *
+ * The environment's default comes before the query's own so that a dev, test
+ * and prod chain runs each environment on its own backend. Outside an
+ * environment (`latest`) step 2 does not apply. A query group node takes its
+ * backend when it is placed, so it uses steps 3 and 4 only.
  *
  * There is no silent fall to the in-memory store at the end: an answer from an
  * empty store looks like a real answer. An ETL job is the exception, because a
@@ -70,19 +76,33 @@ function writeAll(picks: PickMap): void {
   }
 }
 
-const keyFor = (kind: BackendPickKind, id: string) => `${kind}:${id}`;
+/*
+ * One pick per entity and environment: a pick made in dev must not follow the
+ * query into prod. `latest` keeps the key it had before environments existed.
+ */
+const keyFor = (kind: BackendPickKind, id: string, environment?: string | null) =>
+  environment && environment !== 'latest' ? `${kind}:${id}@${environment}` : `${kind}:${id}`;
 
-/** The backend this browser last ran this entity on, if any. */
-export function getLastBackend(kind: BackendPickKind, id: string | null | undefined): string | null {
+/** The backend this browser last ran this entity on in this environment, if any. */
+export function getLastBackend(
+  kind: BackendPickKind,
+  id: string | null | undefined,
+  environment?: string | null,
+): string | null {
   if (!id) return null;
-  return readAll()[keyFor(kind, id)]?.backendId ?? null;
+  return readAll()[keyFor(kind, id, environment)]?.backendId ?? null;
 }
 
 /** Remember the backend a run was pointed at; an empty value forgets it. */
-export function setLastBackend(kind: BackendPickKind, id: string | null | undefined, backendId: string | null): void {
+export function setLastBackend(
+  kind: BackendPickKind,
+  id: string | null | undefined,
+  backendId: string | null,
+  environment?: string | null,
+): void {
   if (!id) return;
   const picks = readAll();
-  const key = keyFor(kind, id);
+  const key = keyFor(kind, id, environment);
   if (backendId) {
     picks[key] = { backendId, at: Date.now() };
   } else {
@@ -93,6 +113,8 @@ export function setLastBackend(kind: BackendPickKind, id: string | null | undefi
 
 export interface QueryBackendSources {
   lastPick?: string | null;
+  /** The active environment's default, when the query's library defines it. */
+  environmentDefault?: string | null;
   queryDefault?: string | null;
   libraryDefault?: string | null;
   /**
@@ -111,17 +133,35 @@ function firstAvailable(candidates: Array<string | null | undefined>, isAvailabl
   return null;
 }
 
-/** Where a query run starts: last pick, query default, library default, else nothing. */
+/** Where a query run starts: last pick, environment, query, library default, else nothing. */
 export function resolveQueryBackend(sources: QueryBackendSources): string | null {
   return firstAvailable(
-    [sources.lastPick, sources.queryDefault, sources.libraryDefault],
+    [sources.lastPick, sources.environmentDefault, sources.queryDefault, sources.libraryDefault],
     sources.isAvailable,
   );
 }
 
-/** The default a query falls back to when it names none of its own. */
+/** The default a query runs on when no pick is remembered. */
 export function resolveQueryDefault(sources: Omit<QueryBackendSources, 'lastPick'>): string | null {
-  return firstAvailable([sources.queryDefault, sources.libraryDefault], sources.isAvailable);
+  return firstAvailable(
+    [sources.environmentDefault, sources.queryDefault, sources.libraryDefault],
+    sources.isAvailable,
+  );
+}
+
+export type QueryDefaultSource = 'environment' | 'query' | 'library';
+
+/** Which default `resolveQueryDefault` chose, for labelling it. */
+export function queryDefaultSource(sources: Omit<QueryBackendSources, 'lastPick'>): QueryDefaultSource | null {
+  const candidates: Array<[QueryDefaultSource, string | null | undefined]> = [
+    ['environment', sources.environmentDefault],
+    ['query', sources.queryDefault],
+    ['library', sources.libraryDefault],
+  ];
+  for (const [source, candidate] of candidates) {
+    if (candidate && (!sources.isAvailable || sources.isAvailable(candidate))) return source;
+  }
+  return null;
 }
 
 export interface EtlBackendSources {

@@ -46,6 +46,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { MCP_ROUTES, mcpRouteWithinBase } from './publicUrl.js';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -140,7 +141,7 @@ export const STATELESS_ROUTES: readonly string[] = [
  * reaches its route through `app.inject` and meets this same `onRequest` hook
  * there — the inner route is refused, so the tool call is.
  */
-export const EXTERNAL_STATELESS_ROUTES: readonly string[] = ['/mcp', '/mcp/:slug'];
+export const EXTERNAL_STATELESS_ROUTES: readonly string[] = MCP_ROUTES;
 
 const allowed = new Set([...STATELESS_ROUTES, ...EXTERNAL_STATELESS_ROUTES]);
 
@@ -203,8 +204,12 @@ export function resetReadOnly(env: NodeJS.ProcessEnv = process.env): boolean {
  * spelling of a URL that matches an allowlist entry and then runs another
  * handler.
  */
-export async function registerReadOnlyPlugin(app: FastifyInstance): Promise<void> {
+export async function registerReadOnlyPlugin(
+  app: FastifyInstance,
+  options: { basePath?: string } = {}
+): Promise<void> {
   if (!isReadOnlyDeployment()) return;
+  const basePath = options.basePath ?? '';
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const routeUrl = request.routeOptions?.url;
@@ -212,7 +217,9 @@ export async function registerReadOnlyPlugin(app: FastifyInstance): Promise<void
     // would answer 405 for every typo, and say that a write route exists.
     if (!routeUrl) return;
 
-    if (isRefusedWhenReadOnly(request.method, routeUrl, request.routeOptions.config)) {
+    // `/mcp` is also mounted under `APP_BASE_PATH`. It is the same transport
+    // there, so it is admitted for the same reason.
+    if (isRefusedWhenReadOnly(request.method, mcpRouteWithinBase(routeUrl, basePath), request.routeOptions.config)) {
       request.log.info(
         { readOnly: true, route: `${request.method} ${routeUrl}` },
         'Refused a write on a read-only deployment'

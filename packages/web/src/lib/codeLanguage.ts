@@ -33,11 +33,13 @@ import {
   trig,
   ntriples,
   nquads,
+  rdfPatch,
   turtleLanguage,
   trigLanguage,
 } from '@kurrawongai/codemirror-lang-turtle12';
 import { sparql, sparqlLateralLanguage } from '@kurrawongai/codemirror-lang-sparql12';
 import { srl, srlLanguage } from '@kurrawongai/codemirror-lang-srl';
+import { patchRowColours } from '@/lib/rdfPatchView';
 
 /** `text/turtle; charset=utf-8` and `text/turtle` are the same language. */
 export function normalizeContentType(contentType?: string | null): string | null {
@@ -119,6 +121,13 @@ export function languageExtensionsFor(
   if (type === 'application/trig') return [trig()];
   if (type === 'application/n-triples') return [ntriples()];
   if (type === 'application/n-quads') return [nquads()];
+  /*
+   * RDF Patch: what an update previews as. The row colours are part of the
+   * language here, because a patch is read as a diff, and they come from the
+   * tree the grammar builds. `text/rdf-patch` is sqlib's type; Jena's RDF Delta
+   * server sends `application/rdf-patch`.
+   */
+  if (type === 'text/rdf-patch' || type === 'application/rdf-patch') return [rdfPatch(), patchRowColours()];
   if (type === 'application/sparql-query' || type === 'application/sparql-update') {
     /*
      * `A LATERAL { B }` (SEP-0006) is not in the SPARQL 1.2 draft, so the
@@ -201,6 +210,13 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
    * prefix label. The round-trip evidence is in `test/lib/prefixRewrite.test.ts`.
    */
   if (type === 'application/srl' || type === 'text/srl') return srlLanguage.parser;
+  /*
+   * RDF Patch has a grammar, and is still absent. A rewrite would write
+   * prefixed names into `A` and `D` rows, which the format does not allow:
+   * `PA` changes the target dataset's prefixes and abbreviates nothing in the
+   * patch. A patch viewer shows prefixed names with `prefixedNameDisplay` in
+   * `rdfPatchView.ts` instead, which leaves the text as it is.
+   */
 
   return null;
 }
