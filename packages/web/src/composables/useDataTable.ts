@@ -30,7 +30,7 @@ import {
   type PaginationState,
   type SortingState,
 } from "@tanstack/vue-table"
-import { computed, ref, type Ref } from "vue"
+import { computed, ref, watch, type Ref } from "vue"
 
 /**
  * What a caller hosting the table's chrome needs to draw it: the counts and the
@@ -122,10 +122,14 @@ type DataTableOptions = {
 
 /**
  * Shared TanStack table wiring used by the query results viewer and other grid-style views.
+ *
+ * `columns` and `data` are getters. The table reads them on each render, so a
+ * mounted table shows a new result. A plain array would keep the rows that the
+ * table had when it mounted.
  */
 export function useDataTable<TData extends RowData, TValue>(
-  columns: DataTableColumnDef<TData, TValue>[],
-  data: TData[],
+  columns: () => DataTableColumnDef<TData, TValue>[],
+  data: () => TData[],
   options: DataTableOptions = {},
 ) {
   const enableRowNumbers = options.enableRowNumbers ?? false
@@ -138,6 +142,14 @@ export function useDataTable<TData extends RowData, TValue>(
   const pagination: Ref<PaginationState> = ref({
     pageIndex: 0,
     pageSize: initialPageSize,
+  })
+
+  // A new result opens on its first page. A shorter result would otherwise
+  // open on a page past its end.
+  watch(data, () => {
+    if (pagination.value.pageIndex !== 0) {
+      pagination.value = { ...pagination.value, pageIndex: 0 }
+    }
   })
 
   /*
@@ -183,7 +195,7 @@ export function useDataTable<TData extends RowData, TValue>(
     column.filterFn ? column : { ...column, filterFn: columnFilter }
 
   const finalColumns = computed<DataTableColumnDef<TData, any>[]>(() => {
-    const filterable = columns.map(withColumnFilter)
+    const filterable = columns().map(withColumnFilter)
 
     if (enableRowNumbers) {
       return [
@@ -209,7 +221,7 @@ export function useDataTable<TData extends RowData, TValue>(
   const table = useTable<DataTableFeatures, TData>({
     features: dataTableFeatures,
     get data() {
-      return data
+      return data()
     },
     get columns() {
       return finalColumns.value

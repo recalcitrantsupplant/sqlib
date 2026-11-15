@@ -92,7 +92,7 @@ const {
   getColumnFacets,
   applyFacetFilter,
   isFilterActive,
-} = useDataTable(props.columns, props.data, {
+} = useDataTable(() => props.columns, () => props.data, {
   enableRowNumbers: props.enableRowNumbers,
   enablePagination: props.enablePagination,
   initialPageSize: props.initialPageSize,

@@ -73,18 +73,6 @@
         >
           <PanelHeader title="DuckDB SQL Query" sunken>
             <template #actions>
-              <select
-                v-if="!isReadOnly"
-                v-model="selectedExample"
-                @change="onExampleChange"
-                class="example-select"
-                title="Load example query"
-              >
-                <option value="">Load example...</option>
-                <option v-for="example in sqlExamples" :key="example.label" :value="example.label">
-                  {{ example.label }}
-                </option>
-              </select>
               <button
                 v-if="!isReadOnly"
                 @click="peekSqlResults"
@@ -108,7 +96,7 @@
               v-model="sqlQuery"
               :disabled="isReadOnly"
               :extensions="sqlExtensions"
-              placeholder="SELECT * FROM read_csv('data/examples/people.csv')"
+              placeholder="SELECT * FROM read_csv('people.csv')"
               class="code-editor"
             />
           </div>
@@ -163,7 +151,8 @@
                 <div class="col-sql-type">SQL Type</div>
                 <div class="col-sparql-var">SPARQL Variable</div>
                 <div class="col-term-type">Term Type</div>
-                <div class="col-datatype">Datatype</div>
+                <div class="col-datatype">Datatype / IRI template</div>
+                <div class="col-null-policy">If null</div>
               </div>
               <div class="table-body">
                 <div v-for="(mapping, index) in columnMappings" :key="index" class="mapping-row">
@@ -184,33 +173,29 @@
                   </div>
                   <div class="col-datatype">
                     <template v-if="mapping.termType === 'literal'">
-                      <select
-                        :value="getDatatypeDisplayValue(mapping.datatypeIri)"
+                      <DatatypeSelect
+                        :model-value="mapping.datatypeIri"
                         :disabled="isReadOnly"
-                        @change="onDatatypeChange(index, ($event.target as HTMLSelectElement).value)"
-                        class="datatype-select"
-                      >
-                        <option value="xsd:string">xsd:string</option>
-                        <option value="xsd:integer">xsd:integer</option>
-                        <option value="xsd:decimal">xsd:decimal</option>
-                        <option value="xsd:double">xsd:double</option>
-                        <option value="xsd:float">xsd:float</option>
-                        <option value="xsd:boolean">xsd:boolean</option>
-                        <option value="xsd:date">xsd:date</option>
-                        <option value="xsd:dateTime">xsd:dateTime</option>
-                        <option value="xsd:time">xsd:time</option>
-                        <option value="custom">Custom...</option>
-                      </select>
-                      <input
-                        v-if="getDatatypeDisplayValue(mapping.datatypeIri) === 'custom'"
-                        v-model="mapping.datatypeIri"
-                        :disabled="isReadOnly"
-                        @input="onMappingEdit"
-                        placeholder="http://example.org/custom"
-                        class="datatype-custom-input"
+                        test-id="etl-datatype"
+                        @update:model-value="(next) => onDatatypeChange(mapping, next)"
                       />
                     </template>
-                    <span v-else class="iri-note">N/A</span>
+                    <input
+                      v-else
+                      v-model="mapping.iriTemplate"
+                      :disabled="isReadOnly"
+                      data-testid="etl-iri-template"
+                      title="{value} takes the column value, URI-encoded"
+                      placeholder="Value as is, or https://example.org/{value}"
+                      class="datatype-custom-input"
+                      @input="onIriTemplateEdit(mapping)"
+                    />
+                  </div>
+                  <div class="col-null-policy">
+                    <select v-model="mapping.nullPolicy" :disabled="isReadOnly" data-testid="etl-null-policy" @change="onMappingEdit">
+                      <option value="undef">Leave unbound</option>
+                      <option value="skipRow">Skip row</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -227,13 +212,68 @@
         ></div>
 
         <!-- SPARQL Template Editor (Bottom) -->
-        <ExpandableEditor v-slot="{ expanded: templateExpanded, toggle: toggleTemplate }" title="SPARQL Template" testid="etl-template-expand">
+        <ExpandableEditor
+          id="etl-template"
+          title="SPARQL Template"
+          testid="etl-template-expand"
+          :layer-open="showTemplateDiff"
+          @update:expanded="(open: boolean) => { if (!open) showTemplateDiff = false; }"
+        >
+        <template #header-end>
+          <button
+            v-if="showTemplateDiff"
+            type="button"
+            class="icon-control icon-control--active"
+            data-testid="etl-template-diff-close"
+            title="Back to the template"
+            @click="showTemplateDiff = false"
+          >
+            <GitCompare :size="16" />
+          </button>
+        </template>
+        <template #layer>
+          <SparqlDiffViewer
+            :left-query="savedTemplate"
+            :right-query="sparqlTemplate"
+            :left-label="templateDiffLeftLabel"
+            right-label="Draft"
+            height="100%"
+          />
+        </template>
+        <template #default="{ expanded: templateExpanded, toggle: toggleTemplate }">
         <div
           class="editor-section sparql-section"
           :style="{ flexGrow: sparqlHeight }"
         >
           <PanelHeader title="SPARQL Template" sunken>
             <template #actions>
+              <TemplateQueryPicker
+                v-if="!isReadOnly && activeLibraryId"
+                :library-id="activeLibraryId"
+                :model-value="templateQuery"
+                @use="useQueryAsTemplate"
+              />
+              <button
+                v-if="!isReadOnly && templateQuery"
+                type="button"
+                class="icon-control"
+                data-testid="etl-template-unlink"
+                title="Unlink and edit the text here"
+                aria-label="Unlink the template from the query"
+                @click="unlinkTemplate"
+              >
+                <Unlink :size="16" />
+              </button>
+              <QueryDocumentActions
+                v-if="!isReadOnly && !templateQuery"
+                :code="sparqlTemplate"
+                :can-diff="!isScratch"
+                :diff-title="templateDiffTitle"
+                :diff-active="showTemplateDiff"
+                @format="formatTemplate"
+                @diff="openTemplateDiff"
+                @update:code="(value: string) => { sparqlTemplate = value; onSparqlEdit(); }"
+              />
               <ExpandButton
                 v-if="!templateExpanded"
                 subject="the SPARQL template"
@@ -245,7 +285,7 @@
           <div class="editor-wrapper">
             <Codemirror
               v-model="sparqlTemplate"
-              :disabled="isReadOnly"
+              :disabled="isReadOnly || Boolean(templateQuery)"
               :extensions="sparqlExtensions"
               @update:model-value="onSparqlEdit"
               placeholder="CONSTRUCT { ?person a :Person ; :name ?name } WHERE { VALUES (?name) { (UNDEF) } }"
@@ -253,6 +293,7 @@
             />
           </div>
         </div>
+        </template>
         </ExpandableEditor>
 
         </div>
@@ -330,7 +371,7 @@
                 v-else
                 :raw-content="executionResult?.rdfOutput"
                 :content-type="executionResult?.contentType"
-                :loading="false"
+                :loading="isExecuting"
                 download-base-name="etl-results"
                 :timing="etlTiming"
                 :timing-detail="timingTooltip"
@@ -379,7 +420,7 @@
             v-else
             :raw-content="executionResult.rdfOutput"
             :content-type="executionResult.contentType"
-            :loading="false"
+            :loading="isExecuting"
             :timing="etlTiming"
             :timing-detail="timingTooltip"
           />
@@ -466,7 +507,11 @@ import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
 import ExpandButton from './shared/ExpandButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { languageExtensionsFor } from '../lib/codeLanguage';
-import { X, Eye } from '@lucide/vue';
+import { X, Eye, GitCompare, Unlink } from '@lucide/vue';
+import QueryDocumentActions from './query-work-area/QueryDocumentActions.vue';
+import SparqlDiffViewer from './shared/SparqlDiffViewer.vue';
+import { useEditorExpand } from '../composables/useEditorExpand';
+import { useApiClient } from '../composables/useApiClient';
 import { toast } from 'vue-sonner';
 import { EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL } from '@sparql-query-lib/types';
 import QueryResultsViewer from './QueryResultsViewer.vue';
@@ -480,6 +525,8 @@ import EmptyState from './shared/EmptyState.vue';
 import InlineNote from './shared/InlineNote.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import TupleSetSink from './etl/TupleSetSink.vue';
+import TemplateQueryPicker from './etl/TemplateQueryPicker.vue';
+import DatatypeSelect from './shared/DatatypeSelect.vue';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -504,6 +551,7 @@ import { useEntityDraft } from '../composables/useEntityDraft';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useEtlJobsStore, type EtlJobVersion } from '../composables/useEtlJobsStore';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
+import { mergeColumnMappings } from '../lib/etlColumnMappings';
 import { NO_STAMPS, stampsOf, type EntityStamps } from '../lib/entityStamps';
 
 const config = useRuntimeConfig();
@@ -514,6 +562,7 @@ interface ColumnMapping {
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
+  iriTemplate?: string;
   nullPolicy: 'undef' | 'skipRow';
 }
 
@@ -523,59 +572,6 @@ interface PreviewSchema {
   nullable: boolean;
 }
 
-interface SqlExample {
-  label: string;
-  sql: string;
-}
-
-// SQL Examples for the playground
-const sqlExamples: SqlExample[] = [
-  {
-    label: 'People (local CSV)',
-    sql: `SELECT * FROM read_csv('data/examples/people.csv')`,
-  },
-  {
-    label: 'Books (local CSV)',
-    sql: `SELECT * FROM read_csv('data/examples/books.csv')`,
-  },
-  {
-    label: 'Products (local CSV)',
-    sql: `SELECT * FROM read_csv('data/examples/products.csv')`,
-  },
-  {
-    label: 'NZ Greenhouse Gas Emissions (remote CSV)',
-    sql: `SELECT * FROM read_csv('https://www.stats.govt.nz/assets/Uploads/Greenhouse-gas-emissions-by-region-industry-and-household/Greenhouse-gas-emissions-by-region-industry-and-household-Year-ended-2024/Download-data/greenhouse-gas-emissions-by-region-industry-and-household-year-ended-2024.csv')`,
-  },
-  {
-    label: 'CrossRef RAG/LLM Papers (remote JSON API)',
-    sql: `SELECT facet_name, facet_value, facet_count
-FROM (
-  -- saved facet (years)
-  SELECT
-    'saved' AS facet_name,
-    p.key AS facet_value,
-    CAST(p.value AS BIGINT) AS facet_count
-  FROM read_json_auto(
-    'https://api.crossref.org/works?query.title=retrieval%20augmented%20generation%20RAG%20LLM&filter=from-pub-date:2022-01-01,until-pub-date:2025-12-31,type:journal-article&rows=100&facet=saved:*,type-name:*&select=DOI,title,author,saved,container-title,URL,type&mailto=you@example.com'
-  ) r,
-  json_each(to_json(r.message.facets.saved.values)) p
-
-  UNION ALL
-
-  -- type-name facet (work types)
-  SELECT
-    'type-name' AS facet_name,
-    t.key AS facet_value,
-    CAST(t.value AS BIGINT) AS facet_count
-  FROM read_json_auto(
-    'https://api.crossref.org/works?query.title=retrieval%20augmented%20generation%20RAG%20LLM&filter=from-pub-date:2022-01-01,until-pub-date:2025-12-31,type:journal-article&rows=100&facet=saved:*,type-name:*&select=DOI,title,author,saved,container-title,URL,type&mailto=you@example.com'
-  ) r,
-  json_each(to_json(r.message.facets."type-name".values)) t
-) x
-WHERE facet_value IS NOT NULL`,
-  },
-];
-
 // RDF output format options
 const rdfFormatOptions = [
   { value: 'application/n-triples', label: 'N-Triples' },
@@ -584,10 +580,25 @@ const rdfFormatOptions = [
   { value: 'application/ld+json', label: 'JSON-LD' },
 ];
 
+/**
+ * The SQL a new pipeline starts with. Inline rows, so it runs on a deployment
+ * that allows DuckDB no file or network reads.
+ */
+const DEFAULT_SQL = `SELECT * FROM (VALUES
+  ('https://example.org/person/1', 'Alice Smith', 28),
+  ('https://example.org/person/2', 'Bob Johnson', 35)
+) AS people(person, name, age)`;
+
 // State
-const selectedExample = ref('');
-const sqlQuery = ref(`SELECT * FROM read_csv('data/examples/people.csv')`);
+const sqlQuery = ref(DEFAULT_SQL);
 const sparqlTemplate = ref('');
+/**
+ * The saved query the template is linked to: a query IRI (each run uses its
+ * current version) or a query version IRI (pinned). Null when the template is
+ * text of its own. While linked, `sparqlTemplate` shows the query's text and
+ * cannot be edited here.
+ */
+const templateQuery = ref<string | null>(null);
 
 /*
  * Where the Prefix Manager's "Add to editor" lands on this screen: the SPARQL
@@ -597,13 +608,22 @@ useEditorAsPrefixTarget({
   label: 'the template',
   contentType: 'application/sparql-query',
   read: () => sparqlTemplate.value,
-  write: (text) => { sparqlTemplate.value = text; },
+  // An edit to a linked template's text makes it the pipeline's own text.
+  write: (text) => { templateQuery.value = null; sparqlTemplate.value = text; },
 });
 const selectedBackendId = ref(EPHEMERAL_BACKEND_ID);
 const outputFormat = ref('text/turtle');
 const columnMappings = ref<ColumnMapping[]>([]);
 const previewSchema = ref<PreviewSchema[]>([]);
 const isExecuting = ref(false);
+/** The column preview is running. It is separate from a run of the pipeline. */
+const isDetectingColumns = ref(false);
+/**
+ * The SQL that the current column mapping was loaded with. A preview of this
+ * same SQL reads the column types only and keeps the mapping. This stops the
+ * preview after a load from replacing a saved mapping.
+ */
+const mappingSourceSql = ref<string | null>(null);
 // intentional any: holds opaque untyped ETL execution JSON from the API
 const executionResult = ref<any>(null);
 
@@ -689,11 +709,11 @@ const emit = defineEmits<{
 
 const pipelineName = ref('Untitled pipeline');
 const pipelineDescription = ref('');
-const DEFAULT_SQL = `SELECT * FROM read_csv('data/examples/people.csv')`;
 
 interface EtlScratchBody {
   sql?: string;
   sparqlTemplate?: string;
+  templateQuery?: string | null;
   outputFormat?: string;
   backendId?: string;
   columnMappings?: ColumnMapping[];
@@ -713,16 +733,18 @@ usePrefixDiscovery(() => sparqlTemplate.value, () => prefixSource.value);
 const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRecord({
   scratchId: () => props.scratchId,
   missingMessage: 'That pipeline is not in this browser',
-  track: [sqlQuery, sparqlTemplate, outputFormat, selectedBackendId, columnMappings, pipelineName, pipelineDescription],
+  track: [sqlQuery, sparqlTemplate, templateQuery, outputFormat, selectedBackendId, columnMappings, pipelineName, pipelineDescription],
   hydrate: (record) => {
     const body = (record.body ?? {}) as EtlScratchBody;
     pipelineName.value = record.name;
     pipelineDescription.value = record.description ?? '';
     sqlQuery.value = body.sql ?? DEFAULT_SQL;
     sparqlTemplate.value = body.sparqlTemplate ?? '';
+    templateQuery.value = body.templateQuery ?? null;
     outputFormat.value = body.outputFormat ?? 'text/turtle';
     selectedBackendId.value = body.backendId ?? EPHEMERAL_BACKEND_ID;
     columnMappings.value = body.columnMappings ? [...body.columnMappings] : [];
+    mappingSourceSql.value = sqlQuery.value;
     /*
      * Carried across too, because it is not a preference — it is the record of
      * whether the template is the user's or the auto-generator's, and losing it
@@ -736,6 +758,7 @@ const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRe
     body: {
       sql: sqlQuery.value,
       sparqlTemplate: sparqlTemplate.value,
+      templateQuery: templateQuery.value,
       outputFormat: outputFormat.value,
       backendId: selectedBackendId.value,
       columnMappings: [...columnMappings.value],
@@ -794,6 +817,7 @@ const needsName = computed(() => isScratch.value && UNTITLED_PATTERN.test(pipeli
 interface EtlDraftBody {
   sql?: string;
   sparqlTemplate?: string;
+  templateQuery?: string | null;
   columnMappings?: ColumnMapping[];
 }
 
@@ -802,6 +826,7 @@ function editorBody(): EtlDraftBody {
   return {
     sql: sqlQuery.value,
     sparqlTemplate: sparqlTemplate.value,
+    templateQuery: templateQuery.value,
     columnMappings: columnMappings.value.map((mapping) => ({ ...mapping })),
   };
 }
@@ -809,7 +834,9 @@ function editorBody(): EtlDraftBody {
 function applyEditorBody(body: EtlDraftBody) {
   sqlQuery.value = body.sql ?? DEFAULT_SQL;
   sparqlTemplate.value = body.sparqlTemplate ?? '';
+  templateQuery.value = body.templateQuery ?? null;
   columnMappings.value = body.columnMappings ? body.columnMappings.map((mapping) => ({ ...mapping })) : [];
+  mappingSourceSql.value = sqlQuery.value;
   // A body that was saved is the author's, never the generator's: editing the
   // mappings must not overwrite the template it came back with.
   hasUserEditedSparql.value = true;
@@ -839,7 +866,7 @@ const {
   description: () => pipelineDescription.value,
   editorBody,
   applyBody: applyEditorBody,
-  sources: [sqlQuery, sparqlTemplate, columnMappings],
+  sources: [sqlQuery, sparqlTemplate, templateQuery, columnMappings],
   resultKind: 'GRAPH',
 });
 
@@ -997,6 +1024,7 @@ const applyVersion = async (version: EtlJobVersion) => {
     selectedVersionId.value = version.id;
     sqlQuery.value = version.sql;
     sparqlTemplate.value = version.sparqlTemplate;
+    templateQuery.value = version.templateQuery ?? null;
     // The version's `backendId` records where it was saved from; it no longer
     // moves the run bar, which follows the job (see `resolveRunBackend`).
     // A saved template is by definition the author's, not the generator's, so
@@ -1006,6 +1034,7 @@ const applyVersion = async (version: EtlJobVersion) => {
       try {
         const mapping = await etlJobsStore.fetchColumnMappingVersion(version.currentColumnMappingVersionId);
         columnMappings.value = mapping.columns.map((column) => ({ ...column })) as ColumnMapping[];
+        mappingSourceSql.value = version.sql;
       } catch (error) {
         console.error('[EtlPlayground] Failed to load the column mapping', error);
         toast.error('Loaded the pipeline but not its column mapping');
@@ -1104,6 +1133,7 @@ watch([pipelineName, pipelineDescription], () => {
 const versionPayload = () => ({
   sql: sqlQuery.value,
   sparqlTemplate: sparqlTemplate.value,
+  templateQuery: templateQuery.value,
   backendId: selectedBackendId.value,
   columnMappings: columnMappings.value.map((mapping) => ({ ...mapping })),
 });
@@ -1392,89 +1422,11 @@ const timingTooltip = computed(() => {
   return lines.join('\n');
 });
 
-// XSD datatype mapping
-const XSD_PREFIX = 'http://www.w3.org/2001/XMLSchema#';
-const XSD_DATATYPES: Record<string, string> = {
-  'xsd:string': `${XSD_PREFIX}string`,
-  'xsd:integer': `${XSD_PREFIX}integer`,
-  'xsd:decimal': `${XSD_PREFIX}decimal`,
-  'xsd:double': `${XSD_PREFIX}double`,
-  'xsd:float': `${XSD_PREFIX}float`,
-  'xsd:boolean': `${XSD_PREFIX}boolean`,
-  'xsd:date': `${XSD_PREFIX}date`,
-  'xsd:dateTime': `${XSD_PREFIX}dateTime`,
-  'xsd:time': `${XSD_PREFIX}time`,
-};
-
-// Helper function to map DuckDB types to XSD datatypes (returns full IRI)
-const mapDuckDbTypeToXsd = (duckdbType: string): string => {
-  const typeUpper = duckdbType.toUpperCase();
-
-  if (typeUpper.includes('VARCHAR') || typeUpper.includes('TEXT')) {
-    return XSD_DATATYPES['xsd:string'];
-  }
-  if (typeUpper.includes('INTEGER') || typeUpper.includes('BIGINT') || typeUpper.includes('SMALLINT')) {
-    return XSD_DATATYPES['xsd:integer'];
-  }
-  if (typeUpper.includes('DOUBLE') || typeUpper.includes('FLOAT') || typeUpper.includes('REAL')) {
-    return XSD_DATATYPES['xsd:double'];
-  }
-  if (typeUpper.includes('DECIMAL') || typeUpper.includes('NUMERIC')) {
-    return XSD_DATATYPES['xsd:decimal'];
-  }
-  if (typeUpper.includes('BOOLEAN') || typeUpper.includes('BOOL')) {
-    return XSD_DATATYPES['xsd:boolean'];
-  }
-  if (typeUpper.includes('TIMESTAMP') || typeUpper.includes('DATETIME')) {
-    return XSD_DATATYPES['xsd:dateTime'];
-  }
-  if (typeUpper.includes('DATE')) {
-    return XSD_DATATYPES['xsd:date'];
-  }
-
-  return XSD_DATATYPES['xsd:string'];
-};
-
-// Helper to convert full IRI to prefixed form for display
-const getDatatypeDisplayValue = (datatypeIri?: string): string => {
-  if (!datatypeIri) return 'xsd:string';
-
-  // Check if it's a known XSD datatype
-  for (const [prefix, iri] of Object.entries(XSD_DATATYPES)) {
-    if (datatypeIri === iri) {
-      return prefix;
-    }
-  }
-
-  // Custom datatype
-  return 'custom';
-};
-
-// Helper to convert prefixed form to full IRI
-const expandDatatype = (prefixedForm: string): string => {
-  return XSD_DATATYPES[prefixedForm] || prefixedForm;
-};
-
-// Handle datatype change
-const onDatatypeChange = (index: number, value: string) => {
-  if (value === 'custom') {
-    // Set to empty string so user can enter custom IRI
-    columnMappings.value[index].datatypeIri = '';
-  } else {
-    // Convert prefixed form to full IRI
-    columnMappings.value[index].datatypeIri = expandDatatype(value);
-  }
+/** A datatype choice for a literal column; undefined means none (`xsd:string`). */
+const onDatatypeChange = (mapping: ColumnMapping, next: string | undefined) => {
+  if (next) mapping.datatypeIri = next;
+  else delete mapping.datatypeIri;
   onMappingEdit();
-};
-
-// Handle example selection
-const onExampleChange = () => {
-  const example = sqlExamples.find(e => e.label === selectedExample.value);
-  if (example) {
-    sqlQuery.value = example.sql;
-    hasUserEditedSparql.value = false; // Reset so SPARQL template regenerates
-    selectedExample.value = ''; // Reset dropdown to placeholder
-  }
 };
 
 // Helper to get SQL type for a column
@@ -1494,18 +1446,29 @@ const formatCellValue = (value: unknown): string => {
   return String(value);
 };
 
-// Methods
+/** Rows the preview reads to detect term types. Peek shows 10. */
+const DETECTION_SAMPLE_ROWS = 100;
+
+/**
+ * Read the SQL's columns, and fit the column mapping to them.
+ *
+ * A row that the mapping already has for a column stays as it is. A new
+ * column takes the server's inferred row, which maps a text column of IRIs
+ * to an IRI. A column that the SQL no longer returns loses its row. When the
+ * SQL is the one the mapping was loaded with, the mapping does not change.
+ */
 const executePreview = async () => {
   // A read-only deployment refuses the preview route; the saved job's
   // mappings stand as they were saved.
   if (isReadOnly.value) return;
-  isExecuting.value = true;
+  const sql = sqlQuery.value;
+  isDetectingColumns.value = true;
   try {
     const apiBaseUrl = config.public.apiBaseUrl.replace(/\/$/, '');
     const response = await authorizedFetch(`${apiBaseUrl}/etl-jobs/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sql: sqlQuery.value, limit: 10 }),
+      body: JSON.stringify({ sql, limit: DETECTION_SAMPLE_ROWS }),
     });
 
     if (!response.ok) {
@@ -1516,28 +1479,28 @@ const executePreview = async () => {
     }
 
     const data = await response.json();
+    // The person typed again while this preview ran; the next one is due.
+    if (sql !== sqlQuery.value) return;
     previewSchema.value = data.schema || [];
 
-    // Auto-generate column mappings
-    if (previewSchema.value.length > 0) {
-      columnMappings.value = previewSchema.value.map(col => ({
-        columnName: col.columnName,
-        targetVariable: col.columnName, // Same as SQL column name
-        termType: 'literal' as const,
-        datatypeIri: mapDuckDbTypeToXsd(col.duckdbType),
-        nullPolicy: 'undef' as const,
-      }));
+    const keepMapping = sql === mappingSourceSql.value && columnMappings.value.length > 0;
+    if (keepMapping || previewSchema.value.length === 0) return;
 
-      // Auto-generate SPARQL template if user hasn't edited it
-      if (!hasUserEditedSparql.value) {
-        generateSparqlTemplate();
-      }
+    const inferred: ColumnMapping[] = data.inferredMapping?.columns ?? [];
+    const next = mergeColumnMappings(columnMappings.value, previewSchema.value, inferred);
+    mappingSourceSql.value = sql;
+    if (JSON.stringify(next) === JSON.stringify(columnMappings.value)) return;
+    columnMappings.value = next;
+
+    // Auto-generate SPARQL template if user hasn't edited it
+    if (!hasUserEditedSparql.value) {
+      generateSparqlTemplate();
     }
   } catch (error: unknown) {
     console.error('Preview failed:', error);
     toast.error(error instanceof Error ? error.message : 'Failed to execute preview');
   } finally {
-    isExecuting.value = false;
+    isDetectingColumns.value = false;
   }
 };
 
@@ -1578,6 +1541,8 @@ const peekSqlResults = async () => {
 };
 
 const generateSparqlTemplate = () => {
+  // A linked template is the query's text, never the generator's.
+  if (templateQuery.value) return;
   if (columnMappings.value.length === 0) {
     sparqlTemplate.value = '';
     return;
@@ -1595,6 +1560,80 @@ const generateSparqlTemplate = () => {
     ( ${undefValues} )
   }
 }`;
+};
+
+/** An empty template means "the value as is", which the saved row records by omission. */
+const onIriTemplateEdit = (mapping: ColumnMapping) => {
+  if (!mapping.iriTemplate) delete mapping.iriTemplate;
+  onMappingEdit();
+};
+
+/*
+ * The SPARQL Template panel's document actions: the same row the query
+ * editor has. Diff compares the template with the version it was opened from.
+ */
+const apiClient = useApiClient();
+const editorExpansion = useEditorExpand();
+const showTemplateDiff = ref(false);
+
+/** The template of the version on screen, before any unsaved edit. */
+const savedTemplate = computed(() => {
+  if (!savedBody.value) return '';
+  try {
+    return (JSON.parse(savedBody.value) as EtlDraftBody).sparqlTemplate ?? '';
+  } catch {
+    return '';
+  }
+});
+const templateDiffLeftLabel = computed(() => {
+  const open = jobVersions.value.find((version) => version.id === selectedVersionId.value);
+  const number = open?.version ?? currentVersionNumber.value;
+  return number != null ? `v${number}` : 'Saved';
+});
+/** Empty when there is nothing to compare, which disables Diff. */
+const templateDiffTitle = computed(() =>
+  savedBody.value && savedTemplate.value !== sparqlTemplate.value
+    ? `Diff ${templateDiffLeftLabel.value} → Draft`
+    : '',
+);
+
+const openTemplateDiff = () => {
+  if (showTemplateDiff.value) {
+    showTemplateDiff.value = false;
+    return;
+  }
+  if (!templateDiffTitle.value) return;
+  showTemplateDiff.value = true;
+  editorExpansion.expand('etl-template');
+};
+
+/**
+ * Link the template to a saved query, as an edit that Discard undoes. The text
+ * is shown and used by unsaved runs; a saved version stores the link only.
+ */
+const useQueryAsTemplate = (choice: { reference: string; text: string }) => {
+  templateQuery.value = choice.reference;
+  sparqlTemplate.value = choice.text;
+  showTemplateDiff.value = false;
+  onSparqlEdit();
+};
+
+/** Keep the linked query's text as the template's own text, and edit it here. */
+const unlinkTemplate = () => {
+  templateQuery.value = null;
+  onSparqlEdit();
+};
+
+const formatTemplate = async () => {
+  if (!sparqlTemplate.value.trim()) return;
+  try {
+    const result = await apiClient.formatCode(sparqlTemplate.value);
+    sparqlTemplate.value = result.formatted;
+    onSparqlEdit();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to format the template';
+    toast.error(`Format failed: ${message}`);
+  }
 };
 
 const onSparqlEdit = () => {
@@ -1962,7 +2001,7 @@ onUnmounted(() => {
 
 .table-header {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1.5fr 1fr 2fr;
+  grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 2fr 1.1fr;
   gap: 6px;
   padding: var(--space-2) var(--space-5);
   background: var(--surface-subtle);
@@ -1981,7 +2020,7 @@ onUnmounted(() => {
 
 .mapping-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1.5fr 1fr 2fr;
+  grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 2fr 1.1fr;
   gap: 6px;
   padding: var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--border-default);
@@ -1997,7 +2036,8 @@ onUnmounted(() => {
 .col-sql-type,
 .col-sparql-var,
 .col-term-type,
-.col-datatype {
+.col-datatype,
+.col-null-policy {
   display: flex;
   align-items: center;
   min-height: 28px;
@@ -2031,7 +2071,8 @@ onUnmounted(() => {
 }
 
 .col-term-type select,
-.col-datatype select {
+.col-datatype select,
+.col-null-policy select {
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
@@ -2046,19 +2087,9 @@ onUnmounted(() => {
   gap: 4px;
 }
 
-.datatype-select {
-  font-size: var(--text-label) !important;
-}
-
 .datatype-custom-input {
   font-size: var(--text-micro) !important;
   padding: var(--space-1) var(--space-2) !important;
-}
-
-.iri-note {
-  font-size: var(--text-label);
-  color: var(--ink-muted);
-  font-style: italic;
 }
 
 /* Vertical Resizer (between main content and results panel) */
@@ -2254,27 +2285,6 @@ onUnmounted(() => {
 
 .focus-content::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
-}
-
-.example-select {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--text-body);
-  cursor: pointer;
-  max-width: 200px;
-}
-
-.example-select:hover {
-  border-color: var(--action);
-}
-
-.example-select:focus {
-  outline: none;
-  border-color: var(--action);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--action) 20%, transparent);
 }
 
 /* Peek Button */

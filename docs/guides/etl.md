@@ -309,6 +309,39 @@ the mount or the image is at fault. The script exits with a non-zero status when
 it cannot write the directory, so a deployment smoke test can use it as a gate.
 `--json` gives the same report for a machine.
 
+## The SPARQL template
+
+A job version takes its CONSTRUCT template from one of two places. It has exactly one of them.
+
+| Field | Holds | A run uses |
+| --- | --- | --- |
+| `sparqlTemplate` | The template text, stored on the job version. | That text. |
+| `templateQuery` with a query version IRI | A pinned saved query version. | That version. |
+| `templateQuery` with a query IRI | A saved query that floats. | The current version of the query at the start of the run. |
+
+`POST /etl-jobs/:id/versions` takes `sparqlTemplate` or `templateQuery`. sqlib refuses a version with both, or with neither. A `templateQuery` must meet these conditions:
+
+- It resolves to a query version whose type is CONSTRUCT.
+- The query is in the library of the job.
+- The query text reads no reserved caller slot, the same check as for inline text.
+
+A floating reference resolves again at each run, so a new version of the query changes the next run. The query keeps one history: its versions, its tests and its environments. A new job version still pins the SQL together with the query reference it was saved with.
+
+`GET /etl-jobs/:id/versions` reports `sparqlTemplate` as the text that the reference resolves to now, and adds `templateQueryVersion`, the query version it resolved to. If a reference no longer resolves, for example because the current version of a floating query is a SELECT, `sparqlTemplate` is empty, and a run of that job version fails with the reason.
+
+A job version that names a query version holds it, the same way a query group version does. sqlib refuses to delete that query version, or its query. A floating reference holds the current version of the query.
+
+These parts resolve a floating reference to the current version of the query (the implicit environment `latest`):
+
+- `POST /etl-jobs/:id/execute`.
+- A `DuckDbEtlNode` in a query group.
+- A test of the job.
+- The ETL jobs of a library export bundle.
+
+None of them reads a named environment yet.
+
+Job versions saved before `templateQuery` existed keep their copied text in `sparqlTemplate`, and run as before. sqlib does not match that text to a query version. To link such a job, open it, pick the query in the SPARQL Template panel, and save a new version.
+
 ## The run log
 
 An `EtlExecution` record keeps the history that a version chain cannot keep. A
@@ -334,6 +367,8 @@ the message when it failed. A tabular run adds two fields:
 
 - `outputTupleSetVersion`: the version at the end of the run.
 - `outputReused`: whether that version already existed.
+
+A run of a job version with a `templateQuery` adds `templateQueryVersion`: the query version that the template came from. For a floating reference this is the version that the run resolved, so the run can be repeated with the same text.
 
 With `outputReused`, the log of an hourly pipeline is easy to read. Without it,
 the log is a column of identical rows that name one version. Such a log shows

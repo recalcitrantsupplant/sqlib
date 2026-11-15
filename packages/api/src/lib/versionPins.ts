@@ -37,7 +37,13 @@ export interface VersionPin {
   holderName: string;
 }
 
-type HolderType = 'ArgumentSetVersion' | 'RuleSetVersion' | 'QueryGroupVersion' | 'TestVersion' | 'Environment';
+type HolderType =
+  | 'ArgumentSetVersion'
+  | 'RuleSetVersion'
+  | 'QueryGroupVersion'
+  | 'TestVersion'
+  | 'EtlJobVersion'
+  | 'Environment';
 
 type Entity = Record<string, unknown> & { $id: string; '@type'?: string };
 
@@ -46,6 +52,7 @@ const HOLDER_LABELS: Record<HolderType, [singular: string, plural: string]> = {
   RuleSetVersion: ['rule set', 'rule sets'],
   QueryGroupVersion: ['query group', 'query groups'],
   TestVersion: ['test', 'tests'],
+  EtlJobVersion: ['ETL job', 'ETL jobs'],
   Environment: ['environment', 'environments'],
 };
 
@@ -102,6 +109,17 @@ function* holdings(): Generator<{ heldBy: Entity; heldByType: HolderType; pinned
     const version = testCase ? get(String(testCase.isPartOf ?? '')) : null;
     if (!version) continue;
     for (const pinned of idsOf(graph.dataGraphVersion)) yield { heldBy: version, heldByType: 'TestVersion', pinned };
+  }
+
+  // An ETL job version's template query. A pinned reference holds that
+  // version. A floating one holds the query's current version, which is the
+  // one its next run reads: deleting it, or the whole query, breaks the job.
+  for (const version of list('EtlJobVersion')) {
+    const reference = typeof version.templateQuery === 'string' ? version.templateQuery : '';
+    if (!reference) continue;
+    const target = get(reference);
+    const pinned = target?.['@type'] === 'Query' ? target.currentVersion : reference;
+    for (const id of idsOf(pinned)) yield { heldBy: version, heldByType: 'EtlJobVersion', pinned: id };
   }
 
   // An environment pointing at a version holds it the same way: deleting the

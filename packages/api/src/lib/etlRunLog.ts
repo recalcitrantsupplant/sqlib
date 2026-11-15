@@ -42,6 +42,8 @@ export interface BeginEtlExecutionInput {
   etlJobVersionId: string;
   /** The mapping version that types its columns, as an IRI. */
   columnMappingVersionId: string;
+  /** The query version the template came from, as an IRI, or null for an inline template. */
+  templateQueryVersionId?: string | null;
   /** When the run started, so the log and the provenance agree to the millisecond. */
   startedAt: string;
   /** Recorded as a JSON string, the way the execute path records its own config. */
@@ -69,6 +71,7 @@ export async function beginEtlExecution(input: BeginEtlExecutionInput): Promise<
     $id: executionId,
     etlJobVersion: input.etlJobVersionId,
     columnMappingVersion: input.columnMappingVersionId,
+    ...(input.templateQueryVersionId ? { templateQueryVersion: input.templateQueryVersionId } : {}),
     status: 'running',
     startedAt: input.startedAt,
     ...(input.executionConfig ? { executionConfig: JSON.stringify(input.executionConfig) } : {}),

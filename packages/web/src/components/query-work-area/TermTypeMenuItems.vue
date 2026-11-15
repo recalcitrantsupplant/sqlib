@@ -41,7 +41,7 @@
         <template v-else>
           <option value="">none (xsd:string)</option>
           <option v-for="dt in XSD_DATATYPES" :key="dt.value" :value="dt.value">{{ dt.label }}</option>
-          <option :value="CUSTOM">custom IRI…</option>
+          <option :value="CUSTOM_DATATYPE">custom IRI…</option>
         </template>
       </select>
     </div>
@@ -51,7 +51,7 @@
       datatype IRI verbatim: a datatype outside the common list is a normal
       thing for a library to use, and the select alone had no way to show one.
     -->
-    <div v-if="datatypeSelection === CUSTOM && !hasLanguage" class="type-field" @click.stop @keydown.stop>
+    <div v-if="isCustom && !hasLanguage" class="type-field" @click.stop @keydown.stop>
       <label class="type-field-label" :for="`datatype-iri-${fieldId}`">IRI</label>
       <input
         :id="`datatype-iri-${fieldId}`"
@@ -60,7 +60,7 @@
         data-testid="term-datatype-iri"
         placeholder="http://example.org/datatype"
         :value="customDatatype"
-        @input="setDatatype(($event.target as HTMLInputElement).value)"
+        @input="setCustom(($event.target as HTMLInputElement).value)"
       />
     </div>
 
@@ -82,10 +82,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { Check } from '@lucide/vue';
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import { NODE_KINDS, XSD_DATATYPES, type SparqlValue } from '@/types/argument-sets';
+import { CUSTOM_DATATYPE, useDatatypeChoice } from '@/composables/useDatatypeChoice';
 
 /**
  * The body of the term-type menu: what kind of node a cell holds, and — for a
@@ -103,9 +104,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{ update: [value: SparqlValue] }>();
 
-/** Sentinel for the select, never a datatype: an empty IRI is still "custom". */
-const CUSTOM = '__custom__';
-
 /**
  * RDF 1.1 §3.3: a literal has exactly one datatype IRI. A language-tagged
  * string's is `rdf:langString`, and an untagged one with none written is
@@ -119,34 +117,17 @@ const DATATYPE_WINS = 'Cleared: a literal with a datatype cannot carry a languag
 
 const fieldId = computed(() => props.variable.replace(/[^A-Za-z0-9_-]/g, '') || 'value');
 
-const isCommon = (iri: string) => XSD_DATATYPES.some((entry) => entry.value === iri);
-
-// Custom is sticky: the row must survive the IRI being cleared back to empty,
-// or typing one character at a time is impossible.
-const custom = ref(false);
-watch(
-  () => props.value.datatype,
-  (datatype) => {
-    if (datatype && !isCommon(datatype)) custom.value = true;
-  },
-  { immediate: true },
-);
-
-const customDatatype = computed(() => {
-  const datatype = props.value.datatype ?? '';
-  return isCommon(datatype) ? '' : datatype;
-});
-
 const hasLanguage = computed(() => Boolean(props.value['xml:lang']));
 const hasDatatype = computed(() => Boolean(props.value.datatype));
 
-const datatypeSelection = computed(() => {
-  if (hasLanguage.value) return LANG_STRING;
-  const datatype = props.value.datatype ?? '';
-  if (isCommon(datatype)) return datatype;
-  if (custom.value) return CUSTOM;
-  return '';
-});
+// The select and the custom IRI row are the shared datatype choice; a
+// language tag stands in for it while one is set.
+const choice = useDatatypeChoice(() => props.value.datatype, (next) => setDatatype(next ?? ''));
+const customDatatype = choice.customDatatype;
+const isCustom = choice.isCustom;
+const datatypeSelection = computed(() => (hasLanguage.value ? LANG_STRING : choice.selection.value));
+const chooseDatatype = choice.choose;
+const setCustom = choice.setCustom;
 
 function write(patch: Partial<SparqlValue>) {
   emit('update', { ...props.value, ...patch });
@@ -156,21 +137,11 @@ function setType(type: 'uri' | 'literal') {
   if (type === 'uri') {
     // An IRI has neither, and leaving them behind means a term that claims a
     // datatype it cannot carry the moment someone flips back.
-    custom.value = false;
+    choice.reset();
     emit('update', { type: 'uri', value: props.value.value });
     return;
   }
   write({ type: 'literal' });
-}
-
-function chooseDatatype(next: string) {
-  if (next === CUSTOM) {
-    custom.value = true;
-    setDatatype(customDatatype.value);
-    return;
-  }
-  custom.value = false;
-  setDatatype(next);
 }
 
 function setDatatype(next: string) {
@@ -184,7 +155,7 @@ function setLanguage(next: string) {
   const patch: Partial<SparqlValue> = { 'xml:lang': next || undefined };
   if (next) {
     patch.datatype = undefined;
-    custom.value = false;
+    choice.reset();
   }
   write(patch);
 }

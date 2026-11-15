@@ -3380,7 +3380,12 @@ export const createEtlJobVersionSchema = {
       },
       "sparqlTemplate": {
         "type": "string",
-        "minLength": 1
+        "nullable": true
+      },
+      "templateQuery": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
       },
       "backendId": {
         "type": "string",
@@ -3404,7 +3409,6 @@ export const createEtlJobVersionSchema = {
       "isPartOf",
       "version",
       "sql",
-      "sparqlTemplate",
       "backendId"
     ],
     "additionalProperties": false

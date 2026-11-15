@@ -608,6 +608,10 @@ export const sqlib = createNamespace({
     "etlJobVersion",
     "sql",
     "sparqlTemplate",
+    // The saved query an ETL job version uses as its template, and the query
+    // version a run resolved it to (EtlJobVersionSchema, EtlExecutionSchema).
+    "templateQuery",
+    "templateQueryVersion",
     "currentColumnMappingVersion",
     "chunkSize",
     "columns",

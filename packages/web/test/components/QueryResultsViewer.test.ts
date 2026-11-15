@@ -446,3 +446,45 @@ describe('QueryResultsViewer', () => {
     );
   });
 });
+
+/*
+ * A table that stays mounted must show each new result. The ETL screen keeps
+ * the viewer mounted between runs, because it shows no running state.
+ */
+describe('QueryResultsViewer: a later result in a mounted table', () => {
+  const ntriples = (label: string) => `<http://example.org/s> <http://example.org/p> "${label}" .\n`;
+  const bindings = (value: string) => ({
+    head: { vars: ['x'] },
+    results: { bindings: [{ x: { type: 'literal' as const, value } }] },
+  });
+
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  it('shows the second N-Triples result without a switch to Raw', async () => {
+    const { mount, QueryResultsViewer } = await loadComponent();
+    const wrapper = mount(QueryResultsViewer, {
+      props: { rawContent: ntriples('first'), contentType: 'application/n-triples', loading: false },
+    });
+    await nextTick();
+    expect(wrapper.find('.table-container').text()).toContain('first');
+
+    await wrapper.setProps({ rawContent: ntriples('second') });
+    await nextTick();
+    expect(wrapper.find('.table-container').text()).toContain('second');
+    expect(wrapper.find('.table-container').text()).not.toContain('first');
+  });
+
+  it('shows the second SPARQL JSON result without a switch to Raw', async () => {
+    const { mount, QueryResultsViewer } = await loadComponent();
+    const wrapper = mount(QueryResultsViewer, { props: { results: bindings('first'), loading: false } });
+    await nextTick();
+    expect(wrapper.find('.table-container').text()).toContain('first');
+
+    await wrapper.setProps({ results: bindings('second') });
+    await nextTick();
+    expect(wrapper.find('.table-container').text()).toContain('second');
+  });
+});

@@ -26,19 +26,27 @@ import type { PersistedEtlColumnMappingVersion } from '../../persistence/schemas
 import type { EntityRepositories } from '../EntityRepositories.js';
 import type { SkippedQuery } from './collectLibraryQueries.js';
 import { reserveKey } from './queryBundle.js';
+import { EtlTemplateError, resolveEtlTemplate, type EntityLookup } from '../etlTemplate.js';
 
 /** The entity reads this module needs, so a script can supply them too. */
 export interface LibraryEtlJobSource {
   listEtlJobs(): PersistedEtlJob[];
   getEtlJobVersion(id: string): PersistedEtlJobVersion | null;
   getColumnMappingVersion(id: string): PersistedEtlColumnMappingVersion | null;
+  /**
+   * Reads a query or query version, for a job version whose template is a
+   * saved query. A floating reference exports the query's current version.
+   */
+  getEntity?: EntityLookup;
 }
 
 /** The source over a set of entity repositories: a request's, or a script's. */
 export function etlJobSource(
-  repos: Pick<EntityRepositories, 'EtlJob' | 'EtlJobVersion' | 'EtlColumnMappingVersion'>,
+  repos: Pick<EntityRepositories, 'EtlJob' | 'EtlJobVersion' | 'EtlColumnMappingVersion' | 'Query' | 'QueryVersion'>,
 ): LibraryEtlJobSource {
   return {
+    getEntity: (id) =>
+      (repos.QueryVersion.get(id) ?? repos.Query.get(id)) as ReturnType<EntityLookup>,
     listEtlJobs: () => repos.EtlJob.list() as PersistedEtlJob[],
     getEtlJobVersion: (id) => repos.EtlJobVersion.get(id) as PersistedEtlJobVersion | null,
     getColumnMappingVersion: (id) =>
@@ -66,7 +74,14 @@ async function compileJob(
   const version = source.getEtlJobVersion(job.currentVersion);
   if (!version) throw new EtlJobExportError(`Its current version ${job.currentVersion} could not be found.`);
   if (!version.sql?.trim()) throw new EtlJobExportError('Its current version has no SQL.');
-  if (!version.sparqlTemplate?.trim()) throw new EtlJobExportError('Its current version has no template.');
+  let templateText: string;
+  try {
+    templateText = resolveEtlTemplate(version, source.getEntity ?? (() => null)).text;
+  } catch (error) {
+    if (error instanceof EtlTemplateError) throw new EtlJobExportError(error.message);
+    throw error;
+  }
+  if (!templateText.trim()) throw new EtlJobExportError('Its current version has no template.');
   if (!version.currentColumnMappingVersion) throw new EtlJobExportError('Its current version has no column mapping.');
   const mapping = source.getColumnMappingVersion(version.currentColumnMappingVersion);
   if (!mapping) {
@@ -81,7 +96,7 @@ async function compileJob(
 
   let compiled;
   try {
-    compiled = compileQueryTemplate(version.sparqlTemplate, { name: job.name, parser });
+    compiled = compileQueryTemplate(templateText, { name: job.name, parser });
   } catch (error) {
     if (error instanceof TemplateCompileError) throw new EtlJobExportError(error.message);
     throw error;

@@ -2471,6 +2471,11 @@ export const etlexecutionSchema = {
       "type": "boolean",
       "nullable": true
     },
+    "templateQueryVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
     "executionConfig": {
       "type": "string",
       "nullable": true
@@ -2588,7 +2593,12 @@ export const etljobversionSchema = {
     },
     "sparqlTemplate": {
       "type": "string",
-      "minLength": 1
+      "nullable": true
+    },
+    "templateQuery": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
     },
     "backendId": {
       "type": "string",
@@ -2637,7 +2647,6 @@ export const etljobversionSchema = {
     "isPartOf",
     "version",
     "sql",
-    "sparqlTemplate",
     "backendId"
   ]
 } as const;
@@ -5366,6 +5375,7 @@ export interface EtlExecutionRestApi {
   outputLocation?: string | null;
   outputTupleSetVersion?: string | null;
   outputReused?: boolean | null;
+  templateQueryVersion?: string | null;
   executionConfig?: string | null;
 }
 
@@ -5390,7 +5400,8 @@ export interface EtlJobVersionRestApi {
   version: number;
   immutable?: boolean | null;
   sql: string;
-  sparqlTemplate: string;
+  sparqlTemplate?: string | null;
+  templateQuery?: string | null;
   backendId: string;
   currentColumnMappingVersion?: string | null;
   chunkSize?: number | null;

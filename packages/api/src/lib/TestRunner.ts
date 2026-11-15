@@ -668,7 +668,7 @@ export class TestRunner {
       const rdfOutputs: string[] = [];
       await etlService.runPipeline({
         sql: version.sql,
-        sparqlTemplate: version.sparqlTemplate,
+        sparqlTemplate: etlService.resolveTemplate(version).text,
         columnDefs: etlService.resolveColumnMapping(version).columns,
         executor: new OxigraphSparqlExecutor(store),
         chunkSize: version.chunkSize || 1000,
