@@ -699,6 +699,7 @@ const MANIFEST: Record<string, Protection> = {
   'POST /auth/grants': 'auth-graph',
   'DELETE /auth/grants/:id': 'auth-graph',
   'GET /auth/principals': 'handler',
+  'GET /auth/principals/activity': 'handler',
   'GET /auth/names': 'name-lookup',
 
   /*

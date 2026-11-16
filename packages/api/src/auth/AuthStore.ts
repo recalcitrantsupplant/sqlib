@@ -34,6 +34,12 @@ import {
  */
 const SEED_MARKER_IRI = 'urn:sqlib:auth:seed-state';
 
+/**
+ * How far `lastSeenAt` may lag the latest request. A busy person costs one
+ * write per step, where a write per request would cost one per call.
+ */
+export const LAST_SEEN_STEP_MS = 5 * 60 * 1000;
+
 /** Stands for "seen, with no groups" in `auth:memberOf`; never a real group. */
 const NO_GROUPS_IRI = 'urn:sqlib:auth:no-groups';
 
@@ -55,6 +61,8 @@ export interface PrincipalRecord {
   rawClaim: string;
   kind: string;
   seenAt?: string;
+  /** When sqlib last checked a token of this principal, to within `LAST_SEEN_STEP_MS`. */
+  lastSeenAt?: string;
   /** A person's email, username or name from their last token, for display. */
   label?: string;
   /** The name other readers see for a person, from their last token (`displayNameOf`). Never the email. */
@@ -353,6 +361,7 @@ export class AuthStore {
       rawClaim,
       kind: this.objectsOf(iri, auth.principalKind)[0] ?? 'user',
       seenAt: this.objectsOf(iri, auth.seenAt)[0],
+      lastSeenAt: this.objectsOf(iri, auth.lastSeenAt)[0],
       label: this.objectsOf(iri, auth.label)[0],
       displayName: this.objectsOf(iri, auth.displayName)[0],
     };
@@ -585,6 +594,34 @@ export class AuthStore {
     for (const quad of removed) this.store.delete(quad);
     this.store.add(added);
     this.principalRecords.set(record.iri, { ...record, [field]: value });
+  }
+
+  /**
+   * Moves a recorded principal's `lastSeenAt` to `at`. Writes nothing when the
+   * stored time is less than `LAST_SEEN_STEP_MS` older, or when the principal
+   * is not recorded yet (`recordPrincipal` is still writing it).
+   */
+  async recordSeen(iri: string, at: Date = new Date()): Promise<void> {
+    const record = this.principalRecords.get(iri);
+    if (!record) return;
+    const previous = record.lastSeenAt ?? record.seenAt;
+    if (previous && at.getTime() - Date.parse(previous) < LAST_SEEN_STEP_MS) return;
+
+    const lastSeenAt = at.toISOString();
+    // Set before the write, so the requests that arrive during it write nothing.
+    this.principalRecords.set(iri, { ...record, lastSeenAt });
+
+    const graph = iriTerm(AUTH_GRAPH_IRI);
+    const subject = iriTerm(iri);
+    const predicate = iriTerm(auth.lastSeenAt);
+    const removed = [...this.store.match(subject, predicate, null, graph)];
+    const added = oxigraph.quad(subject, predicate, oxigraph.literal(lastSeenAt, iriTerm(XSD_DATETIME)), graph);
+    await this.persistence.apply({
+      delete: removed.length ? removed.map(quad => this.serializeQuad(quad)).join('\n') : undefined,
+      insert: this.serializeQuad(added),
+    });
+    for (const quad of removed) this.store.delete(quad);
+    this.store.add(added);
   }
 
   /** The groups a user's last token carried, or undefined if none was seen. */

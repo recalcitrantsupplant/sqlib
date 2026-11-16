@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { AuthStore, inMemoryPersistence, validateModes } from '../../src/auth/AuthStore.js';
+import { AuthStore, LAST_SEEN_STEP_MS, inMemoryPersistence, validateModes } from '../../src/auth/AuthStore.js';
 import { resolveEffectiveGrants, hasBackendMode, hasLibraryMode } from '../../src/auth/grants.js';
 import { PRINCIPAL_AUTHENTICATED } from '../../src/auth/types.js';
 
@@ -275,5 +275,36 @@ describe('last-seen groups', () => {
     await store.recordGroups(ALICE, []);
     expect(store.lastSeenGroups(ALICE)).toEqual([]);
     expect(store.lastSeenGroups(BOB)).toBeUndefined();
+  });
+});
+
+describe('last seen', () => {
+  it('moves lastSeenAt once per step, and keeps it across a restart', async () => {
+    const persistence = inMemoryPersistence();
+    const first = new AuthStore(persistence);
+    await first.load();
+    await first.recordPrincipal(ALICE, 'alice', 'user');
+    const seenAt = Date.parse(first.principalRecord(ALICE)!.seenAt!);
+
+    await first.recordSeen(ALICE, new Date(seenAt + LAST_SEEN_STEP_MS - 1));
+    expect(first.principalRecord(ALICE)!.lastSeenAt).toBeUndefined();
+
+    const later = new Date(seenAt + LAST_SEEN_STEP_MS);
+    await first.recordSeen(ALICE, later);
+    await first.recordSeen(ALICE, new Date(later.getTime() + 1000));
+    expect(first.principalRecord(ALICE)!.lastSeenAt).toBe(later.toISOString());
+
+    const latest = new Date(later.getTime() + LAST_SEEN_STEP_MS);
+    await first.recordSeen(ALICE, latest);
+
+    const second = new AuthStore(persistence);
+    await second.load();
+    expect(second.principalRecord(ALICE)!.lastSeenAt).toBe(latest.toISOString());
+    expect(second.principalRecord(ALICE)!.seenAt).toBe(new Date(seenAt).toISOString());
+  });
+
+  it('writes nothing for a principal that is not recorded', async () => {
+    await store.recordSeen(BOB);
+    expect(store.principalRecord(BOB)).toBeNull();
   });
 });

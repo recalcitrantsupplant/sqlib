@@ -10,12 +10,12 @@
     <div class="filter-bar">
       <FilterBox
         v-model="filter"
-        :placeholder="tab === 'principals' ? 'Filter people and groups' : 'Filter backends'"
+        :placeholder="PLACEHOLDERS[tab]"
         test-id="access-filter"
       />
     </div>
 
-    <nav class="entity-list" :aria-label="tab === 'principals' ? 'People and groups' : 'Backends'">
+    <nav class="entity-list" :aria-label="LIST_LABELS[tab]">
       <template v-if="tab === 'principals'">
         <template v-for="section in principalSections" :key="section.label">
           <div v-if="section.label" class="section-bar">
@@ -36,6 +36,28 @@
             <span v-else class="entity-meta" :title="`${grantCount(principal.iri)} grants`">{{ grantCount(principal.iri) }}</span>
           </button>
         </template>
+      </template>
+
+      <template v-else-if="tab === 'activity'">
+        <button
+          v-for="person in recentPeople"
+          :key="person.iri"
+          type="button"
+          :class="['entity-row', { selected: person.iri === selected }]"
+          :aria-current="person.iri === selected ? 'true' : undefined"
+          data-testid="activity-person-row"
+          @click="emit('update:selected', person.iri)"
+        >
+          <User :size="13" class="entity-icon" />
+          <span class="entity-name">{{ principalName(person) }}</span>
+          <StatusBadge v-if="isActiveNow(person)" tone="success" size="xs">active</StatusBadge>
+          <time
+            v-else
+            class="entity-meta"
+            :datetime="lastSeenOf(person)"
+            :title="lastSeenOf(person) ? formatDateTime(lastSeenOf(person)!) : undefined"
+          >{{ formatCompactAge(lastSeenOf(person)) }}</time>
+        </button>
       </template>
 
       <template v-else>
@@ -72,14 +94,27 @@ import { computed, ref } from 'vue';
 import { Bot, Globe, Server, User, Users } from '@lucide/vue';
 import type { PrincipalRecord } from '@/composables/useApiClient';
 import { useAccessData } from '@/composables/useAccessData';
-import { EVERYONE, comparePrincipals, isAdminGrant, principalName } from '@/lib/accessModel';
+import { EVERYONE, comparePrincipals, isActiveNow, isAdminGrant, lastSeenOf, principalName } from '@/lib/accessModel';
+import { formatCompactAge, formatDateTime } from '@/lib/time';
 import TabStrip from '@/components/shared/TabStrip.vue';
 import FilterBox from '@/components/shared/FilterBox.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import InlineNote from '@/components/shared/InlineNote.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
 
-export type AccessTab = 'principals' | 'backends';
+export type AccessTab = 'principals' | 'activity' | 'backends';
+
+const PLACEHOLDERS: Record<AccessTab, string> = {
+  principals: 'Filter people and groups',
+  activity: 'Filter people',
+  backends: 'Filter backends',
+};
+
+const LIST_LABELS: Record<AccessTab, string> = {
+  principals: 'People and groups',
+  activity: 'People by last activity',
+  backends: 'Backends',
+};
 
 defineProps<{ tab: AccessTab; selected: string | null }>();
 const emit = defineEmits<{
@@ -92,6 +127,7 @@ const filter = ref('');
 
 const tabs = computed(() => [
   { value: 'principals', label: 'People & groups', count: access.principals.value.length + 1, testId: 'access-tab-principals' },
+  { value: 'activity', label: 'Activity', testId: 'access-tab-activity' },
   { value: 'backends', label: 'Backends', count: access.backends.value.length, testId: 'access-tab-backends' },
 ]);
 
@@ -112,6 +148,12 @@ const principalSections = computed(() => {
     { label: 'Applications', rows: of('client') },
   ].filter((section) => section.rows.length > 0);
 });
+
+/** People, most recently seen first. */
+const recentPeople = computed(() =>
+  access.principals.value
+    .filter((p) => p.kind === 'user' && (matches(principalName(p)) || matches(p.rawClaim)))
+    .sort((a, b) => (lastSeenOf(b) ?? '').localeCompare(lastSeenOf(a) ?? '') || principalName(a).localeCompare(principalName(b))));
 
 const visibleBackends = computed(() =>
   [...access.backends.value].filter((b) => matches(b.name)).sort((a, b) => a.name.localeCompare(b.name)));
