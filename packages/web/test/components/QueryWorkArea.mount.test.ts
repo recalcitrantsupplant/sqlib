@@ -208,8 +208,8 @@ describe('QueryWorkArea — a saved query, mounted against the API', () => {
     expect(executions).toHaveLength(1);
     const [payload, accept] = executions[0] as [Record<string, unknown>, string];
     expect(payload).toMatchObject({ targetId: QUERY_ID, backendId: BACKEND_ID });
-    // A SELECT asks for CSV unless another format is picked in the run bar.
-    expect(accept).toBe('text/csv');
+    // A SELECT asks for SPARQL JSON unless another format is picked in the run bar.
+    expect(accept).toBe('application/sparql-results+json');
     expect(toasts.error).toEqual([]);
     expect(wrapper.text()).toContain('http://example.org/France');
   });

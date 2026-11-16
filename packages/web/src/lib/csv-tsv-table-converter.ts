@@ -18,10 +18,10 @@ export interface TabularRow {
 }
 
 /**
- * Parses a cell value that might be in RDF syntax (N-Triples style for TSV, plain for CSV)
+ * Parses a TSV cell, which SPARQL TSV writes in N-Triples syntax.
  * Returns a structured RdfTermValue if it matches RDF syntax, otherwise returns the plain string
  */
-function parseRdfValue(value: string, detectPlainUris: boolean = false): string | RdfTermValue {
+function parseRdfValue(value: string): string | RdfTermValue {
   const trimmed = value.trim();
 
   // URI with angle brackets: <http://example.org> (N-Triples/TSV style)
@@ -66,71 +66,119 @@ function parseRdfValue(value: string, detectPlainUris: boolean = false): string 
     return result;
   }
 
-  // Plain URI detection for CSV (without angle brackets)
-  if (detectPlainUris) {
-    // Detect URIs by common prefixes
-    if (
-      trimmed.startsWith('http://') ||
-      trimmed.startsWith('https://') ||
-      trimmed.startsWith('urn:') ||
-      trimmed.startsWith('ftp://') ||
-      trimmed.startsWith('file://')
-    ) {
-      return {
-        value: trimmed,
-        type: 'uri',
-      };
-    }
-
-    // Detect blank nodes without angle brackets (plain _:xxx)
-    if (trimmed.startsWith('_:')) {
-      return {
-        value: trimmed,
-        type: 'bnode',
-      };
-    }
-  }
-
-  // Plain string (literal without quotes or unknown format)
-  // If it looks like it might be a typed literal value, mark it as literal
-  if (detectPlainUris && trimmed.length > 0) {
-    return {
-      value: trimmed,
-      type: 'literal',
-    };
-  }
-
   return trimmed;
 }
 
 /**
- * Parses CSV content into an array of objects.
- * Handles different line ending styles: \r\n (Windows), \n (Unix), \r (old Mac)
+ * Splits CSV text into records of fields, per RFC 4180.
+ *
+ * A field in double quotes may hold commas, line breaks and `""` (one escaped
+ * quote). Record separators are `\r\n`, `\n` or `\r`. Blank lines are left out.
+ */
+export function splitCsvRecords(content: string): string[][] {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let field = '';
+  let quoted = false;
+  let i = 0;
+
+  const endRecord = () => {
+    record.push(field);
+    field = '';
+    if (record.length > 1 || record[0] !== '') {
+      records.push(record);
+    }
+    record = [];
+  };
+
+  while (i < content.length) {
+    const ch = content[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (content[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        quoted = false;
+        i += 1;
+        continue;
+      }
+      field += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '"' && field === '') {
+      quoted = true;
+      i += 1;
+    } else if (ch === ',') {
+      record.push(field);
+      field = '';
+      i += 1;
+    } else if (ch === '\r' || ch === '\n') {
+      endRecord();
+      i += ch === '\r' && content[i + 1] === '\n' ? 2 : 1;
+    } else {
+      field += ch;
+      i += 1;
+    }
+  }
+  if (field !== '' || record.length > 0) {
+    endRecord();
+  }
+  return records;
+}
+
+/**
+ * Parses CSV content into an array of objects, per RFC 4180.
  */
 export function parseCsv(content: string): TabularRow[] {
-  // Normalize line endings to \n, then split
-  const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const lines = normalizedContent.trim().split('\n');
+  const records = splitCsvRecords(content);
 
-  if (lines.length === 0) {
+  if (records.length === 0) {
     return [];
   }
 
-  const headers = lines[0].split(',').map(h => h.trim());
+  const headers = records[0].map(h => h.trim());
 
   const rows: TabularRow[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',');
+  for (let i = 1; i < records.length; i++) {
+    const values = records[i];
     const row: TabularRow = {};
     headers.forEach((header, index) => {
-      // CSV uses plain URIs without angle brackets, so enable plain URI detection
-      row[header] = parseRdfValue(values[index] || '', true);
+      row[header] = parseCsvValue(values[index] ?? '');
     });
     rows.push(row);
   }
 
   return rows;
+}
+
+/**
+ * Reads one unquoted CSV field. SPARQL CSV writes every term without
+ * N-Triples syntax, so only IRIs and blank nodes are told apart by prefix.
+ * The value is kept as written: a literal may start or end with spaces.
+ */
+function parseCsvValue(value: string): string | RdfTermValue {
+  const trimmed = value.trim();
+  if (trimmed === '') {
+    // An unbound variable is an empty field.
+    return '';
+  }
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('urn:') ||
+    trimmed.startsWith('ftp://') ||
+    trimmed.startsWith('file://')
+  ) {
+    return { value: trimmed, type: 'uri' };
+  }
+  if (trimmed.startsWith('_:')) {
+    return { value: trimmed, type: 'bnode' };
+  }
+  return { value, type: 'literal' };
 }
 
 /**
@@ -155,7 +203,7 @@ export function parseTsv(content: string): TabularRow[] {
     const row: TabularRow = {};
     headers.forEach((header, index) => {
       // TSV uses N-Triples syntax with angle brackets, so no plain URI detection needed
-      row[header] = parseRdfValue(values[index] || '', false);
+      row[header] = parseRdfValue(values[index] || '');
     });
     rows.push(row);
   }

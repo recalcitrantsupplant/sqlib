@@ -2547,9 +2547,10 @@ watch(queryType, (newQueryType) => {
   if (isGraphQueryType(newQueryType)) {
     selectedMediaType.value = OUTPUT_MEDIA_TYPES.N_TRIPLES;
   }
-  // Auto-select CSV for tabular queries (SELECT/ASK)
+  // Auto-select SPARQL JSON for tabular queries (SELECT/ASK). CSV has no term
+  // types, so the viewer would have to guess IRIs and drop datatypes (#196).
   else if (isResultSetQueryType(newQueryType)) {
-    selectedMediaType.value = OUTPUT_MEDIA_TYPES.CSV;
+    selectedMediaType.value = OUTPUT_MEDIA_TYPES.JSON;
   }
   // An update has exactly one output: the patch it would make (#290). Running
   // it as a patch derives rather than writes, which is the safer of the two to
