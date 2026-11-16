@@ -28,6 +28,8 @@ export const auth = {
   rawClaim: `${AUTH_NS}rawClaim`,
   principalKind: `${AUTH_NS}principalKind`,
   seenAt: `${AUTH_NS}seenAt`,
+  /** When sqlib last checked a token of the principal. Moves at most once per `LAST_SEEN_STEP_MS`. */
+  lastSeenAt: `${AUTH_NS}lastSeenAt`,
   /** A person's readable name from their last token: email, username or full name. */
   label: 'http://www.w3.org/2000/01/rdf-schema#label',
   /** The name other readers see for a person, from `displayNameOf` in `principals.ts`. Never the email. */

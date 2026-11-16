@@ -262,6 +262,8 @@ export const libraryActivityItemSchema = z.object({
   environmentName: z.string().nullable().optional(),
   fromVersionNumber: z.number().nullable().optional(),
   toVersionNumber: z.number().nullable().optional(),
+  library: z.string().optional(),
+  libraryName: z.string().nullable().optional(),
 });
 export type LibraryActivityItem = z.infer<typeof libraryActivityItemSchema>;
 export const libraryActivityPageSchema = z.object({
@@ -744,6 +746,7 @@ export const principalSchema = z.object({
   rawClaim: z.string(),
   kind: z.string(),
   seenAt: z.string().optional(),
+  lastSeenAt: z.string().optional(),
   label: z.string().optional(),
   groups: z.array(z.string()).optional(),
 });
@@ -2326,6 +2329,18 @@ export function useApiClient() {
     );
   };
 
+  /** One page of one person's activity in every library, newest first. Administrators only. */
+  const listPersonActivity = (actor: string, options: { before?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams({ actor });
+    if (options.before) params.set('before', options.before);
+    if (options.limit) params.set('limit', String(options.limit));
+    return requestData(
+      buildUrl(`/auth/principals/activity?${params.toString()}`),
+      { method: 'GET' },
+      (payload) => libraryActivityPageSchema.parse(payload),
+    );
+  };
+
   /** The recorded pointer moves of an environment, newest first; `entity` narrows them to one. */
   const listEnvironmentMoves = (id: string, options: { entity?: string; limit?: number } = {}) => {
     const params = new URLSearchParams();
@@ -3403,6 +3418,7 @@ export function useApiClient() {
     createGrant,
     deleteGrant,
     listPrincipals,
+    listPersonActivity,
     lookupPrincipalNames,
     testGraphPolicy,
     getGraphPolicy,

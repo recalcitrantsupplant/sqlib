@@ -40,6 +40,9 @@ export interface ActivityItem {
   environmentName?: string | null;
   fromVersionNumber?: number | null;
   toVersionNumber?: number | null;
+  /** The library of the item. Set in the feed of one person (`personActivity`). */
+  library?: string;
+  libraryName?: string | null;
 }
 
 export const SAME_WRITE_MS = 2000;
@@ -86,10 +89,15 @@ function nameOf(entity: Entity | null): string | null {
   return str(entity?.name);
 }
 
-/** Every item of the library, unsorted. */
-function collect(source: ActivitySource, library: string): ActivityItem[] {
+/**
+ * Every item of the library, unsorted. With `library` null, every item of every
+ * library, each with its `library`.
+ */
+function collect(source: ActivitySource, library: string | null): ActivityItem[] {
   const get = (id: string) => source.get(id);
   const items: ActivityItem[] = [];
+  const withLibrary = (id: string | null): Pick<ActivityItem, 'library' | 'libraryName'> =>
+    library === null && id ? { library: id, libraryName: nameOf(get(id)) } : {};
   const environments = new Map<string, Entity>();
   const moves = source.list('PointerMove');
   const moveTimes = new Map<string, number[]>();
@@ -99,7 +107,12 @@ function collect(source: ActivitySource, library: string): ActivityItem[] {
   }
 
   for (const type of REMOVAL_KINDS) {
-    const inLibrary = source.list(type).filter((entity) => libraryOf(entity, get) === library);
+    const libraries = new Map<string, string>();
+    const inLibrary = source.list(type).filter((entity) => {
+      const owner = libraryOf(entity, get);
+      if (owner) libraries.set(entity.$id, owner);
+      return owner !== null && (library === null || owner === library);
+    });
     const readable = source.readable(inLibrary);
     const versionType = VERSION_TYPES[type];
     const versionsByParent = new Map<string, Entity[]>();
@@ -114,7 +127,12 @@ function collect(source: ActivitySource, library: string): ActivityItem[] {
 
     for (const entity of readable) {
       if (type === 'Environment') environments.set(entity.$id, entity);
-      const base = { entity: entity.$id, entityType: type, entityName: nameOf(entity) };
+      const base = {
+        entity: entity.$id,
+        entityType: type,
+        entityName: nameOf(entity),
+        ...withLibrary(libraries.get(entity.$id) ?? null),
+      };
       const created = str(entity.dateCreated);
       if (created) {
         items.push({ ...base, id: `${entity.$id}#created`, kind: 'created', at: created, actor: str(entity.createdBy) });
@@ -160,6 +178,7 @@ function collect(source: ActivitySource, library: string): ActivityItem[] {
       entityName: nameOf(moved),
       environment: environment.$id,
       environmentName: nameOf(environment),
+      ...withLibrary(libraryOf(environment, get)),
       fromVersionNumber: num(get(str(move.fromVersion) ?? '')?.version),
       toVersionNumber: num(get(str(move.toVersion) ?? '')?.version),
     });
@@ -167,7 +186,8 @@ function collect(source: ActivitySource, library: string): ActivityItem[] {
 
   for (const removal of source.list('Removal')) {
     const at = str(removal.dateCreated);
-    if (removal.isPartOf !== library || !at) continue;
+    const owner = str(removal.isPartOf);
+    if (!owner || !at || (library !== null && owner !== library)) continue;
     items.push({
       id: removal.$id,
       kind: 'deleted',
@@ -176,6 +196,7 @@ function collect(source: ActivitySource, library: string): ActivityItem[] {
       entity: str(removal.removedEntity) ?? '',
       entityType: str(removal.removedType) ?? '',
       entityName: str(removal.name),
+      ...withLibrary(owner),
     });
   }
 
@@ -196,6 +217,25 @@ export function libraryActivity(
   source: ActivitySource,
   query: ActivityQuery,
 ): { items: ActivityItem[]; next: string | null } {
+  return page(collect(source, query.library), query);
+}
+
+/**
+ * One page of one person's feed across every library, newest first: what
+ * `libraryActivity` lists, for each library, with `actor` set. Each item names
+ * its library.
+ */
+export function personActivity(
+  source: ActivitySource,
+  query: { actor: string; kind?: ActivityFilter; before?: string; limit: number },
+): { items: ActivityItem[]; next: string | null } {
+  return page(collect(source, null), query);
+}
+
+function page(
+  collected: ActivityItem[],
+  query: { kind?: ActivityFilter; actor?: string; before?: string; limit: number },
+): { items: ActivityItem[]; next: string | null } {
   const kinds: Record<ActivityFilter, ActivityKind[]> = {
     created: ['created'],
     edited: ['edited', 'saved'],
@@ -203,7 +243,7 @@ export function libraryActivity(
     deleted: ['deleted'],
   };
   const keep = query.kind ? new Set(kinds[query.kind]) : null;
-  const all = collect(source, query.library)
+  const all = collected
     .filter((item) => !keep || keep.has(item.kind))
     .filter((item) => !query.actor || item.actor === query.actor)
     .filter((item) => !query.before || cursorOf(item) < query.before)

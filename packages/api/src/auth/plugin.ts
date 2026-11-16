@@ -87,6 +87,11 @@ async function buildContext(
     });
   }
 
+  // The time of this request, for the administrator's People list. Best effort, as above.
+  store.recordSeen(derived.subject).catch((error: unknown) => {
+    request.log.debug({ err: error, principal: derived.subject }, 'Failed to record last seen');
+  });
+
   // The groups this token carried, kept for `Test as`. Best effort, as above.
   store
     .recordGroups(derived.subject, derived.principals.filter(isGroupPrincipal))

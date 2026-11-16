@@ -2,7 +2,7 @@
  * The library Activity feed, from the records it reads (`lib/libraryActivity.ts`).
  */
 import { describe, it, expect } from 'vitest';
-import { libraryActivity, type Entity } from '../../src/lib/libraryActivity.js';
+import { libraryActivity, personActivity, type Entity } from '../../src/lib/libraryActivity.js';
 
 const LIB = 'urn:lib';
 const ALICE = 'urn:sqlib:principal:user:alice';
@@ -66,5 +66,26 @@ describe('libraryActivity and environments', () => {
     const { items } = libraryActivity(sourceOf([library, query, v1, v2, env, move]), { library: LIB, limit: 50 });
     expect(items.filter((item) => item.entity === 'urn:env').map((item) => item.kind)).toEqual(['created']);
     expect(items[0]).toMatchObject({ kind: 'moved', actor: BO, environmentName: 'prod', toVersionNumber: 2 });
+  });
+});
+
+describe('personActivity', () => {
+  it("lists one person's items in every library, each with its library", () => {
+    const lib2: Entity = { $id: 'urn:lib2', '@type': 'Library', name: 'Second' };
+    const other: Entity = {
+      $id: 'urn:other', '@type': 'Query', name: 'depths', isPartOf: ['urn:lib2'],
+      dateCreated: '2026-11-02T10:00:00.000Z', createdBy: BO,
+    };
+    const removal: Entity = {
+      $id: 'urn:removal', '@type': 'Removal', isPartOf: 'urn:lib2', removedEntity: 'urn:gone',
+      removedType: 'Query', name: 'gone', dateCreated: '2026-11-06T10:00:00.000Z', createdBy: BO,
+    };
+    const { items, next } = personActivity(sourceOf([library, lib2, query, v1, v2, other, removal]), { actor: BO, limit: 50 });
+    expect(items.map((item) => [item.kind, item.entityName, item.library, item.libraryName])).toEqual([
+      ['deleted', 'gone', 'urn:lib2', 'Second'],
+      ['saved', 'heights', LIB, 'Lib'],
+      ['created', 'depths', 'urn:lib2', 'Second'],
+    ]);
+    expect(next).toBeNull();
   });
 });

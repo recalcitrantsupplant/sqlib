@@ -155,6 +155,19 @@ export function effectiveAccess(principals: readonly string[], grants: readonly 
 }
 
 /** How a principal is shown: a person's email, username or name when the token gave one, else the raw claim. */
+/** A person seen within this many minutes shows as active. The server moves `lastSeenAt` every 5 minutes. */
+export const ACTIVE_WINDOW_MS = 15 * 60 * 1000;
+
+/** When the person was last seen: `lastSeenAt`, else the first sign-in. */
+export function lastSeenOf(principal: PrincipalRecord): string | undefined {
+  return principal.lastSeenAt ?? principal.seenAt;
+}
+
+export function isActiveNow(principal: PrincipalRecord, now: number = Date.now()): boolean {
+  const seen = lastSeenOf(principal);
+  return !!seen && now - Date.parse(seen) < ACTIVE_WINDOW_MS;
+}
+
 export function principalName(principal: PrincipalRecord): string {
   return principal.label ?? principal.rawClaim;
 }

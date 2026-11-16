@@ -25,6 +25,7 @@ import {
 import { RESOURCE_EVERYTHING, type AuthContext } from '../auth/types.js';
 import { typedRoute } from './route-helpers.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { personActivity, type ActivityFilter, type Entity as ActivityEntity } from '../lib/libraryActivity.js';
 
 const errorResponseSchema = {
   type: 'object',
@@ -170,6 +171,7 @@ const listPrincipalsSchema = {
           rawClaim: { type: 'string' },
           kind: { type: 'string' },
           seenAt: { type: 'string' },
+          lastSeenAt: { type: 'string' },
           label: { type: 'string' },
           displayName: { type: 'string' },
           groups: { type: 'array', items: { type: 'string' } },
@@ -233,6 +235,59 @@ function serializeGrant(grant: Grant) {
     ...(grant.grantedAt ? { grantedAt: grant.grantedAt } : {}),
   };
 }
+
+const personActivitySchema = {
+  tags: ['Auth'],
+  summary: "List one person's creates, edits, saved versions, moves and deletes in every library",
+  description:
+    'Administrators only. The library Activity feed of every library, for one principal, newest first. ' +
+    'Each item names its library. Pass `next` from a page as `before` for the page after it.',
+  querystring: {
+    type: 'object',
+    properties: {
+      actor: { type: 'string', minLength: 1 },
+      kind: { type: 'string', enum: ['created', 'edited', 'moved', 'deleted'] },
+      before: { type: 'string', minLength: 1 },
+      limit: { type: 'integer', minimum: 1, maximum: 200, default: 20 },
+    },
+    required: ['actor'],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              kind: { type: 'string', enum: ['created', 'edited', 'saved', 'moved', 'deleted'] },
+              at: { type: 'string', format: 'date-time' },
+              actor: { type: 'string', nullable: true },
+              entity: { type: 'string' },
+              entityType: { type: 'string' },
+              entityName: { type: 'string', nullable: true },
+              versionNumber: { type: 'integer', nullable: true },
+              environment: { type: 'string', nullable: true },
+              environmentName: { type: 'string', nullable: true },
+              fromVersionNumber: { type: 'integer', nullable: true },
+              toVersionNumber: { type: 'integer', nullable: true },
+              library: { type: 'string' },
+              libraryName: { type: 'string', nullable: true },
+            },
+            required: ['id', 'kind', 'at', 'entity', 'entityType'],
+            additionalProperties: false,
+          },
+        },
+        next: { type: 'string', nullable: true },
+      },
+      required: ['items'],
+    },
+    403: errorResponseSchema,
+  },
+} as const;
 
 /**
  * What the caller may do to the auth graph.
@@ -507,6 +562,8 @@ export default async function (fastify: FastifyInstance) {
         rawClaim: record.rawClaim,
         kind: record.kind,
         ...(record.seenAt ? { seenAt: record.seenAt } : {}),
+        // When a person last used sqlib is for administrators only.
+        ...(record.lastSeenAt && standing.admin ? { lastSeenAt: record.lastSeenAt } : {}),
         ...(record.label ? { label: record.label } : {}),
         ...(record.displayName ? { displayName: record.displayName } : {}),
         // Group membership is for administrators, who test graph policies
@@ -514,6 +571,28 @@ export default async function (fastify: FastifyInstance) {
         ...(record.groups && standing.admin ? { groups: record.groups } : {}),
       }))
     );
+  }));
+
+  fastify.get('/principals/activity', ...typedRoute(personActivitySchema, async (request, reply) => {
+    // A read, so full access counts, as for `GET /principals`.
+    const context = authOf(request);
+    requireAuthGraphDecision(request, standingOf(context, context.fullAccess).admin, {
+      resource: null,
+      resourceKind: 'everything',
+      mode: 'admin',
+      message: "Administrator access is required for a person's activity.",
+    });
+    const query = request.query;
+    const cache = getCacheCoordinator();
+    const page = personActivity(
+      {
+        get: (iri) => cache.get(iri) as unknown as ActivityEntity | null,
+        list: (type) => (cache.list(type as never) as unknown as ActivityEntity[] | null) ?? [],
+        readable: (items) => items,
+      },
+      { actor: query.actor, kind: query.kind as ActivityFilter | undefined, before: query.before, limit: query.limit ?? 20 },
+    );
+    return reply.send(page);
   }));
 
   fastify.log.info({ authMode: getAuthConfig().mode }, 'Auth routes registered');

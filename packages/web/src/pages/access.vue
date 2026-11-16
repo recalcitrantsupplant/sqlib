@@ -16,6 +16,12 @@
           @open-backend="openBackend"
           @test-as="testAs"
         />
+        <PersonActivityView
+          v-else-if="tab === 'activity' && selectedPerson"
+          :key="selectedPerson.iri"
+          :person="selectedPerson"
+          @open-access="selectPrincipal"
+        />
         <BackendAccessView
           v-else-if="tab === 'backends' && selectedBackend"
           ref="backendView"
@@ -25,7 +31,7 @@
         />
         <div v-else-if="access.loaded.value" class="empty">
           <InlineNote>
-            {{ tab === 'principals' ? 'Pick a person or a group to see and change what they may do.' : 'Pick a backend to see who may use it and which graphs they read.' }}
+            {{ EMPTY_NOTES[tab] }}
           </InlineNote>
         </div>
         <footer v-if="access.pendingCount.value > 0" class="save-row" data-testid="access-save-bar">
@@ -59,12 +65,13 @@ import AppNavRail from '@/components/AppNavRail.vue';
 import AccessSidebar, { type AccessTab } from '@/components/access/AccessSidebar.vue';
 import PrincipalAccessView from '@/components/access/PrincipalAccessView.vue';
 import BackendAccessView from '@/components/access/BackendAccessView.vue';
+import PersonActivityView from '@/components/access/PersonActivityView.vue';
 import InlineNote from '@/components/shared/InlineNote.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import { createAccessData, provideAccessData } from '@/composables/useAccessData';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useAuth } from '@/composables/useAuth';
-import { EVERYONE, comparePrincipals } from '@/lib/accessModel';
+import { EVERYONE, comparePrincipals, lastSeenOf } from '@/lib/accessModel';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '@/lib/railSections';
 
 const router = useRouter();
@@ -77,15 +84,26 @@ provideAccessData(access);
 const tab = ref<AccessTab>('principals');
 const principalId = ref<string | null>(null);
 const backendId = ref<string | null>(null);
+const personId = ref<string | null>(null);
+
+const EMPTY_NOTES: Record<AccessTab, string> = {
+  principals: 'Pick a person or a group to see and change what they may do.',
+  activity: 'No one has signed in yet.',
+  backends: 'Pick a backend to see who may use it and which graphs they read.',
+};
 const backendView = ref<InstanceType<typeof BackendAccessView> | null>(null);
 
-const selectedId = computed(() => (tab.value === 'principals' ? principalId.value : backendId.value));
+const selectedId = computed(() =>
+  tab.value === 'principals' ? principalId.value : tab.value === 'activity' ? personId.value : backendId.value);
+const selectedPerson = computed(() =>
+  access.principals.value.find((p) => p.kind === 'user' && p.iri === personId.value) ?? null);
 const selectedPrincipal = computed(() =>
   [EVERYONE, ...access.principals.value].find((p) => p.iri === principalId.value) ?? null);
 const selectedBackend = computed(() => access.backends.value.find((b) => b.id === backendId.value) ?? null);
 
 function select(id: string) {
   if (tab.value === 'principals') principalId.value = id;
+  else if (tab.value === 'activity') personId.value = id;
   else backendId.value = id;
 }
 
@@ -116,6 +134,8 @@ onMounted(async () => {
   await access.load();
   const groups = access.principals.value.filter((p) => p.kind === 'group').sort(comparePrincipals);
   principalId.value = groups[0]?.iri ?? EVERYONE.iri;
+  const people = access.principals.value.filter((p) => p.kind === 'user');
+  personId.value = people.sort((a, b) => (lastSeenOf(b) ?? '').localeCompare(lastSeenOf(a) ?? ''))[0]?.iri ?? null;
   backendId.value = access.backends.value.find((b) => b.graphPolicyQueryVersion)?.id ?? access.backends.value[0]?.id ?? null;
 });
 

@@ -8,6 +8,7 @@ import { AuthStore, inMemoryPersistence, setAuthStore } from '../../src/auth/Aut
 import { resetAuthConfig } from '../../src/auth/config.js';
 import { resolveEffectiveGrants } from '../../src/auth/grants.js';
 import authRoutes from '../../src/routes/auth.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 import type { AuthContext } from '../../src/auth/types.js';
 
 const ALICE = 'urn:sqlib:principal:user:alice';
@@ -263,6 +264,56 @@ describe('GET /auth/principals', () => {
     const app = await appAs([BOB]);
     expect((await app.inject({ method: 'GET', url: '/auth/principals' })).statusCode).toBe(403);
     await app.close();
+  });
+});
+
+describe('admin user overview', () => {
+  const ADMIN_GRANT = { resourceKind: 'everything', resource: 'x', modes: ['control'] } as const;
+
+  afterEach(() => overrideCacheCoordinatorProvider(null));
+
+  it('shows lastSeenAt to an administrator and hides it from a library controller', async () => {
+    await store.recordPrincipal(BOB, 'bob@example.com', 'user');
+    await store.recordSeen(BOB, new Date(Date.now() + 10 * 60 * 1000));
+    await store.createGrant({ principal: ALICE, ...ADMIN_GRANT });
+    await store.createGrant({ principal: BOB, resourceKind: 'library', resource: LIBRARY, modes: ['control'] });
+
+    const admin = await appAs([ALICE]);
+    const asAdmin = (await admin.inject({ method: 'GET', url: '/auth/principals?q=bob' })).json();
+    expect(asAdmin[0].lastSeenAt).toBe(store.principalRecord(BOB)!.lastSeenAt);
+    await admin.close();
+
+    const controller = await appAs([BOB]);
+    const asController = (await controller.inject({ method: 'GET', url: '/auth/principals?q=bob' })).json();
+    expect(asController[0]).not.toHaveProperty('lastSeenAt');
+    await controller.close();
+  });
+
+  it("lists one person's activity in every library to an administrator only", async () => {
+    const entities = [
+      { $id: LIBRARY, '@type': 'Library', name: 'Hydrology' },
+      { $id: 'urn:q', '@type': 'Query', name: 'heights', isPartOf: [LIBRARY], dateCreated: '2026-11-01T10:00:00.000Z', createdBy: BOB },
+    ];
+    overrideCacheCoordinatorProvider({
+      getCacheCoordinator: () => ({
+        get: (id: string) => entities.find(entity => entity.$id === id) ?? null,
+        list: (type: string) => entities.filter(entity => entity['@type'] === type),
+      }),
+    });
+    await store.createGrant({ principal: ALICE, ...ADMIN_GRANT });
+    const url = `/auth/principals/activity?actor=${encodeURIComponent(BOB)}`;
+
+    const admin = await appAs([ALICE]);
+    const response = await admin.inject({ method: 'GET', url });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items).toEqual([expect.objectContaining({
+      kind: 'created', entityName: 'heights', library: LIBRARY, libraryName: 'Hydrology',
+    })]);
+    await admin.close();
+
+    const other = await appAs([BOB]);
+    expect((await other.inject({ method: 'GET', url })).statusCode).toBe(403);
+    await other.close();
   });
 });
 
