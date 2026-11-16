@@ -1,0 +1,46 @@
+# Weekly refresh of pnpm-lock.yaml: every package, direct and transitive, moves
+# to the newest version inside its current range. Dependabot bumps direct
+# dependencies only, so without this a transitive package keeps its advisories
+# until one of its parents happens to change.
+#
+# Thin dispatcher, same as ci.yml. The logic is in scripts/ci/lockfile-refresh.sh
+# and scripts/ci/lockfile-refresh-pr.sh.
+#
+# The pull request this opens does not start CI by itself (a GITHUB_TOKEN push
+# starts no other workflow), so lockfile-refresh-pr.sh starts ci.yml on the
+# branch with workflow_dispatch. ci.yml's lockfile-refresh-automerge job then
+# merges it when every gate passes.
+name: Lockfile refresh
+
+on:
+  schedule:
+    # Monday 20:00 UTC, which is Tuesday 06:00 in Brisbane: after Dependabot's
+    # Monday run, so its grouped bumps land first.
+    - cron: '0 20 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: lockfile-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - run: bash scripts/ci/pnpm-store.sh
+      - run: bash scripts/ci/install.sh
+      - id: refresh
+        run: bash scripts/ci/lockfile-refresh.sh
+      - if: steps.refresh.outputs.changed == 'true'
+        run: bash scripts/ci/lockfile-refresh-pr.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
