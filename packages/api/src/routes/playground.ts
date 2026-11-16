@@ -2,7 +2,8 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyRepl
 import { RuleGrammarValidator } from '../lib/RuleGrammarValidator.js';
 import { toError } from '../lib/toError.js';
 import { mintId } from '../lib/id.js';
-import { RuleSetExecutor } from '../lib/RuleSetExecutor.js';
+import { IsolatedRunStopped, runRuleSetIsolated } from '../lib/isolatedRuleSet.js';
+import { abortOnDisconnect } from '../lib/cancellation.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { RuleStratifier } from '../lib/RuleStratifier.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
@@ -133,6 +134,8 @@ export default async function playgroundRoutes(
             200: playgroundRulesExecuteResponseJsonSchema,
             400: responseErrorSchema,
             404: responseErrorSchema,
+            503: responseErrorSchema,
+            504: responseErrorSchema,
           },
         },
       },
@@ -298,27 +301,29 @@ export default async function playgroundRoutes(
           throw error;
         }
 
-        const ephemeralIds: string[] = [];
+        /*
+         * The run goes to a worker thread (`lib/isolatedRuleSet.ts`). The
+         * rules are whatever a caller typed, and one rule with a large join
+         * would otherwise hold this thread past the deadline.
+         */
+        const disconnect = abortOnDisconnect(reply.raw);
         try {
-          dataBlockVersions.forEach((db) => {
-            cacheCoordinator.addEphemeral(db, 'DataBlockVersion');
-            ephemeralIds.push(db.$id);
-          });
-          ruleVersions.forEach((rv) => {
-            cacheCoordinator.addEphemeral(rv, 'RuleVersion');
-            ephemeralIds.push(rv.$id);
-          });
-
-          const executor = new RuleSetExecutor();
-          const result = await executor.execute(ruleSetVersion, {
-            maxIterations,
-            inferenceFormat,
-            initialGraph: dataGraph?.content ?? null,
-            initialGraphFormat: dataGraph?.format ?? null,
-            tupleSeeds: tupleSeeds || null,
-            // The playground shows each rule's inserted and deleted quads.
-            trace: true,
-          });
+          const result = await runRuleSetIsolated(
+            {
+              ruleSetVersion,
+              entities: [...dataBlockVersions, ...ruleVersions],
+              options: {
+                maxIterations,
+                inferenceFormat,
+                initialGraph: dataGraph?.content ?? null,
+                initialGraphFormat: dataGraph?.format ?? null,
+                tupleSeeds: tupleSeeds || null,
+                // The playground shows each rule's inserted and deleted quads.
+                trace: true,
+              },
+            },
+            { signal: disconnect.signal },
+          );
           // Named from the document where there is one, so results say
           // `rule-2-ancestorOf` rather than a position in a list the author
           // never made.
@@ -327,12 +332,15 @@ export default async function playgroundRoutes(
           );
           return reply.send({ ...result, ruleNames });
         } catch (error__u: unknown) {
-        const error = toError(error__u);
+          if (error__u instanceof IsolatedRunStopped) {
+            return reply.status(error__u.status).send({ error: error__u.message });
+          }
+          const error = toError(error__u);
           request.log.error({ err: error }, 'Failed to execute playground rules');
           const message = error?.message || 'Failed to execute playground rules';
           return reply.status(500).send({ error: message });
         } finally {
-          ephemeralIds.forEach((id) => cacheCoordinator.removeEphemeral(id));
+          disconnect.dispose();
         }
       },
     );
