@@ -1966,7 +1966,9 @@ const detailsProps = computed(() => ({
   draftSelected: unsavedEditCount.value > 0,
   createdAt: isScratch.value
     ? null
-    : (queryGroupsStore.queryGroups.value.find((group) => group.id === queryGroupId.value)?.dateCreated ?? null),
+    : (queryGroupsStore.queryGroups.value.find((group) => group.id === queryGroupId.value)?.dateCreated
+      ?? queryGroupStamps.value.createdAt
+      ?? null),
   canDelete: !isScratch.value && !!queryGroupId.value,
   deleting: isSaving.value,
 }));

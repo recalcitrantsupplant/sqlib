@@ -2,7 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import { openCreateLibraryDialog, openSplash } from './navigate';
 import { chooseSearchOption } from './search-select';
 import { mockSidebarCollections } from './fixtures/collections';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 /**
  * Test for backend deletion with automatic reference cleanup:
@@ -251,7 +251,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // GET /queries
-    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -330,7 +330,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // GET /query-groups
-    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
+    await page.route(listRoute('/query-groups'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -47,4 +47,10 @@ The argument-set lists return summaries. A summary has the name, `currentVersion
 
 - The argument-set switcher loads 50 sets at a time. Its filter calls the server with `q`, and Show more loads the next 50.
 - Each search picker (`SearchSelect`) draws its first 50 matches. Typing searches every option, and Show more draws 50 more.
-- The section rail still loads each full list. Paging the rail, with pinned and recently opened rows loaded by `ids`, is to do.
+- The section rail loads its saved rows a page at a time for queries, query groups, rule sets, benchmarks, data graphs, tuple sets and argument sets (`composables/useRailPaging.ts`, on `composables/usePagedList.ts`).
+  - The filter box searches on the server with `q`. The sort menu sets `sort` and `order`.
+  - Pinned rows load by `ids`, whatever page they are on.
+  - "Last opened" is a browser setting, so it asks the server for name order and loads the 100 most recently opened rows by `ids`. Those rows sort first.
+  - Grouped by tag, each tag heading shows the server's count (`tag=…&limit=1`) and loads its own rows with Show more. The Untagged heading counts the loaded rows only.
+- The Tests and ETL sections still load each full list. Run all in Tests runs every test in the list, so it needs the full list.
+- The screens that pick an entity (`SearchSelect`) still load each full list from their store, and draw 50 rows at a time.

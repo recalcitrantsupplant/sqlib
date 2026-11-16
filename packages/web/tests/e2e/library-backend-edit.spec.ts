@@ -2,7 +2,7 @@ import { test, expect, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { openCreateLibraryDialog, openSplash, openSplashLibraries, splashLibraryRow } from './navigate';
 import { chooseSearchOption, searchSelect } from './search-select';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 // Mock data
 const mockBackends = [
@@ -79,7 +79,7 @@ test.describe('Library Edit - Backend Selection', () => {
     });
 
     // Mock GET /queries
-    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -88,7 +88,7 @@ test.describe('Library Edit - Backend Selection', () => {
     });
 
     // Mock GET /query-groups
-    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
+    await page.route(listRoute('/query-groups'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

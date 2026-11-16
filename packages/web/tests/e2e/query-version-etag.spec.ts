@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { API_HOST } from './api-origin';
+import { API_HOST, listRoute } from './api-origin';
 
 
 /**
@@ -88,7 +88,7 @@ test.describe('Saving a sequence of versions', () => {
     });
 
     // Mock queries endpoint
-    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -290,7 +290,7 @@ test.describe('Saving a sequence of versions', () => {
     });
 
     // Mock query groups endpoint
-    await page.route(`**//${API_HOST}/query-groups`, async (route: Route) => {
+    await page.route(listRoute('/query-groups'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
