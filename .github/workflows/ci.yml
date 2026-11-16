@@ -56,6 +56,8 @@ jobs:
       - run: bash scripts/ci/pnpm-store.sh
       - run: bash scripts/ci/install.sh
       - run: bash scripts/ci/lint.sh
+      # Fails on a high or critical advisory in pnpm-lock.yaml. See the script.
+      - run: bash scripts/ci/audit.sh
       # Checks that the two gates below still fail when they measure nothing,
       # before trusting the numbers they report. ~1s, no install needed.
       - run: bash scripts/ci/ratchet-selftest.sh
@@ -170,6 +172,24 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+
+  # Merge the weekly lockfile refresh (lockfile-refresh.yml) when every gate
+  # passes. That workflow starts this one on its branch with workflow_dispatch,
+  # because its own push and pull request start no CI. Same `needs` as
+  # dependabot-automerge, for the same reason: it is the only gate.
+  lockfile-refresh-automerge:
+    needs: [verify, test, image, web-image, cli-image, e2e]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/deps/lockfile-refresh'
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/ci/lockfile-refresh-merge.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.sha }}
 
   # Playwright e2e — functional specs, mocked API, production preview build.
   # Runs on every pull request and push like the jobs above, and is one of the

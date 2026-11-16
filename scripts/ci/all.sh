@@ -5,6 +5,7 @@ source "$(dirname "$0")/lib.sh"
 
 bash "$REPO_ROOT/scripts/ci/install.sh"
 bash "$REPO_ROOT/scripts/ci/lint.sh"
+bash "$REPO_ROOT/scripts/ci/audit.sh"
 bash "$REPO_ROOT/scripts/ci/ratchet-selftest.sh"
 bash "$REPO_ROOT/scripts/ci/any-ratchet.sh"
 bash "$REPO_ROOT/scripts/ci/orphan-ratchet.sh"
