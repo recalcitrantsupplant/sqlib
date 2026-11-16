@@ -82,11 +82,11 @@ function spawnWorker(): Worker {
 function workerUrl(): { url: URL; execArgv: string[] } {
   // Under `tsx` and vitest this module is TypeScript source, and the worker
   // needs the same loader. The built server runs the compiled `.js` file.
-  const source = import.meta.url.endsWith('.ts');
-  return {
-    url: new URL(source ? './ruleSetWorker.ts' : './ruleSetWorker.js', import.meta.url),
-    execArgv: source ? ['--import', 'tsx'] : [],
-  };
+  // Each URL is a literal, so `scripts/check-orphans.mjs` sees the worker.
+  if (import.meta.url.endsWith('.ts')) {
+    return { url: new URL('./ruleSetWorker.ts', import.meta.url), execArgv: ['--import', 'tsx'] };
+  }
+  return { url: new URL('./ruleSetWorker.js', import.meta.url), execArgv: [] };
 }
 
 function seconds(ms: number): string {
