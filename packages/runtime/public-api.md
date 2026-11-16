@@ -314,7 +314,6 @@ interface ExportedRuleSet {
     textHash: string;
     ruleCount: number;
     dataBlockCount: number;
-    tupleSeeds?: string;
     tuplesEnabled?: boolean;
     name?: string;
     description?: string;
