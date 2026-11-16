@@ -363,6 +363,11 @@
               <div class="result-stats">
                 <span class="stat">{{ executionResult?.totalRows ?? 0 }} rows</span>
                 <span class="stat">{{ executionResult?.totalChunks ?? 0 }} chunks</span>
+                <span
+                  v-if="executionResult?.recordedAt"
+                  class="stat"
+                  data-testid="etl-recorded-at"
+                >{{ formatDateTime(executionResult.recordedAt) }}</span>
               </div>
               <InlineNote v-if="rowLimitNote" data-testid="etl-row-limit-note">{{ rowLimitNote }}</InlineNote>
               <div v-if="executionResult?.errorMessage" class="error-banner">
@@ -500,6 +505,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useRuntimeConfig } from '#imports';
+import { etlResultFromStored } from '../lib/recordedRuns';
+import { formatDateTime } from '../lib/time';
 import { Codemirror } from 'vue-codemirror';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
 import { useEditorAsPrefixTarget } from '@/composables/usePrefixTarget';
@@ -1105,10 +1112,33 @@ watch(
     cancelDraftSave();
     savedBody.value = '';
     if (!id) return;
-    void loadEtlJob(id);
+    void loadEtlJob(id).then(() => loadRecordedExecution(id));
   },
   { immediate: true },
 );
+
+/**
+ * In demo mode, the run the server recorded at build, shown in Results before
+ * the visitor runs the job. A run in this browser replaces it.
+ */
+async function loadRecordedExecution(id: string) {
+  await deployment.ensureLoaded();
+  // A run made in this browser stays; a recorded one from another job does not.
+  const ranHere = () => Boolean(executionResult.value && !executionResult.value.recordedAt);
+  if (!deployment.isDemo?.value || props.etlJobId !== id || ranHere()) return;
+  try {
+    const recorded = await etlJobsStore.latestRecordedExecution(id);
+    if (props.etlJobId !== id || ranHere()) return;
+    if (!recorded) {
+      if (executionResult.value?.recordedAt) executionResult.value = null;
+      return;
+    }
+    executionResult.value = etlResultFromStored(recorded.execution, recorded.output);
+    showResults();
+  } catch {
+    // Nothing recorded to show; Results stays hidden until a run.
+  }
+}
 
 /*
  * Identity autosave for a saved pipeline. Name and description belong to

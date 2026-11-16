@@ -12,6 +12,8 @@ import { computed, type MaybeRefOrGetter, reactive, toValue } from 'vue';
 import type { Test, TestUpdateInput } from '@sparql-query-lib/contracts';
 import { deriveIfMatchToken, sendGuarded } from './createVersionedEntityStore';
 import { loadRuns, pruneStaleRuns, saveRuns } from '../lib/testRunCache.js';
+import { testRunFromStored } from '../lib/recordedRuns.js';
+import { useDeploymentMode } from './useDeploymentMode.js';
 import {
   useApiClient,
   type TaggedTestRun,
@@ -51,6 +53,9 @@ const state = reactive<TestsState>({
  */
 let persistDeferred = false;
 
+/** Tests whose recorded run was already asked for on this page, found or not. */
+const recordedAsked = new Set<string>();
+
 function persistRuns() {
   if (persistDeferred) return;
   saveRuns(state.lastRunByTest);
@@ -79,6 +84,29 @@ export function useTestsStore() {
   const lastRunByTest = computed(() => state.lastRunByTest);
   const runningTestIds = computed(() => state.runningTestIds);
 
+  /**
+   * In demo mode, the run the server recorded at build for each test that has
+   * no verdict in this browser. Not written to the browser cache: it is the
+   * server's record, and it is read again on the next page load.
+   */
+  const loadRecordedRuns = async () => {
+    const deployment = useDeploymentMode();
+    await deployment.ensureLoaded();
+    if (!deployment.isDemo?.value) return;
+    const missing = state.tests.filter((test) => !state.lastRunByTest[test.id] && !recordedAsked.has(test.id));
+    await Promise.all(missing.map(async (test) => {
+      recordedAsked.add(test.id);
+      try {
+        const stored = await apiClient.latestRecordedTestRun(test.id);
+        if (stored && !state.lastRunByTest[test.id]) {
+          state.lastRunByTest = { ...state.lastRunByTest, [test.id]: testRunFromStored(stored) };
+        }
+      } catch {
+        // No recorded run to show; the test shows as not run.
+      }
+    }));
+  };
+
   const loadTests = async () => {
     state.loading = true;
     state.error = null;
@@ -89,6 +117,7 @@ export function useTestsStore() {
         state.lastRunByTest = kept;
         persistRuns();
       }
+      void loadRecordedRuns();
     } catch (err: unknown) {
       state.error = err instanceof Error ? err.message : 'Failed to load tests';
       state.tests = [];

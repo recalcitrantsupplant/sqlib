@@ -31,6 +31,8 @@ export interface ReadOnlyRunLimits {
 }
 
 const readOnly = ref(false);
+/** `SQLIB_DEMO=true` on the server: a read-only demo that shows the runs it recorded at build. */
+const demo = ref(false);
 const resolved = ref(false);
 const runLimits = ref<ReadOnlyRunLimits | null>(null);
 let loading: Promise<void> | null = null;
@@ -60,8 +62,9 @@ export function useDeploymentMode() {
       try {
         const response = await fetch(`${apiBase()}/health`);
         // 503 is "cache not ready", which still carries the mode.
-        const payload = (await response.json()) as { readOnly?: unknown; readOnlyRunLimits?: unknown };
+        const payload = (await response.json()) as { readOnly?: unknown; readOnlyRunLimits?: unknown; demo?: unknown };
         readOnly.value = payload.readOnly === true;
+        demo.value = Boolean(payload.demo) && typeof payload.demo === 'object';
         runLimits.value = parseRunLimits(payload.readOnlyRunLimits);
         resolved.value = true;
       } catch {
@@ -73,6 +76,8 @@ export function useDeploymentMode() {
 
   return {
     isReadOnly: computed(() => readOnly.value),
+    /** Demo mode: show the runs the server recorded at build. */
+    isDemo: computed(() => demo.value),
     runLimits: computed(() => runLimits.value),
     /** True once `/health` has answered, for a caller that wants to wait. */
     isResolved: computed(() => resolved.value),
@@ -83,6 +88,7 @@ export function useDeploymentMode() {
 /** For tests, which must not inherit a previous file's answer. */
 export function resetDeploymentMode(): void {
   readOnly.value = false;
+  demo.value = false;
   resolved.value = false;
   runLimits.value = null;
   loading = null;

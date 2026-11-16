@@ -1,6 +1,7 @@
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig, createError } from '#imports';
 import { demoPersonHeaders } from '../lib/demoPerson';
+import type { StoredTestRun } from '../lib/recordedRuns';
 import { z } from 'zod';
 import { useAuth } from './useAuth';
 import { clientId } from '../lib/clientId';
@@ -2467,6 +2468,26 @@ export function useApiClient() {
    * verdicts it reports are the ones it just produced rather than whatever this
    * tab last saw.
    */
+  /**
+   * The newest run the server recorded for a test, with its cases, or null.
+   * A server in demo mode shows it before the visitor runs the test.
+   */
+  const latestRecordedTestRun = async (testId: string): Promise<StoredTestRun | null> => {
+    ensureFeatureEnabled('tests');
+    const runs = await requestData<StoredTestRun[]>(
+      buildUrl(`/tests/${encodeURIComponent(testId)}/runs?limit=1`),
+      { method: 'GET' },
+      (payload) => (Array.isArray(payload) ? payload : []) as StoredTestRun[],
+    );
+    const latest = runs?.[0];
+    if (!latest) return null;
+    return requestData<StoredTestRun>(
+      buildUrl(`/tests/${encodeURIComponent(testId)}/runs/${encodeURIComponent(latest.id)}`),
+      { method: 'GET', headers: { Accept: 'application/json' } },
+      (payload) => payload as StoredTestRun,
+    );
+  };
+
   const exportTestRun = (
     testId: string,
     input: { accept: string; filename: string; version?: number | null },
@@ -3480,6 +3501,7 @@ export function useApiClient() {
     runTestDraft,
     runTestsByTags,
     exportTestRun,
+    latestRecordedTestRun,
     exportTaggedTestRun,
     exportSelectedTestRun,
     listNotebooks,
