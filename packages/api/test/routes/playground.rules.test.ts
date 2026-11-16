@@ -213,11 +213,13 @@ describe('Playground Rules Routes (/playground/rules)', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const [ruleSetVersion] = hoisted.mockExecute.mock.calls.at(-1)!;
+      const [ruleSetVersion, options] = hoisted.mockExecute.mock.calls.at(-1)!;
       // Expanded against the document's prologue, so a seed matches a rule read.
-      expect(ruleSetVersion.tupleSeeds).toBe(
+      // The rows go with the run; the version does not carry them (#106).
+      expect(options.tupleSeeds).toBe(
         'TUPLE(<http://example/reach>, <http://example/a>, <http://example/b>)',
       );
+      expect(ruleSetVersion.tupleSeeds).toBeUndefined();
       expect(ruleSetVersion.tuplesEnabled).toBe(true);
     });
 

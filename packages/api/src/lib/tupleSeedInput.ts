@@ -4,7 +4,7 @@
  * A rule set declares `TUPLE(:seed, ?x, ?y)` reads and is given rows to fill
  * them. Until now the only way to supply those rows *per run* was the
  * playground's inline SRL text: the rule set's own execute route had no field
- * for them at all and ran whatever `tupleSeeds` its version stored, so the
+ * for them at all and ran the seeds its version stored, so the
  * "saved tuple set" choice on the rules screen was resolved to text in the
  * browser and honoured by one route out of two.
  *
@@ -16,9 +16,8 @@
  * - `inline` — an `application/sparql-arguments+json` document, the one wire
  *   spelling for tabular input everywhere else.
  *
- * Supplied, it *overrides* the version's stored seeds for that run; absent, the
- * stored seeds run as before. Nothing about what a rule-set version stores
- * changes: this is a request field, not a model change.
+ * It is the only source of rows for a run. A rule set version does not store
+ * seeds (#106); absent, the run starts with no rows.
  *
  * ## Why the rows are matched positionally
  *

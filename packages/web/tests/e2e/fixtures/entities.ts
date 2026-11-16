@@ -577,7 +577,6 @@ const ROUTES: Array<[RegExp, Handler]> = [
     srl: 'PREFIX : <http://example/>\n\nRULE { ?a :ancestor ?b } WHERE { ?a :parent ?b }\n',
     ruleCount: 1,
     dataBlockCount: 0,
-    tupleSeeds: '',
     tuplesEnabled: false,
     warnings: [],
   })],

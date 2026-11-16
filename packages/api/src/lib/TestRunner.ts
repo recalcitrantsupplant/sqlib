@@ -698,10 +698,11 @@ export class TestRunner {
 
     const dataGraph = this.resolveDataGraph(testCase);
     const executed = await new RuleSetExecutor().execute(
-      // Tuple seeds on the case override the version's own, so one rule set can
-      // be tested against several inputs without cutting a version per input.
-      testCase.tupleSeeds ? { ...version, tupleSeeds: testCase.tupleSeeds } : version,
+      version,
       {
+        // The case's seeds are the run's input, so one rule set can be tested
+        // against several inputs.
+        tupleSeeds: testCase.tupleSeeds || null,
         maxIterations: testVersion.maxIterations ?? undefined,
         timeoutMs: testVersion.timeoutMs ?? undefined,
         initialGraph: dataGraph?.content ?? null,

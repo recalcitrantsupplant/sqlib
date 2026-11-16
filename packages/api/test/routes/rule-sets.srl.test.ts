@@ -415,90 +415,28 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(res.statusCode).toBe(200);
     });
 
-    it('rejects seed rows when the extension is off', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl/preview`,
-        payload: {
-          srl: 'PREFIX : <http://example/>\nRULE { ?s :q ?o } WHERE { ?s :p ?o }',
-          tupleSeeds: 'TUPLE(:rel, :a)',
-        },
-      });
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toMatch(/rule-tuples extension/i);
-    });
-
-    it('preview counts seed values and lists declared inputs separately', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl/preview`,
-        payload: {
-          srl: TUPLE_DOC,
-          tuples: true,
-          tupleSeeds: 'TUPLE(:rel, :a)\nTUPLE(:input, ?x)',
-        },
-      });
-      const seeds = res.json().tupleSeeds;
-      expect(seeds.rows).toBe(1);
-      expect(seeds.declarations).toEqual([
-        { arity: 2, terms: ['<http://example/input>', '?x'] },
-      ]);
-    });
-
-    it('rejects a malformed seed document rather than storing it', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl`,
-        payload: { srl: TUPLE_DOC, tuples: true, tupleSeeds: 'not a tuple row' },
-      });
-      expect(res.statusCode).toBe(400);
-      expect(hoisted.createRuleSetVersion).not.toHaveBeenCalled();
-    });
-
-    it('stores seeds canonically, so they match a rule read at execution', async () => {
+    /*
+     * Seeds are run input (#106). A save stores the document and the toggle,
+     * and a version's export carries no seeds, even one stored before.
+     */
+    it('does not store seed rows sent with a save', async () => {
       hoisted.rule.create.mockResolvedValue({ $id: 'urn:rule:new' });
       hoisted.createRuleVersion.mockResolvedValue({ $id: 'urn:rv:new' });
       hoisted.createRuleSetVersion.mockResolvedValue({ $id: `${RULESET_ID}:v2`, version: 2 });
 
-      await app.inject({
+      const res = await app.inject({
         method: 'POST',
         url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl`,
         payload: { srl: TUPLE_DOC, tuples: true, tupleSeeds: 'TUPLE(:rel, :a)' },
       });
 
-      expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
-        RULESET_ID,
-        expect.objectContaining({
-          // Expanded against the document's prologue and stored without one —
-          // the same canonical form rules are stored in.
-          tupleSeeds: 'TUPLE(<http://example/rel>, <http://example/a>)',
-          tuplesEnabled: true,
-        }), expect.objectContaining({ request: expect.anything() })
-      );
+      expect(res.statusCode).toBe(200);
+      const [, input] = hoisted.createRuleSetVersion.mock.calls.at(-1)!;
+      expect(input).toMatchObject({ tuplesEnabled: true });
+      expect(input).not.toHaveProperty('tupleSeeds');
     });
 
-    it('exports the stored seeds abbreviated against the requested prologue', async () => {
-      hoisted.ruleSetVersion.list.mockReturnValue([
-        {
-          $id: `${RULESET_ID}:v1`,
-          isPartOf: RULESET_ID,
-          version: 1,
-          hasRule: ['urn:rv:1'],
-          hasDataBlock: [],
-          tupleSeeds: 'TUPLE(<http://example/rel>, <http://example/a>)',
-          tuplesEnabled: true,
-        },
-      ]);
-      const res = await app.inject({
-        method: 'GET',
-        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl?prologue=${encodeURIComponent('PREFIX : <http://example/>')}`,
-      });
-      const body = res.json();
-      expect(body.tuplesEnabled).toBe(true);
-      expect(body.tupleSeeds).toBe('TUPLE(:rel, :a)');
-    });
-
-    it("exports the seeds abbreviated against a stored document's prologue", async () => {
+    it('exports no seeds, even for a version that stored them', async () => {
       hoisted.ruleSetVersion.list.mockReturnValue([
         {
           $id: `${RULESET_ID}:v1`,
@@ -512,20 +450,19 @@ describe('RuleSets Routes — SRL document authoring', () => {
         },
       ]);
       const res = await app.inject({ method: 'GET', url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl` });
-      expect(res.json().tupleSeeds).toBe('TUPLE(:rel, :a)');
+      const body = res.json();
+      expect(body.tuplesEnabled).toBe(true);
+      expect(body).not.toHaveProperty('tupleSeeds');
     });
 
-    it('drops the seed document when the extension is turned off', async () => {
-      hoisted.createRuleSetVersion.mockResolvedValue({ $id: `${RULESET_ID}:v2`, version: 2 });
-      await app.inject({
+    it('preview reports no seed summary', async () => {
+      const res = await app.inject({
         method: 'POST',
-        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl`,
-        payload: { srl: 'PREFIX : <http://example/>\nRULE { ?s :q ?o } WHERE { ?s :p ?o }' },
+        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl/preview`,
+        payload: { srl: TUPLE_DOC, tuples: true },
       });
-      expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
-        RULESET_ID,
-        expect.objectContaining({ tupleSeeds: '', tuplesEnabled: false }), expect.objectContaining({ request: expect.anything() })
-      );
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).not.toHaveProperty('tupleSeeds');
     });
   });
 

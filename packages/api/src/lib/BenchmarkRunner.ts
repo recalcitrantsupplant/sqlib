@@ -926,8 +926,7 @@ export class BenchmarkRunner {
    *
    * The two axes reach the executor through the seams that already exist for
    * them — the base graph as `initialGraph`, the tuple set as `tupleSeeds`
-   * (`lib/tupleSeedInput.ts`) — so nothing about what a rule-set version stores
-   * changes to be benchmarked.
+   * (`lib/tupleSeedInput.ts`).
    *
    * What comes back is the inference graph as N-Quads, which `countResults`
    * counts by line: the triples the run produced, the honest analogue of a
@@ -954,10 +953,10 @@ export class BenchmarkRunner {
       : null;
 
     const executed = await this.ruleSetExecutorFactory().execute(
-      // The axis member overrides the version's stored seeds for this run, the
-      // same override a test case makes.
-      tupleSeeds ? { ...versionEntity, tupleSeeds } : versionEntity,
+      versionEntity,
       {
+        // The axis member is the run's input, as a test case's seeds are.
+        tupleSeeds,
         initialGraph: dataGraph?.content ?? null,
         initialGraphFormat: dataGraph?.format ?? null,
         /*

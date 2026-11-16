@@ -11,28 +11,22 @@ import { reposRoute } from './route-helpers.js';
 import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import { ruleSetExecutionResponseJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
 import { createRuleSetVersion } from '../lib/RuleSetVersionWriter.js';
-import { ruleTuplesAllowed, ruleTuplesRefusal, hasSeedText } from '../lib/ruleTuples.js';
+import { ruleTuplesAllowed, ruleTuplesRefusal } from '../lib/ruleTuples.js';
 import { RuleSetExecutor } from '../lib/RuleSetExecutor.js';
 import type { RuleSetExecutionCallbacks } from '../lib/RuleSetExecutor.js';
 import { expandRuleSetVersion } from '../lib/RuleSetVersionResolver.js';
 import {
-  abbreviateIris,
   compileRule,
   sparqlToRule,
   expandIris,
-  extractPrologueText,
   generateRule,
-  generateTupleSeeds,
-  groundTupleSeedRows,
   parseRuleSet,
-  parseTupleSeeds,
   reconcileRuleSet,
   stratify,
   splitDataBlocks,
   splitRuleSet,
   canonicalDataBlockText,
   checkWellFormed,
-  tupleSeedDeclarations,
   type CompileFlavour,
   type SrlDataBlockDocument,
   type SrlRuleDocument,
@@ -641,7 +635,6 @@ export default async function (fastify: FastifyInstance) {
             srl: { type: 'string' },
             ruleCount: { type: 'number' },
             dataBlockCount: { type: 'number' },
-            tupleSeeds: { type: 'string' },
             tuplesEnabled: { type: 'boolean' },
             warnings: { type: 'array', items: { type: 'string' } },
             documentSource: {
@@ -651,7 +644,7 @@ export default async function (fastify: FastifyInstance) {
                 + 'canonical rules, for a version saved without a document.',
             },
           },
-          required: ['srl', 'ruleCount', 'dataBlockCount', 'tupleSeeds', 'tuplesEnabled', 'warnings', 'documentSource'],
+          required: ['srl', 'ruleCount', 'dataBlockCount', 'tuplesEnabled', 'warnings', 'documentSource'],
         },
         404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
       },
@@ -681,7 +674,6 @@ export default async function (fastify: FastifyInstance) {
        * echoing what an older version stored: a client told `tuplesEnabled` is
        * true would draw a toggle this build does not honour.
        */
-      tupleSeeds: ruleTuplesAllowed() ? tupleSeedsForDocument(resolution.version, documentSource, query.prologue ?? '') : '',
       tuplesEnabled: ruleTuplesAllowed() && resolution.version.tuplesEnabled === true,
       warnings,
       documentSource,
@@ -702,7 +694,6 @@ export default async function (fastify: FastifyInstance) {
           srl: { type: 'string' },
           version: { type: 'string' },
           tuples: { type: 'boolean' },
-          tupleSeeds: { type: 'string', nullable: true },
         },
         required: ['srl'],
       }),
@@ -716,12 +707,11 @@ export default async function (fastify: FastifyInstance) {
     const body = request.body ?? {};
     /*
      * The deployment gate, above the document's own toggle: a request may not
-     * turn the extension on, or send seed rows for it, unless this build
-     * offers it. Checked before the rule set is looked up, because a field
-     * this build does not offer is refused whether or not the rule set exists.
-     * See lib/ruleTuples.ts.
+     * turn the extension on unless this build offers it. Checked before the
+     * rule set is looked up, because a field this build does not offer is
+     * refused whether or not the rule set exists. See lib/ruleTuples.ts.
      */
-    const tupleRefusal = ruleTuplesRefusal(body.tuples === true || hasSeedText(body.tupleSeeds));
+    const tupleRefusal = ruleTuplesRefusal(body.tuples === true);
     if (tupleRefusal) {
       return reply.status(400).send({ error: tupleRefusal });
     }
@@ -739,10 +729,8 @@ export default async function (fastify: FastifyInstance) {
     let docs: SrlRuleDocument[];
     let dataDocs: SrlDataBlockDocument[];
     let warnings: string[];
-    let seeds: ReturnType<typeof describeTupleSeeds>;
     try {
       ({ docs, dataDocs, warnings } = parseSrlDocument(body.srl ?? '', tuples));
-      seeds = describeTupleSeeds(body.tupleSeeds, body.srl ?? '', tuples);
     } catch (error) {
       return reply.status(400).send({ error: error instanceof Error ? error.message : 'Invalid SRL document' });
     }
@@ -781,7 +769,6 @@ export default async function (fastify: FastifyInstance) {
         unchangedCount: dataResult.updated.filter((u) => !u.changed).length,
         detached: dataResult.detached.map((e) => describeDetachedDataBlock(repos, e.dataBlockVersion, id)),
       },
-      tupleSeeds: seeds,
     });
   }));
 
@@ -796,7 +783,6 @@ export default async function (fastify: FastifyInstance) {
           version: { type: 'string' },
           comment: { type: 'string', nullable: true },
           tuples: { type: 'boolean' },
-          tupleSeeds: { type: 'string', nullable: true },
           /* The tool the new version publishes as; left out, the previous version's. */
           tool: rulesetversionSchema.properties.tool,
         },
@@ -812,12 +798,11 @@ export default async function (fastify: FastifyInstance) {
     const body = request.body ?? {};
     /*
      * The deployment gate, above the document's own toggle: a request may not
-     * turn the extension on, or send seed rows for it, unless this build
-     * offers it. Checked before the rule set is looked up, because a field
-     * this build does not offer is refused whether or not the rule set exists.
-     * See lib/ruleTuples.ts.
+     * turn the extension on unless this build offers it. Checked before the
+     * rule set is looked up, because a field this build does not offer is
+     * refused whether or not the rule set exists. See lib/ruleTuples.ts.
      */
-    const tupleRefusal = ruleTuplesRefusal(body.tuples === true || hasSeedText(body.tupleSeeds));
+    const tupleRefusal = ruleTuplesRefusal(body.tuples === true);
     if (tupleRefusal) {
       return reply.status(400).send({ error: tupleRefusal });
     }
@@ -831,15 +816,8 @@ export default async function (fastify: FastifyInstance) {
     const tuples = body.tuples === true;
     let docs: SrlRuleDocument[];
     let dataDocs: SrlDataBlockDocument[];
-    let seedDocument: string;
     try {
       ({ docs, dataDocs } = parseSrlDocument(body.srl ?? '', tuples));
-      // A seed document that does not parse must fail the import rather than be
-      // stored and blow up later, at execution, where the author is no longer
-      // looking. Stored canonically (expanded IRIs, no prologue) for the same
-      // reason rules are: nothing stores the prologue beside it, so a prefixed
-      // seed would reach execution unexpanded and match no rule's tuple read.
-      seedDocument = tuples ? canonicalTupleSeeds(body.tupleSeeds, body.srl ?? '') : '';
     } catch (error) {
       return reply.status(400).send({ error: error instanceof Error ? error.message : 'Invalid SRL document' });
     }
@@ -915,7 +893,6 @@ export default async function (fastify: FastifyInstance) {
       comment: body.comment ?? 'Imported from SRL document',
       hasRule,
       hasDataBlock,
-      tupleSeeds: seedDocument,
       tuplesEnabled: tuples,
       srlDocument: body.srl,
       ...(Object.prototype.hasOwnProperty.call(body, 'tool') ? { tool: body.tool } : {}),
@@ -1425,67 +1402,6 @@ function parseSrlDocument(
   }
   const warnings = checkWellFormed(ruleSet).map((issue) => `[${issue.category}] rule ${issue.ruleIndex + 1}: ${issue.message}`);
   return { docs: splitRuleSet(ruleSet), dataDocs: splitDataBlocks(ruleSet), warnings };
-}
-
-/**
- * Validate a tuple-seed document and describe what it declares.
- *
- * The ruleset's prologue is prepended so a seed row may use the prefixes the
- * document declares — box 2 is part of the same authoring surface as box 1, and
- * making the author redeclare `PREFIX :` there would be a papercut. Seeds carry
- * their own prologue too, which wins for any prefix they redefine.
- */
-function describeTupleSeeds(
-  seedText: string | null | undefined,
-  documentText: string,
-  tuples: boolean,
-): { rows: number; declarations: Array<{ arity: number; terms: string[] }> } {
-  const seeds = parseSeedDocument(seedText, documentText, tuples);
-  if (!seeds) return { rows: 0, declarations: [] };
-  return {
-    rows: groundTupleSeedRows(seeds).length,
-    declarations: tupleSeedDeclarations(seeds).map((d) => ({ arity: d.arity, terms: d.terms })),
-  };
-}
-
-/**
- * The seed rows to show beside a version's document.
- *
- * With a stored document, the canonical seeds abbreviated against the stored
- * document's own prologue. With a
- * generated one, the canonical seeds abbreviated against the prologue the
- * document was generated with, so box 2 reads like box 1.
- */
-function tupleSeedsForDocument(
-  version: PersistedRuleSetVersion,
-  documentSource: 'stored' | 'generated',
-  prologue: string,
-): string {
-  if (documentSource === 'stored') {
-    return abbreviateIris(version.tupleSeeds ?? '', extractPrologueText(version.srlDocument ?? ''));
-  }
-  return abbreviateIris(version.tupleSeeds ?? '', prologue);
-}
-
-/** The canonical (expanded, prologue-free) storage form of a seed document. */
-function canonicalTupleSeeds(seedText: string | null | undefined, documentText: string): string {
-  const seeds = parseSeedDocument(seedText, documentText, true);
-  return seeds ? generateTupleSeeds(seeds) : '';
-}
-
-/** Parse a seed document under the ruleset's prefixes, or null when empty. */
-function parseSeedDocument(
-  seedText: string | null | undefined,
-  documentText: string,
-  tuples: boolean,
-) {
-  const text = (seedText ?? '').trim();
-  if (!text) return null;
-  if (!tuples) {
-    throw new Error('Initial named tuples require the rule-tuples extension to be enabled');
-  }
-  const prologue = extractPrologueText(documentText ?? '');
-  return parseTupleSeeds(prologue ? `${prologue}\n${text}` : text, { tuples: true });
 }
 
 /**

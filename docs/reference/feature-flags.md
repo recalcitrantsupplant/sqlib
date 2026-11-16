@@ -147,8 +147,9 @@ Two switches control this feature, at two levels:
 
 - The `TUPLE( … )` syntax in an SRL document. See
   [the SRL reference](srl-language.md#the-rule-tuples-extension).
-- The `tuplesEnabled` toggle of a rule set version, and its `tupleSeeds`.
-- The tuple seed input on a rule set execute.
+- The `tuplesEnabled` toggle of a rule set version.
+- The seed rows of a run: `tuples` on a rule set execute, and `tupleSeeds` on
+  a playground run or a test case.
 - In the browser build: the toggle, the named-tuples input block, and each
   option that leads to either. They are removed, and not disabled.
 
@@ -171,7 +172,7 @@ The rule-tuples extension is not enabled on this server
 
 A request asks for the extension when it has `tuples: true`, a non-empty
 `tupleSeeds`, or a `tuplesEnabled` of true. The refusal covers the SRL preview,
-the SRL import, and the document analyser. On a rule set execute, the body
+the SRL import, the playground, and the document analyser. On a rule set execute, the body
 schema refuses the tuple seed input before the handler runs, so the message
 comes from the validator. In both cases, the run does not start.
 
@@ -182,8 +183,8 @@ caller that asked for the extension learns why it cannot have it. A caller that
 did not ask learns that its document is not SRL.
 
 A read of a rule set version saved when the extension was available also
-follows the flag. `tuplesEnabled` is `false`, and `tupleSeeds` is empty,
-whatever the older version stored.
+follows the flag. `tuplesEnabled` is `false`, whatever the older version
+stored.
 
 ### The residual
 
@@ -210,7 +211,8 @@ Status:
 - To do: when it merges, `GROUP` becomes part of SRL, and the flag is removed.
 
 This flag has no switch for each version. `ruleTuples` needs one, because a rule
-set version holds seed rows that have meaning only with that extension on. A
+set version holds `TUPLE( … )` rules that have meaning only with that extension
+on. A
 `GROUP` is completely inside the rule text.
 
 With the flag off, `GROUP` is a syntax error in each place where the server

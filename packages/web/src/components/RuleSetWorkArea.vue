@@ -462,8 +462,6 @@ const savingTest = ref(false);
 const savingBenchmark = ref(false);
 /** The saved version's text, so "has this been edited?" is answerable. */
 const loadedVersionDocument = ref<string>('');
-/** And its seed rows, so "have the inputs been changed?" is answerable too. */
-const loadedVersionTupleSeeds = ref<string>('');
 
 const hasDocument = computed(() => srlDocument.value.trim().length > 0);
 
@@ -1107,7 +1105,6 @@ async function save() {
     const response = await apiClient.importRuleSetSrl(id, srlDocument.value, {
       comment: null,
       tuples: tuplesEnabled.value,
-      tupleSeeds: tuplesEnabled.value ? tupleSeeds.value : null,
     });
     removeDraft();
     toast.success(`Saved v${response.version} (${response.ruleCount} rules)`);
@@ -1132,7 +1129,6 @@ async function saveScratch() {
     await apiClient.importRuleSetSrl(created.data.id, srlDocument.value, {
       comment: null,
       tuples: tuplesEnabled.value,
-      tupleSeeds: tuplesEnabled.value ? tupleSeeds.value : null,
     });
     /*
      * Only now is the scratch record safe to drop. A failure above leaves it
@@ -1203,7 +1199,7 @@ async function openDiff() {
       id,
       srlDocument.value,
       plan.left.version,
-      { tuples: tuplesEnabled.value, tupleSeeds: tuplesEnabled.value ? tupleSeeds.value : null },
+      { tuples: tuplesEnabled.value },
     ).then(
       (result) => { if (seq === diffSeq) previewResult.value = result; },
       (error) => {
@@ -1241,7 +1237,6 @@ const resetState = () => {
   currentVersionNumberForDisplay.value = null;
   ruleSetConcurrency.value = null;
   loadedVersionDocument.value = '';
-  loadedVersionTupleSeeds.value = '';
   srlDocument.value = '';
   documentRuleSetId = null;
   tupleSeeds.value = '';
@@ -1391,8 +1386,9 @@ async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof api
     hydrate(() => {
       srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
       documentRuleSetId = id;
-      loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
-      tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
+      // Seeds are run input and no version stores them (#106), so the editor
+      // keeps the rows it holds unless a draft brings its own.
+      tupleSeeds.value = draft?.tupleSeeds ?? tupleSeeds.value;
       applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
       locallySavedAt.value = openDraft.value?.updatedAt ?? null;
     });
@@ -1824,17 +1820,12 @@ async function run() {
   }
   const savedVersion = ruleSetVersions.value.find((entry) => entry.id === selectedVersionId.value);
   /*
-   * The rule set's own execute route runs the version's *stored* seeds, and has
-   * no field to override them with. So a tuple selection made on screen is only
-   * honoured by the playground route, which takes the seed document — picking a
-   * different tuple set and having the run quietly ignore it is the one outcome
-   * worth an extra parse to avoid.
+   * The playground route takes the seed rows as SRL text, so a run with rows
+   * goes there. A saved version with no rows runs by its own id.
    */
   const seeds = tupleSeedsForRun();
-  const overridesSeeds = tupleSource.value === 'saved'
-    ? seeds !== null
-    : (seeds ?? '').trim() !== loadedVersionTupleSeeds.value.trim();
-  const runsDocument = isScratch.value || !savedVersion || !documentMatchesVersion() || overridesSeeds;
+  const hasSeeds = (seeds ?? '').trim() !== '';
+  const runsDocument = isScratch.value || !savedVersion || !documentMatchesVersion() || hasSeeds;
 
   isExecuting.value = true;
   executionResult.value = null;
@@ -2302,13 +2293,11 @@ async function saveAsTest() {
  * Whether the on-screen tuple selection can be named in a plan.
  *
  * Inline rows cannot: a benchmark axis holds a `TupleSet` IRI and there is
- * nothing in the library to point at. Refusing is only right when those rows
- * would actually change the run — inline text identical to what the version
- * stored is what a spec with no `inputs` already executes.
+ * nothing in the library to point at.
  */
 const inlineSeedsWouldBeLost = computed(() => {
   if (!tuplesEnabled.value || tupleSource.value === 'saved') return false;
-  return tupleSeeds.value.trim() !== loadedVersionTupleSeeds.value.trim();
+  return tupleSeeds.value.trim() !== '';
 });
 
 const benchmarkDisabledReason = computed(() => {

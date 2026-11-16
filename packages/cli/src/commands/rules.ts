@@ -99,7 +99,7 @@ async function runRules(io: Io, values: RulesValues, report: RunReport): Promise
     }
   }
 
-  const tupleSeeds = values.tuples ? await readInput(io, values.tuples) : document.tupleSeeds;
+  const tupleSeeds = values.tuples ? await readInput(io, values.tuples) : null;
   const result = await report.time('run', () => new RuleSetRunner().run(
     {
       id: document.name,
@@ -152,11 +152,11 @@ async function runRules(io: Io, values: RulesValues, report: RunReport): Promise
   return { exitCode: 2, status: result.status };
 }
 
-/** The document to run: an SRL file, or one rule set of a bundle with its seed rows. */
+/** The document to run: an SRL file, or one rule set of a bundle. */
 async function loadDocument(
   io: Io,
   values: { srl?: string; bundle?: string; 'rule-set'?: string },
-): Promise<{ text: string; name: string; tupleSeeds: string | null; provenance: Record<string, unknown> }> {
+): Promise<{ text: string; name: string; provenance: Record<string, unknown> }> {
   if (values.bundle) {
     if (values.srl) throw new CliError('Pass --srl or --bundle, not both.');
     const key = values['rule-set'];
@@ -165,7 +165,6 @@ async function loadDocument(
     return {
       text: ruleSet.srl,
       name: key,
-      tupleSeeds: ruleSet.tupleSeeds ?? null,
       provenance: {
         bundle: values.bundle,
         key,
@@ -177,7 +176,7 @@ async function loadDocument(
   }
   if (!values.srl) throw new CliError('rules run needs --srl, or --bundle and --rule-set.');
   const text = await readInput(io, values.srl);
-  return { text, name: values.srl, tupleSeeds: null, provenance: { file: values.srl, textHash: sha256(text) } };
+  return { text, name: values.srl, provenance: { file: values.srl, textHash: sha256(text) } };
 }
 
 /** Parse, check, layer and compile an SRL document, as a host prepares a rule set. */

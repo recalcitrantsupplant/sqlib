@@ -314,6 +314,21 @@ describe('RuleSetWorkArea (draft) — rule tuples', () => {
     );
   });
 
+  // Seed rows are run input, so a save sends the document and the toggle only (#106).
+  it('saves without the seed rows', async () => {
+    api.createRuleSet.mockResolvedValue({ data: { id: 'urn:rs:new' } });
+    api.importRuleSetSrl.mockResolvedValue({ ruleSetVersionId: 'urn:rsv:1', version: 1, ruleCount: 1 });
+
+    const wrapper = await mountWorkArea();
+    await setTuplesEnabled(wrapper, true);
+    await setInlineTuples(wrapper, 'TUPLE(:reach, :a, :b)');
+    await clickButton(wrapper, /Save/);
+
+    const [, , input] = api.importRuleSetSrl.mock.calls.at(-1)!;
+    expect(input).toEqual(expect.objectContaining({ tuples: true }));
+    expect(input).not.toHaveProperty('tupleSeeds');
+  });
+
   it('restores a workspace that had the extension on', async () => {
     scratch.body = { srl: 'RULE { } WHERE { }', tuplesEnabled: true, tupleSeeds: 'TUPLE(:reach, :a)' };
     const wrapper = await mountWorkArea();

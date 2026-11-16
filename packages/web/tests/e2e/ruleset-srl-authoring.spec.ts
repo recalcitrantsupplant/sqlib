@@ -60,7 +60,6 @@ type PreviewBody = {
     unchangedCount: number;
     detached: Array<{ dataBlockVersionId: string; otherRuleSets: number; orphaned: boolean }>;
   };
-  tupleSeeds: { rows: number; declarations: Array<{ arity: number; terms: string[] }> };
 };
 
 /** The parts of a preview response every case carries. */
@@ -71,7 +70,6 @@ const emptyPreview = (): PreviewBody => ({
   detached: [],
   unchangedCount: 0,
   data: { created: [], unchangedCount: 0, detached: [] },
-  tupleSeeds: { rows: 0, declarations: [] },
 });
 
 type AnalysisBlock = {
@@ -133,7 +131,6 @@ test.describe('Rule set SRL authoring', () => {
   let lastPreviewContentType: string | undefined;
   let lastImportContentType: string | undefined;
   let exportedSrl: string;
-  let exportedTupleSeeds: string;
   let exportedTuplesEnabled: boolean;
   let lastCompileRequest: Record<string, unknown> | null;
   let compileBody: Record<string, unknown>;
@@ -160,7 +157,6 @@ test.describe('Rule set SRL authoring', () => {
     lastPreviewContentType = undefined;
     lastImportContentType = undefined;
     exportedSrl = EXPORTED_SRL;
-    exportedTupleSeeds = '';
     exportedTuplesEnabled = false;
     lastCompileRequest = null;
     compileBody = { rules: [], dataBlocks: [], flavour: 'insert' };
@@ -179,7 +175,6 @@ test.describe('Rule set SRL authoring', () => {
             srl: exportedSrl,
             ruleCount: 1,
             dataBlockCount: 0,
-            tupleSeeds: exportedTupleSeeds,
             tuplesEnabled: exportedTuplesEnabled,
             warnings: [],
           }),
@@ -501,19 +496,16 @@ test.describe('Rule set SRL authoring', () => {
 
     await expect(page.getByText(/Saved v2/i)).toBeVisible();
     expect(lastImportRequest?.tuples).toBe(true);
-    expect(lastImportRequest?.tupleSeeds).toBe('TUPLE(:reach, :a, :b)');
+    // Seed rows are run input, so a save does not send them (#106).
+    expect(lastImportRequest).not.toHaveProperty('tupleSeeds');
   });
 
-  test('loads a ruleset that already opted in, seed rows and all', async ({ page }) => {
+  test('loads a ruleset that already opted in', async ({ page }) => {
     exportedTuplesEnabled = true;
-    exportedTupleSeeds = 'TUPLE(:reach, :a, :b)';
 
     await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
 
-    // Inputs is the default tab, so the rows are already on screen.
-    await expect(page.locator('[data-testid="inputs-tuples"] .cm-content'))
-      .toContainText('TUPLE(:reach, :a, :b)');
     await page.locator('[data-testid="details-tab"]').click();
     await expect(page.locator('[data-testid="tuples-toggle"]')).toBeChecked();
   });

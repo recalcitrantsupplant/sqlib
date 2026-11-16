@@ -276,14 +276,14 @@ then run rules on it, build a query group.
 | Name | What it is | Where it appears |
 | --- | --- | --- |
 | **TupleSet** | a library entity: a saved table of RDF terms | the Tuples rail; fills the `VALUES` clause of a query or a `TUPLE( … )` in a rule set |
-| **SRL rule tuples** | a language extension: `TUPLE( … )` declarations in an SRL document, with the `tuplesEnabled` switch and `tupleSeeds` of a rule set version | in rule text; controlled by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`, default off) |
+| **SRL rule tuples** | a language extension: `TUPLE( … )` declarations in an SRL document, with the `tuplesEnabled` switch of a rule set version | in rule text; controlled by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`, default off) |
 | **`QueryInputTuple` / `QueryOutputTuple`** | internal I/O entities: the declared signature of one `VALUES` clause or one result shape | `inferredInputs` / `inferredOutputs` of a query version, and the node ports on the canvas |
 
 A tuple set can fill an SRL `TUPLE( … )` parameter. It can also fill the
 parameter that a `QueryInputTuple` describes. It is a separate thing from both.
 
 The `ruleTuples` feature flag controls the middle row only. When the flag is
-off, the server refuses `TUPLE( … )` syntax, `tuplesEnabled` and `tupleSeeds`,
+off, the server refuses `TUPLE( … )` syntax, `tuplesEnabled` and seed rows,
 and the UI shows no control for the extension. The flag has no effect on the
 `TupleSet` entity, the Tuples rail or argument sets. Tuple *seeds* are a fourth
 form of the middle row: an SRL text document of ground `TUPLE( … )` rows,

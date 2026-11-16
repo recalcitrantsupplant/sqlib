@@ -362,7 +362,6 @@
       "ruleCount": 2,
       "dataBlockCount": 1,
       "tuplesEnabled": true,
-      "tupleSeeds": "TUPLE(<http://example.org/reach>, <http://example.org/a>, <http://example.org/b>)",
       "name": "Ancestors",
       "description": "The transitive closure of ex:parent.",
       "tags": [

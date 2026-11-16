@@ -51,18 +51,6 @@ export const RuleSetVersionSchema = {
     '@optional': true,
   },
   /**
-   * The ruleset's initial named tuples, as an SRL tuple-seed document
-   * (`TUPLE( … )` rows). Stored as text rather than as DataBlocks on purpose:
-   * a data block compiles to `INSERT DATA` against the RDF store, which is
-   * precisely what a tuple must never do — tuples are ephemeral and never enter
-   * the inference graph.
-   */
-  tupleSeeds: {
-    '@id': sqlib.tupleSeeds,
-    '@type': xsd.string,
-    '@optional': true,
-  },
-  /**
    * The SRL document this version was saved from, verbatim: the author's
    * prefixes, layout and comments. `hasRule` and `hasDataBlock` are derived
    * from it and are what runs; this is what was written, and what
@@ -118,7 +106,6 @@ export interface PersistedRuleSetVersion {
   hasRule?: string[] | null;
   hasDataBlock?: string[] | null;
   stratificationReport?: string | null;
-  tupleSeeds?: string | null;
   srlDocument?: string | null;
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;

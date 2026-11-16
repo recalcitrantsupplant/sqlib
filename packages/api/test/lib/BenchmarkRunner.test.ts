@@ -429,7 +429,7 @@ describe('BenchmarkRunner', () => {
         };
       }
       if (id === ruleSetVersionId) {
-        return { $id: ruleSetVersionId, '@type': 'RuleSetVersion', immutable: true, tupleSeeds: null };
+        return { $id: ruleSetVersionId, '@type': 'RuleSetVersion', immutable: true };
       }
       // Named as the graph, so the run resolves its current version.
       if (id === dataGraphId) {
@@ -491,8 +491,8 @@ describe('BenchmarkRunner', () => {
 
     const graphs = execute.mock.calls.map((call) => call[1].initialGraph);
     expect(graphs).toEqual(['<urn:s> <urn:p> <urn:o> .', '<urn:s2> <urn:p2> <urn:o2> .']);
-    // The axis member overrides the version's stored seeds for the run.
-    expect(execute.mock.calls[0][0].tupleSeeds).toContain('urn:seed');
+    // The axis member is the run's input.
+    expect(execute.mock.calls[0][1].tupleSeeds).toContain('urn:seed');
 
     const observation = result.observations[0];
     expect(observation.backend).toBe(BENCHMARK_NOT_APPLICABLE_BACKEND_IRI);

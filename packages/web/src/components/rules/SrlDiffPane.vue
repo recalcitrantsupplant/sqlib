@@ -90,8 +90,6 @@
               <span class="muted">{{ detachExplanation(item.orphaned, item.otherRuleSets) }}</span>
             </li>
           </ul>
-
-          <p v-if="seedSummary" class="muted">{{ seedSummary }}</p>
         </template>
       </div>
     </div>
@@ -147,21 +145,6 @@ const isNoOp = computed(
     && dataCreated.value.length === 0
     && dataDetached.value.length === 0,
 );
-
-/** What the seed rows contribute, as values versus declared inputs. */
-const seedSummary = computed(() => {
-  const seeds = props.result?.tupleSeeds;
-  if (!seeds || (seeds.rows === 0 && seeds.declarations.length === 0)) return '';
-  const parts: string[] = [];
-  if (seeds.rows) parts.push(`${seeds.rows} initial tuple${seeds.rows === 1 ? '' : 's'}`);
-  if (seeds.declarations.length) {
-    parts.push(
-      `${seeds.declarations.length} declared input${seeds.declarations.length === 1 ? '' : 's'} `
-      + `(${seeds.declarations.map((d) => `TUPLE(${d.terms.join(', ')})`).join(', ')})`,
-    );
-  }
-  return parts.join('; ');
-});
 
 const detachExplanation = (orphaned: boolean, otherRuleSets: number) =>
   orphaned

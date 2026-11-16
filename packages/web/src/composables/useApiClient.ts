@@ -478,19 +478,12 @@ export interface RuleSetSrlPreview {
     unchangedCount: number;
     detached: RuleSetSrlDataDetached[];
   };
-  /** What the initial-named-tuples box declares: values vs. inputs. */
-  tupleSeeds: {
-    rows: number;
-    declarations: Array<{ arity: number; terms: string[] }>;
-  };
 }
 
 export interface RuleSetSrlExport {
   srl: string;
   ruleCount: number;
   dataBlockCount: number;
-  /** The ruleset's initial named tuples, as a TUPLE(…) document. */
-  tupleSeeds: string;
   /** Whether this version opts into the rule-tuples extension. */
   tuplesEnabled: boolean;
   /** Parts of the ruleset that have no SRL form and were left out. */
@@ -1629,13 +1622,12 @@ export function useApiClient() {
     ruleSetId: string,
     srl: string,
     version?: number | null,
-    options?: { tuples?: boolean; tupleSeeds?: string | null },
+    options?: { tuples?: boolean },
   ) => {
     ensureRulesSuiteEnabled();
     const body: Record<string, unknown> = { srl };
     if (version !== undefined && version !== null) body.version = String(version);
     if (options?.tuples) body.tuples = true;
-    if (options?.tupleSeeds) body.tupleSeeds = options.tupleSeeds;
     return requestData(
       buildUrl(`/rule-sets/${encodeURIComponent(ruleSetId)}/srl/preview`),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) },
@@ -1719,16 +1711,14 @@ export function useApiClient() {
       version?: number | null;
       comment?: string | null;
       tuples?: boolean;
-      tupleSeeds?: string | null;
     },
   ) => {
     ensureRulesSuiteEnabled();
-    if (input?.tuples === true || (input?.tupleSeeds ?? '').trim()) ensureRuleTuplesEnabled();
+    if (input?.tuples === true) ensureRuleTuplesEnabled();
     const body: Record<string, unknown> = { srl };
     if (input?.version !== undefined && input.version !== null) body.version = String(input.version);
     if (input?.comment) body.comment = input.comment;
     if (input?.tuples) body.tuples = true;
-    if (input?.tupleSeeds) body.tupleSeeds = input.tupleSeeds;
     return requestData(
       buildUrl(`/rule-sets/${encodeURIComponent(ruleSetId)}/srl`),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) },

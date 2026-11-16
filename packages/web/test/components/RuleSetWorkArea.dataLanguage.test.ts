@@ -150,7 +150,6 @@ describe('RuleSetWorkArea — the language of the Inputs data box', () => {
     ]);
     api.exportRuleSetSrl.mockResolvedValue({
       srl: 'PREFIX : <http://example/>\nRULE { ?x :p ?y } WHERE { ?x :q ?y }\n',
-      tupleSeeds: null,
       tuplesEnabled: false,
       warnings: [],
     });

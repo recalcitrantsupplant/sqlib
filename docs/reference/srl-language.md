@@ -408,7 +408,9 @@ reads it found, with their arity and rendered terms.
 
 A rule set's rules derive tuples; nothing in the language gives it one, so a
 tuple relation could otherwise only ever be computed. A seed document supplies
-the initial rows, in a second authoring box, parsed by `parseTupleSeeds`:
+the initial rows of a run, parsed by `parseTupleSeeds`. Seed rows are run input,
+as an argument set is for a query: a rule set version does not store them.
+Send them with each run, or save them as a tuple set.
 
 ```sparql
 PREFIX : <http://example.org/>

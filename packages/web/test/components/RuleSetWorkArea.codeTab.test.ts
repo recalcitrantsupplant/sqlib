@@ -136,7 +136,6 @@ describe('RuleSetWorkArea — the Code tab names a base graph', () => {
     ]);
     api.exportRuleSetSrl.mockResolvedValue({
       srl: 'PREFIX : <http://example/>\nRULE { ?x :p ?y } WHERE { ?x :q ?y }\n',
-      tupleSeeds: null,
       tuplesEnabled: false,
       warnings: [],
     });

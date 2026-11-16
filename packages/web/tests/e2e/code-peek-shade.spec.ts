@@ -55,7 +55,6 @@ async function openSubjectPeek(page: Page, srl: string) {
     srl,
     ruleCount: srl.split('\n\n').length,
     dataBlockCount: 0,
-    tupleSeeds: '',
     tuplesEnabled: false,
     warnings: [],
   }));
