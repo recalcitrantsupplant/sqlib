@@ -110,16 +110,23 @@ The parser checks these well-formedness conditions in
 | `set-rebinds` | a `SET` binds a variable that is already bound |
 | `use-before-bind` | a `FILTER` or `SET` uses a variable before it is bound |
 | `aggregate-scope` | a variable breaks the scope rules of `GROUP` |
+| `in-use` | a variable that is local to a `NOT` or a `GROUP` pattern is used again in the rule, or a `GROUP` pattern uses a variable that is bound before the `GROUP` and is not a key |
 
 A document can have correct syntax and still fail these conditions.
 
-Two more checks mark rules that are legal but probably wrong. In each case, one
-name refers to two separate variables:
+`in-use` is the specification's `inUse` condition (w3c/data-shapes#690). A
+variable in a `NOT` that is not bound before the `NOT` is local to it. No later
+element may use the name: not a triple pattern, a `SET`, another `NOT` or a
+`GROUP`. A variable in a `GROUP` pattern that is not a key is local to the
+pattern in the same way. Inside the pattern, the variables bound before the
+`GROUP` that are not keys are in use. To use the same value, list the variable
+after `BY`. Otherwise, rename one of the two.
+
+One more check marks a rule that is legal but probably wrong:
 
 | Category | Severity | Marks |
 | --- | --- | --- |
-| `group-shadowing` | `warning` | A variable in a `GROUP` pattern has the name of a variable bound before the `GROUP`, and is not listed after `BY`. The pattern sees only its keys, so the two variables are separate. To use the same value, list the variable after `BY`. |
-| `not-before-binding` | `info` | A variable in a `NOT` is unbound when the `NOT` runs, and a later element binds it. To test the same value, move the `NOT` after that element. |
+| `group-shadowing` | `warning` | A blank node label in a `GROUP` pattern is also used before the `GROUP`. The pattern sees only its keys, so the two blank nodes are separate. To use the same value, replace the label by a variable and list it after `BY`. |
 
 Only errors make a document ill-formed. Each issue has `from` and `to`, the
 range of the analysed text that it is about. The unit is UTF-16 code units: the
