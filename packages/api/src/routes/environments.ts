@@ -32,6 +32,7 @@ import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { authOf, filterReadable, requireEnvironmentMode, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { getAuthStore } from '../auth/AuthStore.js';
 import { isPromotableType, LATEST_ENVIRONMENT, partsBehind, PROMOTABLE_TYPES, startingVersions, versionIn } from '../lib/environments.js';
+import { sendListPage, withListPageQuery } from '../lib/listPage.js';
 
 export const environmentResponseSchema = {
   type: 'object',
@@ -251,7 +252,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.get('/', ...reposRoute({
       tags: ['Environment'],
       summary: 'List environments',
-      querystring: listQuerystringSchema,
+      querystring: withListPageQuery(listQuerystringSchema),
       response: { 200: { type: 'array', items: environmentResponseSchema } },
     }, async ({ repos, reply, request }) => {
     const { library } = request.query;
@@ -260,7 +261,7 @@ export default async function (fastify: FastifyInstance) {
     const ordered = [...scoped].sort(
       (a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name),
     );
-    return reply.send(filterReadable(request, ordered).map(env => toRestApi(env)));
+    return sendListPage(request, reply, filterReadable(request, ordered), env => toRestApi(env));
   }));
 
   fastify.post('/', ...reposRoute({

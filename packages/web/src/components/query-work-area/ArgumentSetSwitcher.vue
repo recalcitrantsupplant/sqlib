@@ -50,7 +50,7 @@
             <span class="set-row-name">New scratch set</span>
           </DropdownMenuItem>
 
-          <template v-if="scratchSets.length || savedSets.length">
+          <template v-if="scratchSets.length || savedSets.length || filter">
             <DropdownMenuSeparator />
             <!--
               The same box as the other lists (`FilterBox`, fuzzy on the name).
@@ -92,7 +92,7 @@
             <DropdownMenuSeparator />
             <DropdownMenuLabel class="menu-heading">
               Saved
-              <span class="menu-heading-count">{{ visibleSaved.length }}</span>
+              <span class="menu-heading-count">{{ savedCount }}</span>
             </DropdownMenuLabel>
             <!--
               A library can hold thousands of sets (#197). The menu draws the
@@ -111,7 +111,7 @@
               v-if="hiddenSavedCount > 0"
               class="set-row set-row--more"
               data-testid="argument-set-show-more"
-              @select.prevent="savedLimit += SAVED_PAGE"
+              @select.prevent="showMoreSaved"
             >
               <span class="set-row-name">Show more</span>
               <span class="set-row-meta">{{ hiddenSavedCount }} more</span>
@@ -194,7 +194,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import { ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
@@ -235,6 +235,12 @@ const props = defineProps<{
   disabled?: boolean;
   /** Draws the pop-out button. Off where there is no focus mode to open. */
   canExpand?: boolean;
+  /**
+   * Every saved set that matches, when the caller pages them from the server
+   * (#197). The caller then filters through `search` and loads through
+   * `load-more`; without it the switcher filters and pages `savedSets` itself.
+   */
+  savedTotal?: number;
 }>();
 
 const emit = defineEmits<{
@@ -246,6 +252,8 @@ const emit = defineEmits<{
   (e: 'copy'): void;
   (e: 'delete'): void;
   (e: 'expand'): void;
+  (e: 'search', text: string): void;
+  (e: 'load-more'): void;
 }>();
 
 const renaming = ref(false);
@@ -287,8 +295,11 @@ const filterBox = useTemplateRef<InstanceType<typeof FilterBox>>('filterBox');
 const visibleScratch = computed(() =>
   props.scratchSets.filter((entry) => fuzzyMatches(filter.value, entry.name || 'Untitled set', entry.meta)),
 );
+const serverPaged = computed(() => props.savedTotal !== undefined);
 const visibleSaved = computed(() =>
-  props.savedSets.filter((entry) => fuzzyMatches(filter.value, entry.name, entry.meta)),
+  serverPaged.value
+    ? props.savedSets
+    : props.savedSets.filter((entry) => fuzzyMatches(filter.value, entry.name, entry.meta)),
 );
 
 /**
@@ -296,12 +307,28 @@ const visibleSaved = computed(() =>
  * library made the menu slow to open, and nobody scrolls that far.
  */
 const SAVED_PAGE = 50;
+/** How long typing pauses before the server is asked. */
+const SEARCH_DELAY_MS = 200;
 const savedLimit = ref(SAVED_PAGE);
-const shownSaved = computed(() => visibleSaved.value.slice(0, savedLimit.value));
-const hiddenSavedCount = computed(() => Math.max(0, visibleSaved.value.length - savedLimit.value));
-watch(filter, () => {
+const shownSaved = computed(() =>
+  serverPaged.value ? visibleSaved.value : visibleSaved.value.slice(0, savedLimit.value),
+);
+const savedCount = computed(() => (serverPaged.value ? props.savedTotal! : visibleSaved.value.length));
+const hiddenSavedCount = computed(() => Math.max(0, savedCount.value - shownSaved.value.length));
+
+function showMoreSaved() {
+  if (serverPaged.value) emit('load-more');
+  else savedLimit.value += SAVED_PAGE;
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(filter, (text) => {
   savedLimit.value = SAVED_PAGE;
+  if (!serverPaged.value) return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => emit('search', text), SEARCH_DELAY_MS);
 });
+onBeforeUnmount(() => clearTimeout(searchTimer));
 
 /** Each opening starts from the whole list, with the caret in the filter. */
 function focusFilter(event: Event) {

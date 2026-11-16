@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TupleBindingEditor from '@/components/query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '@/components/query-work-area/ArgumentScalarsPanel.vue';
@@ -420,6 +420,31 @@ describe('ArgumentSetSwitcher list', () => {
     expect(rowNames()).toEqual(['New scratch set']);
     expect(document.body.textContent).toContain('Nothing matches “zzz”.');
     w.unmount();
+  });
+
+  it('asks the caller for more and for a search when the server pages the sets (#197)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const loaded = Array.from({ length: 50 }, (_, i) => ({ id: `set${i}`, name: `Set ${i}`, meta: 'v1' }));
+    const w = mount(ArgumentSetSwitcher, {
+      props: { ...props, scratchSets: [], savedSets: loaded, savedTotal: 4476 },
+      attachTo: document.body,
+    });
+    await w.get('[data-testid="argument-set-switcher"]').trigger('keydown', { key: 'Enter' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(document.querySelector('.menu-heading-count')?.textContent).toBe('4476');
+    const more = document.querySelector<HTMLElement>('[data-testid="argument-set-show-more"]')!;
+    expect(more.textContent).toContain('4426 more');
+    more.click();
+    expect(w.emitted('load-more')).toHaveLength(1);
+
+    const box = document.querySelector<HTMLInputElement>('[data-testid="argument-set-filter"]')!;
+    box.value = 'perth';
+    box.dispatchEvent(new Event('input'));
+    await vi.advanceTimersByTimeAsync(250);
+    expect(w.emitted('search')).toEqual([['perth']]);
+    w.unmount();
+    vi.useRealTimers();
   });
 
   it('draws the first 50 saved sets, and Show more draws the next 50 (#197)', async () => {

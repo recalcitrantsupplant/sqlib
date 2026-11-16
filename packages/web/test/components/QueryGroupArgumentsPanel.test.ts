@@ -28,6 +28,9 @@ function stubArgumentSets(overrides: Record<string, unknown> = {}) {
   const selection = ref<{ kind: string; id?: string }>({ kind: 'none' });
   return {
     argumentSets: ref([]),
+    savedTotal: ref(0),
+    searchArgumentSets: vi.fn(),
+    loadMoreArgumentSets: vi.fn(),
     selection,
     selectedSetId: computed(() => null),
     versionsNewestFirst: ref([]),
