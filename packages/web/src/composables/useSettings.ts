@@ -1,5 +1,6 @@
 import { ref, watch } from 'vue';
 import { DEFAULT_THEME_ID, resolveThemeId } from '../lib/themes';
+import { DEFAULT_SORT, normalizeSort, type EntityListSort } from '../lib/entityListSort';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -37,6 +38,8 @@ interface Settings {
   entityListDensity: EntityListDensity;
   /** Whether the Saved cluster is grouped, and by what. */
   entityListGrouping: EntityListGrouping;
+  /** Sort order of each section's list, keyed by section id (`queries`, `backends`). */
+  entityListSort: Record<string, EntityListSort>;
   /** Whether result tables wrap long values onto more lines. Off: one line per row, cut with an ellipsis. */
   tableWrapEnabled: boolean;
   settingsVersion: number;
@@ -60,6 +63,7 @@ const DEFAULT_SETTINGS: Settings = {
   darkTheme: DEFAULT_THEME_ID,
   entityListDensity: 'compact', // As drawn: more of the library on screen at once
   entityListGrouping: 'tag', // Grouped by tag; a library with no tags reads as flat
+  entityListSort: {}, // Every section sorts by name until the user picks another order
   tableWrapEnabled: false, // One line per row; a long value ends in an ellipsis
   settingsVersion: SETTINGS_VERSION,
 };
@@ -83,6 +87,13 @@ function loadSettings(): Settings {
       // A theme that was removed, or a light id in the dark slot, falls back.
       parsed.lightTheme = resolveThemeId('light', parsed.lightTheme);
       parsed.darkTheme = resolveThemeId('dark', parsed.darkTheme);
+      if (parsed.entityListSort && typeof parsed.entityListSort === 'object') {
+        const sorts: Record<string, EntityListSort> = {};
+        for (const [section, sort] of Object.entries(parsed.entityListSort)) sorts[section] = normalizeSort(sort);
+        parsed.entityListSort = sorts;
+      } else {
+        delete parsed.entityListSort;
+      }
       // Merge with defaults to handle missing keys
       return { ...DEFAULT_SETTINGS, ...parsed };
     }
@@ -158,6 +169,14 @@ export function useSettings() {
     settings.value.tableWrapEnabled = value;
   }
 
+  function entityListSortFor(section: string): EntityListSort {
+    return settings.value.entityListSort?.[section] ?? DEFAULT_SORT;
+  }
+
+  function setEntityListSort(section: string, value: EntityListSort): void {
+    settings.value.entityListSort = { ...settings.value.entityListSort, [section]: normalizeSort(value) };
+  }
+
   return {
     settings,
     setHofstadterMode,
@@ -168,5 +187,7 @@ export function useSettings() {
     setEntityListDensity,
     setEntityListGrouping,
     setTableWrapEnabled,
+    entityListSortFor,
+    setEntityListSort,
   };
 }

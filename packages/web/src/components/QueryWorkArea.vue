@@ -12,6 +12,7 @@
       <SaveBar
         :title="queryName"
         :is-scratch="isScratch"
+        :pin-id="queryId"
         :current-version-number="currentVersionNumberForDisplay"
         :environment="environmentPill"
         :edit-count="editCount"

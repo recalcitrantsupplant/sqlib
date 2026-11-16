@@ -9,6 +9,7 @@
         :title="setName"
         noun="tuple set"
         :is-scratch="isScratch"
+        :pin-id="setId || null"
         :current-version-number="currentVersionNumber"
         :edit-count="editCount"
         :draft-not-kept="draftNotKept"

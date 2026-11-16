@@ -12,6 +12,20 @@
     -->
     <span class="query-title" :class="{ scratch: isScratch }" :title="title">{{ title || `Untitled ${noun}` }}</span>
 
+    <!-- Pins are kept in this browser only (`useEntityPins`), so read-only deployments get it too. -->
+    <button
+      v-if="!isScratch && pinId"
+      class="pin-toggle"
+      :class="{ pinned: pinnedHere }"
+      :title="pinnedHere ? 'Unpin' : 'Pin to top'"
+      :aria-label="pinnedHere ? 'Unpin' : 'Pin to top'"
+      :aria-pressed="pinnedHere"
+      data-testid="save-bar-pin"
+      @click="togglePin(pinId)"
+    >
+      <Pin :size="13" />
+    </button>
+
     <span v-if="isScratch" class="chip chip-scratch" data-testid="scratch-chip">
       <FlaskConical :size="11" />Scratch
     </span>
@@ -199,6 +213,7 @@ import {
   FileInput,
   WandSparkles,
   GitCompare,
+  Pin,
 } from '@lucide/vue';
 import {
   DropdownMenu,
@@ -207,6 +222,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import PrefixConversionButtons from './PrefixConversionButtons.vue';
+import { useEntityPins } from '../../composables/useEntityPins';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 const props = withDefaults(defineProps<{
@@ -257,6 +273,8 @@ const props = withDefaults(defineProps<{
   /** What `code` is, which decides whether a conversion is offered. */
   contentType?: string | null;
   diffActive?: boolean;
+  /** The saved entity's IRI. When set, the bar shows the pin toggle. */
+  pinId?: string | null;
 }>(), {
   noun: 'query',
   showFormat: true,
@@ -277,6 +295,9 @@ const props = withDefaults(defineProps<{
  */
 const deployment = useDeploymentMode();
 const canWrite = computed(() => !deployment.isReadOnly.value);
+
+const { isPinned, togglePin } = useEntityPins();
+const pinnedHere = computed(() => isPinned(props.pinId));
 
 const slots = useSlots();
 const hasMenuItems = computed(() => Boolean(slots['menu-items']));
@@ -358,6 +379,34 @@ const saveTitle = computed(() => {
   font-weight: var(--weight-semibold);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.pin-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.pin-toggle:hover {
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+}
+
+.pin-toggle.pinned {
+  color: var(--action-ink);
+}
+
+.pin-toggle.pinned :deep(svg) {
+  fill: currentColor;
 }
 
 /* Italic and grey: not yet a thing the library contains. */

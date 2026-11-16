@@ -183,6 +183,13 @@
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <ListSortMenu
+        v-if="savedEnabled"
+        :model-value="sort"
+        :keys="sortKeys"
+        @update:model-value="setSort"
+      />
+
       <DensityToggle :model-value="density" @update:model-value="setDensity" />
     </div>
 
@@ -235,11 +242,60 @@
         <div class="cluster-divider" />
       </template>
 
-      <template v-if="savedEnabled && (visibleSaved.length > 0 || visibleScratch.length > 0)">
+      <!--
+        Pinned rows sit above Saved, whatever the grouping, so they stay at the
+        top. Pins live in this browser only (`useEntityPins`).
+      -->
+      <template v-if="pinnedSaved.length > 0">
+        <div class="cluster-header" data-testid="pinned-cluster">
+          <Pin :size="11" />
+          <span class="cluster-name">Pinned</span>
+          <span class="cluster-meta">{{ pinnedSaved.length }}</span>
+        </div>
+        <div
+          v-for="entity in pinnedSaved"
+          :key="`pinned:${entity.id}`"
+          class="entity-row saved-row"
+          :class="{ selected: selection.kind === 'saved' && selection.id === entity.id }"
+          data-testid="saved-row"
+          data-pinned="true"
+          :data-entity-id="entity.id"
+          :data-entity-kind="entity.kind ?? defaultKindType"
+          role="button"
+          tabindex="0"
+          @click="selectSaved(entity, defaultKindType)"
+          @keydown.enter="selectSaved(entity, defaultKindType)"
+        >
+          <span
+            v-if="entity.verdict"
+            class="row-verdict"
+            :class="`row-verdict-${entity.verdict}`"
+            :title="entity.verdict === 'pass' ? 'Passed' : 'Failed'"
+          ></span>
+          <span class="entity-name">{{ entity.name }}</span>
+          <span v-if="density === 'comfortable'" class="entity-sub">{{ entity.description ?? '—' }}</span>
+          <span class="entity-trailing">
+            <span
+              v-if="hasDraft(entity.id)"
+              class="draft-dot"
+              data-testid="draft-dot"
+              title="Unsaved draft in this browser"
+            />
+            <PersonChip v-if="sort.key === 'creator'" :iri="entity.createdBy ?? null" compact />
+            <span v-else-if="sortValueOf(entity)" class="entity-sort-value" data-testid="sort-value">{{ sortValueOf(entity) }}</span>
+            <span v-if="kindLabelOf(entity)" class="entity-version">{{ kindLabelOf(entity) }}</span>
+            <span v-else class="entity-version">{{ versionLabel(entity) }}</span>
+            <PinButton :pinned="true" :name="entity.name" @toggle="togglePin(entity.id)" />
+          </span>
+        </div>
+        <div class="cluster-divider" />
+      </template>
+
+      <template v-if="savedEnabled && (unpinnedSaved.length > 0 || (pinnedSaved.length === 0 && visibleScratch.length > 0))">
         <div class="cluster-header">
           <Library :size="11" />
           <span class="cluster-name">Saved</span>
-          <span class="cluster-meta">{{ visibleSaved.length }}</span>
+          <span class="cluster-meta">{{ unpinnedSaved.length }}</span>
         </div>
 
         <!--
@@ -354,7 +410,10 @@
                   data-testid="draft-dot"
                   title="Unsaved draft in this browser"
                 />
+                <PersonChip v-if="sort.key === 'creator'" :iri="entity.createdBy ?? null" compact />
+                <span v-else-if="sortValueOf(entity)" class="entity-sort-value" data-testid="sort-value">{{ sortValueOf(entity) }}</span>
                 <span class="entity-version">{{ versionLabel(entity) }}</span>
+                <PinButton :pinned="false" :name="entity.name" @toggle="togglePin(entity.id)" />
               </span>
             </div>
           </template>
@@ -447,6 +506,10 @@ export interface SidebarEntity {
    * "the system asserted this", which destroys the one job tags do well.
    */
   origin?: SidebarOrigin | null;
+  /** Server stamps, for the sort orders (`lib/entityListSort`). */
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
 }
 
 /** Where a row came from. Absent reads as *Composed here*. */
@@ -461,7 +524,7 @@ export interface SidebarTag {
 </script>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import {
   Library,
   ChevronDown,
@@ -473,6 +536,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
 } from '@lucide/vue';
 import {
   DropdownMenu,
@@ -482,6 +546,9 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import DensityToggle from './shared/DensityToggle.vue';
+import ListSortMenu from './shared/ListSortMenu.vue';
+import PinButton from './shared/PinButton.vue';
+import PersonChip from './shared/PersonChip.vue';
 import InlineNote from './shared/InlineNote.vue';
 import TagDot from './tags/TagDot.vue';
 import TagManagerDialog from './tags/TagManagerDialog.vue';
@@ -493,6 +560,9 @@ import { useSidebarCollapse } from '../composables/useSidebarCollapse';
 import { useSidebarWidth } from '../composables/useSidebarWidth';
 import SidebarResizer from './shared/SidebarResizer.vue';
 import { formatCompactAge } from '../lib/time';
+import { sortEntities, type EntityListSort, type EntityListSortKey } from '../lib/entityListSort';
+import { useEntityLastOpened, useEntityPins } from '../composables/useEntityPins';
+import { usePrincipalNames } from '../composables/usePrincipalNames';
 
 const props = defineProps<{
   /**
@@ -589,7 +659,46 @@ const emptyHint = computed(() => {
 });
 
 const { draftFor } = useCallableDrafts();
-const { settings } = useSettings();
+const { settings, entityListSortFor, setEntityListSort } = useSettings();
+const { isPinned, togglePin } = useEntityPins();
+const { openedAt, markOpened } = useEntityLastOpened();
+
+const sortSection = computed(() => props.section ?? 'queries');
+const sort = computed<EntityListSort>(() => entityListSortFor(sortSection.value));
+
+function setSort(value: EntityListSort) {
+  setEntityListSort(sortSection.value, value);
+}
+
+/*
+ * Version count needs a version number on the row. ETL and Bench runs have
+ * none, so the key is left out where no row carries one.
+ */
+const sortKeys = computed<EntityListSortKey[]>(() => {
+  const keys: EntityListSortKey[] = ['name', 'modified', 'created', 'opened', 'creator'];
+  if (props.saved.some((entity) => entity.currentVersionNumber != null)) keys.push('versions');
+  return keys;
+});
+
+/*
+ * Names are fetched only when the list sorts by creator, so the other orders
+ * make no `/auth/names` call.
+ */
+function creatorNameOf(iri: string) {
+  return usePrincipalNames().nameOf(iri);
+}
+
+/*
+ * The selected saved row counts as opened, whatever opened it: a row click,
+ * a link, the command palette or a reload.
+ */
+watch(
+  () => (props.selection.kind === 'saved' ? props.selection.id : null),
+  (id) => {
+    if (id) markOpened(id);
+  },
+  { immediate: true },
+);
 
 const filter = ref('');
 const density = computed(() => settings.value.entityListDensity);
@@ -656,9 +765,56 @@ function matches(name: string, description: string | null | undefined) {
 const visibleScratch = computed(() =>
   scratchEnabled.value ? props.scratch.filter((item) => matches(item.name, item.description)) : [],
 );
-const visibleSaved = computed(() =>
-  savedEnabled.value ? props.saved.filter((entity) => matches(entity.name, entity.description)) : [],
-);
+const visibleSaved = computed(() => {
+  if (!savedEnabled.value) return [];
+  const rows = props.saved.filter((entity) => matches(entity.name, entity.description));
+  return sortEntities(rows, sort.value, {
+    openedAt,
+    nameOf: sort.value.key === 'creator' ? creatorNameOf : undefined,
+  });
+});
+
+/*
+ * Pinned rows leave the Saved clusters and sit in their own cluster above.
+ * Both keep the sort order.
+ */
+const pinnedSaved = computed(() => visibleSaved.value.filter((entity) => isPinned(entity.id)));
+const unpinnedSaved = computed(() => visibleSaved.value.filter((entity) => !isPinned(entity.id)));
+
+const defaultKindType = computed(() => props.savedKinds?.[0]?.type ?? 'entity');
+
+/*
+ * In a section that lists several kinds, a pinned row has no kind subheading
+ * over it, so it names its kind in place of the version: "rule set".
+ */
+function kindLabelOf(entity: SidebarEntity): string | null {
+  const kinds = props.savedKinds ?? [];
+  if (kinds.length <= 1) return null;
+  const label = kinds.find((kind) => kind.type === entity.kind)?.label;
+  if (!label) return null;
+  const lower = label.toLowerCase();
+  return lower.endsWith('s') ? lower.slice(0, -1) : lower;
+}
+
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
+
+/** The value the list is sorted by, shown at the end of the row. Empty for name and version. */
+function sortValueOf(entity: SidebarEntity): string {
+  switch (sort.value.key) {
+    case 'modified':
+      return entity.dateModified ? formatCompactAge(entity.dateModified, nowMs.value) : '';
+    case 'created': {
+      const ms = entity.dateCreated ? Date.parse(entity.dateCreated) : NaN;
+      return Number.isNaN(ms) ? '' : SHORT_DATE.format(ms);
+    }
+    case 'opened': {
+      const at = openedAt(entity.id);
+      return at === undefined ? '' : formatCompactAge(new Date(at).toISOString(), nowMs.value);
+    }
+    default:
+      return '';
+  }
+}
 
 /** A run of rows under one heading, whatever decided the heading. */
 interface SidebarCluster {
@@ -697,12 +853,12 @@ const savedClusters = computed<SidebarCluster[]>(() => {
   if (kinds.length <= 1) {
     const only = kinds[0];
     const type = only?.type ?? 'entity';
-    return [kindCluster({ type, label: only?.label ?? sectionLabel.value, items: visibleSaved.value }, false)];
+    return [kindCluster({ type, label: only?.label ?? sectionLabel.value, items: unpinnedSaved.value }, false)];
   }
   const clusters = kinds.map((kind) => ({
     type: kind.type,
     label: kind.label,
-    items: visibleSaved.value.filter((entity) => entity.kind === kind.type),
+    items: unpinnedSaved.value.filter((entity) => entity.kind === kind.type),
   }));
   return clusters.map((cluster) => kindCluster(cluster, true));
 });
@@ -744,7 +900,7 @@ const originClusters = computed<SidebarCluster[]>(() => {
   const clusters: SidebarCluster[] = [];
 
   for (const bucket of ORIGIN_BUCKETS) {
-    const items = visibleSaved.value.filter((entity) => (entity.origin ?? 'composed') === bucket.origin);
+    const items = unpinnedSaved.value.filter((entity) => (entity.origin ?? 'composed') === bucket.origin);
     if (items.length === 0) continue;
     clusters.push({
       key: `origin:${bucket.origin}`,
@@ -777,7 +933,7 @@ const tagClusters = computed<SidebarCluster[]>(() => {
   const clusters: SidebarCluster[] = [];
 
   for (const tag of props.tags ?? []) {
-    const items = visibleSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id));
+    const items = unpinnedSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id));
     if (items.length === 0) continue;
     clusters.push({
       key: `tag:${tag.id}`,
@@ -791,7 +947,7 @@ const tagClusters = computed<SidebarCluster[]>(() => {
     });
   }
 
-  const untagged = visibleSaved.value.filter((entity) => (entity.tags ?? []).length === 0);
+  const untagged = unpinnedSaved.value.filter((entity) => (entity.tags ?? []).length === 0);
   if (untagged.length > 0) {
     clusters.push({
       key: 'tag:untagged',
@@ -1370,6 +1526,22 @@ function ageOf(item: CallableDraft) {
   height: 6px;
   border-radius: var(--radius-full);
   background: var(--warning);
+}
+
+.saved-row:hover :deep(.list-pin-button),
+.saved-row:focus-within :deep(.list-pin-button) {
+  display: inline-flex;
+}
+
+.entity-sort-value {
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.entity-row.selected .entity-sort-value {
+  color: var(--action-ink);
 }
 
 .entity-version {

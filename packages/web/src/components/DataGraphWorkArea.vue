@@ -9,6 +9,7 @@
         :title="graphName"
         noun="data graph"
         :is-scratch="isScratch"
+        :pin-id="graphId || null"
         :current-version-number="currentVersionNumber"
         :edit-count="editCount"
         :draft-not-kept="draftNotKept"

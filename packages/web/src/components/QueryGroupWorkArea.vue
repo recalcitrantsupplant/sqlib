@@ -23,6 +23,7 @@
         :title="queryGroupName"
         noun="group"
         :is-scratch="isScratch"
+        :pin-id="queryGroupId ?? null"
         :current-version-number="currentVersionNumberForDisplay"
         :edit-count="unsavedEditCount"
         :saving="isSavingVersion || isSaving"
