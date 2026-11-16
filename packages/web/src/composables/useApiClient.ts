@@ -1,5 +1,6 @@
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig, createError } from '#imports';
+import { demoPersonHeaders } from '../lib/demoPerson';
 import { z } from 'zod';
 import { useAuth } from './useAuth';
 import { clientId } from '../lib/clientId';
@@ -800,6 +801,8 @@ export function useApiClient() {
         // frames are echoes of its own writes.
         'x-sqlib-client-id': clientId(),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        // The demo person this browser acts as, on a server in demo mode.
+        ...demoPersonHeaders(),
       },
     };
   };

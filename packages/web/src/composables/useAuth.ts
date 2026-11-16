@@ -18,6 +18,13 @@ import { computed, ref, useRuntimeConfig } from '#imports';
 import { InMemoryWebStorage, User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import { withBase } from '../lib/basePath';
 import { accountStateOf, identityFrom, type AccountIdentity } from '../lib/account';
+import {
+  currentDemoPersonId,
+  demoPeopleFrom,
+  demoPersonHeaders,
+  setDemoPersonId,
+  type DemoPersonEntry,
+} from '../lib/demoPerson';
 
 export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
 
@@ -48,6 +55,10 @@ const user = ref<User | null>(null);
 /** Who was signed in before the token lapsed, so the rail can offer to sign in again. */
 const lapsed = ref<AccountIdentity | null>(null);
 const me = ref<AuthMe | null>(null);
+/** The people a server in demo mode lets a visitor act as (`/health` `demo.people`). */
+const demoPeople = ref<DemoPersonEntry[]>([]);
+/** The demo person this browser acts as, or null for a guest. */
+const demoPersonId = ref<string | null>(null);
 const initialized = ref(false);
 const initializing = ref<Promise<void> | null>(null);
 
@@ -180,6 +191,7 @@ async function fetchMode(): Promise<AuthMode> {
     const response = await fetch(`${apiBase()}/health`);
     if (!response.ok) return 'disabled';
     const payload = (await response.json()) as { auth?: { mode?: AuthMode } };
+    demoPeople.value = demoPeopleFrom(payload);
     return payload.auth?.mode ?? 'disabled';
   } catch {
     return 'disabled';
@@ -196,8 +208,14 @@ async function refreshMe(): Promise<void> {
   }
   try {
     const response = await fetch(`${apiBase()}/auth/me`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
+      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...demoPersonHeaders() },
     });
+    // A demo person the server no longer lists: go back to being a guest.
+    if (response.status === 401 && demoPersonId.value) {
+      setDemoPersonId(null);
+      demoPersonId.value = null;
+      return refreshMe();
+    }
     me.value = response.ok ? ((await response.json()) as AuthMe) : null;
   } catch {
     me.value = null;
@@ -213,7 +231,14 @@ export function useAuth() {
       mode.value = await fetchMode();
 
       if (!signsIn()) {
-        if (mode.value === 'anonymous') await refreshMe();
+        if (mode.value === 'anonymous') {
+          // Keep a stored demo person only while the server still lists them.
+          const stored = currentDemoPersonId();
+          const listed = stored && demoPeople.value.some((person) => person.id === stored);
+          if (stored && !listed) setDemoPersonId(null);
+          demoPersonId.value = listed ? stored : null;
+          await refreshMe();
+        }
         initialized.value = true;
         return;
       }
@@ -306,12 +331,34 @@ export function useAuth() {
     isAdmin: computed(() => me.value?.admin ?? mode.value === 'disabled'),
     me: computed(() => me.value),
     /** What the account button at the foot of the rail shows. */
-    account: computed(() => ({
-      state: accountStateOf({ mode: mode.value, signedIn: Boolean(user.value), lapsed: Boolean(lapsed.value) }),
-      identity: user.value
-        ? identityFrom(user.value.profile as Record<string, unknown>, me.value?.label)
-        : (lapsed.value ?? { name: null, email: null }),
-    })),
+    account: computed(() => {
+      const person = demoPeople.value.find((entry) => entry.id === demoPersonId.value) ?? null;
+      return {
+        state: accountStateOf({
+          mode: mode.value,
+          signedIn: Boolean(user.value),
+          lapsed: Boolean(lapsed.value),
+          demoPerson: Boolean(person),
+        }),
+        identity: person
+          ? { name: person.name, email: null }
+          : user.value
+            ? identityFrom(user.value.profile as Record<string, unknown>, me.value?.label)
+            : (lapsed.value ?? { name: null, email: null }),
+      };
+    }),
+    /** The people a server in demo mode offers; empty elsewhere. */
+    demoPeople: computed(() => demoPeople.value),
+    /** The demo person this browser acts as, or null for a guest. */
+    demoPersonId: computed(() => demoPersonId.value),
+    /**
+     * Acts as another demo person, or as a guest with null. Reloads the page,
+     * so every list and every open record is read again as that person.
+     */
+    switchDemoPerson: (id: string | null): void => {
+      setDemoPersonId(id);
+      window.location.reload();
+    },
     initialize,
     login,
     completeLogin,

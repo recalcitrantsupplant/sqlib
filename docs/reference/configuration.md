@@ -343,6 +343,44 @@ Read-only is a separate setting from the auth mode, and needs no auth mode:
 - Read-only decides whether the state of the deployment can change. The answer
   is the same for each caller.
 
+### Demo mode
+
+`SQLIB_DEMO=true` is for a hosted demo. A visitor can act as one of a fixed
+list of people, with no sign-in, to see how grants and graph policies change
+what they see.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_DEMO` | `false` | Exactly `true` turns it on. The server refuses to start unless `SQLIB_READ_ONLY=true` and `SQLIB_AUTH_MODE=anonymous`. |
+| `SQLIB_DEMO_PEOPLE` | unset | A JSON file of demo people. Unset gives demo mode with no people. A file that cannot be read or parsed stops the start. |
+
+The people file:
+
+```json
+{ "people": [
+  { "id": "alice", "name": "Alice", "groups": ["analysts"] },
+  { "id": "dana", "name": "Dana", "groups": ["admins"], "admin": true }
+] }
+```
+
+- `id` is lower-case letters, digits and hyphens. `name` is what the web app
+  shows. `groups` are group names. `admin: true` makes the person an
+  administrator, as `SQLIB_AUTH_ADMIN_PRINCIPALS` does.
+- `/health` lists the people under `demo.people`. The account menu at the
+  foot of the rail lists them, and a pick sends `X-Sqlib-Demo-Person: <id>`
+  on each request.
+- A request with that header acts as the person: their user principal, their
+  group principals, `urn:sqlib:principal:anonymous` and
+  `urn:sqlib:principal:authenticated`. A person always holds what a guest
+  holds. A request without the header is a guest. An id that the file does not
+  list gets `401`.
+- Principal IRIs are made as for a token from the issuer `urn:sqlib:demo`,
+  so a grant or a graph policy names a demo person as it names anybody. In
+  `SQLIB_AUTH_ADMIN_PRINCIPALS` Alice is `urn:sqlib:demo|alice`, and her
+  group is `urn:sqlib:demo|group:analysts`.
+- `?authUser` and `?authGroup` in a saved query read the person, as they
+  read a signed-in caller.
+
 You can use both together. A public site runs `SQLIB_AUTH_MODE=disabled` with
 read-only. The full-access context of that auth mode still cannot write, because
 the read-only gate reads no context.

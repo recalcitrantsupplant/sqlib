@@ -24,6 +24,7 @@ import {
   registerReadOnlyPlugin,
   resetReadOnly,
 } from './config/readOnly.js';
+import { resetDemoMode } from './config/demoMode.js';
 import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
 import { normalizeBasePath, publicOriginSetting, trustProxySetting } from './config/publicUrl.js';
 import { catalogueMode, publishedToolsServed, registerPublishedModePlugin } from './config/catalogueMode.js';
@@ -172,6 +173,12 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // validates tokens here. It matches its public routes by registered pattern,
   // which carries the base path whenever one is set.
   resetAuthConfig();
+  // Demo mode (`config/demoMode.ts`) before the auth plugin, which reads it.
+  // An unsafe setting, or a people file that does not parse, stops the start.
+  const demo = resetDemoMode();
+  if (demo.enabled) {
+    fastifyApp.log.info({ demoPeople: demo.people.map(person => person.id) }, 'SQLIB_DEMO=true: demo mode');
+  }
   await registerAuthPlugin(fastifyApp, { basePath, publicBasePath });
 
   // After auth so a refusal is logged against a request that already carries a

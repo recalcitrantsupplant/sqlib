@@ -24,6 +24,9 @@ const logout = vi.fn();
 const signedIn = ref(false);
 const freshAccessToken = vi.fn();
 const push = vi.fn();
+const demoPeople = ref<Array<{ id: string; name: string; groups: string[]; admin: boolean }>>([]);
+const demoPersonId = ref<string | null>(null);
+const switchDemoPerson = vi.fn();
 
 vi.mock('#imports', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -38,6 +41,9 @@ vi.mock('@/composables/useAuth', () => ({
     logout,
     isAuthenticated: computed(() => signedIn.value),
     freshAccessToken,
+    demoPeople: computed(() => demoPeople.value),
+    demoPersonId: computed(() => demoPersonId.value),
+    switchDemoPerson,
   }),
 }));
 vi.mock('@/composables/useActiveLibrary', () => ({
@@ -76,6 +82,9 @@ beforeEach(() => {
   signedIn.value = false;
   freshAccessToken.mockReset();
   push.mockClear();
+  demoPeople.value = [];
+  demoPersonId.value = null;
+  switchDemoPerson.mockClear();
   document.body.innerHTML = '';
 });
 
@@ -178,6 +187,48 @@ describe('AccountMenu', () => {
     signedIn.value = false;
     const wrapper = await open();
     expect(document.body.querySelector('[data-testid="account-copy-token"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it('lists the demo people for a guest, with the guest marked current', async () => {
+    state.account.value = { state: 'guest', identity: { name: null, email: null } };
+    state.me.value = me({ authMode: 'anonymous', groups: [] });
+    demoPeople.value = [
+      { id: 'alice', name: 'Alice', groups: ['analysts'], admin: false },
+      { id: 'dana', name: 'Dana', groups: ['admins'], admin: true },
+    ];
+    const wrapper = await open();
+    const rows = [...document.body.querySelectorAll<HTMLElement>('[data-testid="account-switch-person"]')];
+    expect(rows.map((row) => row.querySelector('.switch-name')!.textContent)).toEqual(['Alice', 'Dana']);
+    expect(rows[0].textContent).toContain('analysts');
+    expect(rows[1].textContent).toContain('Admin');
+    expect(document.body.querySelector('[data-testid="account-switch-guest"]')!.getAttribute('data-current')).toBe('true');
+    expect(document.body.querySelector('[data-testid="account-sign-out"]')).toBeNull();
+    rows[0].click();
+    await vi.waitFor(() => expect(switchDemoPerson).toHaveBeenCalledWith('alice'));
+    wrapper.unmount();
+  });
+
+  it('shows the demo person acted as, and switches back to a guest', async () => {
+    state.account.value = { state: 'demo', identity: { name: 'Alice', email: null } };
+    state.me.value = me({ authMode: 'anonymous', issuer: 'urn:sqlib:demo' });
+    demoPeople.value = [{ id: 'alice', name: 'Alice', groups: ['analysts'], admin: false }];
+    demoPersonId.value = 'alice';
+    const wrapper = await open();
+    expect(document.body.querySelector('[data-testid="account-name"]')!.textContent).toBe('Alice');
+    expect(document.body.querySelector('[data-testid="account-switch-person"]')!.getAttribute('data-current')).toBe('true');
+    expect(document.body.querySelector('[data-testid="account-sign-out"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="account-copy-token"]')).toBeNull();
+    document.body.querySelector<HTMLElement>('[data-testid="account-switch-guest"]')!.click();
+    await vi.waitFor(() => expect(switchDemoPerson).toHaveBeenCalledWith(null));
+    wrapper.unmount();
+  });
+
+  it('shows no switch outside demo mode', async () => {
+    state.account.value = { state: 'guest', identity: { name: null, email: null } };
+    state.me.value = me({ authMode: 'anonymous' });
+    const wrapper = await open();
+    expect(document.body.querySelector('[data-testid="account-switch"]')).toBeNull();
     wrapper.unmount();
   });
 });

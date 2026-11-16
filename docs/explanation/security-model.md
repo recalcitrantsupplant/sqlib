@@ -322,8 +322,9 @@ fails. The wrappers of the API (`applyExecutionArguments`, `invokeCallable`)
 take the caller as a required field, so the compiler lists each call site.
 
 No caller is signed in for a full-access context (`disabled` mode, or `dry-run`
-without a valid token), for `anonymous` mode (its one principal identifies
-nobody), and for the internal work of sqlib. A route refuses such a run with
+without a valid token), for a guest in `anonymous` mode (its one principal
+identifies nobody), and for the internal work of sqlib. A demo person in demo
+mode is a caller. A route refuses such a run with
 `401` or `403` before it starts. The zero rows are a second protection behind
 that refusal.
 
@@ -514,6 +515,16 @@ The setting has a narrow effect:
   sends an update to the store, and the store applies its own rules.
 
 To make your stores immutable, configure those stores as read-only.
+
+**Demo mode.** `SQLIB_DEMO=true` lets a visitor act as a person from a list
+that the operator writes, with a request header and no sign-in. Anybody can be
+anybody on that list, so sqlib starts in demo mode only with
+`SQLIB_READ_ONLY=true` and `SQLIB_AUTH_MODE=anonymous`. The header can name a
+person, but cannot describe one: an id that is not on the list gets `401`, so a
+visitor cannot add a person, a group or an administrator. A demo person holds
+the grants of the anonymous principal as well as their own. Keep the data on a
+demo deployment fictional, and give demo people grants only on stores that you
+own. See [configuration](../reference/configuration.md#demo-mode).
 
 **Browser backends.** The SPA lets a visitor register a SPARQL endpoint in their
 own browser (`localStorage`). The tab runs those queries directly. The endpoint,
