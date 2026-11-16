@@ -1,25 +1,29 @@
 W3C SPARQL-RL test suite — vendored snapshot
-Source: https://github.com/w3c/data-shapes/tree/srl-group-tests/shacl12-test-suite/tests/sparql-rl
-Branch: srl-group-tests
-Commit: 643cf6a7ce95e63457b7b293c1c22819af1cbb71
-PR:     srl-group-tests is w3c/data-shapes#1380
-Base:   gh-pages at 3bb77ff31f9674f7f561c34a1c75b09adec7f586; #1380 is not behind it
+Source: https://github.com/w3c/data-shapes/tree/gh-pages/shacl12-test-suite/tests/sparql-rl
+Branch: gh-pages
+Commit: 752769264137d192b3d603075162819466c46690
+PR:     w3c/data-shapes#1380 (the GROUP tests) is merged into gh-pages
 Dirs:   syntax/ wellformed/ stratification/ eval/ eval2/ examples/
 
-This pin assumes that #1380 merges as it is. #1380 adds the GROUP tests for
-every category. Its base, gh-pages at 3bb77ff3, already holds the merged
-#1375 (a comma between aggregation assignments), #1376 (the example) and
-#1377 (the well-formedness conditions and evaluation of GROUP).
+#1380 merged into gh-pages, and its branch srl-group-tests was deleted. This
+pin follows gh-pages from now on.
 
 How the snapshot was made: every directory above, README.md and
-manifest-sparql-rl.ttl were taken unchanged from #1380 at 643cf6a7. There is
-no local change.
+manifest-sparql-rl.ttl were taken unchanged from gh-pages at 75276926. There
+is no local change.
 
-If #1380 changes before it merges, refresh from its new head. After it
-merges, refresh from gh-pages.
+What this refresh changed, relative to the previous pin, #1380 at 643cf6a7:
 
-What this refresh changed, relative to the previous pin, #1380 at 87514ecb
-plus the test files of #1375 at a3eac70d:
+  eval-group-13 has a constant predicate in its rule head:
+  RULE { ?t :summary ( ?st ?n ) }. The old head, { ?t ?st ?n }, made the rule
+  depend on itself, so the rule set was not stratifiable and sqlib refused it.
+  The entry now passes and is in library-expected-pass.json. No other file
+  under shacl12-test-suite/tests/sparql-rl changed.
+
+  Entries: unchanged, 342 in all. Every entry passes.
+
+What the refresh before that changed, relative to #1380 at 87514ecb plus the
+test files of #1375 at a3eac70d:
 
   #1375 merged, so its files come from #1380 now. Their syntax entries take
   the upstream numbers :test_151 and :test_152, and the entries after them
@@ -33,7 +37,7 @@ plus the test files of #1375 at a3eac70d:
 
   Entries: eval 59 -> 65. 342 in all.
 
-What the refresh before that changed, relative to gh-pages at 9c863967:
+What the refresh before those changed, relative to gh-pages at 9c863967:
 
   GROUP. #1347 (merged) added syntax-rule-elements-group-01 .. -16 and -bad-01
   .. -08; #1380 adds 39 more syntax entries and all the GROUP entries in the
@@ -50,20 +54,8 @@ What the refresh before that changed, relative to gh-pages at 9c863967:
   Entries: syntax 139 -> 212, wellformed 8 -> 33, stratification 10 -> 21,
   eval 35 -> 59; eval2 6 and examples 5 are unchanged. 336 in all.
 
-One entry fails, and is out of both baselines. eval-group-13's rule
-
-    RULE { ?t ?st ?n } WHERE {
-        ?t rdf:type :Team
-        GROUP BY ?t ?st { ?t :owns ?c . ?c :status ?st } [ ?n := COUNT(*) ]
-    }
-
-has a variable predicate in its head, so it can generate a triple that matches
-?t :owns ?c in its own group pattern. Under the specification's Rule Dependency
-section that is a closed dependency on itself, and the rule set is not
-stratifiable, so it has no inference graph to compare. sqlib refuses it. The
-test needs WHERE DATA, or a constant predicate in the head, in #1380.
-
-Previous pins, for reference: 87514ecb410bedb6cd0640b980b4b7bc10f2f411
+Previous pins, for reference: 643cf6a7ce95e63457b7b293c1c22819af1cbb71
+(#1380, the last head of srl-group-tests), 87514ecb410bedb6cd0640b980b4b7bc10f2f411
 (#1380, with #1375 at a3eac70d), 9c863967bceaef1a87c24e4dd761eda763823120
 (gh-pages, before #1347 merged), 628cef6f5d0da8cc3fa8d8e97d015e854fbae37b (head
 of PR #1175, the rename), daf91b75edeca5d4a85a641a97e6f3b223485d9b (branch
