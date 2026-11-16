@@ -93,6 +93,25 @@ describe('proposed W3C cases — evaluation of NOT by position', () => {
   }
 });
 
+/*
+ * The spec's inUse condition (w3c/data-shapes#690, tests in #1455) makes a
+ * variable of a NOT that is not bound before it local to the NOT. So every
+ * case above whose NOT comes before a binder of its variables is now
+ * ill-formed, and only the two controls with the NOT last are well-formed.
+ * The evaluation cases stay as a record of what the executor does with such
+ * a rule when it is run anyway.
+ */
+describe('proposed W3C cases — well-formedness under inUse', () => {
+  const wellFormed = new Set(['eval-neg-order-01', 'eval-neg-order-07']);
+  for (const entry of evalSuite.entries) {
+    it(`${entry.name} is ${wellFormed.has(entry.name) ? 'well-formed' : 'ill-formed'}`, () => {
+      const categories = wellFormednessErrors(checkWellFormed(parseRuleSet(entry.ruleset))).map((issue) => issue.category);
+      if (wellFormed.has(entry.name)) expect(categories).toEqual([]);
+      else expect(categories).toContain('in-use');
+    });
+  }
+});
+
 describe('proposed W3C cases — well-formedness inside a NOT', () => {
   for (const entry of wellformedSuite.entries) {
     it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
