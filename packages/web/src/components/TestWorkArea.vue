@@ -24,6 +24,7 @@
       :title="testName"
       noun="test"
       :is-scratch="isScratch"
+      :pin-id="testId || null"
       :current-version-number="currentVersionNumber"
       :edit-count="editCount"
       :draft-not-kept="draftNotKept"

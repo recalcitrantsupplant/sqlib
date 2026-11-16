@@ -1730,6 +1730,7 @@ const runSubtitle = computed(() => {
       :title="experimentName"
       noun="benchmark"
       :is-scratch="isScratch"
+      :pin-id="experimentId ?? null"
       :current-version-number="currentVersionNumber"
       :edit-count="editCount"
       :draft-not-kept="draftNotKept"

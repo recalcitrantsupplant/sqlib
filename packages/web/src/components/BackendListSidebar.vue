@@ -74,6 +74,7 @@
           data-testid="backend-filter"
         />
       </label>
+      <ListSortMenu :model-value="sort" :keys="SORT_KEYS_BACKENDS" @update:model-value="setSort" />
     </div>
 
     <div v-if="!collapsed" class="backend-list">
@@ -113,6 +114,7 @@
       -->
       <template v-for="group in groups" :key="group.key">
         <SectionLabel class="group-heading" :count="group.rows.length" :data-testid="`backend-group-${group.key}`">
+          <Pin v-if="group.key === 'pinned'" :size="11" class="pinned-icon" />
           {{ group.label }}
         </SectionLabel>
         <div
@@ -156,9 +158,10 @@
                 data-testid="browser-backend-badge"
               >Browser</span>
             </span>
-            <span class="row-host">{{ hostOf(backend) }}</span>
+            <span class="row-host">{{ hostOf(backend) }}<template v-if="sortValueOf(backend)"> · <span data-testid="sort-value">{{ sortValueOf(backend) }}</span></template></span>
           </span>
           <span v-if="!isBrowserBackendId(backend.id)" class="row-latency">{{ latencyOf(backend.id) }}</span>
+          <PinButton :pinned="isPinned(backend.id)" :name="backend.name" @toggle="togglePin(backend.id)" />
         </div>
       </template>
     </div>
@@ -190,8 +193,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Server, X } from '@lucide/vue';
+import { computed, ref, watch } from 'vue';
+import { PanelLeftClose, PanelLeftOpen, Pin, Plus, RefreshCw, Search, Server, X } from '@lucide/vue';
 import type { Backend } from '@sparql-query-lib/contracts';
 import InlineNote from './shared/InlineNote.vue';
 import SectionLabel from './shared/SectionLabel.vue';
@@ -201,6 +204,13 @@ import { isBrowserBackendId } from '../composables/useBrowserBackends';
 import { useSidebarCollapse } from '../composables/useSidebarCollapse';
 import { useSidebarWidth } from '../composables/useSidebarWidth';
 import SidebarResizer from './shared/SidebarResizer.vue';
+import ListSortMenu from './shared/ListSortMenu.vue';
+import PinButton from './shared/PinButton.vue';
+import { useSettings } from '../composables/useSettings';
+import { useEntityLastOpened, useEntityPins } from '../composables/useEntityPins';
+import { usePrincipalNames } from '../composables/usePrincipalNames';
+import { sortEntities, type EntityListSort, type EntityListSortKey } from '../lib/entityListSort';
+import { formatCompactAge } from '../lib/time';
 
 /**
  * The backends list — the same sidebar shape as queries, groups and rule sets,
@@ -232,22 +242,77 @@ const { widthPx, isResizing, startResize, resetWidth } = useSidebarWidth('backen
 
 const filter = ref('');
 
+const { entityListSortFor, setEntityListSort } = useSettings();
+const { isPinned, togglePin } = useEntityPins();
+const { openedAt, markOpened } = useEntityLastOpened();
+
+/** A backend has no versions, so the version count key is left out. */
+const SORT_KEYS_BACKENDS: EntityListSortKey[] = ['name', 'modified', 'created', 'opened', 'creator'];
+const sort = computed<EntityListSort>(() => entityListSortFor('backends'));
+function setSort(value: EntityListSort) {
+  setEntityListSort('backends', value);
+}
+
+watch(
+  () => props.selectedId,
+  (id) => {
+    if (id) markOpened(id);
+  },
+  { immediate: true },
+);
+
 /*
  * Fuzzy on the name (`lib/fuzzy`), substring on the endpoint — a URL matches a
- * subsequence of almost anything. The alphabetical order stands: a filter here
- * removes rows, it does not re-rank them.
+ * subsequence of almost anything. A filter removes rows; the sort sets the order.
  */
 const visible = computed(() => {
-  const rows = [...props.backends].sort((a, b) => a.name.localeCompare(b.name));
-  return rows.filter((backend) => fuzzyMatches(filter.value, backend.name, backend.endpoint));
+  const rows = props.backends.filter((backend) => fuzzyMatches(filter.value, backend.name, backend.endpoint));
+  return sortEntities(rows, sort.value, {
+    openedAt,
+    nameOf: sort.value.key === 'creator' ? (iri) => usePrincipalNames().nameOf(iri) : undefined,
+  });
 });
 
+/* Pinned backends go in their own group above Auth and Data. */
 const groups = computed(() =>
   [
-    { key: 'auth', label: 'Auth backends', rows: visible.value.filter((backend) => backend.authBackend === true) },
-    { key: 'data', label: 'Data backends', rows: visible.value.filter((backend) => backend.authBackend !== true) },
+    { key: 'pinned', label: 'Pinned', rows: visible.value.filter((backend) => isPinned(backend.id)) },
+    {
+      key: 'auth',
+      label: 'Auth backends',
+      rows: visible.value.filter((backend) => !isPinned(backend.id) && backend.authBackend === true),
+    },
+    {
+      key: 'data',
+      label: 'Data backends',
+      rows: visible.value.filter((backend) => !isPinned(backend.id) && backend.authBackend !== true),
+    },
   ].filter((group) => group.rows.length > 0),
 );
+
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
+
+/** The value the list is sorted by, for the row's second line. Empty for name. */
+function sortValueOf(backend: Backend): string {
+  switch (sort.value.key) {
+    case 'modified':
+      return backend.dateModified ? formatCompactAge(backend.dateModified) : '';
+    case 'created': {
+      const ms = backend.dateCreated ? Date.parse(backend.dateCreated) : NaN;
+      return Number.isNaN(ms) ? '' : SHORT_DATE.format(ms);
+    }
+    case 'opened': {
+      const at = openedAt(backend.id);
+      return at === undefined ? '' : formatCompactAge(new Date(at).toISOString());
+    }
+    case 'creator': {
+      if (!backend.createdBy) return '';
+      return usePrincipalNames().nameOf(backend.createdBy) ?? '';
+    }
+    default:
+      return '';
+  }
+}
 
 /** Host, not the whole URL: the path is the same `/sparql` on every row. */
 function hostOf(backend: Backend): string {
@@ -427,12 +492,16 @@ function healthTitle(id: string): string {
 }
 
 .filter-bar {
+  display: flex;
   flex-shrink: 0;
+  gap: 6px;
   padding: var(--space-4) var(--space-4) var(--space-2);
 }
 
 .filter-field {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: var(--space-3);
   height: var(--control-h);
@@ -467,6 +536,11 @@ function healthTitle(id: string): string {
   gap: 1px;
 }
 
+.pinned-icon {
+  margin-right: var(--space-2);
+  vertical-align: -1px;
+}
+
 .group-heading {
   padding: var(--space-4) var(--space-4) var(--space-2);
 }
@@ -488,6 +562,11 @@ function healthTitle(id: string): string {
 
 .backend-row:hover {
   background: var(--surface-raised);
+}
+
+.backend-row:hover :deep(.list-pin-button),
+.backend-row:focus-within :deep(.list-pin-button) {
+  display: inline-flex;
 }
 
 .backend-row.selected {

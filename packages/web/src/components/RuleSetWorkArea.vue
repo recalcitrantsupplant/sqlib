@@ -22,6 +22,7 @@
         :title="ruleSetName"
         noun="rule set"
         :is-scratch="isScratch"
+        :pin-id="ruleSetId"
         :current-version-number="currentVersionNumberForDisplay"
         :edit-count="editCount"
         :draft-not-kept="draftNotKept"
