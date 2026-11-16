@@ -254,3 +254,65 @@ describe('httpExecutor updates', () => {
     });
   });
 });
+
+describe('httpExecutor executeRaw', () => {
+  /** A body the test produces one chunk per pull, so a full read inside the executor shows as pulls. */
+  function lazyBody(chunks: string[]) {
+    let pulls = 0;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulls < chunks.length) controller.enqueue(encoder.encode(chunks[pulls]));
+        pulls += 1;
+        if (pulls >= chunks.length) controller.close();
+      },
+    }, { highWaterMark: 0 });
+    return { body, pulls: () => pulls };
+  }
+
+  it('returns the response with its body unread', async () => {
+    const chunks = ['{"head":{"vars":["s"]},"results":{"bindings":[', '{"s":{"type":"uri","value":"http://example.org/a"}}', ']}}'];
+    const { body, pulls } = lazyBody(chunks);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(body, { status: 200, headers: { 'content-type': 'application/sparql-results+json' } }),
+    );
+
+    const response = await httpExecutor('https://example.org/sparql', { fetch: fetchMock }).executeRaw!(SELECT);
+
+    expect(pulls()).toBe(0);
+    expect(response.bodyUsed).toBe(false);
+    expect(response.headers.get('content-type')).toBe('application/sparql-results+json');
+    expect(await response.text()).toBe(chunks.join(''));
+  });
+
+  it('sends the same request as execute', async () => {
+    const empty = () => jsonResponse({ head: {}, results: { bindings: [] } });
+    const parsed = vi.fn().mockImplementation(async () => empty());
+    const raw = vi.fn().mockImplementation(async () => empty());
+    const request = { ...SELECT, dataset: { defaultGraphs: ['http://example.org/a'] } };
+
+    await httpExecutor('https://example.org/sparql', { fetch: parsed, method: 'POST' }).execute(request);
+    await httpExecutor('https://example.org/sparql', { fetch: raw, method: 'POST' }).executeRaw!(request);
+
+    expect(raw.mock.calls).toEqual(parsed.mock.calls);
+  });
+
+  it('throws SparqlEndpointError on a non-2xx status', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('parse error', { status: 400 }));
+    await expect(
+      httpExecutor('https://example.org/sparql', { fetch: fetchMock }).executeRaw!(SELECT),
+    ).rejects.toMatchObject({ name: 'SparqlEndpointError', status: 400, body: 'parse error' });
+  });
+
+  it('falls back from QUERY to POST, as execute does', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('', { status: 501 }))
+      .mockResolvedValue(jsonResponse({ head: {}, results: { bindings: [] } }));
+    const response = await httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'QUERY' })
+      .executeRaw!(SELECT);
+
+    expect(fetchMock.mock.calls.map(([, init]) => init.method)).toEqual(['QUERY', 'POST']);
+    expect(response.ok).toBe(true);
+  });
+});
