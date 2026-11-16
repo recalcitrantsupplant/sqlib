@@ -9,7 +9,7 @@ import { RuleStratifier } from './RuleStratifier.js';
 import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 import type { PersistedDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
-import { ruleTuplesRefusal, hasSeedText } from './ruleTuples.js';
+import { ruleTuplesRefusal } from './ruleTuples.js';
 import { ValidationError } from './validationError.js';
 import { ToolObjectError, resolveVersionTool } from './toolObject.js';
 
@@ -20,8 +20,6 @@ export interface CreateRuleSetVersionInput {
   hasRule?: string[] | null;
   hasDataBlock?: string[] | null;
   immutable?: boolean;
-  /** SRL tuple-seed document: the ruleset's initial named tuples. */
-  tupleSeeds?: string | null;
   /** Whether this version opts into the rule-tuples extension. */
   tuplesEnabled?: boolean | null;
   /** The SRL document the rules and data blocks were split from, as written. */
@@ -180,14 +178,13 @@ async function createRuleSetVersionNumbered(
    * the thing that would outlive the request, so a build without the extension
    * must not be able to store one that claims it. See ./ruleTuples.ts.
    */
-  const tupleRefusal = ruleTuplesRefusal(body.tuplesEnabled === true || hasSeedText(body.tupleSeeds));
+  const tupleRefusal = ruleTuplesRefusal(body.tuplesEnabled === true);
   if (tupleRefusal) {
     throw new ValidationError(tupleRefusal);
   }
 
   // Only written when set, so a ruleset that never touches the extension keeps
   // the properties absent rather than storing a default nobody chose.
-  if (body.tupleSeeds != null && body.tupleSeeds.trim()) payload.tupleSeeds = body.tupleSeeds.trim();
   if (body.tuplesEnabled != null) payload.tuplesEnabled = body.tuplesEnabled;
   // Verbatim, not trimmed: the point is to read back exactly what was saved.
   // An empty document says nothing a generated one would not.

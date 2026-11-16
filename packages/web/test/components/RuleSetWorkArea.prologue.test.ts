@@ -142,7 +142,6 @@ describe('RuleSetWorkArea — the prologue a load is rendered with', () => {
     ]);
     api.exportRuleSetSrl.mockImplementation(async (id: string) => ({
       srl: DOCS[id],
-      tupleSeeds: null,
       tuplesEnabled: false,
       warnings: [],
     }));

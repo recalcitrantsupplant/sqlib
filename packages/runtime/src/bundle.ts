@@ -243,8 +243,6 @@ export interface ExportedRuleSet {
   textHash: string;
   ruleCount: number;
   dataBlockCount: number;
-  /** Initial named-tuple rows, when the rule-tuples extension is on for it. */
-  tupleSeeds?: string;
   tuplesEnabled?: boolean;
   name?: string;
   description?: string;
@@ -592,9 +590,6 @@ function assertValidRuleSet(ruleSet: ExportedRuleSet, where: string): void {
   if (typeof ruleSet.srl !== 'string' || ruleSet.srl.trim().length === 0) fail(`${where}: srl must be a non-empty string.`);
   if (typeof ruleSet.textHash !== 'string' || !ruleSet.textHash.startsWith('sha256-')) {
     fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
-  }
-  if (ruleSet.tupleSeeds !== undefined && typeof ruleSet.tupleSeeds !== 'string') {
-    fail(`${where}: tupleSeeds must be a string.`);
   }
 }
 

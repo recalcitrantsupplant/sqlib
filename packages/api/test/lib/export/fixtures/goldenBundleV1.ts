@@ -335,8 +335,9 @@ CONSTRUCT { ?person ex:name ?name ; ex:joined ?joined } WHERE { VALUES (?person 
 };
 
 /**
- * One rule set with a rule, a data block and seed rows, written with the
- * rule-tuples extension on, so `tuplesEnabled` and `tupleSeeds` are present.
+ * One rule set with a rule and a data block, written with the rule-tuples
+ * extension on, so `tuplesEnabled` is present. A version stored before #106
+ * may still carry `tupleSeeds`; the export leaves it out.
  */
 const RULE_SET_SOURCE: LibraryRuleSetSource = {
   listRuleSets: () => [

@@ -88,7 +88,6 @@ async function exportRuleSet(
   } catch (error) {
     throw new RuleSetExportError(`Its SRL document does not parse: ${(error as Error).message}`);
   }
-  const tupleSeeds = tuplesEnabled ? (version.tupleSeeds ?? '').trim() : '';
 
   return {
     srl: document.srl,
@@ -96,7 +95,6 @@ async function exportRuleSet(
     ruleCount: document.ruleCount,
     dataBlockCount: document.dataBlockCount,
     ...(tuplesEnabled ? { tuplesEnabled } : {}),
-    ...(tupleSeeds ? { tupleSeeds } : {}),
     name: ruleSet.name,
     ...(ruleSet.description ? { description: ruleSet.description } : {}),
     ...(ruleSet.tags && ruleSet.tags.length > 0 ? { tags: [...ruleSet.tags] } : {}),

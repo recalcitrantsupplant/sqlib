@@ -55,7 +55,6 @@ vi.mock('../../src/lib/DataBlockVersionWriter.js', () => ({
 const RULESET_ID = 'urn:sqlib:ruleset:rs1';
 const TUPLE_DOC = 'PREFIX ex: <http://example/>\nRULE { TUPLE(ex:r, ?a) } WHERE { ?a ex:p ex:o }';
 const PLAIN_DOC = 'PREFIX ex: <http://example/>\nRULE { ?s ex:q ?o } WHERE { ?s ex:p ?o }';
-const SEEDS = 'PREFIX ex: <http://example/>\nTUPLE(ex:r, ex:a)';
 
 describe('the rule-tuples deployment gate', () => {
   let app: FastifyInstance;
@@ -113,16 +112,6 @@ describe('the rule-tuples deployment gate', () => {
       method: 'POST',
       url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl/preview`,
       payload: { srl: TUPLE_DOC, tuples: true },
-    });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe(RULE_TUPLES_DISABLED_MESSAGE);
-  });
-
-  it('refuses seed rows even when the extension switch is absent', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl/preview`,
-      payload: { srl: PLAIN_DOC, tupleSeeds: SEEDS },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe(RULE_TUPLES_DISABLED_MESSAGE);

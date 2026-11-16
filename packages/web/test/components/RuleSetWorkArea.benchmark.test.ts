@@ -182,7 +182,6 @@ describe('RuleSetWorkArea — create benchmark from the recipe', () => {
     ]);
     api.exportRuleSetSrl.mockResolvedValue({
       srl: 'RULE { ?s :q ?o } WHERE { ?s :p ?o }',
-      tupleSeeds: null,
       tuplesEnabled: false,
       warnings: [],
     });

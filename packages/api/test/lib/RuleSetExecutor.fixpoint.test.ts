@@ -124,18 +124,15 @@ describe('RuleSetExecutor — convergence sees the tuple store', () => {
 });
 
 describe('RuleSetExecutor — initial named tuples', () => {
-  /** A rule set version carrying a tuple-seed document (canonical form). */
-  const seeded = (hasRule: string[], tupleSeeds: string) =>
-    ({ ...(ruleSetVersion(hasRule) as object), tupleSeeds } as never);
+  /** Run the rules with a tuple-seed document (canonical form) as the run's input. */
+  const runSeeded = (hasRule: string[], tupleSeeds: string, options: Record<string, unknown> = {}) =>
+    new RuleSetExecutor().execute(ruleSetVersion(hasRule) as never, { maxIterations: 10, ...options, tupleSeeds });
 
   it('seeds the tuple store, so a tuple relation can be given rather than derived', async () => {
     // No rule writes TUPLE(:reach, …) — the only source is the seed document.
     // Without seeding, the premise is unsatisfiable and nothing is derived.
     const ids = [rule('materialise', 'RULE { ?a :reaches ?b } WHERE { TUPLE(:reach, ?a, ?b) }')];
-    const result = await new RuleSetExecutor().execute(
-      seeded(ids, 'TUPLE(<http://ex/reach>, <http://ex/a>, <http://ex/d>)'),
-      { maxIterations: 10 },
-    );
+    const result = await runSeeded(ids, 'TUPLE(<http://ex/reach>, <http://ex/a>, <http://ex/d>)');
 
     expect(result.finalGraphNQuads ?? '').toContain('<http://ex/a> <http://ex/reaches> <http://ex/d> .');
   });
@@ -145,20 +142,14 @@ describe('RuleSetExecutor — initial named tuples', () => {
       rule('reach-step', 'RULE { TUPLE(:reach, ?a, ?c) } WHERE { TUPLE(:reach, ?a, ?b) . ?b :edge ?c }'),
       rule('materialise', 'RULE { :a :reachesFar :c } WHERE { TUPLE(:reach, :a, :c) }'),
     ];
-    const result = await new RuleSetExecutor().execute(
-      seeded(ids, 'TUPLE(<http://ex/reach>, <http://ex/a>, <http://ex/b>)'),
-      { initialGraph: '<http://ex/b> <http://ex/edge> <http://ex/c> .', maxIterations: 10 },
-    );
+    const result = await runSeeded(ids, 'TUPLE(<http://ex/reach>, <http://ex/a>, <http://ex/b>)', { initialGraph: '<http://ex/b> <http://ex/edge> <http://ex/c> .' });
 
     expect(result.finalGraphNQuads ?? '').toContain('<http://ex/a> <http://ex/reachesFar> <http://ex/c> .');
   });
 
   it('ignores a declaration row: a variable is an input, not a value', async () => {
     const ids = [rule('materialise', 'RULE { ?a :reaches ?b } WHERE { TUPLE(:reach, ?a, ?b) }')];
-    const result = await new RuleSetExecutor().execute(
-      seeded(ids, 'TUPLE(<http://ex/reach>, ?x, ?y)'),
-      { maxIterations: 10 },
-    );
+    const result = await runSeeded(ids, 'TUPLE(<http://ex/reach>, ?x, ?y)');
 
     expect(result.status).toBe('converged');
     expect(result.finalGraphNQuads ?? '').not.toContain('<http://ex/reaches>');
@@ -168,11 +159,20 @@ describe('RuleSetExecutor — initial named tuples', () => {
     // Running with an empty store instead would make every tuple premise
     // vacuous — a wrong answer, not a missing one.
     const ids = [rule('materialise', 'RULE { ?a :reaches ?b } WHERE { TUPLE(:reach, ?a, ?b) }')];
-    const result = await new RuleSetExecutor().execute(
-      seeded(ids, 'this is not a tuple row'),
-      { maxIterations: 10 },
-    );
+    const result = await runSeeded(ids, 'this is not a tuple row');
 
     expect(result.status).toBe('failed');
+  });
+
+  it('ignores seeds a version stored before seeds became run input (#106)', async () => {
+    const ids = [rule('materialise', 'RULE { ?a :reaches ?b } WHERE { TUPLE(:reach, ?a, ?b) }')];
+    const legacy = {
+      ...(ruleSetVersion(ids) as object),
+      tupleSeeds: 'TUPLE(<http://ex/reach>, <http://ex/a>, <http://ex/d>)',
+    };
+    const result = await new RuleSetExecutor().execute(legacy as never, { maxIterations: 10 });
+
+    expect(result.status).toBe('converged');
+    expect(result.finalGraphNQuads ?? '').not.toContain('<http://ex/reaches>');
   });
 });

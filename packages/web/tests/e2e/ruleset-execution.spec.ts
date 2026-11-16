@@ -171,7 +171,6 @@ test.describe('Rule set execution (mocked)', () => {
           srl: EXPORTED_SRL,
           ruleCount: 1,
           dataBlockCount: 0,
-          tupleSeeds: '',
           tuplesEnabled: false,
           warnings: [],
         }),

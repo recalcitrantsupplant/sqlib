@@ -38,8 +38,8 @@ Optional members:
   rows. The bundle does not hold the backend of the job.
 - `ruleSets`, for the [`sqlib` CLI](cli.md). Each rule set has its SRL document
   (`srl`, with DATA blocks), a `textHash` of the document, and its rule and
-  data block counts. It also has its tuple seed rows when the rule-tuples
-  extension is on for it, and provenance.
+  data block counts, and provenance. It has no seed rows: give them to
+  `sqlib rules run` with `--tuples`.
 
 The browser runtime validates `etlJobs` and `ruleSets` and checks their hashes.
 It does not run them: ETL needs DuckDB, and rules need the SRL compiler.

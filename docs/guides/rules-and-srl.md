@@ -310,7 +310,7 @@ The `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`) controls the extension.
 Its default is **off**. When the flag is off:
 
 - The server refuses a request that uses the extension: a `tuplesEnabled` rule
-  set version, a `tupleSeeds` document, or a tuple seed input on an execute. The
+  set version, or seed rows on a run. The
   error is `The rule-tuples extension is not enabled on this server`.
 - The UI shows no control for the extension.
 - A document that contains `TUPLE( … )` is a syntax error:

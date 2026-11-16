@@ -63,7 +63,6 @@ async function mockTestsScreen(page: Page, { tuplesEnabled }: { tuplesEnabled: b
     srl: SRL,
     ruleCount: 1,
     dataBlockCount: 0,
-    tupleSeeds: '',
     tuplesEnabled,
     warnings: [],
   }));

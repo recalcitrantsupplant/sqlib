@@ -3876,10 +3876,6 @@ export const rulesetversionSchema = {
       "type": "string",
       "nullable": true
     },
-    "tupleSeeds": {
-      "type": "string",
-      "nullable": true
-    },
     "srlDocument": {
       "type": "string",
       "nullable": true
@@ -5705,7 +5701,6 @@ export interface RuleSetVersionRestApi {
   hasRule?: string[] | null;
   hasDataBlock?: string[] | null;
   stratificationReport?: string | null;
-  tupleSeeds?: string | null;
   srlDocument?: string | null;
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;

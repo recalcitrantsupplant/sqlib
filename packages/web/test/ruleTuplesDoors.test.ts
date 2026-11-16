@@ -86,7 +86,7 @@ describe('the rule-tuples extension is absent when the flag is off', () => {
     expect(text).toContain("const ensureRuleTuplesEnabled = () => ensureFeatureEnabled('ruleTuples');");
     // Called only where a request would carry the extension.
     expect(text).toMatch(/if \(options\?\.tuples === true\) ensureRuleTuplesEnabled\(\);/);
-    expect(text).toMatch(/if \(input\?\.tuples === true \|\| \(input\?\.tupleSeeds \?\? ''\)\.trim\(\)\) ensureRuleTuplesEnabled\(\);/);
+    expect(text).toMatch(/if \(input\?\.tuples === true\) ensureRuleTuplesEnabled\(\);/);
   });
 });
 

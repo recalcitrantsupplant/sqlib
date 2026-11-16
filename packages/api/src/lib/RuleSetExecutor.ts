@@ -82,12 +82,11 @@ export interface RuleSetExecutionOptions {
    */
   initialGraphFormat?: string | null;
   /**
-   * Rows for this run, overriding the version's stored `tupleSeeds`.
+   * The named-tuple rows this run starts from.
    *
-   * A rule set's tabular input is an *argument*: the same relationship an
-   * argument set has to a query. It was stored on the version and nowhere else,
-   * so varying it per run meant saving a new version. Absent here, the stored
-   * seeds run exactly as before. See `lib/tupleSeedInput.ts`.
+   * A rule set's tabular input is an argument, as an argument set is to a
+   * query, so it comes with the run and a version does not store it (#106).
+   * Absent, the run starts with no rows. See `lib/tupleSeedInput.ts`.
    */
   tupleSeeds?: string | null;
 }
@@ -132,11 +131,7 @@ export class RuleSetExecutor {
             }
             return dataBlocks.map(version => this.prepareDataBlock(version));
           },
-          // An empty string is a deliberate "no rows", distinct from an absent
-          // override meaning "use what the version stored".
-          tupleSeeds: options.tupleSeeds !== undefined && options.tupleSeeds !== null
-            ? options.tupleSeeds
-            : (ruleSetVersion.tupleSeeds ?? ''),
+          tupleSeeds: options.tupleSeeds ?? '',
         },
         {
           maxIterations,

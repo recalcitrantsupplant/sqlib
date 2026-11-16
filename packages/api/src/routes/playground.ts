@@ -261,7 +261,6 @@ export default async function playgroundRoutes(
           version: 1,
           hasRule: ruleVersions.map((rv) => rv.$id),
           hasDataBlock: dataBlockVersions.map((db) => db.$id),
-          tupleSeeds: tupleSeeds || undefined,
           tuplesEnabled: useTuples,
           dateCreated: now,
           dateModified: now,
@@ -316,6 +315,7 @@ export default async function playgroundRoutes(
             inferenceFormat,
             initialGraph: dataGraph?.content ?? null,
             initialGraphFormat: dataGraph?.format ?? null,
+            tupleSeeds: tupleSeeds || null,
             // The playground shows each rule's inserted and deleted quads.
             trace: true,
           });
