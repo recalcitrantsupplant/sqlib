@@ -94,14 +94,27 @@
               Saved
               <span class="menu-heading-count">{{ visibleSaved.length }}</span>
             </DropdownMenuLabel>
+            <!--
+              A library can hold thousands of sets (#197). The menu draws the
+              first page of matches; the filter or "Show more" reaches the rest.
+            -->
             <DropdownMenuItem
-              v-for="entry in visibleSaved"
+              v-for="entry in shownSaved"
               :key="entry.id"
               class="set-row"
               @select="emit('select-set', entry.id)"
             >
               <span class="set-row-name">{{ entry.name }}</span>
               <span class="set-row-meta">{{ entry.meta }}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="hiddenSavedCount > 0"
+              class="set-row set-row--more"
+              data-testid="argument-set-show-more"
+              @select.prevent="savedLimit += SAVED_PAGE"
+            >
+              <span class="set-row-name">Show more</span>
+              <span class="set-row-meta">{{ hiddenSavedCount }} more</span>
             </DropdownMenuItem>
           </template>
         </DropdownMenuContent>
@@ -181,7 +194,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
 import { ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
@@ -278,9 +291,22 @@ const visibleSaved = computed(() =>
   props.savedSets.filter((entry) => fuzzyMatches(filter.value, entry.name, entry.meta)),
 );
 
+/**
+ * How many saved rows the menu draws. Rendering every row of a 4,000-set
+ * library made the menu slow to open, and nobody scrolls that far.
+ */
+const SAVED_PAGE = 50;
+const savedLimit = ref(SAVED_PAGE);
+const shownSaved = computed(() => visibleSaved.value.slice(0, savedLimit.value));
+const hiddenSavedCount = computed(() => Math.max(0, visibleSaved.value.length - savedLimit.value));
+watch(filter, () => {
+  savedLimit.value = SAVED_PAGE;
+});
+
 /** Each opening starts from the whole list, with the caret in the filter. */
 function focusFilter(event: Event) {
   filter.value = '';
+  savedLimit.value = SAVED_PAGE;
   const input = (filterBox.value?.$el as HTMLElement | undefined) ?? null;
   if (!input) return;
   event.preventDefault();
@@ -587,7 +613,8 @@ const activeRunKey = computed(() =>
   padding: var(--space-1) var(--space-3);
 }
 
-.set-row--new {
+.set-row--new,
+.set-row--more {
   color: var(--ink-secondary);
 }
 

@@ -469,11 +469,8 @@ const scratchEntries = computed<SwitcherEntry[]>(() =>
 const savedEntries = computed<SwitcherEntry[]>(() => {
   const openTarget = props.queryId ?? null
   const rows = args.argumentSets.value.map((set) => {
-    const version = set.currentVersion?.version
-    const fit = compatibility(
-      signature.value,
-      set.currentVersion?.tupleBindings ?? set.tupleBindings ?? [],
-    )
+    const version = set.currentVersionNumber
+    const fit = compatibility(signature.value, set.tupleBindings ?? [])
     const ownedHere = !set.targetId || (!!openTarget && set.targetId === openTarget)
     const parts = [version ? `v${version}` : 'no version']
     if (!ownedHere) parts.push('elsewhere in the library')

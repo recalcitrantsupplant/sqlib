@@ -113,6 +113,67 @@ export interface ArgumentSetDetail {
   modifiedBy?: string | null
 }
 
+/** A tuple binding in a list: its clause, without the rows. */
+export interface ArgumentTupleBindingSummary {
+  id: string
+  position?: number
+  tupleSignature: string
+  variables: string[]
+  tupleSetVersions?: string[]
+}
+
+/**
+ * An argument set as the list routes return it. The rows load with
+ * `GET /argument-sets/:id` when the set is opened.
+ */
+export interface ArgumentSetSummary {
+  id: string
+  name: string
+  description?: string | null
+  scope?: 'query' | 'queryGroup' | null
+  targetId?: string | null
+  libraryId?: string
+  tags?: string[]
+  currentVersionId?: string | null
+  currentVersionNumber?: number
+  tupleBindings: ArgumentTupleBindingSummary[]
+  scalarBindings: ArgumentScalarBinding[]
+  dateCreated?: string
+  dateModified?: string
+  createdBy?: string | null
+  modifiedBy?: string | null
+}
+
+/** The list entry for a set the client already holds in full. */
+export function summarizeArgumentSet(set: ArgumentSetDetail): ArgumentSetSummary {
+  const bindings = set.currentVersion?.tupleBindings ?? set.tupleBindings ?? []
+  return {
+    id: set.id,
+    name: set.name,
+    description: set.description,
+    scope: set.scope,
+    targetId: set.targetId,
+    libraryId: set.libraryId,
+    currentVersionId: set.currentVersionId,
+    currentVersionNumber: set.currentVersion?.version,
+    tupleBindings: bindings.map((binding, index) => {
+      const variables = binding.variables ?? binding.tupleSignature.split('|')
+      return {
+        id: binding.id ?? '',
+        position: binding.position ?? index,
+        tupleSignature: binding.tupleSignature,
+        variables,
+        ...(binding.tupleSetVersions?.length ? { tupleSetVersions: binding.tupleSetVersions } : {}),
+      }
+    }),
+    scalarBindings: set.currentVersion?.scalarBindings ?? set.scalarBindings ?? [],
+    dateCreated: set.dateCreated,
+    dateModified: set.dateModified,
+    createdBy: set.createdBy,
+    modifiedBy: set.modifiedBy,
+  }
+}
+
 export interface ArgumentSetInput {
   name: string
   description?: string

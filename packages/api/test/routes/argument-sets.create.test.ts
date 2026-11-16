@@ -110,6 +110,41 @@ describe('POST /argument-sets', () => {
     expect(body.tupleBindings[0].rows[0].values.city.value).toBe('Perth');
   });
 
+  /*
+   * The list is summaries (#197): the clause and its variables, which the fit
+   * verdict needs, and no rows. `GET /argument-sets/:id` returns the rows.
+   */
+  it('lists the set without its rows', async () => {
+    const created = await create({
+      name: 'Composed',
+      libraryId: LIBRARY,
+      tupleBindings: [{
+        variables: ['city', 'state'],
+        rows: [
+          { values: { city: { type: 'literal', value: 'Perth' } } },
+          { values: { city: { type: 'literal', value: 'Hobart' } } },
+        ],
+      }],
+      scalarBindings: [{ parameterKind: 'limit', parameterName: 'pageSize', numericValue: 20 }],
+    });
+    const id = created.json().id;
+
+    const list = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}` });
+    expect(list.statusCode).toBe(200);
+    const [summary] = list.json();
+    expect(summary.id).toBe(id);
+    expect(summary.currentVersionNumber).toBe(1);
+    expect(summary).not.toHaveProperty('currentVersion');
+    expect(summary.tupleBindings).toEqual([
+      expect.objectContaining({ position: 0, variables: ['city', 'state'], tupleSignature: 'city|state' }),
+    ]);
+    expect(summary.tupleBindings[0]).not.toHaveProperty('rows');
+    expect(summary.scalarBindings[0].parameterName).toBe('pageSize');
+
+    const detail = await app.inject({ method: 'GET', url: `/argument-sets/${encodeURIComponent(id)}` });
+    expect(detail.json().tupleBindings[0].rows).toHaveLength(2);
+  });
+
   it('scopes the write by the library on the body', async () => {
     await create({ name: 'Composed', libraryId: LIBRARY });
     expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'write' });
