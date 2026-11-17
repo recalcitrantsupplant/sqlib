@@ -122,6 +122,8 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
   const state = reactive({
     items: [] as T[],
     loading: false,
+    /** True once a load has returned the server's list. A failed load leaves it false. */
+    loaded: false,
     error: null as string | null,
     concurrency: {} as Record<string, string | null>,
   });
@@ -131,6 +133,7 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
 
     const items = computed(() => state.items as T[]);
     const loading = computed(() => state.loading);
+    const loaded = computed(() => state.loaded);
     const error = computed(() => state.error);
 
     async function load() {
@@ -138,6 +141,7 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
       state.error = null;
       try {
         state.items = (await api.list()) as typeof state.items;
+        state.loaded = true;
       } catch (err: unknown) {
         state.error = err instanceof Error ? err.message : `Failed to load ${config.nounPlural}`;
         state.items = (config.fallbackItems?.() ?? []) as typeof state.items;
@@ -191,6 +195,7 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
       state,
       items,
       loading,
+      loaded,
       error,
       concurrency: state.concurrency,
       load,

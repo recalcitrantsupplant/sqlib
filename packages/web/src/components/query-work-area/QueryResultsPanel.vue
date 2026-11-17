@@ -260,6 +260,7 @@ import CodeSnippetPanel, {
   type CodeSnippetArgument,
   type CodeSnippetVariant,
 } from '../shared/CodeSnippetPanel.vue';
+import { UNAVAILABLE_BACKEND_LABEL } from '@/lib/backendLabels'
 import EntityDetailsPanel from '../shared/EntityDetailsPanel.vue';
 import SlotPoliciesSection from './SlotPoliciesSection.vue';
 import type { WhenEmptyMode } from '@/lib/slotPolicies';
@@ -608,7 +609,11 @@ const executeUrl = computed(
 const codeTargetBody = computed<Record<string, unknown>>(() => {
   const body: Record<string, unknown> = { targetId: props.queryId || '<query-id>' }
   const backendId = props.details?.backendValue
-  if (backendId && backendId !== 'none') body.backendId = backendId
+  // A default this caller cannot see is left out: the server applies it anyway.
+  const hidden = props.details?.backendOptions.some(
+    (option) => option.value === backendId && option.label === UNAVAILABLE_BACKEND_LABEL,
+  )
+  if (backendId && backendId !== 'none' && !hidden) body.backendId = backendId
   return body
 })
 

@@ -111,6 +111,20 @@ describe('createVersionedEntityStore', () => {
     await store.load();
     expect(store.error.value).toBe('offline');
     expect(store.items.value.map((item) => item.id)).toEqual(['urn:local:1']);
+    expect(store.loaded.value).toBe(false);
+  });
+
+  it('marks the list loaded once the server answered', async () => {
+    const { api } = fakeApi();
+    const store = createVersionedEntityStore<Thing, Partial<Thing>, Partial<Thing>>({
+      noun: 'thing',
+      nounPlural: 'things',
+      api: () => api,
+    })();
+
+    expect(store.loaded.value).toBe(false);
+    await store.load();
+    expect(store.loaded.value).toBe(true);
   });
 
   it('derives a token from the record when the response carries no ETag', () => {

@@ -187,6 +187,22 @@ describe('QueryWorkArea — a saved query, mounted against the API', () => {
     expect(wrapper.find('[data-testid="draft-pill"]').exists()).toBe(false);
   });
 
+  it('does not show the id of a default backend the caller cannot see', async () => {
+    const HIDDEN = 'urn:sqlib:backend:hidden-store';
+    api().responses.getQuery = (id: string) => ({ data: { ...query, id, defaultBackend: HIDDEN }, etag: '"q1"' });
+    const wrapper = await mountSaved();
+    const vm = wrapper.vm as unknown as {
+      selectedBackend: string;
+      backendOptions: Array<{ value: string; label: string }>;
+      detailsBackendOptions: Array<{ value: string; label: string }>;
+    };
+
+    expect(vm.selectedBackend).not.toBe(HIDDEN);
+    expect(vm.backendOptions.map((option) => option.value)).not.toContain(HIDDEN);
+    expect(vm.detailsBackendOptions.find((option) => option.value === HIDDEN)?.label).toBe('Unavailable backend');
+    expect(wrapper.html()).not.toContain(HIDDEN);
+  });
+
   /*
    * The current version runs by the query's own id (so the server resolves
    * "current" itself); only a non-current version is named by its version id.

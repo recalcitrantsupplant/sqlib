@@ -41,6 +41,7 @@ import type { BenchmarkExperimentVersion, BenchmarkRunResponse } from '@sparql-q
 import { useBenchmarksStore } from '@/composables/useBenchmarksStore';
 import { useBenchmarkExecution } from '@/composables/useBenchmarkExecution';
 import { useBackendsStore } from '@/composables/useBackendsStore';
+import { backendDisplayName } from '@/lib/backendLabels';
 import { useQueriesStore } from '@/composables/useQueriesStore';
 import { useQueryGroupsStore } from '@/composables/useQueryGroupsStore';
 import { useRuleSetsStore } from '@/composables/useRuleSetsStore';
@@ -345,7 +346,7 @@ const backendName = (id: string) => {
   // the sentinel rather than leaving the column empty. Printing the raw IRI in
   // a run's backend column would read as a backend nobody can find.
   if (id === NOT_APPLICABLE_BACKEND_IRI) return 'In-process';
-  return backendOptions.value.find((backend) => backend.id === id)?.name ?? id;
+  return backendDisplayName(id, backendOptions.value, backendsStore.loaded?.value ?? false);
 };
 
 /**

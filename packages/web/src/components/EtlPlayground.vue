@@ -546,6 +546,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { getLastBackend, resolveEtlBackend, setLastBackend } from '../lib/backendDefaults';
+import { backendDisplayName } from '../lib/backendLabels';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { authorizedFetch } from '../composables/authorizedFetch';
@@ -1294,14 +1295,16 @@ const sparqlExtensions = [
  */
 const backendsStore = useBackendsStore();
 const backendsLoading = computed(() => backendsStore.loading.value);
+const backendsListLoaded = computed(() => backendsStore.loaded?.value ?? false);
 const backendOptions = computed(() => {
   const optionMap = new Map<string, string>();
   optionMap.set(EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL);
   for (const backend of backendsStore.backends.value) {
     optionMap.set(backend.id, backend.name);
   }
+  // After the list loads, an id it lacks is a backend this caller cannot use.
   const current = selectedBackendId.value;
-  if (current && !optionMap.has(current)) {
+  if (current && !optionMap.has(current) && !backendsListLoaded.value) {
     optionMap.set(current, current);
   }
   return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
@@ -1320,7 +1323,10 @@ const detailsBackendOptions = computed(() => {
       .map((backend) => ({ value: backend.id, label: backend.name })),
   ];
   if (!options.some((option) => option.value === jobDefaultBackend.value)) {
-    options.push({ value: jobDefaultBackend.value, label: jobDefaultBackend.value });
+    options.push({
+      value: jobDefaultBackend.value,
+      label: backendDisplayName(jobDefaultBackend.value, backendsStore.backends.value, backendsListLoaded.value),
+    });
   }
   return options;
 });
@@ -1332,7 +1338,7 @@ const backendIsKnown = (id: string) => (
 const backendLabel = (id: string) => (
   id === EPHEMERAL_BACKEND_ID
     ? EPHEMERAL_BACKEND_LABEL
-    : backendsStore.backends.value.find((backend) => backend.id === id)?.name ?? id
+    : backendDisplayName(id, backendsStore.backends.value, backendsListLoaded.value)
 );
 
 /*
@@ -1342,7 +1348,7 @@ const backendLabel = (id: string) => (
  * its word, and `onMounted` checks again when the list arrives.
  */
 function resolveRunBackend(jobId: string) {
-  const listLoaded = backendsStore.backends.value.length > 0;
+  const listLoaded = backendsStore.backends.value.length > 0 || backendsListLoaded.value;
   selectedBackendId.value = resolveEtlBackend({
     lastPick: getLastBackend('etlJob', jobId),
     jobDefault: jobDefaultBackend.value,
