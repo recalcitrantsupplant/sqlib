@@ -519,7 +519,7 @@ import { useQueriesStore } from '../composables/useQueriesStore';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useApiClient } from '../composables/useApiClient';
 import { useEnvironmentVersions } from '../composables/useActiveEnvironment';
-import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '@/lib/mediaTypes';
+import { UPDATE_RESULT_MEDIA_TYPE, getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '@/lib/mediaTypes';
 import { OUTPUT_MEDIA_TYPES, isGraphQueryType, isResultSetQueryType, isUpdateQueryType, getQueryTypeKeyFromIri } from '@sparql-query-lib/types';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useQueryValidation } from '../composables/useQueryValidation';
@@ -2568,11 +2568,10 @@ watch(queryType, (newQueryType) => {
   else if (isResultSetQueryType(newQueryType)) {
     selectedMediaType.value = OUTPUT_MEDIA_TYPES.JSON;
   }
-  // An update has exactly one output: the patch it would make (#290). Running
-  // it as a patch derives rather than writes, which is the safer of the two to
-  // land on by default and the only one with something to show afterwards.
+  // An update runs as a plain write by default. RDF Patch stays on offer as a
+  // preview of the change, derived without writing (#290).
   else if (isUpdateQueryType(newQueryType)) {
-    selectedMediaType.value = OUTPUT_MEDIA_TYPES.RDF_PATCH;
+    selectedMediaType.value = UPDATE_RESULT_MEDIA_TYPE;
   }
 });
 

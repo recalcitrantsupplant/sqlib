@@ -160,8 +160,8 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
   /**
    * Whether this run is asking an update for its diff rather than its effect.
    *
-   * `text/rdf-patch` is the only output an update query has; picking it is the
-   * one thing that turns Run into a preview instead of a write.
+   * Picking `text/rdf-patch` for an update turns Run into a preview instead of
+   * a write. Any other type runs the update.
    */
   const wantsPatch = (): boolean =>
     deps.selectedMediaType.value === PATCH_MEDIA_TYPES.RDF_PATCH &&
