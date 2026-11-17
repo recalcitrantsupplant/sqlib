@@ -153,7 +153,7 @@
             :backends-loading="backendsLoading"
             :validation-state="validationState"
             :validation-error="validationError"
-            :query-type="queryType"
+            :query-type="formatQueryType"
             :detected-outputs="detectedOutputs"
             :argument-set-options="argumentSetOptions"
             :selected-argument-set-id="argumentSetsComposable.selectedSetId.value"
@@ -520,7 +520,7 @@ import { useBackendsStore } from '../composables/useBackendsStore';
 import { useApiClient } from '../composables/useApiClient';
 import { useEnvironmentVersions } from '../composables/useActiveEnvironment';
 import { UPDATE_RESULT_MEDIA_TYPE, getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '@/lib/mediaTypes';
-import { OUTPUT_MEDIA_TYPES, isGraphQueryType, isResultSetQueryType, isUpdateQueryType, getQueryTypeKeyFromIri } from '@sparql-query-lib/types';
+import { OUTPUT_MEDIA_TYPES, QueryTypeIri, isGraphQueryType, isResultSetQueryType, isUpdateQueryType, getQueryTypeKeyFromIri } from '@sparql-query-lib/types';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useQueryValidation } from '../composables/useQueryValidation';
 import { useQueryExecution } from '../composables/useQueryExecution';
@@ -754,6 +754,13 @@ const updateGraphs = computed<UpdateGraphsState | null>(() => {
   if (state === 'unparsed') return isUpdateQueryType(queryType.value) ? 'choose' : null;
   return state;
 });
+/**
+ * The type the output formats follow. A saved version names its type; a draft
+ * that parses as an update counts as one, so its "as" offers Result and RDF
+ * Patch, and a patch run previews instead of writing.
+ */
+const formatQueryType = computed<QueryTypeValue | null>(() =>
+  queryType.value ?? (updateGraphs.value !== null ? QueryTypeIri.update : null));
 /** The run sends the chosen graphs: always for a query, and for an update that can take them. */
 const takesGraphs = computed(() => updateGraphs.value === null || updateGraphs.value === 'choose');
 
@@ -911,7 +918,7 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
   currentVersion,
   preferredVersion,
   activeResultsTab,
-  queryType,
+  queryType: formatQueryType,
   noneBackendId: NONE_BACKEND,
   /*
    * What "Run with" is pointing at. A saved version executes by id; the
@@ -1167,7 +1174,7 @@ function pickRunBackend(value: string) {
 const mediaTypeOptions = computed(() => getAllMediaTypeOptions());
 // The run bar heads the formats by result shape and greys the ones this query
 // type would not usually answer with — selectable still, just not suggested.
-const mediaTypeChoiceGroups = computed(() => getMediaTypeChoiceGroups(queryType.value));
+const mediaTypeChoiceGroups = computed(() => getMediaTypeChoiceGroups(formatQueryType.value));
 const argumentSetOptions = computed(() =>
   argumentSetsComposable.argumentSets.value.map(set => ({
     value: set.id,
@@ -2553,8 +2560,8 @@ const confirmDeleteQuery = async () => {
   }
 };
 
-// Watch queryType for changes and auto-select appropriate media type
-watch(queryType, (newQueryType) => {
+// Watch the format type for changes and auto-select appropriate media type
+watch(formatQueryType, (newQueryType) => {
   if (!newQueryType) {
     return;
   }

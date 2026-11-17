@@ -33,7 +33,7 @@ export interface UseQueryExecutionDeps {
    * update for `text/rdf-patch` is asking for the diff, which is derived rather
    * than run, and that is a different call.
    */
-  queryType?: Ref<string | null>;
+  queryType?: Readonly<Ref<string | null>>;
   selectedVersion: Ref<string | null>;
   currentVersion: Ref<string | null>;
   /** A run always takes you to Results; Details is a tab this never selects. */
