@@ -673,10 +673,10 @@ const activeRunKey = computed(() =>
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
   color: var(--ink-secondary);
-  font-size: 12px;
+  font-size: var(--text-body);
 }
 
 .set-pager-button {
@@ -685,7 +685,7 @@ const activeRunKey = computed(() =>
   justify-content: center;
   width: var(--control-h-sm);
   height: var(--control-h-sm);
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: var(--ink-secondary);
 }
 
