@@ -42,6 +42,23 @@ export const LEFT_TO_RIGHT_HANDLES = {
   targetPosition: Position.Left,
 } as const;
 
+export const TOP_TO_BOTTOM_HANDLES = {
+  sourcePosition: Position.Bottom,
+  targetPosition: Position.Top,
+} as const;
+
+/** Which way a canvas is laid out: edges leave a node's right side, or its bottom. */
+export type CanvasDirection = 'LR' | 'TB';
+
+export function handlesFor(direction: CanvasDirection) {
+  return direction === 'TB' ? TOP_TO_BOTTOM_HANDLES : LEFT_TO_RIGHT_HANDLES;
+}
+
+/** The direction a drawn canvas uses, read off its nodes' handles. */
+export function canvasDirectionOf(nodes: ReadonlyArray<{ sourcePosition?: string }>): CanvasDirection {
+  return nodes.some((node) => node.sourcePosition === Position.Bottom) ? 'TB' : 'LR';
+}
+
 const DEFAULT_LANE_ORDER: Record<GraphNodeState['kind'], number> = {
   start: 0,
   query: 1,
@@ -79,6 +96,13 @@ type SerializableNode = {
 
 type CanvasSnapshot = {
   nodes: SerializableNode[];
+  /*
+   * Which side edges leave each node from. Absent in a snapshot written before
+   * it was saved, which was drawn left to right. Without it a group saved top
+   * to bottom reopened with its handles on the sides of nodes stacked in a
+   * column.
+   */
+  direction?: CanvasDirection;
   viewport: {
     zoom: number;
     panX: number;
@@ -164,6 +188,7 @@ const normalizeBackendId = (backendId: string | null) => {
 type SavedCanvasState = {
   positions: Map<string, { x: number; y: number }>;
   labels: Map<string, string>;
+  direction: CanvasDirection;
 };
 
 /**
@@ -175,7 +200,7 @@ type SavedCanvasState = {
  * position.
  */
 const parseCanvasData = (canvasDataString: string | null | undefined): SavedCanvasState => {
-  const saved: SavedCanvasState = { positions: new Map(), labels: new Map() };
+  const saved: SavedCanvasState = { positions: new Map(), labels: new Map(), direction: 'LR' };
 
   if (!canvasDataString || typeof canvasDataString !== 'string') {
     return saved;
@@ -183,6 +208,7 @@ const parseCanvasData = (canvasDataString: string | null | undefined): SavedCanv
 
   try {
     const canvasData = JSON.parse(canvasDataString) as CanvasSnapshot;
+    if (canvasData?.direction === 'TB') saved.direction = 'TB';
     if (canvasData?.nodes && Array.isArray(canvasData.nodes)) {
       for (const node of canvasData.nodes) {
         if (!node.id) {
@@ -234,7 +260,9 @@ export function useQueryGroupGraphState(
   // Saved positions and saved names for the initial state, if it carries any.
   const initialSaved = parseCanvasData(initialGraphState.version?.canvasData);
   const currentGraphState = ref<QueryGroupGraphState>(withSavedLabels(initialGraphState, initialSaved.labels));
-  const nodes = deepRef<Node[]>(convertNodesToVueFlow(currentGraphState.value, laneOrder, initialSaved.positions));
+  const nodes = deepRef<Node[]>(
+    convertNodesToVueFlow(currentGraphState.value, laneOrder, initialSaved.positions, initialSaved.direction),
+  );
   const edges = deepRef<Edge[]>(toVueFlowEdges(currentGraphState.value.edges));
 
   const selectedNodeId = ref<string | null>(null);
@@ -323,7 +351,7 @@ watch(selectedCanvasObject, (selection) => {
     const saved = parseCanvasData(graphState.version?.canvasData);
     const named = withSavedLabels(graphState, saved.labels);
     currentGraphState.value = named;
-    nodes.value = convertNodesToVueFlow(named, laneOrder, saved.positions);
+    nodes.value = convertNodesToVueFlow(named, laneOrder, saved.positions, saved.direction);
     edges.value = toVueFlowEdges(graphState.edges);
     clearSelection();
   };
@@ -726,6 +754,9 @@ watch(selectedCanvasObject, (selection) => {
         panY: 0,
       },
     };
+    // Written only when it is not the default, so a left-to-right canvas saves
+    // the same text as before and does not read as an edit.
+    if (canvasDirectionOf(nodes.value) === 'TB') snapshot.direction = 'TB';
     return JSON.stringify(snapshot);
   };
 
@@ -835,6 +866,7 @@ function convertNodesToVueFlow(
   graphState: QueryGroupGraphState,
   laneOrder: Record<GraphNodeState['kind'], number>,
   savedPositions?: Map<string, { x: number; y: number }>,
+  direction: CanvasDirection = 'LR',
 ): Node[] {
   const laneCounters: Record<number, number> = {};
 
@@ -863,7 +895,7 @@ function convertNodesToVueFlow(
       id: graphNode.id,
       type: nodeType,
       position,
-      ...LEFT_TO_RIGHT_HANDLES,
+      ...handlesFor(direction),
       label: data.label,
       deletable: graphNode.kind !== 'start' && graphNode.kind !== 'end',
       data,
