@@ -1,7 +1,7 @@
 {
   "name": "@sparql-query-lib/tools",
   "version": "0.0.1",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

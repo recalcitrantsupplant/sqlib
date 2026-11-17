@@ -118,7 +118,4 @@ environment, which overrides these defaults: see
 
 ## Licence
 
-sqlib is pre-1.0, and its source is available for review only. See
-[LICENSE](LICENSE) for the terms. The licence does not grant production use or
-redistribution. An open source licence is planned for the public release. For
-an integrated deployment before then, contact the maintainer.
+sqlib is released under the [MIT licence](LICENSE).

@@ -554,9 +554,7 @@ are the same.
 
 ## Before you expose it
 
-This repository is pre-1.0, and its source is available for review (see
-`LICENSE`). No release is published. Before other people can reach a
-deployment, decide each item below.
+Before other people can reach a deployment, decide each item below.
 
 **Authentication is off by default.** The default `SQLIB_AUTH_MODE` is
 `disabled`, which gives each request full access. The other modes:
