@@ -147,14 +147,14 @@ describe('TupleBindingEditor', () => {
 });
 
 describe('ArgumentScalarsPanel', () => {
-  // "None supplied" is not the useful half: the reason is usually that the
-  // query never declared one, so the empty state teaches the spelling.
-  it('says how to parameterise a LIMIT when the query declares none', () => {
+  // The spelling of a LIMIT parameter lives in the documentation, which the
+  // empty state links to.
+  it('links to the documentation when the query declares no LIMIT', () => {
     const w = mount(ArgumentScalarsPanel, {
       props: { limitParameters: [], offsetParameters: [], modelValue: [] },
     });
     expect(w.text()).toContain('No parameterised LIMIT or OFFSET clauses supplied');
-    expect(w.text()).toContain('LIMIT 0001');
+    expect(w.get('[data-testid="argument-scalars-docs"]').attributes('href')).toMatch(/#parameters$/);
   });
 
   it('rows are driven by the query, defaulting values the set has not filled', () => {
