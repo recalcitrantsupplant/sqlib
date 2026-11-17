@@ -273,11 +273,25 @@ test.describe('Query arguments, a library with many saved sets', () => {
     const box = await menu.boundingBox();
     expect(box!.y + box!.height).toBeLessThanOrEqual(720);
 
-    // Page 7 holds the last row, past the first 50 loaded.
+    // Page 7 holds the last row, past the first 50 loaded. The pager does not move.
+    const settled = () => menu.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+    const pagerBox = async () => {
+      await settled();
+      return (await page.locator('[data-testid="argument-set-pager"]').boundingBox())!;
+    };
+    const menuWidth = async () => {
+      await settled();
+      return (await menu.boundingBox())!.width;
+    };
+    const firstWidth = await menuWidth();
+    const pagerTop = async () => (await pagerBox()).y;
+    const firstTop = await pagerTop();
     for (let page_ = 1; page_ < 7; page_ += 1) await page.locator('[data-testid="argument-set-next"]').click();
     await expect(page.locator('[data-testid="argument-set-range"]')).toHaveText('61–61 of 61');
     const last = page.locator('.set-row').filter({ hasText: 'Label Calcite' });
     await expect(last).toHaveCount(1);
     await expect(last).toContainText('Label Calcite 61');
+    expect(await pagerTop()).toBe(firstTop);
+    expect(await menuWidth()).toBe(firstWidth);
   });
 });
