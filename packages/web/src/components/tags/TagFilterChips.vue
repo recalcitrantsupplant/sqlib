@@ -1,5 +1,13 @@
 <template>
   <div class="tag-filter-chips" data-testid="tag-filter-chips">
+    <SegmentedToggle
+      v-if="modelValue.tags.length > 1"
+      :model-value="modelValue.match"
+      :options="MATCH_OPTIONS"
+      group-label="Match tags"
+      size="sm"
+      @update:model-value="(match) => emit('update:modelValue', { tags: modelValue.tags, match: match as TagMatch })"
+    />
     <span
       v-for="tag in chosen"
       :key="tag.id"
@@ -18,14 +26,6 @@
         <X :size="11" />
       </button>
     </span>
-    <SegmentedToggle
-      v-if="modelValue.tags.length > 1"
-      :model-value="modelValue.match"
-      :options="MATCH_OPTIONS"
-      group-label="Match tags"
-      size="sm"
-      @update:model-value="(match) => emit('update:modelValue', { tags: modelValue.tags, match: match as TagMatch })"
-    />
     <button type="button" class="tag-chips-clear" data-testid="tag-filter-clear" @click="clear">Clear</button>
   </div>
 </template>
@@ -34,8 +34,9 @@
 /**
  * The chosen tags of a section's tag filter, as chips under the filter bar.
  *
- * Any and All appear once two tags are chosen: with one tag they select the
- * same rows.
+ * "Any of | All of" leads the row once two tags are chosen, so the row reads
+ * "Any of geo, perth". With one tag the two modes select the same rows. Any of
+ * is the default: adding a tag then widens the list.
  */
 import { computed } from 'vue';
 import { X } from '@lucide/vue';
@@ -45,8 +46,8 @@ import type { TagFilter, TagMatch } from '../../lib/tagFilter';
 import type { TagFilterOption } from './TagFilterMenu.vue';
 
 const MATCH_OPTIONS = [
-  { value: 'any', label: 'Any', title: 'Rows with at least one of these tags', testId: 'tag-filter-match-any' },
-  { value: 'all', label: 'All', title: 'Rows with every one of these tags', testId: 'tag-filter-match-all' },
+  { value: 'any', label: 'Any of', title: 'Rows with at least one of these tags', testId: 'tag-filter-match-any' },
+  { value: 'all', label: 'All of', title: 'Rows with every one of these tags', testId: 'tag-filter-match-all' },
 ] as const;
 
 const props = defineProps<{

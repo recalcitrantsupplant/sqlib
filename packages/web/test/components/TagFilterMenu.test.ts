@@ -75,13 +75,15 @@ describe('TagFilterMenu', () => {
 });
 
 describe('TagFilterChips', () => {
-  it('shows Any and All only once two tags are chosen, and clears', async () => {
+  it('leads with Any of and All of only once two tags are chosen, and clears', async () => {
     const one = mount(TagFilterChips, { props: { tags: TAGS, modelValue: { tags: ['t:geo'], match: 'all' } } });
     expect(one.find('[data-testid="tag-filter-match-any"]').exists()).toBe(false);
     await one.get('[data-testid="tag-filter-clear"]').trigger('click');
     expect(one.emitted('update:modelValue')?.[0]).toEqual([{ tags: [], match: 'all' }]);
 
     const two = mount(TagFilterChips, { props: { tags: TAGS, modelValue: { tags: ['t:geo', 't:water'], match: 'all' } } });
+    // The toggle comes first, so the row reads "Any of geo, water".
+    expect(two.get('[data-testid="tag-filter-chips"]').element.firstElementChild?.textContent).toContain('Any of');
     await two.get('[data-testid="tag-filter-match-any"]').trigger('click');
     expect(two.emitted('update:modelValue')?.[0]).toEqual([{ tags: ['t:geo', 't:water'], match: 'any' }]);
   });
@@ -94,8 +96,12 @@ describe('lib/tagFilter', () => {
     expect(matchesTagFilter(null, { tags: [], match: 'all' })).toBe(true);
   });
 
+  it('starts empty with Any of', () => {
+    expect(normalizeTagFilter(undefined)).toEqual({ tags: [], match: 'any' });
+  });
+
   it('normalizes stored values and sends tagMatch only for any', () => {
-    expect(normalizeTagFilter({ tags: ['a', 'a', 3], match: 'nope' })).toEqual({ tags: ['a'], match: 'all' });
+    expect(normalizeTagFilter({ tags: ['a', 'a', 3], match: 'nope' })).toEqual({ tags: ['a'], match: 'any' });
     expect(tagFilterParams({ tags: ['a'], match: 'all' })).toEqual({ tag: ['a'] });
     expect(tagFilterParams({ tags: ['a'], match: 'any' })).toEqual({ tag: ['a'], tagMatch: 'any' });
   });

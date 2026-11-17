@@ -13,13 +13,13 @@ export interface TagFilter {
   match: TagMatch;
 }
 
-/** All is the default: it matches the server's `tag` parameter without `tagMatch`. */
-export const EMPTY_TAG_FILTER: TagFilter = Object.freeze({ tags: [], match: 'all' }) as TagFilter;
+/** Any is the default, so adding a tag widens the list. The server needs `tagMatch=any` for it. */
+export const EMPTY_TAG_FILTER: TagFilter = Object.freeze({ tags: [], match: 'any' }) as TagFilter;
 
 export function normalizeTagFilter(value: unknown): TagFilter {
   const raw = (value ?? {}) as { tags?: unknown; match?: unknown };
   const tags = Array.isArray(raw.tags) ? [...new Set(raw.tags.filter((tag): tag is string => typeof tag === 'string' && !!tag))] : [];
-  return { tags, match: raw.match === 'any' ? 'any' : 'all' };
+  return { tags, match: raw.match === 'all' ? 'all' : 'any' };
 }
 
 /** True when a row carrying `carried` passes the filter. An empty filter passes every row. */

@@ -93,7 +93,7 @@ export function useRailPaging(options: {
   /** The section's tag filter, without tags the library no longer holds. */
   const tagFilter = computed<TagFilter>(() => {
     const section = options.section.value;
-    const stored = section ? entityListTagFilterFor(section) : { tags: [], match: 'all' as const };
+    const stored = section ? entityListTagFilterFor(section) : { tags: [], match: 'any' as const };
     const known = new Set(options.tags.value.map((tag) => tag.id));
     return { tags: stored.tags.filter((id) => known.has(id)), match: stored.match };
   });

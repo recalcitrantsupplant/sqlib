@@ -61,7 +61,7 @@ The argument-set lists return summaries. A summary has the name, `currentVersion
   - The filter box searches on the server with `q`. The sort menu sets `sort` and `order`.
   - Pinned rows load by `ids`, whatever page they are on.
   - "Last opened" is a browser setting, so it asks the server for name order and loads the 100 most recently opened rows by `ids`. Those rows sort first.
-  - The tag filter in the filter bar sets `tag` and `tagMatch`. The filter is kept per section in this browser, with the sort.
+  - The tag filter in the filter bar sets `tag` and `tagMatch`. "Any of" is the default, so the web sends `tagMatch=any` until someone picks "All of". The filter is kept per section in this browser, with the sort.
   - Grouped by tag, the tag headings show the counts of one `GET /tags/counts` request, inside the search and the tag filter. Each heading loads its own rows with Show more, through `withTag`. The Untagged heading counts the loaded rows only.
   - The tag menu counts each tag over the section's whole kind in the library, from one more `GET /tags/counts` request.
 - The Tests and ETL sections still load each full list. Run all in Tests runs every test in the list, so it needs the full list. The Tests tag filter runs in the browser, with the same rule. With a tag filter, Run runs the filtered tests, and its menu runs all tests or downloads a report of the filtered run.
