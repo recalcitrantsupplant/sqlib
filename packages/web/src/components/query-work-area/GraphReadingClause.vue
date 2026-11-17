@@ -1,8 +1,8 @@
 <template>
-  <span class="clause" data-testid="run-bar-reading">
-    <span class="joiner">reading</span>
-    <button v-if="isUpdate" type="button" class="reading inert" disabled title="An update names its graphs in its text">
-      graphs in text
+  <span v-if="updateGraphs !== 'none'" class="clause" data-testid="run-bar-reading">
+    <span class="joiner">{{ isUpdate ? 'using' : 'from' }}</span>
+    <button v-if="fixed" type="button" class="reading inert" disabled :title="fixed.title" data-testid="run-bar-graphs">
+      {{ fixed.label }}
     </button>
     <PopoverRoot v-else v-model:open="open">
       <PopoverTrigger as-child>
@@ -17,7 +17,7 @@
       </PopoverTrigger>
       <PopoverPortal>
         <PopoverContent align="start" :side-offset="4" :style="{ zIndex: 50 }" @open-auto-focus.prevent>
-          <div class="pop" role="dialog" aria-label="Graphs this query reads" data-testid="graph-dataset-picker">
+          <div class="pop" role="dialog" :aria-label="popTitle" data-testid="graph-dataset-picker">
             <div v-if="showEmptyAsk" class="ask" data-testid="graph-empty-ask">
               <span class="ask-text">No graphs chosen. The run will match nothing.</span>
               <button type="button" class="btn-compact" @click="dataset.restricted.value = false; emit('dismiss-empty')">Read all</button>
@@ -25,7 +25,7 @@
             </div>
             <div class="pop-head">
               <div class="title-row">
-                <h3 class="pop-title">Graphs this query reads</h3>
+                <h3 class="pop-title">{{ popTitle }}</h3>
               </div>
               <span class="which">
                 <SegmentedToggle
@@ -88,8 +88,10 @@
 
 <script setup lang="ts">
 /**
- * "reading …": the graphs a query reads, as a clause of the run sentence
- * instead of `FROM` in its text.
+ * "from …" on a query and "using …" on an update: the graphs the run reads,
+ * as a clause of the run sentence instead of `FROM` or `USING` in its text.
+ * On an update they are the graphs its `WHERE` clause reads. They do not
+ * change where the update writes.
  *
  * The clause says the state at a glance: all graphs, the count a policy
  * leaves readable, the count chosen, or none. Pressing it opens the list.
@@ -112,6 +114,7 @@ import {
   parseGraphIris,
   type GraphDatasetComposable,
 } from '@/lib/graphDataset';
+import type { UpdateGraphsState } from '@/lib/updateGraphs';
 
 const props = defineProps<{
   dataset: GraphDatasetComposable;
@@ -119,7 +122,8 @@ const props = defineProps<{
   backendName?: string;
   /** The backend has a graph policy, so its list is already what this caller may read. */
   policed?: boolean;
-  isUpdate?: boolean;
+  /** For an update, whether graphs can be chosen (`lib/updateGraphs.ts`). Absent for a query. */
+  updateGraphs?: UpdateGraphsState | null;
   /** A run was asked for with no graphs chosen; the clause asks first. */
   askingEmpty?: boolean;
 }>();
@@ -141,6 +145,19 @@ const filter = ref('');
 const pasting = ref(false);
 const pasted = ref('');
 
+const isUpdate = computed(() => Boolean(props.updateGraphs));
+const popTitle = computed(() => (isUpdate.value ? 'Graphs this update reads' : 'Graphs this query reads'));
+
+/** The clause as a fixed fact, for an update whose graphs cannot be chosen here. */
+const fixed = computed(() => {
+  switch (props.updateGraphs) {
+    case 'text': return { label: 'graphs in text', title: 'This update names its graphs with USING or WITH' };
+    case 'deleteWhere': return { label: 'all graphs', title: 'Write DELETE WHERE as DELETE … WHERE to choose graphs' };
+    case 'backend': return { label: 'all graphs', title: "This backend cannot limit an update's graphs" };
+    default: return null;
+  }
+});
+
 const separate = computed(() => props.dataset.applyTo.value === 'separate');
 const summary = computed(() => datasetSummary(props.dataset.payload()));
 const matchesNothing = computed(() => summary.value === 'none');
@@ -153,7 +170,7 @@ const clauseLabel = computed(() => {
 
 const clauseTitle = computed(() => {
   if (matchesNothing.value) return 'No graphs chosen: the run matches nothing';
-  if (props.dataset.restricted.value) return 'The graphs this run reads';
+  if (props.dataset.restricted.value) return isUpdate.value ? 'The graphs this update reads' : 'The graphs this run reads';
   return props.policed ? 'Every graph the policy lets you read' : 'Every graph in the backend';
 });
 

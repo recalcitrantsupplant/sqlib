@@ -71,7 +71,7 @@
               :backend-id="selectedBackend || null"
               :backend-name="selectedBackendRecord?.name"
               :policed="Boolean(selectedBackendRecord?.graphPolicyQueryVersion)"
-              :is-update="isUpdateQueryType(queryType)"
+              :update-graphs="updateGraphs"
               :asking-empty="askingEmptyRun"
               @run-anyway="() => executeQuery({ allowEmptyDataset: true })"
               @dismiss-empty="askingEmptyRun = false"
@@ -492,6 +492,8 @@ import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
 import GraphReadingClause from './query-work-area/GraphReadingClause.vue';
+import { updateGraphsState, type UpdateGraphsState } from '@/lib/updateGraphs';
+import { refDebounced } from '@vueuse/core';
 import { datasetSummary, useGraphDataset } from '@/lib/graphDataset';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
@@ -740,6 +742,20 @@ let extensions = shallowRef([
   useEditorKeymaps(),
 ]);
 const queryType = ref<QueryTypeValue | null>(null); // Stores the detected query type (sqlibQueryType:* IRIs)
+/**
+ * For an update, whether its graphs can be chosen here. `null` for a query,
+ * which always can. Read from the text, so a draft follows its edits; parsed
+ * after typing pauses, as a long update costs a parse per keystroke otherwise.
+ */
+const debouncedQueryCode = refDebounced(queryCode, 300);
+const updateGraphs = computed<UpdateGraphsState | null>(() => {
+  const state = updateGraphsState(debouncedQueryCode.value, selectedBackendRecord.value?.backendType);
+  if (state === 'query') return null;
+  if (state === 'unparsed') return isUpdateQueryType(queryType.value) ? 'choose' : null;
+  return state;
+});
+/** The run sends the chosen graphs: always for a query, and for an update that can take them. */
+const takesGraphs = computed(() => updateGraphs.value === null || updateGraphs.value === 'choose');
 
 /** SELECT / ASK / CONSTRUCT for the footer pill — "valid" alone does not say
  *  what a caller gets back. */
@@ -909,8 +925,7 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
    * argument set's either. What is on screen is what runs, arguments included.
    */
   getAdHocArguments: () => argumentSetsComposable.visibleValuesPayload(),
-  // An update names its graphs in its text; the dataset is for queries.
-  getDataset: () => (isUpdateQueryType(queryType.value) ? null : graphDataset.payload()),
+  getDataset: () => (takesGraphs.value ? graphDataset.payload() : null),
   isDirty,
   queryCode,
 });
@@ -940,7 +955,7 @@ const askingEmptyRun = ref(false);
 
 const executeQuery = async (options: { allowEmptyDataset?: boolean } = {}) => {
   askingEmptyRun.value = false;
-  if (!options.allowEmptyDataset && !isUpdateQueryType(queryType.value) && datasetSummary(graphDataset.payload()) === 'none') {
+  if (!options.allowEmptyDataset && takesGraphs.value && datasetSummary(graphDataset.payload()) === 'none') {
     askingEmptyRun.value = true;
     return;
   }
