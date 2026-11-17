@@ -81,3 +81,38 @@ describe('QueryGroupCanvasNode: the name on the card', () => {
     expect(wrapper.get('.node-kind').text()).toBe('Postcode rules');
   });
 });
+
+describe('QueryGroupCanvasNode: header controls', () => {
+  async function mountCard(node: GraphNodeState) {
+    const { mount } = await import('@vue/test-utils');
+    const Card = (await import('@/components/query-group/QueryGroupCanvasNode.vue')).default;
+    return mount(Card, {
+      props: { data: buildCanvasNodeData(node, IRI_MAP), selected: false } as never,
+      global: { stubs: { Handle: true } },
+    });
+  }
+
+  it('draws the disclosure as an icon and turns it when the node opens', async () => {
+    const wrapper = await mountCard(graphNode({ kind: 'query', queryVersionId: 'urn:version:select' }));
+    const disclosure = wrapper.get('[data-testid="node-disclosure"]');
+    expect(disclosure.text()).toBe('');
+    expect(disclosure.find('svg').exists()).toBe(true);
+    expect(disclosure.attributes('aria-expanded')).toBe('false');
+    await disclosure.trigger('click');
+    expect(wrapper.get('[data-testid="node-disclosure"]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.find('.node-details').exists()).toBe(true);
+  });
+
+  it('offers Peek only when there is text to show', async () => {
+    const withText = await mountCard(graphNode({
+      kind: 'query', queryVersionId: 'urn:version:select', queryString: 'SELECT * WHERE { ?s ?p ?o }',
+    }));
+    expect(withText.find('[data-testid="node-peek"]').exists()).toBe(true);
+
+    const empty = await mountCard(graphNode({ kind: 'query' }));
+    expect(empty.find('[data-testid="node-peek"]').exists()).toBe(false);
+
+    const ruleSet = await mountCard(graphNode({ kind: 'ruleset', ruleSetVersionId: 'urn:version:rules' }));
+    expect(ruleSet.find('[data-testid="node-peek"]').exists()).toBe(true);
+  });
+});
