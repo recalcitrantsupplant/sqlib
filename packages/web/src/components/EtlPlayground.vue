@@ -581,17 +581,8 @@ const rdfFormatOptions = [
   { value: 'application/ld+json', label: 'JSON-LD' },
 ];
 
-/**
- * The SQL a new pipeline starts with. Inline rows, so it runs on a deployment
- * that allows DuckDB no file or network reads.
- */
-const DEFAULT_SQL = `SELECT * FROM (VALUES
-  ('https://example.org/person/1', 'Alice Smith', 28),
-  ('https://example.org/person/2', 'Bob Johnson', 35)
-) AS people(person, name, age)`;
-
 // State
-const sqlQuery = ref(DEFAULT_SQL);
+const sqlQuery = ref('');
 const sparqlTemplate = ref('');
 /**
  * The saved query the template is linked to: a query IRI (each run uses its
@@ -739,7 +730,7 @@ const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRe
     const body = (record.body ?? {}) as EtlScratchBody;
     pipelineName.value = record.name;
     pipelineDescription.value = record.description ?? '';
-    sqlQuery.value = body.sql ?? DEFAULT_SQL;
+    sqlQuery.value = body.sql ?? '';
     sparqlTemplate.value = body.sparqlTemplate ?? '';
     templateQuery.value = body.templateQuery ?? null;
     outputFormat.value = body.outputFormat ?? 'text/turtle';
@@ -833,7 +824,7 @@ function editorBody(): EtlDraftBody {
 }
 
 function applyEditorBody(body: EtlDraftBody) {
-  sqlQuery.value = body.sql ?? DEFAULT_SQL;
+  sqlQuery.value = body.sql ?? '';
   sparqlTemplate.value = body.sparqlTemplate ?? '';
   templateQuery.value = body.templateQuery ?? null;
   columnMappings.value = body.columnMappings ? body.columnMappings.map((mapping) => ({ ...mapping })) : [];
