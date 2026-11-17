@@ -638,7 +638,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
 .pill {
   display: inline-flex;
   align-items: center;
-  padding: 0 7px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-full, 999px);
   background: var(--surface-subtle);
