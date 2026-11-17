@@ -1,4 +1,4 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Route } from './fixtures/test';
 import { openSection, openSplash } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN, listRoute } from './api-origin';

@@ -18,7 +18,7 @@
  * - A ramp step with no dark value keeps the light theme's direction and
  *   disappears into the dark surface.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures/test';
 import { mockEntityApi, QUERY } from './fixtures/entities';
 import { openCreateLibraryDialog, openSavedEntity, openSplash } from './navigate';
 import { textContrast, backgroundLuminance } from './contrast';

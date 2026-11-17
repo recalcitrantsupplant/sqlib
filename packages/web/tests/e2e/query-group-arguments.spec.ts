@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Request } from '@playwright/test';
+import { test, expect, type Page, type Request } from './fixtures/test';
 import {
   ARGUMENT_SET_CITY,
   ARGUMENT_SET_COUNTRY,
