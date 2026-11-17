@@ -461,6 +461,11 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
       const version = Number(ids.ruleSetVersionNumber);
       expect((await send(server, 'POST', url, { version: version - 1 })).status).toBe(403);
       expect((await send(server, 'POST', url, { version, dataGraphId: ids.dataGraph })).status).toBe(403);
+      // Seed rows only inline: a stored tuple set is refused, inline rows pass the gate.
+      expect((await send(server, 'POST', url, { version, tuples: { tupleSetId: 'urn:sqlib:tuple-set:x' } })).status).toBe(403);
+      expect((await send(server, 'POST', url, { version, tuples: { tupleSetVersionId: 'urn:sqlib:tuple-set-version:x' } })).status).toBe(403);
+      const inline = { head: { vars: ['a'] }, results: { bindings: [] } };
+      expect((await send(server, 'POST', url, { version, tuples: { inline } })).status).not.toBe(403);
 
       const tool = await send(server, 'POST', '/tools/people/neighbours', {});
       expect(tool.status).toBe(200);
