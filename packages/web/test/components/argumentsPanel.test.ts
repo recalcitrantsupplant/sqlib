@@ -474,6 +474,8 @@ describe('ArgumentSetSwitcher list', () => {
     await tick();
     expect(savedRows()).toEqual(['Set 20', 'Set 21', 'Set 22', 'Set 23', 'Set 24']);
     expect(range()).toBe('21–25 of 25');
+    // The short last page keeps the height of 10 rows.
+    expect(document.querySelectorAll('[data-testid="argument-set-spacer"]')).toHaveLength(5);
     expect(next().disabled).toBe(true);
 
     prev().click();
