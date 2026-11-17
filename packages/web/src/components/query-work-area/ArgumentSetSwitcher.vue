@@ -95,8 +95,9 @@
               <span class="menu-heading-count">{{ savedCount }}</span>
             </DropdownMenuLabel>
             <!--
-              A library can hold thousands of sets (#197). The menu draws the
-              first page of matches; the filter or "Show more" reaches the rest.
+              A library can hold thousands of sets (#197). The menu draws one
+              page of 10 matches, so it fits the window; the pager and the
+              filter reach the rest.
             -->
             <DropdownMenuItem
               v-for="entry in shownSaved"
@@ -107,15 +108,33 @@
               <span class="set-row-name">{{ entry.name }}</span>
               <span class="set-row-meta">{{ entry.meta }}</span>
             </DropdownMenuItem>
-            <DropdownMenuItem
-              v-if="hiddenSavedCount > 0"
-              class="set-row set-row--more"
-              data-testid="argument-set-show-more"
-              @select.prevent="showMoreSaved"
-            >
-              <span class="set-row-name">Show more</span>
-              <span class="set-row-meta">{{ hiddenSavedCount }} more</span>
-            </DropdownMenuItem>
+            <div v-if="savedPageCount > 1" class="set-pager" data-testid="argument-set-pager">
+              <button
+                type="button"
+                class="set-pager-button"
+                aria-label="Previous page"
+                title="Previous page"
+                data-testid="argument-set-prev"
+                :disabled="savedPage === 0"
+                @click="previousSavedPage"
+              >
+                <ChevronLeft :size="14" />
+              </button>
+              <span class="set-pager-range" data-testid="argument-set-range">
+                {{ savedRangeStart }}–{{ savedRangeEnd }} of {{ savedCount }}
+              </span>
+              <button
+                type="button"
+                class="set-pager-button"
+                aria-label="Next page"
+                title="Next page"
+                data-testid="argument-set-next"
+                :disabled="savedPage >= savedPageCount - 1"
+                @click="nextSavedPage"
+              >
+                <ChevronRight :size="14" />
+              </button>
+            </div>
           </template>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -195,7 +214,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
-import { ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
+import { ChevronLeft, ChevronRight, ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -303,27 +322,36 @@ const visibleSaved = computed(() =>
 );
 
 /**
- * How many saved rows the menu draws. Rendering every row of a 4,000-set
- * library made the menu slow to open, and nobody scrolls that far.
+ * How many saved rows one page of the menu draws. Ten rows keep the menu
+ * inside the window under the switcher; the pager reaches the rest.
  */
-const SAVED_PAGE = 50;
+const SAVED_PAGE = 10;
 /** How long typing pauses before the server is asked. */
 const SEARCH_DELAY_MS = 200;
-const savedLimit = ref(SAVED_PAGE);
-const shownSaved = computed(() =>
-  serverPaged.value ? visibleSaved.value : visibleSaved.value.slice(0, savedLimit.value),
-);
+const savedPage = ref(0);
 const savedCount = computed(() => (serverPaged.value ? props.savedTotal! : visibleSaved.value.length));
-const hiddenSavedCount = computed(() => Math.max(0, savedCount.value - shownSaved.value.length));
+const savedPageCount = computed(() => Math.max(1, Math.ceil(savedCount.value / SAVED_PAGE)));
+const shownSaved = computed(() =>
+  visibleSaved.value.slice(savedPage.value * SAVED_PAGE, (savedPage.value + 1) * SAVED_PAGE),
+);
+const savedRangeStart = computed(() => (shownSaved.value.length ? savedPage.value * SAVED_PAGE + 1 : 0));
+const savedRangeEnd = computed(() => savedPage.value * SAVED_PAGE + shownSaved.value.length);
 
-function showMoreSaved() {
-  if (serverPaged.value) emit('load-more');
-  else savedLimit.value += SAVED_PAGE;
+function previousSavedPage() {
+  if (savedPage.value > 0) savedPage.value -= 1;
+}
+
+/** The next page. A server-paged list asks for more rows when the page is not loaded yet. */
+function nextSavedPage() {
+  if (savedPage.value >= savedPageCount.value - 1) return;
+  savedPage.value += 1;
+  const needed = (savedPage.value + 1) * SAVED_PAGE;
+  if (serverPaged.value && visibleSaved.value.length < Math.min(needed, savedCount.value)) emit('load-more');
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 watch(filter, (text) => {
-  savedLimit.value = SAVED_PAGE;
+  savedPage.value = 0;
   if (!serverPaged.value) return;
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => emit('search', text), SEARCH_DELAY_MS);
@@ -333,7 +361,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 /** Each opening starts from the whole list, with the caret in the filter. */
 function focusFilter(event: Event) {
   filter.value = '';
-  savedLimit.value = SAVED_PAGE;
+  savedPage.value = 0;
   const input = (filterBox.value?.$el as HTMLElement | undefined) ?? null;
   if (!input) return;
   event.preventDefault();
@@ -641,8 +669,38 @@ const activeRunKey = computed(() =>
 }
 
 .set-row--new,
-.set-row--more {
+.set-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
   color: var(--ink-secondary);
+  font-size: 12px;
+}
+
+.set-pager-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border-radius: 4px;
+  color: var(--ink-secondary);
+}
+
+.set-pager-button:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.set-pager-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.set-pager-range {
+  font-variant-numeric: tabular-nums;
 }
 
 .menu-danger {

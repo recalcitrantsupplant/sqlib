@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { openSection } from './navigate';
 import { API_ORIGIN, listRoute } from './api-origin';
 

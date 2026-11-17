@@ -6,7 +6,7 @@
  * per record is kept in the browser, the way an unsaved body is, and is
  * replaced by the next run of that record.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures/test';
 import { mockEntityApi, QUERY, LIBRARY } from './fixtures/entities';
 
 const SECOND_QUERY = {
