@@ -97,6 +97,15 @@ export function useRailPaging(options: {
 
   let generation = 0;
 
+  /*
+   * The kind and library the loaded rows belong to. One instance serves every
+   * section, so after a switch the rows of the section left are still held
+   * until the new page answers. `rows` is empty until then: a caller that
+   * reads it in the same tick as the switch must not get another kind's rows.
+   */
+  const scope = computed(() => JSON.stringify([options.kind.value, options.library.value]));
+  const heldScope = ref<string | null>(null);
+
   async function loadExtras(mine: number) {
     const fetch = fetchPage();
     if (!fetch) return;
@@ -154,10 +163,12 @@ export function useRailPaging(options: {
 
   async function load(): Promise<void> {
     const mine = ++generation;
+    const loading = scope.value;
     if (!fetchPage()) {
       main.clear();
       byId.value = new Map();
       for (const key of Object.keys(tagPages)) delete tagPages[key];
+      heldScope.value = loading;
       return;
     }
     await Promise.all([
@@ -165,6 +176,7 @@ export function useRailPaging(options: {
       loadExtras(mine).catch((err) => console.error('[useRailPaging] Rows by id failed:', err)),
       loadTagTotals(mine).catch((err) => console.error('[useRailPaging] Tag counts failed:', err)),
     ]);
+    if (mine === generation) heldScope.value = loading;
   }
 
   /** The next page: of the whole list, or of one tag heading. */
@@ -186,6 +198,7 @@ export function useRailPaging(options: {
 
   /** Every row loaded, each once. */
   const rows = computed<PagedEntity[]>(() => {
+    if (heldScope.value !== scope.value) return [];
     const merged = new Map<string, PagedEntity>();
     for (const row of byId.value.values()) merged.set(row.id, row);
     for (const row of main.items.value) merged.set(row.id, row);
