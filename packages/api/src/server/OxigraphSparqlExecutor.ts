@@ -65,8 +65,9 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
     readonly supportsUpdateDataset = oxigraphSupportsUpdateDataset();
 
     constructor(store?: oxigraph.Store) {
+        // No quad count here: `Store.size` reads every quad, and a request
+        // constructs an executor.
         this.store = store || new oxigraph.Store();
-        debugLog(`OxigraphSparqlExecutor initialized with ${this.store.size} quads`);
     }
 
     /**
