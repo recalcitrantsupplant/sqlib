@@ -39,7 +39,7 @@
             <ChevronsUpDown :size="13" class="name-chevron" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" class="set-menu" @open-auto-focus="focusFilter">
+        <DropdownMenuContent align="start" class="set-menu w-[360px] max-w-[calc(100vw-32px)]" @open-auto-focus="focusFilter">
           <!--
             New first, then the filter, then the sets. At the foot of the list
             it moved down every time a set was added, and fell off the bottom
@@ -108,6 +108,23 @@
               <span class="set-row-name">{{ entry.name }}</span>
               <span class="set-row-meta">{{ entry.meta }}</span>
             </DropdownMenuItem>
+            <!--
+              A short last page keeps the height of a full one, and the menu
+              has a fixed width, so the pager stays under the pointer while
+              paging.
+            -->
+            <template v-if="savedPageCount > 1">
+              <DropdownMenuItem
+                v-for="n in SAVED_PAGE - shownSaved.length"
+                :key="`spacer-${n}`"
+                disabled
+                aria-hidden="true"
+                class="set-row set-row--spacer"
+                data-testid="argument-set-spacer"
+              >
+                <span class="set-row-name">&nbsp;</span>
+              </DropdownMenuItem>
+            </template>
             <div v-if="savedPageCount > 1" class="set-pager" data-testid="argument-set-pager">
               <button
                 type="button"
@@ -668,7 +685,14 @@ const activeRunKey = computed(() =>
   padding: var(--space-1) var(--space-3);
 }
 
-.set-row--new,
+.set-row--spacer {
+  visibility: hidden;
+}
+
+.set-row--new {
+  color: var(--ink-secondary);
+}
+
 .set-pager {
   display: flex;
   align-items: center;
