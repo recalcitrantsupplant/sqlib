@@ -279,6 +279,21 @@ describe('last-seen groups', () => {
 });
 
 describe('last seen', () => {
+  it('reads back a time whose milliseconds end in zero as it was written', async () => {
+    const persistence = inMemoryPersistence();
+    const first = new AuthStore(persistence);
+    await first.load();
+    await first.recordPrincipal(ALICE, 'alice', 'user');
+    const seenAt = Date.parse(first.principalRecord(ALICE)!.seenAt!);
+    // Oxigraph stores "...010Z" as "...01Z"; the record must not change form.
+    const at = new Date(Math.ceil((seenAt + LAST_SEEN_STEP_MS) / 1000) * 1000 + 10);
+    await first.recordSeen(ALICE, at);
+
+    const second = new AuthStore(persistence);
+    await second.load();
+    expect(second.principalRecord(ALICE)!.lastSeenAt).toBe(at.toISOString());
+  });
+
   it('moves lastSeenAt once per step, and keeps it across a restart', async () => {
     const persistence = inMemoryPersistence();
     const first = new AuthStore(persistence);
