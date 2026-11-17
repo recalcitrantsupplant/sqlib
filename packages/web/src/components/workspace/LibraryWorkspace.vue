@@ -51,6 +51,8 @@
       :saved-total="railKind ? rail.total.value : undefined"
       :saved-remaining="railKind ? railRemaining : undefined"
       :tag-totals="railKind ? rail.tagTotals.value : undefined"
+      :tag-counts="railKind ? rail.tagCounts.value : undefined"
+      :unfiltered-total="railKind ? rail.unfilteredTotal.value ?? undefined : undefined"
       @search="rail.setSearch"
       @load-more="(tagId) => rail.loadMore(tagId)"
       @select-saved="handleSelectSaved"
@@ -91,28 +93,22 @@
           @export="exportScope"
         />
       </template>
-      <template v-if="flatSidebar.section === 'tests'" #section-actions="{ items }">
+      <template v-if="flatSidebar.section === 'tests'" #section-actions="{ items, tagFilter, filterText }">
         <!--
-          Run all is the whole list; the tag menu beside it is the subset worth
-          running on its own. Two controls rather than one with a mode, because
-          "everything" is the common case and must stay one click.
+          Run runs the list as it is filtered. A tag filter alone goes to the
+          server as tags, which can also export the run as a report.
         -->
-        <RunByTagMenu
-          :tags="runnableTags(items)"
+        <TestsRunButton
+          :label="runListLabel(items, tagFilter, filterText)"
+          :count="items.length"
+          :total-count="flatSidebar.saved.length"
+          :filtered="tagFilter.tags.length > 0 || !!filterText"
+          :can-export="tagFilter.tags.length > 0 && !filterText"
           :busy="runningAll"
-          :disabled="runningAll"
-          @run="runTaggedTests"
-          @export="exportTaggedTests"
+          @run="runListedTests(items, tagFilter, filterText)"
+          @run-all="runAllTests(flatSidebar.saved)"
+          @export="(format) => exportTaggedTests(tagFilter.tags, tagFilter.match, format)"
         />
-        <button
-          class="run-all-button"
-          data-testid="tests-run-all"
-          :disabled="runningAll || items.length === 0"
-          :title="`Run all ${items.length} tests`"
-          @click="runAllTests(items)"
-        >
-          <Play :size="12" />{{ runAllLabel }}
-        </button>
       </template>
       <template v-if="flatSidebar.section === 'tests'" #group-actions="{ items, label, tagId }">
         <button
@@ -271,7 +267,8 @@ import AppSplash from '../AppSplash.vue';
 import EntityListSidebar, { type SidebarSelection, type SidebarEntity } from '../EntityListSidebar.vue';
 import BackendListSidebar from '../BackendListSidebar.vue';
 import BackendWorkArea from '../BackendWorkArea.vue';
-import RunByTagMenu, { type RunByTagOption } from '../tests/RunByTagMenu.vue';
+import TestsRunButton from '../tests/TestsRunButton.vue';
+import type { TagFilter } from '../../lib/tagFilter';
 import TabStrip, { type Tab } from '../shared/TabStrip.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import RulesSuiteOverview from './RulesSuiteOverview.vue';
@@ -652,21 +649,30 @@ const runAllLabel = computed(() =>
   runningAll.value ? `${runAllDone.value}/${runAllTotal.value}` : 'Run all',
 );
 
+/** "Run all" without a filter, "Run 16" with one, and the progress while a run goes. */
+function runListLabel(items: SidebarEntity[], tagFilter: TagFilter, filterText: string): string {
+  if (runningAll.value) return runAllLabel.value;
+  return tagFilter.tags.length > 0 || filterText ? `Run ${items.length}` : 'Run all';
+}
+
 /**
- * The tags the tests in view carry, with how many carry each.
- *
- * Built from the rows rather than from the library's tag list so the menu
- * never offers a tag that would run nothing here — a library's tags span every
- * section, and Queries' tags are not a test suite.
+ * Run the tests the list shows. A tag filter alone is sent as tags, so the
+ * server selects what the tags hold now. A text filter runs the rows shown.
  */
-function runnableTags(items: SidebarEntity[]): RunByTagOption[] {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    for (const tag of item.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+async function runListedTests(items: SidebarEntity[], tagFilter: TagFilter, filterText: string) {
+  if (tagFilter.tags.length > 0 && !filterText) return runTaggedTests(tagFilter.tags, tagFilter.match);
+  if (tagFilter.tags.length > 0 || filterText) {
+    return runTestIds(items.map((item) => item.id), 'group', listScopeLabel(tagFilter, filterText));
   }
-  return libraryTags.value
-    .filter((tag) => counts.has(tag.id))
-    .map((tag) => ({ ...tag, count: counts.get(tag.id) ?? 0 }));
+  return runAllTests(items);
+}
+
+/** The run's scope label for a filtered list: `tag: negation · "scope"`. */
+function listScopeLabel(tagFilter: TagFilter, filterText: string): string {
+  const parts: string[] = [];
+  if (tagFilter.tags.length > 0) parts.push(tagScopeLabel(tagFilter.tags, tagFilter.match));
+  if (filterText) parts.push(`“${filterText}”`);
+  return parts.join(' · ');
 }
 
 /**
@@ -2293,7 +2299,6 @@ async function confirmDeleteLibrary() {
  * Run all, in the section bar beside New, and its narrow twin on each group
  * heading. Both borrow the New button's weight so the bar keeps one voice.
  */
-.run-all-button,
 .run-group-button {
   display: inline-flex;
   align-items: center;
@@ -2306,21 +2311,15 @@ async function confirmDeleteLibrary() {
   cursor: pointer;
 }
 
-.run-all-button {
-  padding: var(--space-1) var(--space-3);
-}
-
 .run-group-button {
   padding: var(--space-1) var(--space-2);
 }
 
-.run-all-button:hover:not(:disabled),
 .run-group-button:hover:not(:disabled) {
   color: var(--ink);
   border-color: var(--border-strong);
 }
 
-.run-all-button:disabled,
 .run-group-button:disabled {
   opacity: 0.5;
   cursor: default;

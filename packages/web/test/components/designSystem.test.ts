@@ -1450,7 +1450,6 @@ describe('InlineNote', () => {
     'components/query-work-area/ArgumentSetFooter.vue',
     'components/query-work-area/ArgumentSetSwitcher.vue',
     'components/query-work-area/TupleBindingEditor.vue',
-    'components/tests/RunByTagMenu.vue',
     'components/tests/TestReportExportMenu.vue',
     'components/tests/TestRunBreakdown.vue',
     'components/tests/TestRunExportMenu.vue',

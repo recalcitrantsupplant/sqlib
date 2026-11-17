@@ -10,7 +10,10 @@
  *   ignoring case. The web filters names with the same rule (`lib/fuzzy.ts`).
  * - `ids` keeps the named entities only. The rail loads its pinned rows this way.
  * - `library` keeps the entities in that library.
- * - `tag` keeps the entities that carry every named tag.
+ * - `tag` keeps the entities that carry the named tags: every one of them, or
+ *   at least one with `tagMatch=any`.
+ * - `withTag` keeps the entities that also carry every named tag. A tag
+ *   heading in the rail loads its rows this way, inside the tag filter.
  * - `sort` and `order` order the matches before the page is cut. A row with no
  *   value for the key sorts last in either order, and ties fall back to the name.
  */
@@ -32,6 +35,8 @@ export const listPageQueryProperties = {
   ids: { type: 'array', items: { type: 'string' } },
   library: { type: 'string' },
   tag: { type: 'array', items: { type: 'string' } },
+  tagMatch: { type: 'string', enum: ['any', 'all'] },
+  withTag: { type: 'array', items: { type: 'string' } },
   sort: { type: 'string', enum: [...LIST_SORT_KEYS] },
   order: { type: 'string', enum: ['asc', 'desc'] },
 } as const;
@@ -65,6 +70,10 @@ export interface ListPageQuery {
   ids?: string[];
   library?: string;
   tags?: string[];
+  /** How `tags` combine. Default `all`. */
+  tagMatch?: 'any' | 'all';
+  /** Tags every row must also carry, whatever `tagMatch` says. */
+  withTags?: string[];
   sort?: ListSortKey;
   order?: 'asc' | 'desc';
 }
@@ -95,6 +104,8 @@ export function parseListPageQuery(request: FastifyRequest): ListPageQuery {
     ...(asList(raw.ids) ? { ids: asList(raw.ids) } : {}),
     ...(typeof raw.library === 'string' && raw.library ? { library: raw.library } : {}),
     ...(asList(raw.tag) ? { tags: asList(raw.tag) } : {}),
+    ...(raw.tagMatch === 'any' ? { tagMatch: 'any' as const } : {}),
+    ...(asList(raw.withTag) ? { withTags: asList(raw.withTag) } : {}),
     ...(sort ? { sort } : {}),
     ...(order ? { order } : {}),
   };
@@ -108,6 +119,7 @@ export function asksForPaging(query: ListPageQuery): boolean {
     || query.ids !== undefined
     || query.library !== undefined
     || query.tags !== undefined
+    || query.withTags !== undefined
     || query.sort !== undefined;
 }
 
@@ -215,6 +227,15 @@ export function applyListPage<T extends ListableEntity>(
   }
   if (query.tags) {
     const tags = query.tags;
+    matches = matches.filter((entity) => {
+      const carried = toStrings(entity.tags);
+      return query.tagMatch === 'any'
+        ? tags.some((tag) => carried.includes(tag))
+        : tags.every((tag) => carried.includes(tag));
+    });
+  }
+  if (query.withTags) {
+    const tags = query.withTags;
     matches = matches.filter((entity) => {
       const carried = toStrings(entity.tags);
       return tags.every((tag) => carried.includes(tag));

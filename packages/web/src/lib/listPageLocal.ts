@@ -49,6 +49,12 @@ export function applyListPageLocally<T>(all: T[], params: ListPageParams): ListP
   }
   if (params.tag?.length) {
     const tags = params.tag;
+    rows = rows.filter((row) => params.tagMatch === 'any'
+      ? tags.some((tag) => strings(row.tags).includes(tag))
+      : tags.every((tag) => strings(row.tags).includes(tag)));
+  }
+  if (params.withTag?.length) {
+    const tags = params.withTag;
     rows = rows.filter((row) => tags.every((tag) => strings(row.tags).includes(tag)));
   }
   if (params.q?.trim()) {

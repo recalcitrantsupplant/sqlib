@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { nextTick, ref } from 'vue';
 
-const api = vi.hoisted(() => ({ pageEntities: vi.fn() }));
+const api = vi.hoisted(() => ({ pageEntities: vi.fn(), getTagCounts: vi.fn() }));
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
 vi.mock('../../src/composables/useApiClient', () => ({ useApiClient: () => api }));
 
@@ -22,10 +22,12 @@ beforeEach(() => {
   const { settings } = useSettings();
   settings.value.entityListGrouping = 'none';
   settings.value.entityListSort = {};
+  settings.value.entityListTagFilter = {};
+  api.getTagCounts.mockResolvedValue({ 'tag:geo': 7 });
   for (const id of [...useEntityPins().pins.value]) useEntityPins().setPinned(id, false);
   api.pageEntities.mockImplementation(async (_kind: string, params: { ids?: string[]; tag?: string[] }) => {
     if (params.ids) return { items: params.ids.map((id) => row(id)), total: params.ids.length };
-    if (params.tag) return { items: [], total: 7 };
+    if (params.tag) return { items: [row('a', ['tag:geo'])], total: 7 };
     return { items: [row('a'), row('b')], total: 300 };
   });
 });
@@ -65,12 +67,38 @@ describe('useRailPaging', () => {
     expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ ids: ['recent'] }));
   });
 
-  it('counts each tag on the server when grouping by tag', async () => {
+  it('counts every tag in one request when grouping by tag', async () => {
     useSettings().settings.value.entityListGrouping = 'tag';
     const r = rail();
     await r.ensureLoaded();
-    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ tag: ['tag:geo'], limit: 1 }));
+    expect(api.getTagCounts).toHaveBeenCalledWith('Query', expect.objectContaining({ library: LIB }));
+    expect(api.pageEntities).not.toHaveBeenCalledWith('query', expect.objectContaining({ limit: 1 }));
     expect(r.tagTotals.value).toEqual({ 'tag:geo': 7 });
+    expect(r.tagCounts.value).toEqual({ 'tag:geo': 7 });
+  });
+
+  it('sends the tag filter, and loads a heading inside it', async () => {
+    const { settings, setEntityListTagFilter } = useSettings();
+    settings.value.entityListGrouping = 'tag';
+    setEntityListTagFilter('queries', { tags: ['tag:geo'], match: 'any' });
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ tag: ['tag:geo'], tagMatch: 'any', limit: 50 }));
+    expect(api.getTagCounts).toHaveBeenCalledWith('Query', expect.objectContaining({ tag: ['tag:geo'], tagMatch: 'any' }));
+    // The count without the filter, for "N of M".
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.not.objectContaining({ tag: expect.anything() }));
+    expect(r.unfilteredTotal.value).toBe(300);
+
+    await r.loadMore('tag:geo');
+    expect(api.pageEntities).toHaveBeenLastCalledWith('query', expect.objectContaining({ tag: ['tag:geo'], withTag: ['tag:geo'] }));
+  });
+
+  it('drops a filter tag the library no longer holds', async () => {
+    useSettings().setEntityListTagFilter('queries', { tags: ['tag:gone'], match: 'all' });
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.not.objectContaining({ tag: expect.anything() }));
+    expect(r.unfilteredTotal.value).toBeNull();
   });
 
   it('searches on the server', async () => {

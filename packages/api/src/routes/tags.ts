@@ -28,7 +28,7 @@ import { TAGGABLE_TYPES } from '../lib/tagMembership.js';
 import { createTagSchema, updateTagSchema } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { filterReadable } from '../auth/enforce.js';
-import { sendListPage, withListPageQuery } from '../lib/listPage.js';
+import { applyListPage, parseListPageQuery, sendListPage, withListPageQuery } from '../lib/listPage.js';
 
 export const tagResponseSchema = {
   type: 'object',
@@ -108,6 +108,44 @@ export default async function (fastify: FastifyInstance) {
     const items = repos.Tag.list() as PersistedTag[];
     const scoped = library ? items.filter(tag => tag.isPartOf === library) : items;
     return sendListPage(request, reply, filterReadable(request, scoped), tag => toRestApi(tag));
+  }));
+
+  /**
+   * How many readable entities of one type carry each tag.
+   *
+   * The rail's tag menu and its tag headings read every count from this one
+   * answer. One `tag=…&limit=1` request per tag does not scale to a library
+   * with a thousand tags. The list filters (`library`, `q`, `tag`, `tagMatch`,
+   * `withTag`) apply first, so a heading counts the rows the filtered list
+   * holds. `limit`, `offset` and `sort` are ignored. A tag no entity carries
+   * is absent from the answer.
+   */
+  fastify.get('/counts', ...reposRoute({
+      tags: ['Tag'],
+      summary: 'Count the entities of one type that carry each tag',
+      querystring: withListPageQuery({
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: [...TAGGABLE_TYPES] },
+        },
+        required: ['type'],
+        additionalProperties: false,
+      } as const),
+      response: {
+        200: { type: 'object', additionalProperties: { type: 'integer' } },
+      },
+    }, async ({ repos, reply, request }) => {
+    const { type } = request.query;
+    const entities = repos[type].list() as Array<{ $id: string; tags?: string[] | null }>;
+    const query = parseListPageQuery(request);
+    const { items } = applyListPage(filterReadable(request, entities), {
+      ...query, limit: undefined, offset: 0, sort: undefined,
+    });
+    const counts: Record<string, number> = {};
+    for (const entity of items) {
+      for (const tag of new Set(entity.tags ?? [])) counts[tag] = (counts[tag] ?? 0) + 1;
+    }
+    return reply.send(counts);
   }));
 
   fastify.post('/', ...reposRoute({
