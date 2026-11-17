@@ -12,7 +12,7 @@
  * place in the grid, and nothing in the markup spells out "enabled" for the ten
  * that are.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/test';
 import { mockEntityApi, LIBRARY, QUERY } from './fixtures/entities';
 import { openSplash, openSplashLibraries, splashLibraryRow, sectionUrl } from './navigate';
 

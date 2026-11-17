@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures/test';
 import { mockEntityApi, QUERY, QUERY_GROUP, RULE_SET } from './fixtures/entities';
 import { openCreateLibraryDialog, openSavedEntity, openSection, openSplash } from './navigate';
 import { FIXED_NOW, setTheme, stabilise } from './visual-helpers';

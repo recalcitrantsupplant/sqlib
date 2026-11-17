@@ -24,7 +24,7 @@
  * exactly the kind of thing worth catching before a release rather than when
  * someone opens the menu.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/test';
 import { mockEntityApi } from '../fixtures/entities';
 
 /** Elements carrying a class that only a scoped rule styles, without the scope attribute. */
