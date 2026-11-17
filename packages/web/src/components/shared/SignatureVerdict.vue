@@ -5,40 +5,22 @@
     data: which clauses are bound, which arity is wrong.
   -->
   <p class="signature-verdict" :data-testid="`signature-verdict-${verdict.verdict}`">
-    <StatusBadge :tone="TONE[verdict.verdict]" :dot="false" data-testid="signature-verdict-pill">
-      <Check v-if="verdict.verdict === 'fits'" :size="11" />
-      <CircleDashed v-else-if="verdict.verdict === 'partial'" :size="11" />
-      <AlertCircle v-else :size="11" />
+    <VerdictPill :verdict="verdict.verdict" data-testid="signature-verdict-pill">
       {{ LABEL[verdict.verdict] }}
-    </StatusBadge>
+    </VerdictPill>
     <span v-if="verdict.reason" class="signature-verdict-reason">{{ verdict.reason }}</span>
   </p>
 </template>
 
 <script setup lang="ts">
 /**
- * Whether the open argument set fits the callable's parameters.
- *
- * `compatibility` (`lib/argumentSignature.ts`) gives three verdicts:
- *
- * - `fits`: each clause is bound, and each binding has a clause.
- * - `partial`: some clauses are bound. A clause left out runs unconstrained,
- *   so the set still runs. Also used when a binding has no clause to go to.
- * - `mismatch`: no binding matches any clause, or there are no bindings.
- *
- * The verdicts look at variable names and arity only.
+ * Whether the open argument set fits the callable's parameters. The verdicts
+ * are described on `VerdictPill`; they look at variable names and arity only.
  */
-import { AlertCircle, Check, CircleDashed } from '@lucide/vue';
-import StatusBadge from './StatusBadge.vue';
+import VerdictPill from './VerdictPill.vue';
 import type { Compatibility, CompatibilityVerdict } from '@/lib/argumentSignature';
 
 defineProps<{ verdict: Compatibility }>();
-
-const TONE: Record<CompatibilityVerdict, 'success' | 'warning' | 'danger'> = {
-  fits: 'success',
-  partial: 'warning',
-  mismatch: 'danger',
-};
 
 const LABEL: Record<CompatibilityVerdict, string> = {
   fits: 'Matches signature',
