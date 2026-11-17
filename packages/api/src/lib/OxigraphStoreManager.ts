@@ -27,6 +27,7 @@ import { restoreStoreFromSnapshot, writeStoreSnapshot } from './storeSnapshot.js
 import { markStoreWritten, storeWriteCount } from './storeWrites.js';
 import { oxigraphCheckpointIntervalMs, oxigraphStorageDir } from './oxigraphSettings.js';
 import { log } from './log.js';
+import { releaseIsolatedStore } from './isolatedQuery.js';
 
 /**
  * How long a checkpoint may take before its log line becomes a warning.
@@ -705,6 +706,8 @@ export class OxigraphStoreManager {
    * Destroy an ephemeral store
    */
   destroyEphemeralStore(storeId: string): void {
+    const store = this.ephemeralStores.get(storeId);
+    if (store) releaseIsolatedStore(store);
     if (this.ephemeralStores.delete(storeId)) {
       this.storeStats.delete(storeId);
       log.debug({ storeId }, 'Destroyed ephemeral store');

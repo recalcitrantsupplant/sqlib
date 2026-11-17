@@ -16,6 +16,7 @@ import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSch
 import type { PersistedDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
 import type { RuleSetExecutionOptions, RuleSetExecutionResult } from './RuleSetExecutor.js';
 import { executionDeadlineMs, playgroundRuleRuns } from '../config/executionLimits.js';
+import { WarmWorkers, WORKER_RESOURCE_LIMITS, workerSource } from './warmWorkers.js';
 
 /** The options that cross to the worker. Callbacks and signals cannot. */
 export type IsolatedRuleSetOptions = Pick<
@@ -49,45 +50,14 @@ export class IsolatedRunStopped extends Error {
 
 let running = 0;
 
-/**
- * A worker that has loaded its modules and waits for a job. Start-up takes
- * about 0.5 s (the executor's imports and Oxigraph), so each run takes the
- * spare and starts the next one. The first run on a server pays the start-up.
- * Each worker runs one job and ends, so no state passes between visitors.
- */
-let spare: Worker | null = null;
-
-function takeWorker(): Worker {
-  const worker = spare ?? spawnWorker();
-  spare = null;
-  worker.ref();
-  setImmediate(() => {
-    if (spare) return;
-    const next = spawnWorker();
-    // A spare must not keep the process alive.
-    next.unref();
-    next.once('exit', () => {
-      if (spare === next) spare = null;
-    });
-    spare = next;
-  });
-  return worker;
-}
-
-function spawnWorker(): Worker {
-  const { url, execArgv } = workerUrl();
-  return new Worker(url, { execArgv });
-}
-
-function workerUrl(): { url: URL; execArgv: string[] } {
-  // Under `tsx` and vitest this module is TypeScript source, and the worker
-  // needs the same loader. The built server runs the compiled `.js` file.
-  // Each URL is a literal, so `scripts/check-orphans.mjs` sees the worker.
-  if (import.meta.url.endsWith('.ts')) {
-    return { url: new URL('./ruleSetWorker.ts', import.meta.url), execArgv: ['--import', 'tsx'] };
-  }
-  return { url: new URL('./ruleSetWorker.js', import.meta.url), execArgv: [] };
-}
+const workers = new WarmWorkers(() => {
+  const { url, execArgv } = workerSource(
+    import.meta.url,
+    new URL('./ruleSetWorker.ts', import.meta.url),
+    new URL('./ruleSetWorker.js', import.meta.url),
+  );
+  return new Worker(url, { execArgv, resourceLimits: WORKER_RESOURCE_LIMITS });
+});
 
 function seconds(ms: number): string {
   const value = ms / 1000;
@@ -104,7 +74,7 @@ export async function runRuleSetIsolated(
   const deadlineMs = job.options.deadlineMs ?? executionDeadlineMs();
 
   running += 1;
-  const worker = takeWorker();
+  const worker = workers.take();
   try {
     return await new Promise<RuleSetExecutionResult>((resolve, reject) => {
       let settled = false;

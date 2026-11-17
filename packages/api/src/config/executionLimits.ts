@@ -108,3 +108,15 @@ export function readOnlyEtlMaxRows(): number {
 export function playgroundRuleRuns(): number {
   return positiveInteger('SQLIB_PLAYGROUND_RULE_RUNS', 2);
 }
+
+/**
+ * `SQLIB_QUERY_WORKERS`: queries over in-memory Oxigraph stores that may run at
+ * once in worker threads (`lib/isolatedQuery.ts`). `0`, the default, runs them
+ * on the main thread, where the deadline cannot stop one query. A positive
+ * value runs each query in a worker that holds a copy of the store, and stops
+ * the worker at `SQLIB_EXECUTION_TIMEOUT_MS`. Each worker holds a full copy, so
+ * memory grows with the number of workers and the size of the stores.
+ */
+export function queryWorkers(): number {
+  return positiveInteger('SQLIB_QUERY_WORKERS', 0, { allowZero: true });
+}
