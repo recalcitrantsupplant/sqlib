@@ -42,6 +42,8 @@ export interface GroupNodeRow {
   sourceVersion: number | null;
   /** The query version IRI, for a link. */
   sourceVersionId: string | null;
+  /** The rule set version a rule set node runs. Null for every other kind. */
+  ruleSetVersionId: string | null;
   target: GroupNodeTarget;
   queryString: string | null;
 }
@@ -159,6 +161,7 @@ export function groupNodeRows(expanded: QueryGroupVersionExpanded): GroupNodeRow
       sourceName: label && label !== fallback ? fallback : null,
       sourceVersion: kind === 'dynamic' ? null : version?.version ?? null,
       sourceVersionId: kind === 'dynamic' ? null : queryVersionId,
+      ruleSetVersionId: kind === 'ruleset' ? node.ruleSetVersion ?? null : null,
       target: targetOf(node, kind),
       queryString: kind === 'dynamic' ? null : version?.queryString ?? null,
     };

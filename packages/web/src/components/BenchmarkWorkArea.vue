@@ -969,9 +969,26 @@ async function loadGroupNodes(subjectId: string, versionId: string) {
   }
 }
 
-watch(selectedCase, (planCase) => {
+/*
+ * A rule set node stores only its rule set version IRI. `indexSubjects` finds
+ * the rule set that owns it and its version number, and the SRL is fetched the
+ * same way as for a rule set case.
+ */
+async function loadRuleSetNodes(rows: GroupNodeRow[]) {
+  if (!rulesEnabled.value) return;
+  const versionIds = rows.flatMap((row) => (row.ruleSetVersionId ? [row.ruleSetVersionId] : []));
+  if (versionIds.length === 0) return;
+  await indexSubjects(versionIds);
+  for (const versionId of versionIds) {
+    const entry = subjectIndex.value[versionId];
+    if (entry?.subjectType === 'ruleSet') await loadRuleSetDocument(entry.subjectId, versionId);
+  }
+}
+
+watch(selectedCase, async (planCase) => {
   if (planCase?.subjectType !== 'queryGroup' || !planCase.subjectId || !planCase.versionId) return;
-  void loadGroupNodes(planCase.subjectId, planCase.versionId);
+  await loadGroupNodes(planCase.subjectId, planCase.versionId);
+  await loadRuleSetNodes(groupNodesByVersion.value[planCase.versionId] ?? []);
 }, { immediate: true });
 
 /** The query, group or rule set page, at the version the case runs. */
@@ -1005,6 +1022,17 @@ const selectedGroupNodes = computed<GroupNodeView[]>(() => {
   return groupNodeCosts(rows, nodeObservations.value).map((row) => {
     const backendId = row.target.kind === 'backend' ? row.target.backendId : null;
     const queryId = row.sourceVersionId ? queryOfVersion.value[row.sourceVersionId] : undefined;
+    const ruleSet = row.ruleSetVersionId ? subjectIndex.value[row.ruleSetVersionId] : undefined;
+    if (ruleSet?.subjectType === 'ruleSet') {
+      return {
+        ...row,
+        sourceVersion: ruleSet.versionNumber || null,
+        queryString: ruleSetDocuments.value[row.ruleSetVersionId!] ?? null,
+        backendName: null,
+        dot: null,
+        link: entityLink('rules', ruleSet.subjectId, ruleSet.versionNumber),
+      };
+    }
     return {
       ...row,
       backendName: backendId ? backendName(backendId) : null,

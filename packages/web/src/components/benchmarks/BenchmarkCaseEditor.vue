@@ -115,6 +115,13 @@ const NODE_ICON: Record<GroupNodeKind, unknown> = {
   patch: PenLine,
 };
 
+const NODE_CONTENT_TYPE: Record<GroupNodeKind, string> = {
+  query: 'application/sparql-query',
+  dynamic: 'application/sparql-query',
+  ruleset: 'application/srl',
+  patch: 'application/sparql-update',
+};
+
 const OPEN_LABEL = {
   query: 'Open query',
   queryGroup: 'Open group',
@@ -335,7 +342,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
             {{ selectedNode.name }}
           </span>
           <NuxtLink v-if="selectedNode.link" class="btn-compact open-link" :to="selectedNode.link" data-testid="benchmark-open-node">
-            <ArrowUpRight :size="12" />Open query
+            <ArrowUpRight :size="12" />{{ selectedNode.kind === 'ruleset' ? 'Open rule set' : 'Open query' }}
           </NuxtLink>
         </div>
         <MediaTypeCodeViewer
@@ -343,7 +350,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
           class="code-block"
           data-testid="benchmark-case-query"
           :content="selectedNode.queryString"
-          :content-type="selectedNode.kind === 'patch' ? 'application/sparql-update' : 'application/sparql-query'"
+          :content-type="NODE_CONTENT_TYPE[selectedNode.kind]"
           min-height="0"
         />
       </template>

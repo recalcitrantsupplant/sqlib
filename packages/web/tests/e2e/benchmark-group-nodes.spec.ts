@@ -9,6 +9,8 @@ import {
   QUERY_GROUP,
   QUERY_GROUP_VERSION_EXPANDED,
   QUERY_VERSION,
+  RULE_SET,
+  RULE_SET_VERSION,
   type MockOptions,
 } from './fixtures/entities';
 
@@ -23,7 +25,6 @@ import {
 
 const SHOTS = process.env.BENCH_GROUP_SHOTS ?? '';
 const RULE_NODE = 'urn:sqlib:rule-set-node:bench';
-const RULE_SET_VERSION = 'urn:sqlib:rule-set-version:bench';
 const QUERY_NODE = QUERY_GROUP_VERSION_EXPANDED.executionNodes[0]!.id;
 const END_NODE = QUERY_GROUP_VERSION_EXPANDED.endNode.id;
 
@@ -43,7 +44,7 @@ const GROUP_EXPANDED = {
       id: RULE_NODE,
       inputs: [],
       outputs: [],
-      ruleSetVersion: RULE_SET_VERSION,
+      ruleSetVersion: RULE_SET_VERSION.id,
       nodeType: 'RuleSetNode',
       dateCreated: '2026-01-01T00:00:00Z',
       dateModified: '2026-01-01T00:00:00Z',
@@ -54,7 +55,7 @@ const GROUP_EXPANDED = {
     { id: 'urn:sqlib:edge:bench-rules', sourceNodeId: QUERY_NODE, targetNodeId: RULE_NODE, dataFlowType: 'CONTROL_FLOW' },
     { id: 'urn:sqlib:edge:bench-end', sourceNodeId: RULE_NODE, targetNodeId: END_NODE, dataFlowType: 'CONTROL_FLOW' },
   ],
-  iriMap: { [QUERY_VERSION.id]: QUERY.name, [RULE_SET_VERSION]: 'Region rules' },
+  iriMap: { [QUERY_VERSION.id]: QUERY.name, [RULE_SET_VERSION.id]: RULE_SET.name },
 };
 
 const VERSION = {
@@ -117,13 +118,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(rows.nth(0)).toContainText(QUERY.name);
       await expect(rows.nth(0)).toContainText(BACKEND.name);
       await expect(rows.nth(0)).toContainText('3 req');
-      await expect(rows.nth(1)).toContainText('Region rules');
+      await expect(rows.nth(1)).toContainText(RULE_SET.name);
+      await expect(rows.nth(1)).toContainText(`v${RULE_SET_VERSION.version}`);
       await expect(rows.nth(1)).toContainText('In-process');
 
       // The first node with text is shown, with a link to its query.
       await expect(page.getByTestId('benchmark-case-query')).toContainText('SELECT');
       await expect(page.getByTestId('benchmark-open-node')).toHaveAttribute('href', /\/queries\//);
       await shoot(page, `group-nodes-${colorScheme}`);
+
+      // A rule set node opens too: its SRL, and a link to the rule set.
+      await rows.nth(1).click();
+      await expect(page.getByTestId('benchmark-case-entity')).toContainText(RULE_SET.name);
+      await expect(page.getByTestId('benchmark-open-node')).toHaveText('Open rule set');
+      await expect(page.getByTestId('benchmark-open-node')).toHaveAttribute('href', /\/rules\//);
+      await expect(page.getByTestId('benchmark-case-query')).toContainText(':ancestor');
+      await shoot(page, `group-rule-node-${colorScheme}`);
     });
 
     test('a query case names its query and links to it', async ({ page }) => {
