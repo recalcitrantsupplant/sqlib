@@ -266,7 +266,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
             Backend
             <span class="lock-icon" title="Set by the group"><Lock :size="11" /></span>
           </span>
-          <span>Runs</span>
+          <span class="node-runs">Runs</span>
           <span class="node-p95">p95</span>
         </div>
         <button
@@ -282,7 +282,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
           <span class="node-order">{{ node.order }}</span>
           <component :is="NODE_ICON[node.kind]" :size="13" class="node-kind" />
           <span class="node-name">
-            {{ node.name }}
+            <span class="node-label" :title="node.name">{{ node.name }}</span>
             <span v-if="node.sourceName || node.sourceVersion" class="node-source">
               {{ node.sourceName ?? '' }}<template v-if="node.sourceVersion">{{ node.sourceName ? ' ' : '' }}v{{ node.sourceVersion }}</template>
             </span>
@@ -296,7 +296,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
             <span v-else-if="node.target.kind === 'inProcess'" class="node-muted">In-process</span>
             <span v-else class="node-missing">No backend</span>
           </span>
-          <span class="support-samples">
+          <span class="support-samples node-runs">
             {{ node.samples > 0 ? `${node.samples} req` : 'never run' }}
           </span>
           <span class="support-p95 node-p95" :class="{ 'support-failed': node.failed > 0 }">
@@ -401,6 +401,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
 
 <style scoped>
 .case-editor {
+  container-type: inline-size;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -439,6 +440,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
 
 .subject-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
@@ -454,7 +456,8 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
 
 .control-grow {
   flex: 1;
-  min-width: 0;
+  /* Below this the picker wraps to its own line rather than collapse. */
+  min-width: 180px;
 }
 
 .control-version {
@@ -527,7 +530,7 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
 
 .node-row {
   display: grid;
-  grid-template-columns: 18px 14px minmax(0, 1fr) minmax(0, 190px) 64px 62px;
+  grid-template-columns: 18px 14px minmax(96px, 3fr) minmax(72px, 2fr) 64px 62px;
   align-items: center;
   gap: 11px;
   width: 100%;
@@ -604,6 +607,11 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
   white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.node-label {
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
@@ -762,4 +770,38 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
   line-height: var(--leading-normal);
 }
 
+/*
+ * A narrow editor (a wide plan list and inspector beside it) drops the
+ * request count first, so the node and backend names keep their room.
+ */
+@container (max-width: 520px) {
+  .node-row {
+    grid-template-columns: 18px 14px minmax(96px, 3fr) minmax(72px, 2fr) 62px;
+  }
+
+  .node-runs {
+    display: none;
+  }
+}
+
+/* Narrower still, the backend moves under the node's name. */
+@container (max-width: 400px) {
+  .node-row {
+    grid-template-columns: 18px 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'order kind name p95'
+      '. . backend backend';
+    row-gap: var(--space-2);
+  }
+
+  .node-row-head {
+    display: none;
+  }
+
+  .node-order { grid-area: order; }
+  .node-kind { grid-area: kind; }
+  .node-name { grid-area: name; }
+  .node-backend { grid-area: backend; }
+  .node-p95 { grid-area: p95; }
+}
 </style>

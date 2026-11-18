@@ -227,8 +227,11 @@ function isSelected(kind: AxisKey, id: string) {
   position: relative;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  /* The plan list gives up width before the case editor beside it does. */
+  flex-shrink: 1;
   width: 268px;
+  min-width: 200px;
+  max-width: 420px;
   min-height: 0;
   background: var(--surface-subtle);
   border-right: 1px solid var(--border-default);

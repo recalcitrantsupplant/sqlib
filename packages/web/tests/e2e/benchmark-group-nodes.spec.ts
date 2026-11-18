@@ -150,6 +150,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
 }
 
 test('the plan list and the inspector resize from their edges', async ({ page }) => {
+  // Wide enough that the plan list is at its own width, with room to grow.
+  await page.setViewportSize({ width: 1600, height: 900 });
   await openGroupCase(page);
   const sidebar = page.getByTestId('benchmark-plan-sidebar');
   const before = (await sidebar.boundingBox())!.width;
@@ -168,4 +170,37 @@ test('the plan list and the inspector resize from their edges', async ({ page })
   await page.mouse.move(handle.x - 150, handle.y + 200, { steps: 5 });
   await page.mouse.up();
   await expect.poll(async () => (await inspector.boundingBox())!.width).toBeGreaterThan(inspectorBefore + 100);
+});
+
+test.describe('at 1280 px wide', () => {
+  test.use({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+
+  test('the nodes table keeps its names and the target row does not overlap', async ({ page }) => {
+    await openGroupCase(page);
+    // A wide plan list leaves the editor at its narrowest.
+    const edge = (await page.getByTestId('benchmark-plan-sidebar').getByTestId('sidebar-resizer').boundingBox())!;
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(edge.x + 400, edge.y + 200, { steps: 5 });
+    await page.mouse.up();
+    const firstName = page.getByTestId('benchmark-group-node').first().locator('.node-name');
+    await expect(firstName).toBeVisible();
+    expect((await firstName.boundingBox())!.width).toBeGreaterThan(80);
+
+    // The plan list gives way, so the editor keeps its minimum, and the node and backend do not overlap.
+    expect((await page.getByTestId('benchmark-plan-sidebar').boundingBox())!.width).toBeLessThanOrEqual(420);
+    expect((await page.locator('.bench-main').boundingBox())!.width).toBeGreaterThanOrEqual(400);
+    const row = page.getByTestId('benchmark-group-node').first();
+    const name = (await row.locator('.node-name').boundingBox())!;
+    const backend = (await row.locator('.node-backend').boundingBox())!;
+    const apart = name.x + name.width <= backend.x || name.y + name.height <= backend.y;
+    expect(apart).toBe(true);
+
+    // The target picker and the version picker do not overlap.
+    const picker = (await page.getByTestId('benchmark-case-subject').boundingBox())!;
+    const version = (await page.locator('.control-version').boundingBox())!;
+    const sameRow = Math.abs(picker.y - version.y) < 4;
+    if (sameRow) expect(picker.x + picker.width).toBeLessThanOrEqual(version.x);
+    await shoot(page, 'group-nodes-1280');
+  });
 });

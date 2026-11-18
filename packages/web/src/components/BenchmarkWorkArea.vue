@@ -2206,7 +2206,8 @@ const runSubtitle = computed(() => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-width: 0;
+  /* Room for the run bar and the nodes table; the plan list shrinks first. */
+  min-width: 400px;
   background: var(--surface);
 }
 
