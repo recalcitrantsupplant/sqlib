@@ -622,3 +622,30 @@ David answered the open questions on #166:
 - `using-union-graph` and `use_default_graph_as_union`. sqlib has no union
   dataset for reads.
 - Limits on the graphs that an update writes to, under a graph policy.
+
+## Open items
+
+These gaps were found on 18 Nov 2026 by reading the code. They are not
+tested. David chose to record them and change no code for now.
+
+1. **`COPY`, `MOVE` and `ADD` read past a graph policy.** These operations
+   have no `WHERE` clause, so `using-graph-uri` and the Oxigraph update dataset
+   do not apply to them (Protocol §2.2.3). The guard narrows only an update
+   that reads through `WHERE` (`updateDatasetShape` in
+   `packages/api/src/lib/updateDataset.ts`, used by `updateOptions` in
+   `packages/api/src/auth/GuardedSparqlExecutor.ts`). So
+   `COPY <hidden> TO <mine>` copies a graph that the policy hides into a graph
+   that the caller can read. `MOVE` also empties the source.
+   - Possible fix: under a policy, refuse `COPY`, `MOVE` and `ADD` with 403,
+     in the same check that refuses `DELETE WHERE`. The workaround is
+     `INSERT { GRAPH <b> { … } } WHERE { GRAPH <a> { … } }`, which the
+     parameters restrict.
+2. **The patch preview ignores a graph policy.** `POST /patches/preview`, and
+   an update run as RDF Patch through `/execute`, build their own executor in
+   `resolvePatchTarget` (`packages/api/src/lib/patchTargets.ts`), with no
+   policy check. For `COPY`, `MOVE` and `ADD`, the preview counts or lists the
+   source triples (`packages/rdf-delta/src/graphOps.ts`). The derived reads of
+   any other update are not narrowed either.
+   - Possible fix: send the policy graphs with the derived `CONSTRUCT` reads
+     as `default-graph-uri` and `named-graph-uri`. Item 1 refuses a preview of
+     `COPY`, `MOVE` and `ADD`.
