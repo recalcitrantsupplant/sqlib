@@ -11,6 +11,7 @@ import { computed } from 'vue';
 import { Link, TriangleAlert } from '@lucide/vue';
 import InfoHint from '../shared/InfoHint.vue';
 import MediaTypeCodeViewer from '../MediaTypeCodeViewer.vue';
+import CopyButton from '../shared/CopyButton.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import Select from '../ui/select/Select.vue';
@@ -220,6 +221,13 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
             <template v-if="planCase.versionNumber"> v{{ planCase.versionNumber }}</template>
           </span>
         </InlineNote>
+        <CopyButton
+          class="block-copy"
+          size="sm"
+          :text="queryString"
+          :subject="isRuleSet ? 'rule set' : 'query'"
+          testid="benchmark-case-copy"
+        />
       </div>
       <MediaTypeCodeViewer
         v-if="queryString"
@@ -273,6 +281,10 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+.block-copy {
+  margin-left: auto;
 }
 
 .block-label {

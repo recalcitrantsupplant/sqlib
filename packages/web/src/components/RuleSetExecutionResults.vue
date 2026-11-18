@@ -79,6 +79,12 @@
           </button>
           <TableWrapToggle v-if="viewMode === 'graph'" />
           <TermDisplayToggle v-if="viewMode === 'graph'" />
+          <CopyButton
+            v-if="viewMode === 'graph' && finalGraphContent"
+            :text="finalGraphContent"
+            subject="inference graph"
+            testid="results-copy"
+          />
           <button
             type="button"
             class="icon-control"
@@ -373,6 +379,11 @@
               </button>
               <TableWrapToggle v-if="viewMode === 'graph'" />
               <TermDisplayToggle v-if="viewMode === 'graph'" />
+              <CopyButton
+                v-if="viewMode === 'graph' && finalGraphContent"
+                :text="finalGraphContent"
+                subject="inference graph"
+              />
             </template>
           </ResultsActionBar>
 
@@ -588,6 +599,7 @@ import EmptyState from './shared/EmptyState.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import ResultsActionBar from './shared/ResultsActionBar.vue';
 import TermDisplayToggle from './shared/TermDisplayToggle.vue';
+import CopyButton from './shared/CopyButton.vue';
 import TableWrapToggle from './shared/TableWrapToggle.vue';
 import ResultsFooter from './shared/ResultsFooter.vue';
 import SectionLabel from './shared/SectionLabel.vue';

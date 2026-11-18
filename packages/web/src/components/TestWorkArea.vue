@@ -394,6 +394,7 @@
           <FormField v-if="showTupleSeeds" label="Named tuples" as="div">
             <!-- Expand sits on the field's label row, not over the seeds. -->
             <template #actions>
+              <CopyButton :text="tupleSeeds" subject="named tuples" testid="test-tuple-seeds-copy" />
               <ExpandButton
                 v-if="!tupleSeedsExpanded"
                 subject="the tuple seeds"
@@ -429,6 +430,7 @@
           -->
           <FormField v-if="slots.sqlFixture" label="SQL fixture" as="div">
             <template #actions>
+              <CopyButton :text="sqlFixture" subject="SQL fixture" testid="test-sql-fixture-copy" />
               <ExpandButton
                 v-if="!sqlFixtureExpanded"
                 subject="the SQL fixture"
@@ -714,6 +716,7 @@ import CodeEditor from './shared/CodeEditor.vue';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
 import ExpandButton from './shared/ExpandButton.vue';
+import CopyButton from './shared/CopyButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
