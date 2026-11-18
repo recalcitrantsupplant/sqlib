@@ -82,15 +82,23 @@ The job file is JSON, in the shape of a stored ETL job:
 
 ```json
 {
-  "sql": "SELECT * FROM read_csv('customers.csv')",
+  "sql": "SELECT id, name FROM read_csv('customers.csv') WHERE id IS NOT NULL",
   "templateFile": "construct.rq",
   "chunkSize": 1000,
   "columns": [
-    { "columnName": "id", "targetVariable": "c", "termType": "uri",
-      "iriTemplate": "http://ex/c/{value}", "nullPolicy": "skipRow" },
-    { "columnName": "name", "targetVariable": "name", "termType": "literal",
-      "nullPolicy": "undef" }
+    { "columnName": "id", "termType": "literal" },
+    { "columnName": "name", "termType": "literal" }
   ]
+}
+```
+
+`construct.rq` makes the IRI from the `id` column:
+
+```sparql
+PREFIX ex: <http://ex/>
+CONSTRUCT { ?c ex:name ?name } WHERE {
+  VALUES (?id ?name) { (UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://ex/c/", ENCODE_FOR_URI(?id))) AS ?c)
 }
 ```
 
@@ -98,7 +106,11 @@ The job file is JSON, in the shape of a stored ETL job:
   job are relative to the job file. DuckDB reads the paths in the SQL, so they
   are relative to the directory where `sqlib` runs.
 - The template is a CONSTRUCT with exactly one `VALUES (…) { (UNDEF …) }` slot.
-  The slot declares the `targetVariable` of each column.
+  The slot declares one variable for each column, with the name of the column.
+- A column is an IRI (`"termType": "uri"`) or a literal, with an optional
+  `datatypeIri` or `lang`. Its value is used as it is, and a NULL leaves the
+  variable unbound. Rename columns, drop rows and format values in the SQL.
+  Build IRIs in the template.
 - `--format` is `n-triples` (default), `n-quads` or `turtle`. The command writes
   each chunk as it arrives. In all three formats, chunks can be concatenated
   safely: Oxigraph writes no prefix declarations, and gives each blank node a

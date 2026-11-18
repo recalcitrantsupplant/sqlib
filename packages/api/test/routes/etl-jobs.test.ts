@@ -407,24 +407,18 @@ describe('ETL Jobs Routes', () => {
             columns: [
               {
                 columnName: 'name',
-                targetVariable: 'name',
                 termType: 'literal',
                 datatypeIri: 'http://www.w3.org/2001/XMLSchema#string',
-                nullPolicy: 'undef',
               },
               {
                 columnName: 'age',
-                targetVariable: 'age',
                 termType: 'literal',
                 datatypeIri: 'http://www.w3.org/2001/XMLSchema#integer',
-                nullPolicy: 'undef',
               },
               {
                 columnName: 'active',
-                targetVariable: 'active',
                 termType: 'literal',
                 datatypeIri: 'http://www.w3.org/2001/XMLSchema#boolean',
-                nullPolicy: 'undef',
               },
             ],
           },
@@ -460,10 +454,8 @@ describe('ETL Jobs Routes', () => {
         expect(body.inferredMapping.columns).toHaveLength(3);
         expect(body.inferredMapping.columns[0]).toMatchObject({
           columnName: 'name',
-          targetVariable: 'name',
           termType: 'literal',
           datatypeIri: expect.stringContaining('string'),
-          nullPolicy: 'undef',
         });
     });
 
@@ -499,9 +491,7 @@ describe('ETL Jobs Routes', () => {
           columns: [
             {
               columnName: 'test',
-              targetVariable: 'testVar',
               termType: 'literal',
-              nullPolicy: 'undef',
             },
           ],
         },
@@ -520,9 +510,7 @@ describe('ETL Jobs Routes', () => {
           columns: [
             {
               columnName: 'test',
-              targetVariable: 'testVar',
               termType: 'invalid', // Should only be 'uri' or 'literal'
-              nullPolicy: 'undef',
             },
           ],
         },
@@ -531,20 +519,17 @@ describe('ETL Jobs Routes', () => {
       expect(response.statusCode).toBe(400);
     });
 
-    it('validates nullPolicy enum', async () => {
+    it.each([
+      ['targetVariable', { targetVariable: 'testVar' }],
+      ['iriTemplate', { iriTemplate: 'http://ex/{value}' }],
+      ['nullPolicy', { nullPolicy: 'skipRow' }],
+    ])('refuses a column with the retired field %s', async (_field, extra) => {
       const response = await app.inject({
         method: 'POST',
         url: '/etl-jobs/versions/test-version/column-mappings',
         payload: {
           name: 'Test Mapping',
-          columns: [
-            {
-              columnName: 'test',
-              targetVariable: 'testVar',
-              termType: 'literal',
-              nullPolicy: 'invalid', // Should only be 'undef' or 'skipRow'
-            },
-          ],
+          columns: [{ columnName: 'test', termType: 'literal', ...extra }],
         },
       });
 

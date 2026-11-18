@@ -4,12 +4,21 @@
 
 export interface EtlColumnMappingRow {
   columnName: string;
-  targetVariable: string;
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
-  iriTemplate?: string;
-  nullPolicy: 'undef' | 'skipRow';
+}
+
+/**
+ * A row with only the fields a mapping has. A mapping saved before
+ * `targetVariable`, `iriTemplate` and `nullPolicy` were removed can still hold
+ * them, and the API refuses a new mapping that sends them.
+ */
+export function toMappingRow(column: EtlColumnMappingRow): EtlColumnMappingRow {
+  const row: EtlColumnMappingRow = { columnName: column.columnName, termType: column.termType };
+  if (column.datatypeIri) row.datatypeIri = column.datatypeIri;
+  if (column.lang) row.lang = column.lang;
+  return row;
 }
 
 /**
@@ -34,10 +43,8 @@ export function mergeColumnMappings<T extends EtlColumnMappingRow>(
     if (proposed) return { ...proposed };
     return {
       columnName,
-      targetVariable: columnName,
       termType: 'literal',
       datatypeIri: 'http://www.w3.org/2001/XMLSchema#string',
-      nullPolicy: 'undef',
     } as T;
   });
 }

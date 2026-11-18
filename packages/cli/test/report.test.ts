@@ -10,7 +10,7 @@ try {
   duckdbAvailable = false;
 }
 
-const GOLDEN = path.resolve(import.meta.dirname, '../../runtime/test/fixtures/bundle-v1.json');
+const GOLDEN = path.resolve(import.meta.dirname, '../../runtime/test/fixtures/bundle-v2.json');
 const SRL = `PREFIX : <http://ex/>
 RULE { ?x :anc ?z } WHERE { ?x :parent ?z }
 RULE { ?x :anc ?z } WHERE { ?x :anc ?y . ?y :parent ?z }`;
@@ -71,7 +71,7 @@ describe('--report', () => {
           job: {
             bundle: 'golden.json',
             key: 'customers',
-            sqlHash: sha256("SELECT id, name, joined FROM read_csv('customers.csv')"),
+            sqlHash: sha256("SELECT id, name, joined FROM read_csv('customers.csv') WHERE id IS NOT NULL"),
             sourceJob: 'urn:sqlib:etl-job:customers',
             sourceColumnMappingVersion: 'urn:sqlib:etl-column-mapping-version:customers-1',
           },
