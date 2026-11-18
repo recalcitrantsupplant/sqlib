@@ -10,15 +10,23 @@
  * classes, for the reason the library page's own spec gives: a class assertion
  * passes just as happily on a page whose stylesheet never loaded.
  */
-import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, it, expect, vi } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import NotebookRunCell from '@/components/notebook/NotebookRunCell.vue';
 import RunBar from '@/components/shared/RunBar.vue';
-import { rowsValue } from '@/lib/notebookValues';
+import { graphValue, rowsValue } from '@/lib/notebookValues';
 import type { QueryCell } from '@/lib/notebookFormat';
 
 defineArgsElement();
+
+const SRL = 'PREFIX ex: <http://example.org/>\n\nRULE { ?a ex:contains ?b } WHERE { ?a ex:hasPart ?b }\n\nRULE { ?a ex:kind ex:Assembly } WHERE { ?a ex:hasPart ?b }\n';
+
+vi.mock('@/composables/useApiClient', () => ({
+  useApiClient: () => ({
+    exportRuleSetSrl: vi.fn(async () => ({ srl: SRL })),
+  }),
+}));
 
 const CELL: QueryCell = { kind: 'query', id: 'c1', query: 'urn:q:people', out: 'candidates' };
 
@@ -355,9 +363,45 @@ describe('a rule set cell', () => {
   const RULES = { kind: 'ruleset' as const, id: 'r1', ruleSet: 'urn:rs:1', out: 'closure' };
   const RULESET_TARGET = { ...TARGET, id: 'urn:rs:1', kind: 'ruleset' as const, resultKind: 'GRAPH' as const, slots: [] };
 
-  it('says its value holds only the inferred triples', () => {
+  it('shows its SRL the way a query cell shows its SPARQL', async () => {
     const wrapper = render({ cell: RULES, target: RULESET_TARGET });
-    expect(wrapper.get('[data-testid="notebook-ruleset-output-r1"]').text()).toContain('without the base graph');
+    await flushPromises();
+    const peek = wrapper.get('[data-testid="notebook-srl-r1"]');
+    expect(peek.text()).toContain('Rules');
+    expect(peek.text()).toContain('2 rules');
+    expect(wrapper.find('[data-testid="notebook-ruleset-output-r1"]').exists()).toBe(false);
+  });
+
+  it('shows the inferred graph as Turtle with the rule set prefixes', async () => {
+    const graph = graphValue(
+      { name: 'closure', cellId: 'r1', durationMs: 5 },
+      '<http://example.org/p1> <http://example.org/contains> <http://example.org/m1> .\n',
+      'application/n-quads',
+    );
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET, value: graph, state: { ...IDLE, status: 'ok', durationMs: 5 } });
+    await flushPromises();
+    expect(wrapper.findAllComponents({ name: 'CodePeek' }).at(-1)?.props('content')).toContain('ex:p1 ex:contains ex:m1');
+  });
+
+  it('says how many iterations it took, and what each rule added', async () => {
+    const state = {
+      ...IDLE,
+      status: 'ok' as const,
+      durationMs: 18,
+      ruleRun: {
+        iterations: 3,
+        rules: [
+          { ruleVersionId: 'urn:rv:1', name: 'rule-1-contains', inserted: 6, deleted: 0 },
+          { ruleVersionId: 'urn:rv:2', name: 'rule-2-kind', inserted: 4, deleted: 0 },
+        ],
+      },
+    };
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET, state });
+    expect(wrapper.get('[data-testid="notebook-status-r1"]').text()).toBe('converged in 3 iterations · 18 ms');
+    const table = wrapper.get('[data-testid="notebook-rule-counts-r1"]');
+    expect(table.text()).toContain('rule-1-contains');
+    expect(table.findAll('tbody tr').map((row) => row.text())).toEqual(['rule-1-contains6', 'rule-2-kind4']);
+    expect(table.text()).not.toContain('Removed');
   });
 
   it('offers the library saved data graphs as its base graph', async () => {
