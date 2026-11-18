@@ -77,8 +77,8 @@ async function addDynamicQueryNode(page: Page): Promise<string> {
  * fires and the drag is discarded silently.
  */
 async function connectNodes(page: Page, sourceNodeId: string, targetNodeId: string) {
-  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle-right`).first();
-  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle-left`).first();
+  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`).first();
+  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`).first();
   const from = await source.boundingBox();
   const to = await target.boundingBox();
   if (!from || !to) throw new Error(`No handle to drag between ${sourceNodeId} and ${targetNodeId}`);

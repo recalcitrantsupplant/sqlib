@@ -928,8 +928,8 @@ export async function settledHandleCentre(handle: Locator) {
  * `moveNodeBy` before connecting, which is what a user does by eye.
  */
 export async function connectNodes(page: Page, sourceNodeId: string, targetNodeId: string) {
-  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle-right`);
-  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle-left`);
+  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`);
+  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`);
   const subtitle = page.locator('.canvas-editor .panel-header__subtitle');
 
   /*
