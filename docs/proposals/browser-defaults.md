@@ -32,9 +32,9 @@ argument set on `Query` or `QueryGroup`.
 | `QueryGroup` | `browserDefaultArgumentSet` | `browserDefaultDataGraphs`, one per start-node data graph input |
 | `RuleSet` | — | `browserDefaultDataGraphs`, at most one |
 
-- `browserDefaultArgumentSet` names an `ArgumentSet`. It floats: the web app's
-  switcher selects a set and picks its version per run, so a pinned version
-  would have nothing to select.
+- `browserDefaultArgumentSet` names an `ArgumentSet` (float) or an
+  `ArgumentSetVersion` (pin). A float opens the set at its current version. A
+  pin opens the set at that version.
 - `browserDefaultDataGraphs` names `BrowserDefaultDataGraph` children. Each
   child has a `position` and a `dataGraph`, which is a `DataGraph` (float) or
   a `DataGraphVersion` (pin). RDF arrays carry no order, and a group routes
@@ -115,8 +115,12 @@ flowchart LR
 - A pick for one run does not change the default.
 - **Set as browser default** saves the current pick. A data graph pick is saved
   as its graph, not its version: the pickers offer each graph's current
-  version, so the default follows new versions as the picker does. A scratch
-  argument set cannot be saved as a default, because it has no server id.
+  version, so the default follows new versions as the picker does. An argument
+  set pick is saved as the set when its current version is open, and as the
+  version when an older version is open. A scratch argument set cannot be
+  saved as a default, because it has no server id.
+- The argument set label follows the open version. A float is the default
+  only on the set's current version, and a pin only on its own version.
 - **Clear browser default** removes it.
 - Both actions need write access. A read-only deployment keeps the label only.
 - A default the screen cannot list (deleted or unreadable) selects nothing and

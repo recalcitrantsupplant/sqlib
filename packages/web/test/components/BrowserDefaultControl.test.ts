@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   getBrowserDefaults: vi.fn(),
   putBrowserDefaults: vi.fn(),
   getDataGraph: vi.fn(),
+  listArgumentSetVersions: vi.fn(),
 }));
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -115,6 +116,8 @@ describe('useBrowserDefaults', () => {
         argumentSets: ref(listed.map((id) => ({ id }))),
         loadArgumentSets: vi.fn(async () => {}),
         selectSet: vi.fn(async (id: string) => { selection.value = { kind: 'set', id }; }),
+        selectVersion: vi.fn(),
+        hasDraft: computed(() => false),
       } as never as Parameters<ReturnType<typeof useBrowserDefaults>['applyArgumentSet']>[2];
     }
 
@@ -123,6 +126,16 @@ describe('useBrowserDefaults', () => {
       const args = stubArgs(['urn:set']);
       expect(await useBrowserDefaults().applyArgumentSet('query', 'urn:q', args)).toBe(true);
       expect(args.selectSet).toHaveBeenCalledWith('urn:set');
+    });
+
+    it('opens a pinned version on its set', async () => {
+      const V1 = 'urn:sqlib:argument-set-version:v1';
+      api.getBrowserDefaults.mockResolvedValue({ argumentSet: V1, dataGraphs: [] });
+      api.listArgumentSetVersions.mockImplementation(async (id: string) => (id === 'urn:set' ? [{ id: V1 }] : []));
+      const args = stubArgs(['urn:other', 'urn:set']);
+      expect(await useBrowserDefaults().applyArgumentSet('query', 'urn:q', args)).toBe(true);
+      expect(args.selectSet).toHaveBeenCalledWith('urn:set');
+      expect(args.selectVersion).toHaveBeenCalledWith(V1);
     });
 
     it('leaves a pick already made alone', async () => {
@@ -142,10 +155,23 @@ describe('useBrowserDefaults', () => {
 });
 
 describe('ArgumentSetBrowserDefault', () => {
-  it('saves the open set as the default: the set, not a version', async () => {
-    const selection = ref({ kind: 'set', id: 'urn:set' });
-    const args = { selection, selectedSetId: computed(() => 'urn:set') };
-    const w = mount(ArgumentSetBrowserDefault, { props: { kind: 'query', ownerId: 'urn:q', args: args as never } });
+  const V1 = 'urn:sqlib:argument-set-version:v1';
+  const V2 = 'urn:sqlib:argument-set-version:v2';
+
+  /** A saved set with two versions, v2 current, showing `shown`. */
+  function savedSet(shown: string, draft = false) {
+    return {
+      selection: ref({ kind: 'set', id: 'urn:set' }),
+      selectedSetId: computed(() => 'urn:set'),
+      selectedVersionId: ref(shown),
+      currentVersionId: computed(() => V2),
+      versions: ref([{ id: V1 }, { id: V2 }]),
+      hasDraft: computed(() => draft),
+    };
+  }
+
+  it('saves the set when its current version is open, so the default follows new versions', async () => {
+    const w = mount(ArgumentSetBrowserDefault, { props: { kind: 'query', ownerId: 'urn:q', args: savedSet(V2) as never } });
     await flushPromises();
 
     await w.get('[data-testid="browser-default-set"]').trigger('click');
@@ -155,8 +181,51 @@ describe('ArgumentSetBrowserDefault', () => {
     expect(w.find('[data-testid="browser-default-badge"]').exists()).toBe(true);
   });
 
+  it('saves the version when an older version is open', async () => {
+    const w = mount(ArgumentSetBrowserDefault, { props: { kind: 'query', ownerId: 'urn:q', args: savedSet(V1) as never } });
+    await flushPromises();
+
+    await w.get('[data-testid="browser-default-set"]').trigger('click');
+    await flushPromises();
+
+    expect(api.putBrowserDefaults).toHaveBeenCalledWith('query', 'urn:q', { argumentSet: V1, dataGraphs: [] });
+    expect(w.find('[data-testid="browser-default-badge"]').exists()).toBe(true);
+  });
+
+  it('labels only the current version as the default of a floating set', async () => {
+    api.getBrowserDefaults.mockResolvedValue({ argumentSet: 'urn:set', dataGraphs: [] });
+    const args = savedSet(V2);
+    const w = mount(ArgumentSetBrowserDefault, { props: { kind: 'query', ownerId: 'urn:q', args: args as never } });
+    await flushPromises();
+    expect(w.find('[data-testid="browser-default-badge"]').exists()).toBe(true);
+
+    args.selectedVersionId.value = V1;
+    await flushPromises();
+    expect(w.find('[data-testid="browser-default-badge"]').exists()).toBe(false);
+    expect(w.find('[data-testid="browser-default-set"]').exists()).toBe(true);
+  });
+
+  it('labels only the pinned version as the default', async () => {
+    api.getBrowserDefaults.mockResolvedValue({ argumentSet: V1, dataGraphs: [] });
+    const args = savedSet(V1);
+    const w = mount(ArgumentSetBrowserDefault, { props: { kind: 'query', ownerId: 'urn:q', args: args as never } });
+    await flushPromises();
+    expect(w.find('[data-testid="browser-default-badge"]').exists()).toBe(true);
+
+    args.selectedVersionId.value = V2;
+    await flushPromises();
+    expect(w.find('[data-testid="browser-default-badge"]').exists()).toBe(false);
+  });
+
   it('cannot save a scratch set, which has no server id', async () => {
-    const args = { selection: ref({ kind: 'scratch', id: 's1' }), selectedSetId: computed(() => null) };
+    const args = {
+      selection: ref({ kind: 'scratch', id: 's1' }),
+      selectedSetId: computed(() => null),
+      selectedVersionId: ref(null),
+      currentVersionId: computed(() => null),
+      versions: ref([]),
+      hasDraft: computed(() => true),
+    };
     const w = mount(ArgumentSetBrowserDefault, { props: { kind: 'query', ownerId: 'urn:q', args: args as never } });
     await flushPromises();
     expect(w.find('[data-testid="browser-default-set"]').exists()).toBe(false);

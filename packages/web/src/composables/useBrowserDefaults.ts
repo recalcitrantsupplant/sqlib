@@ -38,6 +38,9 @@ const keyOf = (kind: BrowserDefaultsKind, id: string) => `${kind}:${id}`;
 /** A version id, by the IRI prefix the server mints. */
 const isVersionIri = (id: string) => /-version:/.test(id);
 
+/** An `ArgumentSetVersion` id, which pins a default to one version. */
+export const isArgumentSetVersionIri = (id: string) => /:argument-set-version:/.test(id);
+
 /** Two lists of picks name the same graphs, ignoring trailing holes. */
 export function sameDataGraphs(a: Array<string | null>, b: Array<string | null>): boolean {
   const trim = (list: Array<string | null>) => {
@@ -120,10 +123,13 @@ export function useBrowserDefaults() {
   /**
    * Open a callable's default argument set, when nothing is open yet.
    *
-   * Only a set this screen can list: a deleted or unreadable default selects
-   * nothing, and says nothing, because a starting selection that failed is not
-   * an error the person did anything to cause. A set that no longer fits is
-   * still opened, and the Arguments tab says why, as it does for any set.
+   * A set (float) opens at its current version. A version (pin) opens its set
+   * at that version, unless this browser holds a draft of the set, which opens
+   * as it does for any set. Only a set this screen can list: a deleted or
+   * unreadable default selects nothing, and says nothing, because a starting
+   * selection that failed is not an error the person did anything to cause. A
+   * set that no longer fits is still opened, and the Arguments tab says why,
+   * as it does for any set.
    */
   async function applyArgumentSet(
     kind: 'query' | 'queryGroup',
@@ -135,9 +141,39 @@ export function useBrowserDefaults() {
     if (!argumentSet) return false;
     await args.loadArgumentSets();
     if (args.selection.value.kind !== 'none') return false;
-    if (!args.argumentSets.value.some((set) => set.id === argumentSet)) return false;
-    await args.selectSet(argumentSet);
-    return args.selectedSetId.value === argumentSet;
+    const setId = isArgumentSetVersionIri(argumentSet)
+      ? await setOfVersion(argumentSet, args)
+      : argumentSet;
+    if (!setId || !args.argumentSets.value.some((set) => set.id === setId)) return false;
+    await args.selectSet(setId);
+    if (args.selectedSetId.value !== setId) return false;
+    if (setId !== argumentSet && !args.hasDraft.value) args.selectVersion(argumentSet);
+    return true;
+  }
+
+  /**
+   * The listed set that holds a version, or `null`.
+   *
+   * A version IRI does not name its set, so the sets are asked in turn. A set
+   * whose current version is the pin answers without a request.
+   */
+  async function setOfVersion(
+    versionId: string,
+    args: ReturnType<typeof useArgumentSets>,
+  ): Promise<string | null> {
+    const sets = args.argumentSets.value;
+    const current = sets.find((set) => set.currentVersionId === versionId || set.currentVersion?.id === versionId);
+    if (current) return current.id;
+    for (const set of sets) {
+      try {
+        const result: unknown = await apiClient.listArgumentSetVersions(set.id);
+        const versions = (Array.isArray(result) ? result : (result as { data?: unknown[] }).data ?? []) as Array<{ id: string }>;
+        if (versions.some((version) => version.id === versionId)) return set.id;
+      } catch {
+        // An unreadable set cannot hold the default this screen can open.
+      }
+    }
+    return null;
   }
 
   return { get, load, save, resolveDataGraphs, applyArgumentSet };
