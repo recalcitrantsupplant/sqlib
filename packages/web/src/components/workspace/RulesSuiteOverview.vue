@@ -30,7 +30,7 @@
           <h3>Execution flow</h3>
           <ul>
             <li>Loads DataBlocks into an in-memory Oxigraph store.</li>
-            <li>Normalises rules (when possible) to SPARQL updates, orders them by stratum, and runs them until no new triples are produced or a max-iteration guard trips (5 iterations).</li>
+            <li>Normalises rules (when possible) to SPARQL updates, orders them by stratum, and runs them until no new triples are produced or a max-iteration guard trips (25 iterations per stratum).</li>
             <li>Per-rule execution captures deltas and samples to make debugging and provenance easier.</li>
           </ul>
         </section>

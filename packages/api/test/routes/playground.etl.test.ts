@@ -148,7 +148,7 @@ describe('Playground ETL Routes (/playground/etl)', () => {
         sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
         backendId: 'test-backend',
         columns: [
-          { columnName: 'name', targetVariable: '?name', termType: 'literal', nullPolicy: 'undef' },
+          { columnName: 'name', termType: 'literal' },
         ],
       },
     });
@@ -177,7 +177,7 @@ describe('Playground ETL Routes (/playground/etl)', () => {
         sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
         backendId: 'test-backend',
         columns: [
-          { columnName: 'name', targetVariable: '?name', termType: 'literal', nullPolicy: 'undef' },
+          { columnName: 'name', termType: 'literal' },
         ],
       },
     });
@@ -199,7 +199,7 @@ describe('Playground ETL Routes (/playground/etl)', () => {
         sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
         backendId: EPHEMERAL_BACKEND_ID,
         columns: [
-          { columnName: 'name', targetVariable: '?name', termType: 'literal', nullPolicy: 'undef' },
+          { columnName: 'name', termType: 'literal' },
         ],
       },
     });
@@ -232,7 +232,7 @@ describe('Playground ETL Routes (/playground/etl)', () => {
         sparqlTemplate: 'CONSTRUCT {} WHERE {}',
         backendId: 'test-backend',
         columns: [
-          { columnName: 'x', targetVariable: 'x', termType: 'literal', nullPolicy: 'undef' },
+          { columnName: 'x', termType: 'literal' },
         ],
       },
     });
@@ -254,7 +254,7 @@ describe('Playground ETL Routes (/playground/etl)', () => {
       sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
       backendId: EPHEMERAL_BACKEND_ID,
       columns: [
-        { columnName: 'name', targetVariable: '?name', termType: 'literal', nullPolicy: 'undef' },
+        { columnName: 'name', termType: 'literal' },
       ],
     };
 

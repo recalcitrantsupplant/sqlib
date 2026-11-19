@@ -28,18 +28,26 @@ export interface SnippetRequest {
   /** Serialised as JSON. Omitted entirely when undefined — a GET has no body. */
   body?: unknown;
   /**
-   * Headers beyond the two every call carries (Authorization, and
-   * Content-Type when there is a body) — an `Accept` for a chosen result
-   * media type, mostly.
+   * Headers beyond Authorization and Content-Type (Content-Type is sent when
+   * there is a body), such as an `Accept` for a chosen result media type.
    */
   headers?: Record<string, string>;
+}
+
+export interface SnippetOptions {
+  /**
+   * Send `Authorization: Bearer $SQLIB_TOKEN`. Set it when the instance uses
+   * sign-in (`useAuth().usesSignIn`). On an instance without sign-in the API
+   * ignores the header and nobody can get a token. Defaults to true.
+   */
+  bearerToken?: boolean;
 }
 
 /** The token is read from the environment, never inlined into a snippet. */
 export const TOKEN_ENV = 'SQLIB_TOKEN';
 
-const jsonHeaders = (request: SnippetRequest): Array<[string, string]> => {
-  const headers: Array<[string, string]> = [['Authorization', `Bearer $${TOKEN_ENV}`]];
+const jsonHeaders = (request: SnippetRequest, bearerToken: boolean): Array<[string, string]> => {
+  const headers: Array<[string, string]> = bearerToken ? [['Authorization', `Bearer $${TOKEN_ENV}`]] : [];
   if (request.body !== undefined) headers.push(['Content-Type', 'application/json']);
   for (const [name, value] of Object.entries(request.headers ?? {})) {
     headers.push([name, value]);
@@ -51,13 +59,13 @@ const compactJson = (body: unknown) => JSON.stringify(body ?? {});
 const prettyJson = (body: unknown, indent = '') =>
   JSON.stringify(body ?? {}, null, 2).replace(/\n/g, `\n${indent}`);
 
-function curlSnippet(request: SnippetRequest): string {
+function curlSnippet(request: SnippetRequest, bearerToken: boolean): string {
   const lines = [`curl -X ${request.method} ${request.url} \\`];
-  for (const [name, value] of jsonHeaders(request)) {
+  for (const [name, value] of jsonHeaders(request, bearerToken)) {
     lines.push(`  -H "${name}: ${value}" \\`);
   }
   if (request.body === undefined) {
-    // No body: the last header line must not end in a continuation.
+    // No body: the last line must not end in a continuation.
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ \\$/, '');
     return lines.join('\n');
   }
@@ -65,18 +73,15 @@ function curlSnippet(request: SnippetRequest): string {
   return lines.join('\n');
 }
 
-function javascriptSnippet(request: SnippetRequest): string {
-  const lines = [
-    `const response = await fetch('${request.url}', {`,
-    `  method: '${request.method}',`,
-    `  headers: {`,
-    `    Authorization: \`Bearer \${process.env.${TOKEN_ENV}}\`,`,
-  ];
-  if (request.body !== undefined) lines.push(`    'Content-Type': 'application/json',`);
+function javascriptSnippet(request: SnippetRequest, bearerToken: boolean): string {
+  const headers: string[] = [];
+  if (bearerToken) headers.push(`    Authorization: \`Bearer \${process.env.${TOKEN_ENV}}\`,`);
+  if (request.body !== undefined) headers.push(`    'Content-Type': 'application/json',`);
   for (const [name, value] of Object.entries(request.headers ?? {})) {
-    lines.push(`    '${name}': '${value}',`);
+    headers.push(`    '${name}': '${value}',`);
   }
-  lines.push(`  },`);
+  const lines = [`const response = await fetch('${request.url}', {`, `  method: '${request.method}',`];
+  if (headers.length) lines.push(`  headers: {`, ...headers, `  },`);
   if (request.body !== undefined) {
     lines.push(`  body: JSON.stringify(${prettyJson(request.body, '  ')}),`);
   }
@@ -84,19 +89,19 @@ function javascriptSnippet(request: SnippetRequest): string {
   return lines.join('\n');
 }
 
-function pythonSnippet(request: SnippetRequest): string {
+function pythonSnippet(request: SnippetRequest, bearerToken: boolean): string {
   const method = request.method.toLowerCase();
-  const headers = [`"Authorization": f"Bearer {os.environ['${TOKEN_ENV}']}"`];
+  const headers = bearerToken ? [`"Authorization": f"Bearer {os.environ['${TOKEN_ENV}']}"`] : [];
   for (const [name, value] of Object.entries(request.headers ?? {})) {
     headers.push(`"${name}": "${value}"`);
   }
   const lines = [
-    `import os, requests`,
+    bearerToken ? `import os, requests` : `import requests`,
     ``,
     `response = requests.${method}(`,
     `    "${request.url}",`,
-    `    headers={${headers.join(', ')}},`,
   ];
+  if (headers.length) lines.push(`    headers={${headers.join(', ')}},`);
   if (request.body !== undefined) {
     lines.push(`    json=${prettyJson(request.body, '    ')},`);
   }
@@ -104,12 +109,9 @@ function pythonSnippet(request: SnippetRequest): string {
   return lines.join('\n');
 }
 
-function javaSnippet(request: SnippetRequest): string {
-  const lines = [
-    `HttpRequest request = HttpRequest.newBuilder()`,
-    `    .uri(URI.create("${request.url}"))`,
-    `    .header("Authorization", "Bearer " + System.getenv("${TOKEN_ENV}"))`,
-  ];
+function javaSnippet(request: SnippetRequest, bearerToken: boolean): string {
+  const lines = [`HttpRequest request = HttpRequest.newBuilder()`, `    .uri(URI.create("${request.url}"))`];
+  if (bearerToken) lines.push(`    .header("Authorization", "Bearer " + System.getenv("${TOKEN_ENV}"))`);
   if (request.body !== undefined) lines.push(`    .header("Content-Type", "application/json")`);
   for (const [name, value] of Object.entries(request.headers ?? {})) {
     lines.push(`    .header("${name}", "${value}")`);
@@ -130,7 +132,7 @@ function javaSnippet(request: SnippetRequest): string {
   return lines.join('\n');
 }
 
-function goSnippet(request: SnippetRequest): string {
+function goSnippet(request: SnippetRequest, bearerToken: boolean): string {
   const lines: string[] = [];
   if (request.body === undefined) {
     lines.push(`req, _ := http.NewRequest("${request.method}", "${request.url}", nil)`);
@@ -140,7 +142,7 @@ function goSnippet(request: SnippetRequest): string {
       `req, _ := http.NewRequest("${request.method}", "${request.url}", body)`,
     );
   }
-  lines.push(`req.Header.Set("Authorization", "Bearer "+os.Getenv("${TOKEN_ENV}"))`);
+  if (bearerToken) lines.push(`req.Header.Set("Authorization", "Bearer "+os.Getenv("${TOKEN_ENV}"))`);
   if (request.body !== undefined) lines.push(`req.Header.Set("Content-Type", "application/json")`);
   for (const [name, value] of Object.entries(request.headers ?? {})) {
     lines.push(`req.Header.Set("${name}", "${value}")`);
@@ -149,18 +151,23 @@ function goSnippet(request: SnippetRequest): string {
   return lines.join('\n');
 }
 
-export function renderSnippet(language: SnippetLanguage, request: SnippetRequest): string {
+export function renderSnippet(
+  language: SnippetLanguage,
+  request: SnippetRequest,
+  options: SnippetOptions = {},
+): string {
+  const bearerToken = options.bearerToken ?? true;
   switch (language) {
     case 'curl':
-      return curlSnippet(request);
+      return curlSnippet(request, bearerToken);
     case 'javascript':
-      return javascriptSnippet(request);
+      return javascriptSnippet(request, bearerToken);
     case 'python':
-      return pythonSnippet(request);
+      return pythonSnippet(request, bearerToken);
     case 'java':
-      return javaSnippet(request);
+      return javaSnippet(request, bearerToken);
     case 'go':
-      return goSnippet(request);
+      return goSnippet(request, bearerToken);
     default:
       return '';
   }

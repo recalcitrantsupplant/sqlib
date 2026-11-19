@@ -23,6 +23,7 @@
     "smoke:provider": "tsx scripts/assistant-provider-smoke.ts",
     "smoke:etl-extensions": "tsx scripts/etl-extension-smoke.ts",
     "smoke:storage": "tsx scripts/storage-writability-smoke.ts",
+    "smoke:throughput": "tsx scripts/throughput-smoke.ts",
     "it:replication-buckets": "tsx scripts/replication-it-buckets.ts",
     "build": "tsx scripts/generate-schemas.ts && tsc --project tsconfig.build.json",
     "export:bundle": "tsx scripts/export-bundle.ts",

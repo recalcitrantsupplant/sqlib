@@ -303,6 +303,12 @@ export function useAuth() {
     /** True only when the API or the deployment demands a token and we do not have one. */
     needsLogin: computed(() => (mode.value === 'required' || requireLogin()) && !user.value),
     isAuthenticated: computed(() => Boolean(user.value)),
+    /**
+     * Whether calls to this instance carry a token: the API reads one
+     * (`required`, `dry-run`) or a gateway in front of it demands one
+     * (`authRequireLogin`). `disabled` and `anonymous` ignore a token.
+     */
+    usesSignIn: computed(() => signsIn()),
     isAdmin: computed(() => me.value?.admin ?? mode.value === 'disabled'),
     me: computed(() => me.value),
     /** What the account button at the foot of the rail shows. */

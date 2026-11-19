@@ -11,9 +11,9 @@
  * then two versions that move independently.
  *
  * So the format has a golden file — a real bundle, committed, produced by the
- * route's own three steps over `fixtures/goldenBundleV1.ts`:
+ * route's own three steps over `fixtures/goldenBundle.ts`:
  *
- *     packages/runtime/test/fixtures/bundle-v1.json
+ *     packages/runtime/test/fixtures/bundle-v2.json
  *
  * This test rebuilds it and compares. Any change to the bytes the writer emits
  * then arrives as a diff in that file, in the PR that causes it, where the
@@ -36,19 +36,19 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { verifyBundleIntegrity } from '@sparql-query-lib/runtime';
-import { buildGoldenBundleV1 } from './fixtures/goldenBundleV1.js';
+import { buildGoldenBundle } from './fixtures/goldenBundle.js';
 
 const FIXTURE = resolve(
   import.meta.dirname,
-  '../../../../runtime/test/fixtures/bundle-v1.json',
+  '../../../../runtime/test/fixtures/bundle-v2.json',
 );
 
 /** The file is committed, so it is written the way a formatter would write it. */
 const serialise = (bundle: unknown) => `${JSON.stringify(bundle, null, 2)}\n`;
 
-describe('the exported bundle format, version 1', () => {
+describe('the exported bundle format, version 2', () => {
   it('writes the bytes the committed fixture holds', async () => {
-    const built = serialise(await buildGoldenBundleV1());
+    const built = serialise(await buildGoldenBundle());
 
     if (process.env.UPDATE_BUNDLE_FIXTURE) {
       writeFileSync(FIXTURE, built);
@@ -73,11 +73,11 @@ describe('the exported bundle format, version 1', () => {
     // Slug assignment, example ordering and group key reservation all iterate
     // collections, and `collectQueryExamples` sorts for exactly this reason. A
     // golden file is only a contract if re-running produces it again.
-    const [first, second] = await Promise.all([buildGoldenBundleV1(), buildGoldenBundleV1()]);
+    const [first, second] = await Promise.all([buildGoldenBundle(), buildGoldenBundle()]);
     expect(serialise(first)).toBe(serialise(second));
   });
 
   it('writes template hashes that match the text it wrote', async () => {
-    await expect(verifyBundleIntegrity(await buildGoldenBundleV1())).resolves.toBeUndefined();
+    await expect(verifyBundleIntegrity(await buildGoldenBundle())).resolves.toBeUndefined();
   });
 });

@@ -167,6 +167,14 @@
           :description="sectionOverview.blurb"
         >
           <template #actions>
+            <Button
+              v-if="sectionOverview.canCreate"
+              data-testid="section-overview-new"
+              @click="handleCreateFromSidebar"
+            >
+              <Plus :size="16" aria-hidden="true" />
+              New {{ sectionOverview.noun }}
+            </Button>
             <a
               class="section-docs-link"
               :href="sectionOverview.docsUrl"
@@ -260,7 +268,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from '#imports';
-import { CircleCheck, ListChecks, Play } from '@lucide/vue';
+import { CircleCheck, ListChecks, Play, Plus } from '@lucide/vue';
 import AppNavRail from '../AppNavRail.vue';
 import AppSplash from '../AppSplash.vue';
 import EntityListSidebar, { type SidebarSelection, type SidebarEntity } from '../EntityListSidebar.vue';
@@ -269,6 +277,7 @@ import BackendWorkArea from '../BackendWorkArea.vue';
 import RunByTagMenu, { type RunByTagOption } from '../tests/RunByTagMenu.vue';
 import TabStrip, { type Tab } from '../shared/TabStrip.vue';
 import EmptyState from '../shared/EmptyState.vue';
+import { Button } from '../ui/button';
 import RulesSuiteOverview from './RulesSuiteOverview.vue';
 import TestRunsPanel from '../tests/TestRunsPanel.vue';
 import TestRunResults from '../tests/TestRunResults.vue';
@@ -895,6 +904,7 @@ const sectionOverview = computed(() => {
   return {
     noun: definition.noun,
     blurb: definition.blurb,
+    canCreate: scratchAllowed(definition.draftSection),
     docsUrl: conceptsDocUrl(definition.docsAnchor),
     docsLabel: `What ${definition.nounPlural} are, in the documentation`,
   };
@@ -1661,12 +1671,10 @@ watch(
       ...definition.savedKinds.map((kind) => loadKind(kind.type)),
     ]);
     if (selectionBelongsTo(section)) return;
+    // With no saved item and no scratch item, nothing opens: the pane shows the
+    // section's empty state and its New button. A new item is the user's
+    // choice, so a fresh library does not open example text it did not ask for.
     selectMostRecent(section);
-    // Nothing to land on at all — an empty library and no unsaved work. Start
-    // one, because an empty editor is a better first screen than an empty list.
-    if (!selectedItemType.value && definition.draftSection) {
-      handleCreateFromSidebar();
-    }
   },
   { immediate: true }
 );

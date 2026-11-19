@@ -7,8 +7,10 @@
  * measured p95 per backend. The design's intent, per-backend support status and
  * per-backend implementation have nowhere to be saved, so they are not drawn.
  */
-import { computed } from 'vue';
-import { Link, TriangleAlert } from '@lucide/vue';
+import { computed, ref, watch } from 'vue';
+import {
+  ArrowUpRight, FileCode2, Lock, PenLine, Scale, Shuffle, TriangleAlert, Workflow,
+} from '@lucide/vue';
 import InfoHint from '../shared/InfoHint.vue';
 import MediaTypeCodeViewer from '../MediaTypeCodeViewer.vue';
 import CopyButton from '../shared/CopyButton.vue';
@@ -21,6 +23,18 @@ import SelectTrigger from '../ui/select/SelectTrigger.vue';
 import SelectValue from '../ui/select/SelectValue.vue';
 import { formatCount, formatMs, type PlanCase, type SubjectKind } from '../../lib/benchmarkPlan';
 import type { GraphCostRow, SupportRow } from '../../lib/benchmarkViews';
+import type { GroupNodeCostRow, GroupNodeKind } from '../../lib/benchmarkGroupNodes';
+
+/** A NuxtLink target: a path, or a path with a query. */
+export type EntityLink = string | { path: string; query: Record<string, string> };
+
+/** A group node row with its backend's display name and series colour. */
+export type GroupNodeView = GroupNodeCostRow & {
+  backendName: string | null;
+  dot: string | null;
+  /** Where the node's query opens. Null for rule set and dynamic nodes. */
+  link: EntityLink | null;
+};
 
 const props = defineProps<{
   planCase: PlanCase;
@@ -38,6 +52,11 @@ const props = defineProps<{
   graphSupport: GraphCostRow[];
   queryString: string | null;
   queryLoading: boolean;
+  /** Where the case's query, group or rule set opens. Null until one is picked. */
+  targetLink: EntityLink | null;
+  /** The execution nodes of a group case, in run order. Empty for other kinds. */
+  groupNodes: GroupNodeView[];
+  groupNodesLoading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -81,12 +100,58 @@ const anyGraphPaced = computed(() =>
   props.graphSupport.some((row) => row.passes != null || row.passesVary));
 
 const failedRows = computed(() => props.support.filter((row) => row.failed > 0));
+
+const isGroup = computed(() => props.planCase.subjectType === 'queryGroup');
+
+const KIND_ICON = {
+  query: FileCode2,
+  queryGroup: Workflow,
+  ruleSet: Scale,
+} as const;
+
+const NODE_ICON: Record<GroupNodeKind, unknown> = {
+  query: FileCode2,
+  dynamic: Shuffle,
+  ruleset: Scale,
+  patch: PenLine,
+};
+
+const NODE_CONTENT_TYPE: Record<GroupNodeKind, string> = {
+  query: 'application/sparql-query',
+  dynamic: 'application/sparql-query',
+  ruleset: 'application/srl',
+  patch: 'application/sparql-update',
+};
+
+const OPEN_LABEL = {
+  query: 'Open query',
+  queryGroup: 'Open group',
+  ruleSet: 'Open rule set',
+} as const;
+
+/*
+ * The group node whose text the code block shows. The first node with text is
+ * picked when the case or its version changes.
+ */
+const selectedNodeId = ref<string | null>(null);
+watch(
+  () => [props.planCase.versionId, props.groupNodes.map((node) => node.nodeId).join(' ')],
+  () => {
+    if (props.groupNodes.some((node) => node.nodeId === selectedNodeId.value)) return;
+    selectedNodeId.value = props.groupNodes.find((node) => node.queryString)?.nodeId ?? null;
+  },
+  { immediate: true },
+);
+const selectedNode = computed(() =>
+  props.groupNodes.find((node) => node.nodeId === selectedNodeId.value) ?? null);
+
+const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed > 0));
 </script>
 
 <template>
   <div class="case-editor" data-testid="benchmark-case-editor">
     <section class="block">
-      <span class="block-label">Subject</span>
+      <span class="block-label">Target</span>
       <div class="subject-row">
         <Select
           :model-value="planCase.subjectType"
@@ -110,7 +175,7 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
         <SearchSelect
           class="control-grow"
           test-id="benchmark-case-subject"
-          aria-label="Subject"
+          aria-label="Target"
           :placeholder="subjectPlaceholder"
           :disabled="!editable"
           :model-value="planCase.subjectId ?? null"
@@ -185,6 +250,65 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
     </section>
 
+    <section v-else-if="isGroup" class="block">
+      <div class="block-head">
+        <span class="block-label">
+          Nodes
+          <span v-if="groupNodes.length > 0" class="block-count">{{ groupNodes.length }}</span>
+        </span>
+      </div>
+
+      <div v-if="groupNodes.length > 0" class="node-table" data-testid="benchmark-group-nodes">
+        <div class="node-row node-row-head">
+          <span />
+          <span />
+          <span>Node</span>
+          <span class="node-backend-head">
+            Backend
+            <span class="lock-icon" title="Set by the group"><Lock :size="11" /></span>
+          </span>
+          <span class="node-runs">Runs</span>
+          <span class="node-p95">p95</span>
+        </div>
+        <button
+          v-for="node in groupNodes"
+          :key="node.nodeId"
+          type="button"
+          class="node-row"
+          :class="{ selected: node.nodeId === selectedNodeId }"
+          :disabled="!node.queryString"
+          data-testid="benchmark-group-node"
+          @click="selectedNodeId = node.nodeId"
+        >
+          <span class="node-order">{{ node.order }}</span>
+          <component :is="NODE_ICON[node.kind]" :size="13" class="node-kind" />
+          <span class="node-name">
+            <span class="node-label" :title="node.name">{{ node.name }}</span>
+            <span v-if="node.sourceName || node.sourceVersion" class="node-source">
+              {{ node.sourceName ?? '' }}<template v-if="node.sourceVersion">{{ node.sourceName ? ' ' : '' }}v{{ node.sourceVersion }}</template>
+            </span>
+          </span>
+          <span class="node-backend">
+            <template v-if="node.target.kind === 'backend'">
+              <span class="support-dot" :style="{ background: node.dot ?? 'var(--border-strong)' }" />
+              <span class="node-backend-name">{{ node.backendName }}</span>
+            </template>
+            <span v-else-if="node.target.kind === 'ephemeral'" class="pill">In-memory</span>
+            <span v-else-if="node.target.kind === 'inProcess'" class="node-muted">In-process</span>
+            <span v-else class="node-missing">No backend</span>
+          </span>
+          <span class="support-samples node-runs">
+            {{ node.samples > 0 ? `${node.samples} req` : 'never run' }}
+          </span>
+          <span class="support-p95 node-p95" :class="{ 'support-failed': node.failed > 0 }">
+            {{ node.p95Ms == null ? '—' : formatMs(node.p95Ms) }}
+          </span>
+        </button>
+      </div>
+      <InlineNote v-else-if="groupNodesLoading">Loading the group…</InlineNote>
+      <InlineNote v-else-if="planCase.versionId">No nodes in this version.</InlineNote>
+    </section>
+
     <section v-else class="block">
       <div class="block-head">
         <span class="block-label">
@@ -211,16 +335,43 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
     </section>
 
-    <section class="block block-grow">
-      <div class="block-head">
-        <span class="block-label">{{ isRuleSet ? 'Rule set' : 'Query' }}</span>
-        <InlineNote v-if="planCase.versionId" as="span" class="link-note">
-          <Link :size="12" />
-          <span class="link-target">
-            {{ planCase.subjectName ?? (isRuleSet ? 'library rule set' : 'library query') }}
-            <template v-if="planCase.versionNumber"> v{{ planCase.versionNumber }}</template>
+    <section v-if="isGroup" class="block block-grow">
+      <template v-if="selectedNode">
+        <div class="block-head">
+          <span class="entity-head" data-testid="benchmark-case-entity">
+            <component :is="NODE_ICON[selectedNode.kind]" :size="14" class="entity-icon" />
+            {{ selectedNode.name }}
           </span>
-        </InlineNote>
+          <CopyButton
+            class="block-copy"
+            size="sm"
+            :text="selectedNode.queryString"
+            :subject="selectedNode.kind === 'ruleset' ? 'rule set' : 'query'"
+            testid="benchmark-case-copy"
+          />
+          <NuxtLink v-if="selectedNode.link" class="btn-compact open-link" :to="selectedNode.link" data-testid="benchmark-open-node">
+            <ArrowUpRight :size="12" />{{ selectedNode.kind === 'ruleset' ? 'Open rule set' : 'Open query' }}
+          </NuxtLink>
+        </div>
+        <MediaTypeCodeViewer
+          v-if="selectedNode.queryString"
+          class="code-block"
+          data-testid="benchmark-case-query"
+          :content="selectedNode.queryString"
+          :content-type="NODE_CONTENT_TYPE[selectedNode.kind]"
+          min-height="0"
+        />
+      </template>
+      <InlineNote v-else-if="!planCase.versionId">Pick a query group and a version.</InlineNote>
+    </section>
+
+    <section v-else class="block block-grow">
+      <div class="block-head">
+        <span v-if="planCase.versionId" class="entity-head" data-testid="benchmark-case-entity">
+          <component :is="KIND_ICON[planCase.subjectType]" :size="14" class="entity-icon" />
+          {{ planCase.subjectName ?? (isRuleSet ? 'Rule set' : 'Query') }}
+          <span v-if="planCase.versionNumber" class="entity-version">v{{ planCase.versionNumber }}</span>
+        </span>
         <CopyButton
           class="block-copy"
           size="sm"
@@ -228,6 +379,9 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
           :subject="isRuleSet ? 'rule set' : 'query'"
           testid="benchmark-case-copy"
         />
+        <NuxtLink v-if="targetLink" class="btn-compact open-link" :to="targetLink" data-testid="benchmark-open-target">
+          <ArrowUpRight :size="12" />{{ OPEN_LABEL[planCase.subjectType] }}
+        </NuxtLink>
       </div>
       <MediaTypeCodeViewer
         v-if="queryString"
@@ -245,7 +399,13 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
       </InlineNote>
     </section>
 
-    <div v-if="!isRuleSet && failedRows.length > 0" class="warning-strip">
+    <div v-if="isGroup && failedNodes.length > 0" class="warning-strip">
+      <TriangleAlert :size="14" class="warning-icon" />
+      <span class="warning-text">
+        Latest run: {{ failedNodes.map((n) => `${n.failed} failed on ${n.name}`).join(', ') }}.
+      </span>
+    </div>
+    <div v-else-if="!isRuleSet && !isGroup && failedRows.length > 0" class="warning-strip">
       <TriangleAlert :size="14" class="warning-icon" />
       <span class="warning-text">
         Latest run: {{ failedRows.map((r) => `${r.failed} failed on ${r.name}`).join(', ') }}.
@@ -256,6 +416,7 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
 <style scoped>
 .case-editor {
+  container-type: inline-size;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -283,10 +444,6 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   gap: var(--space-4);
 }
 
-.block-copy {
-  margin-left: auto;
-}
-
 .block-label {
   color: var(--ink);
   font-size: var(--text-label);
@@ -298,6 +455,7 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
 .subject-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
@@ -313,7 +471,8 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
 .control-grow {
   flex: 1;
-  min-width: 0;
+  /* Below this the picker wraps to its own line rather than collapse. */
+  min-width: 180px;
 }
 
 .control-version {
@@ -342,16 +501,188 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
 
 
-/* The row it sits in, not the type: the note is pushed to the far end. */
-.link-note {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+/* The same link out as the query group Editor tab's "Open query". */
+/* Copy, then Open, at the right end of the head row. */
+.block-copy {
   margin-left: auto;
 }
 
-.link-target {
-  color: var(--action);
+.block-copy + .open-link {
+  margin-left: 0;
+}
+
+.open-link {
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: auto;
+  text-decoration: none;
+  color: var(--ink-secondary);
+}
+
+.entity-head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+
+.entity-icon {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+
+.entity-version {
+  color: var(--ink-muted);
+  font-weight: var(--weight-regular, 400);
+}
+
+.block-count {
+  margin-left: var(--space-2);
+  color: var(--ink-muted);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+}
+
+.node-table {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.node-row {
+  display: grid;
+  grid-template-columns: 18px 14px minmax(96px, 3fr) minmax(72px, 2fr) 64px 62px;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: none;
+  border-bottom: 1px solid var(--surface-sunken);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-row:last-child {
+  border-bottom: none;
+}
+
+.node-row:hover:not(:disabled):not(.node-row-head) {
+  background: var(--surface-subtle);
+}
+
+.node-row:disabled {
+  cursor: default;
+}
+
+.node-row.selected {
+  background: var(--action-surface);
+}
+
+.node-row.selected .node-name {
+  color: var(--action-ink);
+}
+
+.node-row-head {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  background: var(--surface-subtle);
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.node-backend-head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lock-icon {
+  display: inline-flex;
+  color: var(--ink-muted);
+  text-transform: none;
+}
+
+.node-order {
+  color: var(--ink-muted);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.node-kind {
+  color: var(--ink-muted);
+}
+
+.node-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-source {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular, 400);
+  text-overflow: ellipsis;
+}
+
+.node-backend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--text-body);
+  white-space: nowrap;
+}
+
+.node-backend-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-muted {
+  color: var(--ink-muted);
+}
+
+.node-missing {
+  color: var(--warning-ink);
+}
+
+.node-p95 {
+  width: auto;
+  text-align: right;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full, 999px);
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+  font-size: var(--text-micro);
 }
 
 .support-table {
@@ -463,4 +794,38 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   line-height: var(--leading-normal);
 }
 
+/*
+ * A narrow editor (a wide plan list and inspector beside it) drops the
+ * request count first, so the node and backend names keep their room.
+ */
+@container (max-width: 520px) {
+  .node-row {
+    grid-template-columns: 18px 14px minmax(96px, 3fr) minmax(72px, 2fr) 62px;
+  }
+
+  .node-runs {
+    display: none;
+  }
+}
+
+/* Narrower still, the backend moves under the node's name. */
+@container (max-width: 400px) {
+  .node-row {
+    grid-template-columns: 18px 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'order kind name p95'
+      '. . backend backend';
+    row-gap: var(--space-2);
+  }
+
+  .node-row-head {
+    display: none;
+  }
+
+  .node-order { grid-area: order; }
+  .node-kind { grid-area: kind; }
+  .node-name { grid-area: name; }
+  .node-backend { grid-area: backend; }
+  .node-p95 { grid-area: p95; }
+}
 </style>

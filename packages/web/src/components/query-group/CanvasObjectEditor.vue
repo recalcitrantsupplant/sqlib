@@ -74,6 +74,14 @@
                   :name="iriMap[(selection.node.queryVersionId ?? selection.node.queryId) as string] ?? 'Unknown'"
                   :iri="(selection.node.queryVersionId ?? selection.node.queryId) as string"
                 />
+                <NuxtLink
+                  v-if="assignedQueryLink"
+                  class="btn-compact open-link"
+                  data-testid="node-open-query"
+                  :to="assignedQueryLink"
+                >
+                  <ArrowUpRight :size="12" />{{ isPatchNode ? 'Open update' : 'Open query' }}
+                </NuxtLink>
               </div>
               <!--
                 Said on the node rather than left to the run report, because it
@@ -154,6 +162,14 @@
                   :iri="selection.node.ruleSetVersionId"
                 />
                 <span v-else class="inline-value">No ruleset assigned</span>
+                <NuxtLink
+                  v-if="ruleSetLink"
+                  class="btn-compact open-link"
+                  data-testid="node-open-ruleset"
+                  :to="ruleSetLink"
+                >
+                  <ArrowUpRight :size="12" />Open rule set
+                </NuxtLink>
                 <button class="btn-compact btn-primary" type="button" @click="requestRuleSetAssignment">
                   Assign Ruleset
                 </button>
@@ -649,10 +665,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { canvasNodeLabel } from '../../composables/queryGroupNodeLabel';
 import type { AcceptableValue } from 'reka-ui';
-import { ChevronDown, ChevronRight, MoveRight, Trash2 } from '@lucide/vue';
+import { ArrowUpRight, ChevronDown, ChevronRight, MoveRight, Trash2 } from '@lucide/vue';
+import { sectionPath } from '../../lib/sectionRoutes';
+import { useApiClient } from '../../composables/useApiClient';
+import { resolveRuleSetVersion } from '../../composables/ruleSetVersionLookup';
 import TupleValuesEditor from '../shared/TupleValuesEditor.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import FormField from '../shared/FormField.vue';
@@ -1184,6 +1203,47 @@ const assignedQueryId = computed<string | null>(() => {
   return owner?.id ?? null;
 });
 
+/*
+ * Where the node's query opens on the Queries page. A pinned version that is
+ * not the current one is named in the link, so the page shows the text the
+ * node runs.
+ */
+const assignedQueryLink = computed(() => {
+  const queryId = assignedQueryId.value;
+  if (!queryId || !selection.value || selection.value.type !== 'node') return null;
+  const versionId = selection.value.node.queryVersionId ?? selection.value.node.queryId ?? null;
+  const option = (props.queryOptions ?? []).find((entry) => entry.id === queryId);
+  const version = option?.versions.find((entry) => entry.id === versionId);
+  const path = sectionPath({ section: 'queries', id: queryId });
+  return version && !version.isCurrent ? { path, query: { version: String(version.version) } } : path;
+});
+
+/*
+ * A rule set node stores only the version IRI, so the rule set behind it is
+ * looked up before the link can show.
+ */
+const apiClient = useApiClient();
+const ruleSetLink = ref<string | null>(null);
+watch(
+  () => (selection.value?.type === 'node' && selection.value.node.kind === 'ruleset'
+    ? selection.value.node.ruleSetVersionId ?? null
+    : null),
+  async (versionId) => {
+    ruleSetLink.value = null;
+    if (!versionId) return;
+    try {
+      const resolved = await resolveRuleSetVersion(apiClient, versionId);
+      const current = selection.value?.type === 'node' ? selection.value.node.ruleSetVersionId : null;
+      if (resolved && current === versionId) {
+        ruleSetLink.value = sectionPath({ section: 'rules', id: resolved.ruleSetId });
+      }
+    } catch (error) {
+      console.error('[CanvasObjectEditor] Could not find the rule set for', versionId, error);
+    }
+  },
+  { immediate: true },
+);
+
 const queryChoices = computed(() =>
   (props.queryOptions ?? []).map((option) => ({ value: option.id, label: option.name })),
 );
@@ -1582,6 +1642,14 @@ textarea.field-textarea {
   height: auto;
   padding: var(--space-3) var(--space-4);
   resize: vertical;
+}
+
+.open-link {
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: auto;
+  text-decoration: none;
+  color: var(--ink-secondary);
 }
 
 .inline-field {
