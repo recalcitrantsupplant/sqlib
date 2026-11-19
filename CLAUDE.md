@@ -44,3 +44,22 @@ Text that is allowed on the screen:
 
 Put explanation and rationale in the design document or the pull request,
 next to the mock. Never put it inside the mocked screen.
+
+## Comments in query and rule text
+
+These rules apply to the text of every seeded or example query, rule set,
+ETL template and notebook cell that a user can open.
+
+Do not write comments in the query or rule text. A comment that restates the
+name or description, or explains what the text plainly does, adds reading
+load.
+
+- Put what the item does, and why, in its name and description.
+- When a comment carries a fact that the description lacks, merge that fact
+  into the description and delete the comment. Do not append the comment
+  as is: keep one statement of each fact.
+- Keep a comment only when the text cannot be read without it, such as a
+  label on the positional arguments of a property function.
+
+Conformance files copied from upstream (the W3C and SRL test suites) keep
+their comments.
