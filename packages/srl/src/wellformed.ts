@@ -20,11 +20,15 @@ import { aggregateInnerVars } from './aggregates/scope.js';
  *                      bound, aggregates over a variable its pattern does not
  *                      bind, or has a `SET` in its pattern that re-binds a
  *                      variable.
+ *  - `in-use`:         a variable that is local to a `NOT` or a `GROUP`
+ *                      pattern is used again elsewhere in the rule, or a
+ *                      `GROUP` pattern uses a variable bound before it that is
+ *                      not a key (the spec's `inUse`, w3c/data-shapes#690).
  *
  * A `NOT { … }`'s own variables need not be bound outside it: they are
  * existentially quantified within the negated pattern (see W3C `wellformed-04`,
- * a positive test whose `NOT` introduces a fresh variable). Only the FILTERs and
- * SETs inside it are held to the order rule.
+ * a positive test whose `NOT` introduces a fresh variable). The `in-use`
+ * condition keeps them local: no later element may use the name again.
  */
 
 export type WellFormednessCategory =
@@ -32,8 +36,8 @@ export type WellFormednessCategory =
   | 'set-rebinds'
   | 'use-before-bind'
   | 'aggregate-scope'
-  | 'group-shadowing'
-  | 'not-before-binding';
+  | 'in-use'
+  | 'group-shadowing';
 
 /**
  * `error` makes the document ill-formed. `warning` and `info` mark a rule that
@@ -103,8 +107,8 @@ function checkRule(rule: SrlRule, ruleIndex: number, issues: WellFormednessIssue
 
   checkBindOrder(rule, report);
   checkAggregates(rule, (message) => report('aggregate-scope', message));
+  checkInUse(rule, report);
   checkGroupShadowing(rule, report);
-  checkNotBeforeBinding(rule, report);
 
   // SET must not re-bind a variable already produced by the body.
   for (const target of setTargets) {
@@ -192,84 +196,114 @@ function patternOccurrences(items: SrlBodyItem[]): Occurrence[] {
 }
 
 /**
- * `group-shadowing`: a variable in a `GROUP` pattern with the name of one bound
- * before the `GROUP`, but not listed after `BY`.
+ * `group-shadowing`: a labelled blank node in a `GROUP` pattern with the label
+ * of one used before the `GROUP`.
  *
  * The pattern sees only its keys (w3c/data-shapes#1377), so the two are
- * separate variables. Used in a FILTER, a SET expression or an aggregate, that
- * is an error `checkAggregates` reports; in a triple pattern or as a SET target
- * it is legal (W3C proposed test `eval-group-09` depends on it), and probably
- * not what was meant. A labelled blank node is a variable in a body, so the
- * same holds for one, except that it cannot be listed after `BY`.
+ * separate blank nodes. A blank node cannot be listed after `BY`, so the rule
+ * is legal, and probably not what was meant. The same case with a variable is
+ * the `in-use` error (`checkInUse`).
  */
 function checkGroupShadowing(rule: SrlRule, report: Report): void {
-  const bound = new Set<string>();
   const boundBlanks = new Set<string>();
   for (const item of rule.body) {
     if (item.kind === 'aggregate') {
-      const keys = new Set(item.keys);
       for (const occurrence of patternOccurrences(item.body)) {
-        if (occurrence.blank) {
-          if (!boundBlanks.has(occurrence.name)) continue;
-          const label = occurrence.name.slice(2);
-          report(
-            'group-shadowing',
-            `_:${label} here is a separate blank node from the _:${label} before this GROUP. `
-              + `Replace the label by a variable and list it after BY to use the same value.`,
-            occurrence.range,
-            'warning',
-          );
-        } else if (bound.has(occurrence.name) && !keys.has(occurrence.name)) {
-          report('group-shadowing', shadowMessage(occurrence.name), occurrence.range, 'warning');
-        }
-      }
-      for (const inner of item.body) {
-        if (inner.kind !== 'set') continue;
-        const target = setTargetOf(inner);
-        if (bound.has(target.name) && !keys.has(target.name)) {
-          report('group-shadowing', shadowMessage(target.name), target.range, 'warning');
-        }
+        if (!occurrence.blank || !boundBlanks.has(occurrence.name)) continue;
+        const label = occurrence.name.slice(2);
+        report(
+          'group-shadowing',
+          `_:${label} here is a separate blank node from the _:${label} before this GROUP. `
+            + `Replace the label by a variable and list it after BY to use the same value.`,
+          occurrence.range,
+          'warning',
+        );
       }
     }
-    for (const name of boundBy(item)) bound.add(name);
     for (const occurrence of patternOccurrences([item])) if (occurrence.blank) boundBlanks.add(occurrence.name);
   }
 }
 
-function shadowMessage(name: string): string {
-  return `?${name} here is a separate variable from the ?${name} bound before this GROUP. `
-    + 'List it after BY to use the same value.';
-}
+/** Why a name is in use: where the rule used it without leaving it bound. */
+type InUseOrigin = 'not' | 'group' | 'outside-group';
 
 /**
- * `not-before-binding`: a variable in a `NOT` pattern that is unbound when the
- * `NOT` runs and bound by a later element of the body.
+ * `in-use`: the spec's `inUse` condition (w3c/data-shapes#690, tested by
+ * w3c/data-shapes#1455).
  *
- * A `NOT` is checked against what is bound before it, so inside it the
- * variable is a separate, existential one. SPARQL's `FILTER NOT EXISTS`
- * applies to its whole group wherever it is written, so an author used to it
- * can expect the later binding to apply. `info`, not `warning`: a `NOT` placed
- * first to ask whether something has no match at all is a legitimate rule.
+ * A variable used inside a `NOT` or a `GROUP` pattern, and not bound outside
+ * it, is in use after that element: no later element may use the name again,
+ * whether a triple pattern, a `SET` target, another `NOT` or `GROUP`, or an
+ * aggregation variable. Inside a `GROUP` pattern, the variables bound before
+ * the `GROUP` that are not keys are in use too. The walk follows `inScope` and
+ * `inUse` in the spec's Well-formedness Conditions element by element.
+ *
+ * The result is that a well-formed rule gives the same answer whatever the
+ * order of its `NOT` elements relative to the patterns after them: a later
+ * element cannot bind a variable of an earlier `NOT`.
+ *
+ * Uses of a variable in a `FILTER` or a `SET` expression are left to
+ * `use-before-bind`, which they fail first. A name bound before is left to
+ * `set-rebinds` and `aggregate-scope`, so one mistake gives one error.
  */
-function checkNotBeforeBinding(rule: SrlRule, report: Report): void {
-  const bound = new Set<string>();
-  rule.body.forEach((item, index) => {
-    if (item.kind === 'not') {
-      const later = new Set(rule.body.slice(index + 1).flatMap((after) => boundBy(after)));
-      for (const occurrence of patternOccurrences(item.body)) {
-        if (occurrence.blank || bound.has(occurrence.name) || !later.has(occurrence.name)) continue;
-        report(
-          'not-before-binding',
-          `?${occurrence.name} in this NOT is a separate variable from the ?${occurrence.name} bound later in the body: `
-            + 'a NOT sees only what is bound before it. Move the NOT after the pattern that binds '
-            + `?${occurrence.name} to use the same value.`,
-          occurrence.range,
-          'info',
-        );
+function checkInUse(rule: SrlRule, report: Report): void {
+  walkInUse(rule.body, new Set(), new Map(), report);
+}
+
+function walkInUse(
+  items: SrlBodyItem[],
+  scope0: ReadonlySet<string>,
+  inUse0: ReadonlyMap<string, InUseOrigin>,
+  report: Report,
+): { scope: Set<string>; inUse: Map<string, InUseOrigin> } {
+  const scope = new Set(scope0);
+  const inUse = new Map(inUse0);
+  const flag = (name: string, range: Range) => {
+    const origin = inUse.get(name);
+    if (origin) report('in-use', inUseMessage(name, origin), range);
+  };
+  /** Names used inside an element that are not in scope after it become in use. */
+  const leave = (inner: { scope: Set<string>; inUse: Map<string, InUseOrigin> }, origin: InUseOrigin) => {
+    for (const name of inner.scope) if (!scope.has(name) && !inUse.has(name)) inUse.set(name, origin);
+    for (const [name, o] of inner.inUse) if (!scope.has(name) && !inUse.has(name)) inUse.set(name, o);
+  };
+
+  for (const item of items) {
+    if (item.kind === 'bgp' || item.kind === 'tuple') {
+      for (const occurrence of patternOccurrences([item])) if (!occurrence.blank) flag(occurrence.name, occurrence.range);
+      for (const name of boundBy(item)) scope.add(name);
+    } else if (item.kind === 'set') {
+      const target = setTargetOf(item);
+      if (!scope.has(target.name)) flag(target.name, target.range);
+      scope.add(target.name);
+    } else if (item.kind === 'not') {
+      leave(walkInUse(item.body, scope, inUse, report), 'not');
+    } else if (item.kind === 'aggregate') {
+      const keys = new Set(item.keys);
+      const keysIn = new Set(item.keys.filter((k) => scope.has(k)));
+      const groupInUse = new Map(inUse);
+      for (const name of scope) if (!keys.has(name) && !groupInUse.has(name)) groupInUse.set(name, 'outside-group');
+      const inner = walkInUse(item.body, keysIn, groupInUse, report);
+      for (const { variable } of item.assignments) {
+        // Bound before or bound by the pattern: `aggregate-scope` reports it.
+        if (scope.has(variable) || inner.scope.has(variable)) continue;
+        const origin = inner.inUse.get(variable);
+        if (origin) report('in-use', inUseMessage(variable, origin));
       }
+      for (const name of boundBy(item)) scope.add(name);
+      leave(inner, 'group');
     }
-    for (const name of boundBy(item)) bound.add(name);
-  });
+  }
+  return { scope, inUse };
+}
+
+function inUseMessage(name: string, origin: InUseOrigin): string {
+  if (origin === 'outside-group') {
+    return `?${name} is bound before this GROUP and is not a key. `
+      + `List it after BY to use the same value, or rename it here.`;
+  }
+  const where = origin === 'not' ? 'a NOT' : 'a GROUP pattern';
+  return `?${name} is local to ${where} earlier in the rule. Rename one of the two.`;
 }
 
 /**

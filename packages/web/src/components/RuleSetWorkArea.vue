@@ -475,30 +475,6 @@ const hasDocument = computed(() => srlDocument.value.trim().length > 0);
  */
 const tupleDeclarations = computed(() => parseTupleDeclarations(srlDocument.value));
 
-/** The document a `+ New` rule set starts from — SRL, written as SRL is. */
-const DEFAULT_SRL = `PREFIX ex: <http://example.org/>
-PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-
-DATA {
-    ex:Alice a foaf:Person ;
-        foaf:knows ex:Bob .
-
-    ex:Bob a foaf:Person ;
-        foaf:knows ex:Charlie .
-
-    ex:Charlie a foaf:Person .
-}
-
-# Infer transitive friendship: if A knows B and B knows C, then A knows C
-RULE {
-    ?person1 ex:friendOfFriend ?person3 .
-}
-WHERE {
-    ?person1 foaf:knows ?person2 .
-    ?person2 foaf:knows ?person3 .
-    FILTER (?person1 != ?person3)
-}`;
-
 // --- Live analysis ----------------------------------------------------------
 
 /*
@@ -732,7 +708,7 @@ const {
     const body = (record.body ?? {}) as RulesScratchBody;
     ruleSetName.value = record.name;
     const migrated = documentFromParts(body);
-    srlDocument.value = body.srl ?? (migrated || DEFAULT_SRL);
+    srlDocument.value = body.srl ?? migrated;
     tupleSeeds.value = body.tupleSeeds ?? '';
     applyTuplesEnabled(body.tuplesEnabled ?? false);
     inferenceFormat.value = body.inferenceFormat ?? 'application/n-triples';

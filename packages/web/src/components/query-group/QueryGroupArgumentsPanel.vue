@@ -46,10 +46,7 @@
           @update:model-value="(value) => handleClauseChange(clause.variables, value)"
         />
 
-        <p class="signature-verdict" :class="`signature-verdict--${verdict.verdict}`">
-          <template v-if="verdict.verdict === 'fits'">matches the group signature</template>
-          <template v-else>{{ verdict.reason }}</template>
-        </p>
+        <SignatureVerdict :verdict="verdict" />
       </template>
 
       <EmptyState
@@ -190,6 +187,7 @@ import DataGraphBrowserDefault from '../shared/DataGraphBrowserDefault.vue';
 import TupleBindingEditor from '../query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '../query-work-area/ArgumentScalarsPanel.vue';
 import EmptyState from '../shared/EmptyState.vue';
+import SignatureVerdict from '../shared/SignatureVerdict.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import { useArgumentSets } from '@/composables/useArgumentSets';
 import { useApiClient } from '@/composables/useApiClient';
@@ -444,11 +442,6 @@ defineExpose({
   gap: var(--space-5);
 }
 
-.signature-verdict {
-  margin: 0;
-  font-size: var(--text-micro);
-  color: var(--ink-muted);
-}
 
 .data-graph-inputs {
   display: flex;
@@ -481,11 +474,5 @@ defineExpose({
   min-width: 0;
 }
 
-.signature-verdict--partial {
-  color: var(--warning-ink);
-}
 
-.signature-verdict--mismatch {
-  color: var(--danger-ink);
-}
 </style>

@@ -3,6 +3,24 @@
 The suite's `GROUP` tests are in the vendored snapshot in [`../w3c/`](../w3c/SOURCE),
 and sqlib's own `GROUP` cases are in [`../group-cases/`](../group-cases/README.md).
 
+## Status: answered upstream by `inUse`
+
+The specification now has the `inUse` well-formedness condition
+(w3c/data-shapes#690), and w3c/data-shapes#1455 adds its tests to the
+vendored suite. A variable of a `NOT` that is not bound before the `NOT` is
+local to it, and no later element may use the name. This is the second option
+under "Points to raise" below, and it makes `stratification-04` change as
+predicted.
+
+So every evaluation case below whose `NOT` comes before a binder of its
+variables (02, 03, 04, 05, 06, 08, 09 and 10) is ill-formed, and
+`checkWellFormed` reports `in-use` for it. Only the controls 01 and 07 are
+well-formed. The cases stay here as a record of what the executor does with
+such a rule when it runs anyway. They are no longer proposed upstream.
+`RuleSetExecutor.negationOrder.test.ts` checks both facts.
+
+## The original proposal
+
 Tests we'd like to contribute to the W3C suite
 (`w3c/data-shapes`, `shacl12-test-suite/tests/sparql-rl/`). They use the suite's
 own layout and vocabulary, so `eval/` and `wellformed/` can be copied into the

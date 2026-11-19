@@ -2,12 +2,12 @@
   <div class="tuple-set-picker">
     <button
       type="button"
-      class="btn-add"
+      class="btn-compact"
       data-testid="tuple-set-picker-open"
       :disabled="disabled"
       @click="toggle"
     >
-      <Table2 :size="13" /> From tuple set
+      <Table2 :size="12" /> From tuple set
     </button>
 
     <div v-if="open" class="picker-panel" data-testid="tuple-set-picker-panel">
@@ -400,24 +400,7 @@ function attach(candidate: Candidate) {
   display: inline-flex;
 }
 
-.btn-add {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: var(--text-label);
-  cursor: pointer;
-}
 
-.btn-add:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 .picker-panel {
   position: absolute;

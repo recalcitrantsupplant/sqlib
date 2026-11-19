@@ -66,12 +66,56 @@ describe('checkWellFormed — order inside a NOT', () => {
     expect(issues('?x :p ?y NOT { ?x :q ?z FILTER ( ?z != ?y ) }')).toEqual([]);
   });
 
+  // ?x is local to the NOT too, so the pattern after it is an in-use error.
   it('rejects a FILTER in a NOT that uses a variable bound only after it', () => {
-    expect(issues('NOT { ?x :q ?z FILTER ( ?z != ?y ) } ?x :p ?y')).toEqual(['use-before-bind']);
+    expect(issues('NOT { ?x :q ?z FILTER ( ?z != ?y ) } ?x :p ?y')).toEqual(['use-before-bind', 'in-use']);
   });
 
   it('rejects a SET in a NOT that uses a variable bound only after it', () => {
-    expect(issues('NOT { ?x :q ?z SET ( ?w := ?y ) } ?x :p ?y')).toEqual(['use-before-bind']);
+    expect(issues('NOT { ?x :q ?z SET ( ?w := ?y ) } ?x :p ?y')).toEqual(['use-before-bind', 'in-use']);
+  });
+});
+
+/*
+ * The spec's inUse condition (w3c/data-shapes#690, tests in #1455). A variable
+ * of a NOT that is not bound before it stays local to the NOT: no later
+ * element may use the name. So a well-formed rule cannot put a NOT ahead of
+ * a pattern that binds one of its variables.
+ */
+describe('checkWellFormed — a variable local to a NOT', () => {
+  const issues = (body: string, head = '?x :r 1') =>
+    wellFormednessErrors(checkWellFormed(parseRuleSet(`${PREFIX}\nRULE { ${head} } WHERE { ${body} }`, { aggregates: true }))).map((i) => i.category);
+
+  it.each([
+    ['a later triple pattern', '?x :p 1 NOT { ?x :q ?y } ?y :t 2'],
+    ['a later SET target', '?x :p 1 NOT { ?x :q ?y } SET (?y := 2)'],
+    ['a later NOT', '?x :p 1 NOT { ?x :q ?y } NOT { ?x :t ?y }'],
+    ['a NOT inside a NOT', '?x :p 1 NOT { NOT { ?o :banned true } ?x :owner ?o }'],
+    ['a NOT DATA', '?x :p 1 NOT DATA { ?x :q ?y } ?x :t ?y'],
+    ['a GROUP key', '?x :p 1 NOT { ?x :q ?k } GROUP BY ?k { ?k :r ?o } [ ?n := COUNT(*) ]'],
+  ])('rejects its reuse by %s', (_, body) => {
+    expect(issues(body)).toEqual(['in-use']);
+  });
+
+  it('rejects it in a WHERE DATA rule too', () => {
+    expect(wellFormednessErrors(checkWellFormed(parseRuleSet(
+      `${PREFIX}\nRULE { ?x :r ?y } WHERE DATA { NOT { ?x :q ?y } ?x :p ?y }`,
+    ))).map((i) => i.category)).toEqual(['in-use', 'in-use']);
+  });
+
+  it.each([
+    ['a variable bound before the NOT', '?x :p ?y NOT { ?x :q ?y } ?y :t 1'],
+    ['two NOTs with different local variables', '?x :p 1 NOT { ?x :q ?y } NOT { ?x :t ?z }'],
+    ['a nested NOT over a variable bound before both', '?x :p ?y ?x :owner ?o NOT { NOT { ?o :banned true } ?x :owner ?o }'],
+  ])('accepts %s', (_, body) => {
+    expect(issues(body)).toEqual([]);
+  });
+
+  it('marks the reuse, not the NOT', () => {
+    const text = `${PREFIX}\nRULE { ?x :r 1 } WHERE { ?x :p 1 NOT { ?x :q ?y } ?y :t 2 }`;
+    const [issue] = checkWellFormed(parseRuleSet(text, { sourceLocations: true }));
+    expect(issue.from).toBe(text.lastIndexOf('?y'));
+    expect(issue.message).toBe('?y is local to a NOT earlier in the rule. Rename one of the two.');
   });
 });
 
@@ -113,11 +157,12 @@ describe('sparqlToRule — a FILTER written before its binders', () => {
     expect(result.rule).toBe('RULE { ?x :r ?y . } WHERE { ?x :p ?y . NOT { ?x :q ?y . } ?x :s ?z . }');
   });
 
-  it('round-trips a misplaced NOT through SPARQL without changing its meaning', () => {
+  it('refuses a misplaced NOT on the way back from SPARQL, as the spec\'s inUse condition does', () => {
     const rule = parseRuleSet(`${PRE}\nRULE { ?x :r ?y } WHERE { NOT { ?x :q ?y } ?x :p ?y }`).rules[0];
     const back = sparqlToRule(compileRule(rule, PRE, { flavour: 'construct' }).program, { targetPrologue: PRE });
-    // The compiled group keeps the NOT ahead of ?x/?y, and the import keeps it there.
-    expect(back.rule).toBe('RULE { ?x :r ?y . } WHERE { NOT { ?x :q ?y . } ?x :p ?y . }');
-    expect(back.issues).toEqual([]);
+    // The compiled group keeps the NOT ahead of ?x/?y, and the import keeps
+    // it there, which reuses two variables local to the NOT.
+    expect(back.rule).toBeNull();
+    expect(back.issues.map((i) => i.code)).toEqual(['well-formedness', 'well-formedness']);
   });
 });

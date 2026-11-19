@@ -36,6 +36,20 @@ describe('OxigraphSparqlExecutor', () => {
     });
 
     describe('constructor', () => {
+        it('does not count the quads of the store', () => {
+            // `Store.size` reads every quad, and a request constructs an executor.
+            let sizeReads = 0;
+            const counted = new Proxy(store, {
+                get(target, property) {
+                    if (property === 'size') sizeReads += 1;
+                    const value = Reflect.get(target, property, target);
+                    return typeof value === 'function' ? value.bind(target) : value;
+                },
+            });
+            new OxigraphSparqlExecutor(counted);
+            expect(sizeReads).toBe(0);
+        });
+
         it('should initialize a new store if one is not provided', () => {
             const newExecutor = new OxigraphSparqlExecutor();
             expect(newExecutor).toBeInstanceOf(OxigraphSparqlExecutor);

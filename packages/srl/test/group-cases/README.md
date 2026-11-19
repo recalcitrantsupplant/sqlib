@@ -65,18 +65,18 @@ is rejected with the flag off.
 | Test | Expected | What it checks |
 | --- | --- | --- |
 | `wellformed-group-agg-01` | accepted | The rank idiom: the keys come from before the GROUP, and the person matched after it joins on them. |
-| `wellformed-group-agg-02` | accepted | Two GROUPs may each have their own pattern variable called ?y. |
+| `wellformed-group-agg-02` | rejected | Two GROUPs may not each have a pattern variable called ?y (#690). |
 | `wellformed-group-agg-03` | accepted | A later pattern may join on a result. |
 | `wellformed-group-agg-04` | accepted | A FILTER on a result after the GROUP does the work of HAVING. |
 | `wellformed-group-agg-05` | accepted | A BY variable the pattern does not use is carried through the GROUP. |
 | `wellformed-group-agg-06` | accepted | A variable first used after the GROUP is bound there as usual. |
 | `wellformed-group-agg-07` | accepted | A second GROUP may list the first one's result as a key. |
 | `wellformed-group-agg-08` | accepted | A BY variable the body before the GROUP does not bind is supplied by the pattern. |
-| `wellformed-group-agg-09` | accepted | A pattern variable used again after the GROUP is a new variable, as after a NOT (#690). |
+| `wellformed-group-agg-09` | rejected | A pattern variable may not be used again after the GROUP, as after a NOT (#690). |
 | `wellformed-group-agg-10` | accepted | Augment mode: an earlier variable reaches the head through the GROUP. |
 | `wellformed-group-agg-11` | accepted | Augment mode: a FILTER after the GROUP may use an earlier variable that is not a key. |
 | `wellformed-group-agg-12` | accepted | A second GROUP keeps the first one's result without listing it. |
-| `wellformed-group-agg-13` | accepted | ?y bound before the GROUP and ?y in its pattern are different variables. |
+| `wellformed-group-agg-13` | rejected | The pattern may not use ?y, which is bound before the GROUP and is not a key (#690). |
 | `wellformed-group-agg-bad-01` | rejected | ?y belongs to the pattern, so nothing binds it for the head. |
 | `wellformed-group-agg-bad-02` | rejected | A result must be a new variable. |
 | `wellformed-group-agg-bad-03` | rejected | The same result twice in one GROUP. |
@@ -138,8 +138,8 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-21` | The key is bound before the GROUP: a department nobody works in has no row. |
 | `eval-group-agg-22` | One key from before the GROUP, one only from the pattern: an empty group gives no row. |
 | `eval-group-agg-23` | A second GROUP keeps the first one's result without listing it. |
-| `eval-group-agg-24` | A pattern variable used again after the GROUP is a new variable (#690). |
-| `eval-group-agg-25` | A pattern variable with the name of one bound before the GROUP is a new variable. |
+| `eval-group-agg-24` | A pattern after the GROUP binds a new variable for the head. |
+| `eval-group-agg-25` | A variable bound before the GROUP that is not a key keeps every row and its count. |
 | `eval-group-agg-26` | A key bound before the GROUP with no solutions forms no group: no row, even for COUNT(*). |
 | `eval-group-agg-27` | A GROUP with no BY always has one group: COUNT(*), COUNT(?v), COUNT(DISTINCT ?v) and SUM of no solutions give 0. |
 | `eval-group-agg-28` | MIN and MAX fail on the empty implicit group, so each rule infers nothing. |

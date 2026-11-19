@@ -198,7 +198,7 @@ interface Executor {
 
 ```ts
 interface ExportBundle {
-    version: 1;
+    version: 2;
     library: {
         id: string;
         name?: string;
@@ -217,12 +217,9 @@ interface ExportBundle {
 ```ts
 interface ExportedEtlColumn {
     columnName: string;
-    targetVariable: string;
     termType: 'uri' | 'literal';
     datatypeIri?: string;
     lang?: string;
-    iriTemplate?: string;
-    nullPolicy: 'undef' | 'skipRow';
 }
 ```
 

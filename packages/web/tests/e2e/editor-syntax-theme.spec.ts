@@ -78,6 +78,7 @@ test.describe('Editor syntax highlighting', () => {
 
     await page.goto('/?section=queries', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="entity-list-sidebar"]');
+    await page.getByTestId('section-overview-new').click();
 
     const editor = page.locator('.cm-content');
     await editor.click();

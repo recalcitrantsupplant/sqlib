@@ -593,7 +593,7 @@ declare function tupleVars(ref: TupleRef): Array<string | undefined>;
 ### `WellFormednessCategory` — type, from `wellformed`
 
 ```ts
-type WellFormednessCategory = 'unbound-head' | 'set-rebinds' | 'use-before-bind' | 'aggregate-scope' | 'group-shadowing' | 'not-before-binding';
+type WellFormednessCategory = 'unbound-head' | 'set-rebinds' | 'use-before-bind' | 'aggregate-scope' | 'in-use' | 'group-shadowing';
 ```
 
 ### `wellFormednessErrors` — function, from `wellformed`
