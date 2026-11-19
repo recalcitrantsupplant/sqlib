@@ -1204,12 +1204,15 @@ watch(shownArgumentSetId, (id) => {
 /**
  * Runs made on this page that the server did not keep (a read-only
  * deployment's), newest first, with everything a stored run is read back with.
- * Keyed by the version they ran, so switching version shows that version's.
+ * Keyed by the benchmark and the version they ran. The page stays mounted when
+ * the user opens another benchmark, and most benchmarks are at v1, so a key of
+ * the version number alone showed one benchmark's run under every other.
  */
-type TransientRun = BenchmarkRunResponse & { versionNumber: number };
+type TransientRun = BenchmarkRunResponse & { experimentId: string; versionNumber: number };
 const transientRuns = ref<TransientRun[]>([]);
 const transientRunsHere = computed(() => transientRuns.value
-  .filter((entry) => entry.versionNumber === selectedVersionNumber.value));
+  .filter((entry) => entry.experimentId === props.experimentId
+    && entry.versionNumber === selectedVersionNumber.value));
 const transientRunById = (id: string | null) =>
   transientRunsHere.value.find((entry) => entry.run.id === id) ?? null;
 
@@ -1834,9 +1837,12 @@ async function runBenchmark() {
       // Nothing to freeze and nothing to reload: the run comes back whole and
       // the server keeps none of it.
       if (!selectedVersionFrozen.value) return;
+      const experimentId = props.experimentId;
       const versionNumber = selectedVersionNumber.value;
-      const response = await executionStore.executeRun(props.experimentId, versionNumber);
-      transientRuns.value = [{ ...response, versionNumber }, ...transientRuns.value];
+      const response = await executionStore.executeRun(experimentId, versionNumber);
+      transientRuns.value = [{ ...response, experimentId, versionNumber }, ...transientRuns.value];
+      // The user may have opened another benchmark while this one ran.
+      if (props.experimentId !== experimentId) return;
       tab.value = 'runs';
       await selectRun(response.run.id);
       return;
