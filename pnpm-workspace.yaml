@@ -12,3 +12,10 @@ auditConfig:
     # lint and test tooling, whose patterns come from our own config. No patched
     # release is on npm (latest is 4.0.7). Remove this entry when 4.0.8 ships.
     - GHSA-fc5q-39xc-vjpf
+overrides:
+  # GHSA-3g3m-2fjr-6pw4: glob 9 to 14.0.1. It reaches us through the PWA
+  # build (workbox-build) and test tooling. Remove when they require >=14.0.2.
+  'glob@>=9.0.0 <14.0.2': ^14.0.6
+  # GHSA-g3hv-75wg-m249: minimatch 7 to 11.0.0. It reaches us through the lint
+  # tooling (typescript-eslint). Remove when it requires >=11.0.1.
+  'minimatch@>=7.0.0 <11.0.1': ^11.0.9
