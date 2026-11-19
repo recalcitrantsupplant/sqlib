@@ -68,4 +68,27 @@ describe('renderSnippet', () => {
     const body = snippet.slice(snippet.indexOf("-d '") + 4, snippet.lastIndexOf("'"));
     expect(JSON.parse(body)).toEqual(executeRequest.body);
   });
+
+  /*
+   * On an instance without sign-in the API ignores a token and nobody can get
+   * one, so the snippet sends none. Python must not read the variable either:
+   * os.environ[...] raises KeyError when it is unset.
+   */
+  it('leaves out the token when told to', () => {
+    for (const language of SNIPPET_LANGUAGES) {
+      const snippet = renderSnippet(language.id, executeRequest, { bearerToken: false });
+      expect(snippet, language.id).not.toContain('SQLIB_TOKEN');
+      expect(snippet, language.id).not.toContain('Authorization');
+      expect(snippet, language.id).toContain('urn:example:query:1');
+    }
+    expect(renderSnippet('python', executeRequest, { bearerToken: false })).toContain('import requests');
+  });
+
+  it('drops an empty headers block when there is no token and no body', () => {
+    const request: SnippetRequest = { method: 'GET', url: 'https://api.sqlib.io/v1/queries/1' };
+    expect(renderSnippet('javascript', request, { bearerToken: false })).not.toContain('headers');
+    expect(renderSnippet('python', request, { bearerToken: false })).not.toContain('headers=');
+    const curl = renderSnippet('curl', request, { bearerToken: false });
+    expect(curl).toBe('curl -X GET https://api.sqlib.io/v1/queries/1');
+  });
 });
