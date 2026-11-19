@@ -58,6 +58,7 @@ import {
   buildRuleSetDocument,
   loadDataBlockVersions,
   loadRuleVersions,
+  ruleNamesFor,
   toDataBlockText,
 } from '../lib/ruleSetDocument.js';
 import { ValidationError } from '../lib/validationError.js';
@@ -465,7 +466,7 @@ export default async function (fastify: FastifyInstance) {
       if (handle) reply.header('Sqlib-Result-Ref', handle);
     }
 
-    return reply.send(result);
+    return reply.send({ ...result, ruleNames: ruleNamesFor(repos, resolution.version) });
   }));
 
   fastify.post('/:id/execute/stream', ...reposRoute({

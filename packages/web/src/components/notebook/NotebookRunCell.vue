@@ -196,10 +196,6 @@
             </select>
             <InlineNote v-if="graphSourceSummary" as="span" size="xs">{{ graphSourceSummary }} · by value</InlineNote>
           </div>
-          <InlineNote size="xs" :data-testid="`notebook-ruleset-output-${cell.id}`">
-            The value is the triples the rules infer, without the base graph. To keep both, merge them in a
-            query cell that runs over the two graphs.
-          </InlineNote>
         </div>
 
         <!--
@@ -264,6 +260,18 @@
           query is the thing a reader is being walked through. Eight lines,
           the rest one click away, the same CodePeek the library page uses.
         -->
+        <!-- A rule set's text is its SRL, shown the way a query's SPARQL is. -->
+        <div v-if="srl" class="query">
+          <CodePeek
+            label="Rules"
+            :meta="ruleCountLabel"
+            :content="srl"
+            content-type="application/srl"
+            :collapsed-lines="8"
+            :test-id="`notebook-srl-${cell.id}`"
+          />
+        </div>
+
         <div v-if="target.queryString" class="query">
           <CodePeek
             label="Query"
@@ -360,10 +368,31 @@
       <CodePeek
         v-else-if="value?.type === 'graph'"
         label="Graph"
-        :content="value.content"
-        :content-type="value.format"
+        :content="graphShown.content"
+        :content-type="graphShown.format"
         :collapsed-lines="6"
+        :test-id="`notebook-graph-${cell.id}`"
       />
+
+      <!-- A rule set's result rows: what each rule added, and removed where any did. -->
+      <div v-if="ruleRows.length > 0" class="result result--rules" :data-testid="`notebook-rule-counts-${cell.id}`">
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th scope="col">Rule</th>
+              <th scope="col" class="result-table__num">Added</th>
+              <th v-if="anyRuleDeleted" scope="col" class="result-table__num">Removed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in ruleRows" :key="row.ruleVersionId">
+              <td :title="row.ruleVersionId">{{ row.name }}</td>
+              <td class="result-table__num">{{ row.inserted }}</td>
+              <td v-if="anyRuleDeleted" class="result-table__num">{{ row.deleted }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <p v-else-if="value?.type === 'boolean'" class="result__boolean">{{ value.answer }}</p>
     </div>
@@ -392,6 +421,8 @@ import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '../../lib/medi
 import { QueryTypeIri } from '@sparql-query-lib/types';
 import type { GraphSource, RunCell, SlotSource } from '../../lib/notebookFormat';
 import type { CellRunState, NotebookTarget } from '../../composables/useNotebook';
+import { useRuleSetSrl } from '../../composables/useRuleSetSrl';
+import { nquadsAsTurtle, srlPrefixes } from '../../lib/ruleSetDisplay';
 
 /**
  * One run cell: a reference to a library entity, its inputs, and what it bound.
@@ -842,10 +873,39 @@ const statusLine = computed(() => {
   if (props.state.status === 'ok') {
     const duration = props.state.durationMs === null ? '' : ` · ${props.state.durationMs} ms`;
     if (props.state.warning) return `stopped before converging${duration}`;
+    const iterations = props.state.ruleRun?.iterations;
+    if (iterations && !props.state.stale) {
+      return `converged in ${iterations} iteration${iterations === 1 ? '' : 's'}${duration}`;
+    }
     return props.state.stale ? `ran against an older input${duration}` : `ran${duration}`;
   }
   return 'not run yet';
 });
+
+/* A rule set cell shows its SRL at the version it runs. */
+const { srl } = useRuleSetSrl(
+  computed(() => (props.target?.kind === 'ruleset' ? props.target.id : null)),
+  computed(() => (props.cell.kind === 'ruleset' ? props.cell.version ?? null : null)),
+);
+
+const ruleCountLabel = computed(() => {
+  const count = [...(srl.value ?? '').matchAll(/^\s*RULE\b/gim)].length;
+  return count > 0 ? `${count} rule${count === 1 ? '' : 's'}` : undefined;
+});
+
+/** A rule set's graph as Turtle with the rule set's prefixes; any other graph as it came. */
+const graphShown = computed(() => {
+  const value = props.value;
+  if (value?.type !== 'graph') return { content: '', format: 'text/turtle' };
+  if (props.cell.kind === 'ruleset' && (value.format === 'application/n-quads' || value.format === 'application/n-triples')) {
+    const turtle = nquadsAsTurtle(value.content, srlPrefixes(srl.value ?? ''));
+    if (turtle !== null) return { content: turtle, format: 'text/turtle' };
+  }
+  return { content: value.content, format: value.format };
+});
+
+const ruleRows = computed(() => (props.cell.kind === 'ruleset' ? props.state.ruleRun?.rules ?? [] : []));
+const anyRuleDeleted = computed(() => ruleRows.value.some((row) => row.deleted > 0));
 
 const previewRows = computed(() =>
   props.value?.type === 'rows' ? props.value.bindings.slice(0, 5) : [],
@@ -1083,6 +1143,17 @@ function cellText(row: Record<string, unknown>, column: string): string {
   border-bottom: 1px solid var(--border-subtle);
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+
+.result--rules {
+  padding-top: var(--space-3);
+}
+
+.result-table .result-table__num {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .result__foot {
