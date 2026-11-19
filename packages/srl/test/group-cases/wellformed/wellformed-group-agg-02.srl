@@ -1,4 +1,5 @@
 PREFIX : <http://example/>
 
-# Two GROUPs may each have their own pattern variable called ?y.
+# Two GROUPs may not each have a pattern variable called ?y: the first
+# GROUP leaves ?y in use (w3c/data-shapes#690).
 RULE { ?x :pets ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x { ?y :petOf ?x } [ ?m := COUNT(*) ] }

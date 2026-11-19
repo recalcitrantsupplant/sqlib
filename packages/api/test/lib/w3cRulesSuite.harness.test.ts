@@ -145,10 +145,10 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
       eval2: 6,
       examples: 5,
       syntax: 212,
-      wellformed: 33,
+      wellformed: 59,
       stratification: 21,
     });
-    expect(seededCounts.tests).toBe(342);
+    expect(seededCounts.tests).toBe(368);
     expect(skipped, `entries the library could not express: ${JSON.stringify(skipped)}`).toEqual([]);
   });
 
@@ -214,12 +214,12 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(untagged, 'every seeded test carries at least its kind tag').toEqual([]);
 
     // The two axes the tags exist to add, spot-checked against the counts the
-    // suite's own shape fixes: 76 entries evaluate, 266 check a document.
+    // suite's own shape fixes: 76 entries evaluate, 292 check a document.
     const carrying = (slug: string) =>
       tests.filter(test => (test.tags ?? []).includes(tagIdFor(slug))).length;
     expect(carrying('evaluation')).toBe(76);
-    expect(carrying('document-check')).toBe(266);
-    expect(carrying('must-reject')).toBe(95);
+    expect(carrying('document-check')).toBe(292);
+    expect(carrying('must-reject')).toBe(109);
   });
 
   it('puts the same tags on the rule sets and rules the tests run', () => {

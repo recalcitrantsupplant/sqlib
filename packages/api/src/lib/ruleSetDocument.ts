@@ -119,6 +119,25 @@ export function loadRuleVersions(
 }
 
 /**
+ * Each rule version of a rule set version, named by its rule.
+ *
+ * A run reports rules by version id. The rule's name (`rule-1-contains`) is
+ * what the author sees in the rules list, so a client labels results with it.
+ * A rule that has no name, or is missing, takes its position (`Rule 2`).
+ */
+export function ruleNamesFor(
+  repos: { RuleVersion: { get: (id: string) => unknown }; Rule: { get: (id: string) => unknown } },
+  version: PersistedRuleSetVersion,
+): Record<string, string> {
+  const names: Record<string, string> = {};
+  loadRuleVersions(repos, version).forEach((ruleVersion, index) => {
+    const rule = repos.Rule.get(ruleVersion.isPartOf) as { name?: string | null } | undefined;
+    names[ruleVersion.$id] = rule?.name || `Rule ${index + 1}`;
+  });
+  return names;
+}
+
+/**
  * The SRL document for a rule set version: the stored one when the version
  * has it, else one built from its rules and data blocks.
  *

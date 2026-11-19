@@ -37,9 +37,9 @@ describe('EtlService.preview', () => {
 
     expect(hoisted.preview).toHaveBeenCalledWith('SELECT 1', 100);
     expect(result.inferredMapping.columns).toEqual([
-      { columnName: 'subject', targetVariable: 'subject', termType: 'uri', nullPolicy: 'undef' },
-      { columnName: 'label', targetVariable: 'label', termType: 'literal', datatypeIri: `${XSD}string`, nullPolicy: 'undef' },
-      { columnName: 'value', targetVariable: 'value', termType: 'literal', datatypeIri: `${XSD}double`, nullPolicy: 'undef' },
+      { columnName: 'subject', termType: 'uri' },
+      { columnName: 'label', termType: 'literal', datatypeIri: `${XSD}string` },
+      { columnName: 'value', termType: 'literal', datatypeIri: `${XSD}double` },
     ]);
   });
 });

@@ -68,7 +68,7 @@ export const QuerySchema = {
     '@type': sqlib.IRI,
     '@optional': true,
     '@readOnly': true,
-    '@references': { types: ['ArgumentSet'] },
+    '@references': { types: ['ArgumentSet', 'ArgumentSetVersion'] },
   },
   dateCreated: {
     '@id': sdo.dateCreated,
