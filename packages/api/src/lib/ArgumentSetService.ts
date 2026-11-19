@@ -141,6 +141,37 @@ export interface ArgumentSetDetail {
   dateModified?: string;
 }
 
+/**
+ * One tuple binding as a list shows it: its clause, without the rows.
+ *
+ * A list needs the variables to judge whether a set fits a query. The rows
+ * are what make a list large, so they come from `GET /argument-sets/:id`.
+ */
+export interface ArgumentTupleBindingSummary {
+  id: string;
+  position: number;
+  tupleSignature: string;
+  variables: string[];
+  tupleSetVersions?: string[];
+}
+
+/** An argument set as a list returns it (#197). */
+export interface ArgumentSetSummary {
+  id: string;
+  name: string;
+  description?: string;
+  scope: ArgumentScope | null;
+  targetId: string | null;
+  libraryId?: string;
+  tags?: string[];
+  currentVersionId?: string;
+  currentVersionNumber?: number;
+  tupleBindings: ArgumentTupleBindingSummary[];
+  scalarBindings: ArgumentScalarBindingDetail[];
+  dateCreated?: string;
+  dateModified?: string;
+}
+
 export interface RuntimeArgumentPayload {
   tupleMap: Map<string, RuntimeArgumentSet>;
   tupleList: RuntimeArgumentSet[];
@@ -177,12 +208,12 @@ const toArray = <T>(value?: T | T[] | null): T[] => {
 };
 
 export class ArgumentSetService {
-  async listForTarget(targetId: string, scope: ArgumentScope): Promise<ArgumentSetDetail[]> {
+  async listForTarget(targetId: string, scope: ArgumentScope): Promise<ArgumentSetSummary[]> {
     const cacheCoordinator = getCacheCoordinator();
     const all = (cacheCoordinator.list('ArgumentSet') as PersistedArgumentSet[]) || [];
     const filtered = all.filter(set => set.targetEntity === targetId && set.argumentScope === scope);
-    const expanded = await Promise.all(filtered.map(entity => this.expandArgumentSet(entity)));
-    return expanded.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const summaries = await Promise.all(filtered.map(entity => this.summarizeArgumentSet(entity)));
+    return summaries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
 
   /**
@@ -192,13 +223,14 @@ export class ArgumentSetService {
    * the switcher's "elsewhere in the library" needs sets across targets, and
    * enumerating them client-side was one request per query.
    *
+   * Summaries only (#197): a library with 4,150 sets sent 8.7 MB of rows here.
    */
-  async listForLibrary(libraryId: string): Promise<ArgumentSetDetail[]> {
+  async listForLibrary(libraryId: string): Promise<ArgumentSetSummary[]> {
     const cacheCoordinator = getCacheCoordinator();
     const all = (cacheCoordinator.list('ArgumentSet') as PersistedArgumentSet[]) || [];
     const filtered = all.filter(set => set.isPartOf === libraryId);
-    const expanded = await Promise.all(filtered.map(entity => this.expandArgumentSet(entity)));
-    return expanded.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const summaries = await Promise.all(filtered.map(entity => this.summarizeArgumentSet(entity)));
+    return summaries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
 
   async getById(id: string): Promise<ArgumentSetDetail | null> {
@@ -713,6 +745,53 @@ export class ArgumentSetService {
     };
     await getCacheCoordinator().create('ArgumentScalarBinding', toPersisted({ ...record, '@type': 'ArgumentScalarBinding' }));
     return id;
+  }
+
+  /**
+   * The list form of a set: its current version's clauses and scalars, with
+   * no rows read or parsed.
+   */
+  private async summarizeArgumentSet(entity: PersistedArgumentSet): Promise<ArgumentSetSummary> {
+    const cacheCoordinator = getCacheCoordinator();
+    const currentVersionId = entity.currentVersion ?? undefined;
+    const versionEntity = currentVersionId ? this.findVersionById(currentVersionId) : null;
+    const tupleBindings: ArgumentTupleBindingSummary[] = [];
+    let scalarBindings: ArgumentScalarBindingDetail[] = [];
+
+    if (versionEntity) {
+      toArray(versionEntity.tupleBindings).forEach((bindingId, index) => {
+        const binding = cacheCoordinator.get(bindingId) as PersistedArgumentTupleBinding | null;
+        if (!binding) return;
+        const variables = binding.fallbackVariables
+          || (binding.tupleSignature ? binding.tupleSignature.split('|') : []);
+        tupleBindings.push({
+          id: binding.$id,
+          position: typeof binding.position === 'number' ? binding.position : index,
+          tupleSignature: binding.tupleSignature || signatureFromVariables(variables),
+          variables,
+          ...(binding.tupleSetVersions?.length ? { tupleSetVersions: binding.tupleSetVersions } : {}),
+        });
+      });
+      scalarBindings = await Promise.all(
+        toArray(versionEntity.scalarBindings).map(async (scalarId) => this.expandScalarBinding(scalarId)),
+      );
+    }
+
+    return {
+      id: entity.$id,
+      name: entity.name,
+      description: entity.description ?? undefined,
+      scope: entity.argumentScope ?? null,
+      targetId: entity.targetEntity ?? null,
+      libraryId: entity.isPartOf,
+      tags: entity.tags ?? undefined,
+      currentVersionId,
+      ...(versionEntity ? { currentVersionNumber: versionEntity.version } : {}),
+      tupleBindings: orderByPosition(tupleBindings),
+      scalarBindings,
+      dateCreated: entity.dateCreated ?? undefined,
+      dateModified: entity.dateModified ?? undefined,
+    };
   }
 
   private async expandArgumentSet(entity: PersistedArgumentSet): Promise<ArgumentSetDetail> {

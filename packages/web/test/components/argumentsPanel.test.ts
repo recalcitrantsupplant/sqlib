@@ -421,4 +421,32 @@ describe('ArgumentSetSwitcher list', () => {
     expect(document.body.textContent).toContain('Nothing matches “zzz”.');
     w.unmount();
   });
+
+  it('draws the first 50 saved sets, and Show more draws the next 50 (#197)', async () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({ id: `set${i}`, name: `Set ${i}`, meta: 'v1' }));
+    const w = mount(ArgumentSetSwitcher, {
+      props: { ...props, scratchSets: [], savedSets: many },
+      attachTo: document.body,
+    });
+    await openList(w);
+
+    const savedRows = () => rowNames().filter((name) => name?.startsWith('Set '));
+    expect(savedRows()).toHaveLength(50);
+    const more = document.querySelector<HTMLElement>('[data-testid="argument-set-show-more"]')!;
+    expect(more.textContent).toContain('70 more');
+
+    more.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(savedRows()).toHaveLength(100);
+    expect(document.querySelector('[data-testid="argument-set-show-more"]')?.textContent).toContain('20 more');
+
+    // The filter searches every set, drawn or not.
+    const box = document.querySelector<HTMLInputElement>('[data-testid="argument-set-filter"]')!;
+    box.value = 'Set 119';
+    box.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(savedRows()).toEqual(['Set 119']);
+    expect(document.querySelector('[data-testid="argument-set-show-more"]')).toBeNull();
+    w.unmount();
+  });
 });

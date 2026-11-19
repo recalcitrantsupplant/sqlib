@@ -162,7 +162,7 @@ export function useBrowserDefaults() {
     args: ReturnType<typeof useArgumentSets>,
   ): Promise<string | null> {
     const sets = args.argumentSets.value;
-    const current = sets.find((set) => set.currentVersionId === versionId || set.currentVersion?.id === versionId);
+    const current = sets.find((set) => set.currentVersionId === versionId);
     if (current) return current.id;
     for (const set of sets) {
       try {

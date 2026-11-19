@@ -313,11 +313,8 @@ const scratchEntries = computed<SwitcherEntry[]>(() =>
 
 const savedEntries = computed<SwitcherEntry[]>(() =>
   args.argumentSets.value.map((set) => {
-    const version = set.currentVersion?.version;
-    const fit = compatibility(
-      signature.value,
-      set.currentVersion?.tupleBindings ?? set.tupleBindings ?? [],
-    );
+    const version = set.currentVersionNumber;
+    const fit = compatibility(signature.value, set.tupleBindings ?? []);
     const parts = [version ? `v${version}` : 'no version'];
     if (fit.verdict !== 'fits') parts.push(fit.reason || fit.verdict);
     return { id: set.id, name: set.name, meta: parts.join(' · ') };

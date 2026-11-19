@@ -101,6 +101,7 @@ import {
   type BackendEnv,
   type BackendUsage,
   argumentSetDetailSchema,
+  argumentSetSummarySchema,
   argumentSetVersionDetailSchema,
   queryGroupValidationResponseSchema,
   argumentSetExportSchema,
@@ -2976,7 +2977,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets?libraryId=${encodeURIComponent(libraryId)}`),
       { method: 'GET' },
-      (payload) => z.array(argumentSetDetailSchema).parse(payload),
+      (payload) => z.array(argumentSetSummarySchema).parse(payload),
     );
   };
 
@@ -3013,7 +3014,7 @@ export function useApiClient() {
       { method: 'GET' },
       (payload) => {
         // Parse as array of argument sets
-        return z.array(argumentSetDetailSchema).parse(payload);
+        return z.array(argumentSetSummarySchema).parse(payload);
       }
     );
   };

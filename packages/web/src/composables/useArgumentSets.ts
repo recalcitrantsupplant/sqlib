@@ -26,6 +26,7 @@
 import { ref, watch, computed, type Ref } from 'vue'
 import type {
   ArgumentSetDetail,
+  ArgumentSetSummary,
   ArgumentSetInput,
   ArgumentSetVersionInput,
   ArgumentSetVersionDetail,
@@ -118,7 +119,7 @@ export function useArgumentSets(
   // Core state
   // ========================================================================
 
-  const argumentSets = ref<ArgumentSetDetail[]>([])
+  const argumentSets = ref<ArgumentSetSummary[]>([])
   const selection = ref<ArgumentSetSelection>({ kind: 'none' })
   const currentSet = ref<ArgumentSetDetail | null>(null)
   const versions = ref<ArgumentSetVersionDetail[]>([])
@@ -257,9 +258,9 @@ export function useArgumentSets(
         argumentSets.value = own
         return
       }
-      let elsewhere: ArgumentSetDetail[] = []
+      let elsewhere: ArgumentSetSummary[] = []
       try {
-        elsewhere = await apiClient.listLibraryArgumentSets(library) as ArgumentSetDetail[]
+        elsewhere = await apiClient.listLibraryArgumentSets(library) as ArgumentSetSummary[]
       } catch (err) {
         console.error('[useArgumentSets] Library listing failed; showing this target\'s sets only:', err)
       }
