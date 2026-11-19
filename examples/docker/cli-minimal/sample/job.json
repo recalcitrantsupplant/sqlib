@@ -1,10 +1,10 @@
 {
-  "sql": "SELECT * FROM read_csv('customers.csv')",
+  "sql": "SELECT id, name, strftime(joined, '%Y-%m-%dT%H:%M:%S') AS joined FROM read_csv('customers.csv') WHERE id IS NOT NULL",
   "templateFile": "construct.rq",
   "chunkSize": 1000,
   "columns": [
-    { "columnName": "id", "targetVariable": "c", "termType": "uri", "iriTemplate": "http://ex/c/{value}", "nullPolicy": "skipRow" },
-    { "columnName": "name", "targetVariable": "name", "termType": "literal", "nullPolicy": "undef" },
-    { "columnName": "joined", "targetVariable": "joined", "termType": "literal", "datatypeIri": "http://www.w3.org/2001/XMLSchema#dateTime", "nullPolicy": "undef" }
+    { "columnName": "id", "termType": "literal" },
+    { "columnName": "name", "termType": "literal" },
+    { "columnName": "joined", "termType": "literal", "datatypeIri": "http://www.w3.org/2001/XMLSchema#dateTime" }
   ]
 }

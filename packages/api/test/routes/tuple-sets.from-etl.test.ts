@@ -88,17 +88,12 @@ vi.mock('../../src/lib/DuckDbService.js', () => ({
 const COLUMNS = [
   {
     columnName: 'city',
-    targetVariable: 'city',
     termType: 'uri',
-    iriTemplate: 'http://ex/city/{value}',
-    nullPolicy: 'undef',
   },
   {
     columnName: 'population',
-    targetVariable: 'population',
     termType: 'literal',
     datatypeIri: 'http://www.w3.org/2001/XMLSchema#integer',
-    nullPolicy: 'undef',
   },
 ];
 
@@ -190,7 +185,7 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
       tupleColumns: ['city', 'population'],
       rowCount: 2,
     }));
-    rowsInChunks([[{ city: 'paris', population: 2 }], [{ city: 'rome', population: 3 }]]);
+    rowsInChunks([[{ city: 'http://ex/city/paris', population: 2 }], [{ city: 'http://ex/city/rome', population: 3 }]]);
   });
 
   afterAll(async () => {
@@ -299,7 +294,7 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
 
   it('fails loudly when the result outgrows the per-version cap, rather than storing part of it', async () => {
     rowsInChunks([
-      Array.from({ length: 50 }, (_, i) => ({ city: `city-${i}`, population: i })),
+      Array.from({ length: 50 }, (_, i) => ({ city: `http://ex/city/${i}`, population: i })),
     ]);
 
     const res = await post({ etlJobVersionId: JOB_VERSION_ID });
@@ -429,7 +424,7 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
       const [, input] = hoisted.mockCreateVersion.mock.calls[0];
       const hash = input.source.resultHash as string;
       vi.clearAllMocks();
-      rowsInChunks([[{ city: 'paris', population: 2 }], [{ city: 'rome', population: 3 }]]);
+      rowsInChunks([[{ city: 'http://ex/city/paris', population: 2 }], [{ city: 'http://ex/city/rome', population: 3 }]]);
       return hash;
     }
 
@@ -463,7 +458,7 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
         sourceEtlJobVersion: JOB_VERSION_ID,
         sourceColumnMappingVersion: MAPPING_ID,
       });
-      rowsInChunks([[{ city: 'paris', population: 2 }], [{ city: 'rome', population: 4 }]]);
+      rowsInChunks([[{ city: 'http://ex/city/paris', population: 2 }], [{ city: 'http://ex/city/rome', population: 4 }]]);
 
       const res = await post({ etlJobVersionId: JOB_VERSION_ID });
 
@@ -568,7 +563,7 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
       const [, input] = hoisted.mockCreateVersion.mock.calls[0];
       const hash = input.source.resultHash as string;
       vi.clearAllMocks();
-      rowsInChunks([[{ city: 'paris', population: 2 }], [{ city: 'rome', population: 3 }]]);
+      rowsInChunks([[{ city: 'http://ex/city/paris', population: 2 }], [{ city: 'http://ex/city/rome', population: 3 }]]);
 
       entities.set(CURRENT_VERSION_ID, {
         $id: CURRENT_VERSION_ID,

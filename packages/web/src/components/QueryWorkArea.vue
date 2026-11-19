@@ -71,7 +71,7 @@
               :backend-id="selectedBackend || null"
               :backend-name="selectedBackendRecord?.name"
               :policed="Boolean(selectedBackendRecord?.graphPolicyQueryVersion)"
-              :is-update="isUpdateQueryType(queryType)"
+              :update-graphs="updateGraphs"
               :asking-empty="askingEmptyRun"
               @run-anyway="() => executeQuery({ allowEmptyDataset: true })"
               @dismiss-empty="askingEmptyRun = false"
@@ -153,7 +153,7 @@
             :backends-loading="backendsLoading"
             :validation-state="validationState"
             :validation-error="validationError"
-            :query-type="queryType"
+            :query-type="formatQueryType"
             :detected-outputs="detectedOutputs"
             :argument-set-options="argumentSetOptions"
             :selected-argument-set-id="argumentSetsComposable.selectedSetId.value"
@@ -492,6 +492,8 @@ import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
 import GraphReadingClause from './query-work-area/GraphReadingClause.vue';
+import { updateGraphsState, type UpdateGraphsState } from '@/lib/updateGraphs';
+import { refDebounced } from '@vueuse/core';
 import { datasetSummary, useGraphDataset } from '@/lib/graphDataset';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
@@ -517,8 +519,8 @@ import { useQueriesStore } from '../composables/useQueriesStore';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useApiClient } from '../composables/useApiClient';
 import { useEnvironmentVersions } from '../composables/useActiveEnvironment';
-import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '@/lib/mediaTypes';
-import { OUTPUT_MEDIA_TYPES, isGraphQueryType, isResultSetQueryType, isUpdateQueryType, getQueryTypeKeyFromIri } from '@sparql-query-lib/types';
+import { UPDATE_RESULT_MEDIA_TYPE, getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '@/lib/mediaTypes';
+import { OUTPUT_MEDIA_TYPES, QueryTypeIri, isGraphQueryType, isResultSetQueryType, isUpdateQueryType, getQueryTypeKeyFromIri } from '@sparql-query-lib/types';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useQueryValidation } from '../composables/useQueryValidation';
 import { useQueryExecution } from '../composables/useQueryExecution';
@@ -730,11 +732,7 @@ const backendsListLoaded = computed(() => backendsStore.loaded?.value ?? false);
 const backendsError = computed(() => backendsStore.error.value);
 
 // SPARQL editor state
-const queryCode = ref(`SELECT ?country ?countryLabel WHERE {
-  ?country wdt:P31 wd:Q6256 .
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
-}
-LIMIT 100`);
+const queryCode = ref('');
 // Extensions defined after executeQuery is available
 let extensions = shallowRef([
   ...languageExtensionsFor('application/sparql-query'),
@@ -743,6 +741,27 @@ let extensions = shallowRef([
   useEditorKeymaps(),
 ]);
 const queryType = ref<QueryTypeValue | null>(null); // Stores the detected query type (sqlibQueryType:* IRIs)
+/**
+ * For an update, whether its graphs can be chosen here. `null` for a query,
+ * which always can. Read from the text, so a draft follows its edits; parsed
+ * after typing pauses, as a long update costs a parse per keystroke otherwise.
+ */
+const debouncedQueryCode = refDebounced(queryCode, 300);
+const updateGraphs = computed<UpdateGraphsState | null>(() => {
+  const state = updateGraphsState(debouncedQueryCode.value, selectedBackendRecord.value?.backendType);
+  if (state === 'query') return null;
+  if (state === 'unparsed') return isUpdateQueryType(queryType.value) ? 'choose' : null;
+  return state;
+});
+/**
+ * The type the output formats follow. A saved version names its type; a draft
+ * that parses as an update counts as one, so its "as" offers Result and RDF
+ * Patch, and a patch run previews instead of writing.
+ */
+const formatQueryType = computed<QueryTypeValue | null>(() =>
+  queryType.value ?? (updateGraphs.value !== null ? QueryTypeIri.update : null));
+/** The run sends the chosen graphs: always for a query, and for an update that can take them. */
+const takesGraphs = computed(() => updateGraphs.value === null || updateGraphs.value === 'choose');
 
 /** SELECT / ASK / CONSTRUCT for the footer pill — "valid" alone does not say
  *  what a caller gets back. */
@@ -898,7 +917,7 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
   currentVersion,
   preferredVersion,
   activeResultsTab,
-  queryType,
+  queryType: formatQueryType,
   noneBackendId: NONE_BACKEND,
   /*
    * What "Run with" is pointing at. A saved version executes by id; the
@@ -912,8 +931,7 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
    * argument set's either. What is on screen is what runs, arguments included.
    */
   getAdHocArguments: () => argumentSetsComposable.visibleValuesPayload(),
-  // An update names its graphs in its text; the dataset is for queries.
-  getDataset: () => (isUpdateQueryType(queryType.value) ? null : graphDataset.payload()),
+  getDataset: () => (takesGraphs.value ? graphDataset.payload() : null),
   isDirty,
   queryCode,
 });
@@ -943,7 +961,7 @@ const askingEmptyRun = ref(false);
 
 const executeQuery = async (options: { allowEmptyDataset?: boolean } = {}) => {
   askingEmptyRun.value = false;
-  if (!options.allowEmptyDataset && !isUpdateQueryType(queryType.value) && datasetSummary(graphDataset.payload()) === 'none') {
+  if (!options.allowEmptyDataset && takesGraphs.value && datasetSummary(graphDataset.payload()) === 'none') {
     askingEmptyRun.value = true;
     return;
   }
@@ -1157,13 +1175,19 @@ function pickRunBackend(value: string) {
 const mediaTypeOptions = computed(() => getAllMediaTypeOptions());
 // The run bar heads the formats by result shape and greys the ones this query
 // type would not usually answer with — selectable still, just not suggested.
-const mediaTypeChoiceGroups = computed(() => getMediaTypeChoiceGroups(queryType.value));
-const argumentSetOptions = computed(() =>
-  argumentSetsComposable.argumentSets.value.map(set => ({
+const mediaTypeChoiceGroups = computed(() => getMediaTypeChoiceGroups(formatQueryType.value));
+const argumentSetOptions = computed(() => {
+  const options = argumentSetsComposable.argumentSets.value.map(set => ({
     value: set.id,
     label: set.name || set.id,
-  })),
-);
+  }));
+  // The sets load a page at a time (#197), so the open set may not be listed.
+  const open = argumentSetsComposable.currentSet.value;
+  if (open && !options.some(option => option.value === open.id)) {
+    options.unshift({ value: open.id, label: open.name || open.id });
+  }
+  return options;
+});
 const argumentSetLoading = computed(() => argumentSetsComposable.isLoading.value);
 
 /* ------------------------------------------------------------------ *
@@ -2543,8 +2567,8 @@ const confirmDeleteQuery = async () => {
   }
 };
 
-// Watch queryType for changes and auto-select appropriate media type
-watch(queryType, (newQueryType) => {
+// Watch the format type for changes and auto-select appropriate media type
+watch(formatQueryType, (newQueryType) => {
   if (!newQueryType) {
     return;
   }
@@ -2558,11 +2582,10 @@ watch(queryType, (newQueryType) => {
   else if (isResultSetQueryType(newQueryType)) {
     selectedMediaType.value = OUTPUT_MEDIA_TYPES.JSON;
   }
-  // An update has exactly one output: the patch it would make (#290). Running
-  // it as a patch derives rather than writes, which is the safer of the two to
-  // land on by default and the only one with something to show afterwards.
+  // An update runs as a plain write by default. RDF Patch stays on offer as a
+  // preview of the change, derived without writing (#290).
   else if (isUpdateQueryType(newQueryType)) {
-    selectedMediaType.value = OUTPUT_MEDIA_TYPES.RDF_PATCH;
+    selectedMediaType.value = UPDATE_RESULT_MEDIA_TYPE;
   }
 });
 

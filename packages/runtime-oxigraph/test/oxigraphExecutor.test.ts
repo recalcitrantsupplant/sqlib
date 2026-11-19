@@ -21,7 +21,7 @@ async function bundle(): Promise<ExportBundle> {
   const text = before + slot + after;
 
   return {
-    version: 1,
+    version: 2,
     library: { id: 'urn:sqlib:library:test' },
     queries: {
       'people-by-city': {

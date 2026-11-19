@@ -155,7 +155,7 @@ export function buildQuerySignature(
  */
 export function compatibility(
   signature: QuerySignature,
-  bindings: ArgumentTupleBinding[],
+  bindings: Pick<ArgumentTupleBinding, 'tupleSignature' | 'variables'>[],
 ): Compatibility {
   const wanted = signature.clauses.map((clause) => clauseKey(clause.variables));
   const offered = bindings.map((binding) =>

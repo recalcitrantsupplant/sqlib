@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures/test';
 import { mockEntityApi, RULE, RULE_SET, DATA_BLOCK, BENCHMARK_EXPERIMENT } from './fixtures/entities';
 import { recordUrl, scratchUrl } from './navigate';
 
@@ -159,12 +159,17 @@ test.describe('ETL sidebar', () => {
    */
   test('lists both clusters', async ({ page }) => {
     await openSection(page, 'etl');
+    await page.getByTestId('section-overview-new').click();
     await expect(page.locator('.section-name')).toHaveText('ETL');
     await expect(page.locator('.cluster-name', { hasText: 'Scratch' })).toBeVisible();
   });
 
-  test('lands on a pipeline rather than an empty screen', async ({ page }) => {
+  test('lands on an empty state, and New starts a pipeline', async ({ page }) => {
     await openSection(page, 'etl');
+    await expect(page.getByTestId('section-overview')).toBeVisible();
+    await expect(page.locator('[data-testid="scratch-row"]')).toHaveCount(0);
+
+    await page.getByTestId('section-overview-new').click();
     await expect(page).toHaveURL(scratchUrl());
     await expect(page.locator('[data-testid="scratch-row"]')).toHaveCount(1);
   });

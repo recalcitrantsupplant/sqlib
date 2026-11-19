@@ -29,30 +29,33 @@ try {
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
 
-// Every mapping feature at once: an IRI template that needs encoding, a
-// language tag, a datatype, a DuckDB timestamp, a NULL left unbound, and a
-// NULL that drops its row. Three chunks of two, so chunking is exercised too.
-const SQL = `SELECT * FROM (VALUES
-  (1, 'Ann Lee', 'en', 3.5, TIMESTAMP '2020-01-02 03:04:05', 'gold'),
+// Every mapping feature at once: an IRI column, a language tag, a datatype
+// and a NULL left unbound. The SQL drops the NULL-id row and formats the
+// timestamp, and the template builds an IRI that needs encoding. Three chunks
+// of two, so chunking is exercised too.
+const SQL = `SELECT id, name, score, strftime(joined, '%Y-%m-%dT%H:%M:%S') AS joined, tier FROM (VALUES
+  (1, 'Ann Lee', 'en', 3.5, TIMESTAMP '2020-01-02 03:04:05', 'http://ex/tier/gold'),
   (2, 'Bo',      'en', NULL, TIMESTAMP '2021-05-06 07:08:09', NULL),
-  (3, 'Cy',      'en', 1.25, NULL, 'silver'),
-  (NULL, 'Gone', 'en', 9.0, NULL, 'none'),
-  (5, 'Éva',     'en', 0.0, TIMESTAMP '2022-12-31 23:59:59', 'bronze')
-) AS t(id, name, lang, score, joined, tier)`;
+  (3, 'Cy',      'en', 1.25, NULL, 'http://ex/tier/silver'),
+  (NULL, 'Gone', 'en', 9.0, NULL, 'http://ex/tier/none'),
+  (5, 'Éva',     'en', 0.0, TIMESTAMP '2022-12-31 23:59:59', 'http://ex/tier/bronze'),
+  (6, 'Di',      'en', 2.0, NULL, NULL)
+) AS t(id, name, lang, score, joined, tier) WHERE id IS NOT NULL`;
 
 const TEMPLATE = `PREFIX ex: <http://ex/>
 CONSTRUCT {
   ?customer ex:name ?name ; ex:score ?score ; ex:joined ?joined ; ex:tier ?tier .
 } WHERE {
-  VALUES (?customer ?name ?score ?joined ?tier) { (UNDEF UNDEF UNDEF UNDEF UNDEF) }
+  VALUES (?id ?name ?score ?joined ?tier) { (UNDEF UNDEF UNDEF UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://ex/customer/", ENCODE_FOR_URI(?id))) AS ?customer)
 }`;
 
 const columns: ColumnDefinition[] = [
-  { columnName: 'id', targetVariable: 'customer', termType: 'uri', iriTemplate: 'http://ex/customer/{value}', nullPolicy: 'skipRow' },
-  { columnName: 'name', targetVariable: 'name', termType: 'literal', lang: 'en', nullPolicy: 'undef' },
-  { columnName: 'score', targetVariable: 'score', termType: 'literal', datatypeIri: `${XSD}decimal`, nullPolicy: 'undef' },
-  { columnName: 'joined', targetVariable: 'joined', termType: 'literal', datatypeIri: `${XSD}dateTime`, nullPolicy: 'undef' },
-  { columnName: 'tier', targetVariable: 'tier', termType: 'uri', iriTemplate: 'http://ex/tier/{value}', nullPolicy: 'undef' },
+  { columnName: 'id', termType: 'literal' },
+  { columnName: 'name', termType: 'literal', lang: 'en' },
+  { columnName: 'score', termType: 'literal', datatypeIri: `${XSD}decimal` },
+  { columnName: 'joined', termType: 'literal', datatypeIri: `${XSD}dateTime` },
+  { columnName: 'tier', termType: 'uri' },
 ];
 
 const lines = (chunks: string[]) =>
@@ -87,10 +90,12 @@ describe.skipIf(!duckdbAvailable)('one ETL job, two hosts', () => {
     expect(lines(viaCli)).toEqual(api);
 
     // What both agree on is right, not just equal: the dropped row is absent,
-    // the NULL is unbound, and the timestamp became a valid xsd:dateTime.
+    // the NULL is unbound, and the timestamp the SQL formatted is a valid
+    // xsd:dateTime.
     expect(api.join('\n')).not.toContain('Gone');
     expect(api).toContain(`<http://ex/customer/1> <http://ex/name> "Ann Lee"@en .`);
     expect(api).toContain(`<http://ex/customer/1> <http://ex/joined> "2020-01-02T03:04:05"^^<${XSD}dateTime> .`);
     expect(api.some(line => line.startsWith('<http://ex/customer/2> <http://ex/score>'))).toBe(false);
+    expect(api).toContain('<http://ex/customer/1> <http://ex/tier> <http://ex/tier/gold> .');
   });
 });

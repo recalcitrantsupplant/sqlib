@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/test';
 import { WEB_BASE_URL } from './web-port';
 
 test.describe('Super Simple Smoke Tests', () => {

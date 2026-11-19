@@ -30,7 +30,7 @@
  * machine speed — a shift is geometry, not timing — but the screens are slow
  * to load, so they stay out of the fast suite.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../fixtures/test';
 import { mockEntityApi } from '../fixtures/entities';
 
 /** How long after load a shift stops being "loading" and starts being a loop. */

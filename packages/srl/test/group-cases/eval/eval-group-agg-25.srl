@@ -1,6 +1,6 @@
 PREFIX : <http://example/>
 
-# ?y before the GROUP is a name; ?y in its pattern is a child. They are
-# different variables, so the names do not limit the count, and each name
-# row keeps its count.
-RULE { ?x :alias ?y ; :kids ?n } WHERE { ?x a :Person ; :name ?y . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+# ?y before the GROUP is a name and is not a key, so the pattern counts
+# children with its own ?c (reusing ?y there is ill-formed since
+# w3c/data-shapes#690, wellformed-group-agg-13). Each name row keeps its count.
+RULE { ?x :alias ?y ; :kids ?n } WHERE { ?x a :Person ; :name ?y . GROUP BY ?x { ?c :childOf ?x } [ ?n := COUNT(*) ] }

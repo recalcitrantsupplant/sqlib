@@ -12,8 +12,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref } from 'vue';
 
 const api = vi.hoisted(() => ({
-  listArgumentSets: vi.fn(),
-  listLibraryArgumentSets: vi.fn(),
+  pageArgumentSets: vi.fn(),
+  pageLibraryArgumentSets: vi.fn(),
   listArgumentSetVersions: vi.fn(),
   getArgumentSet: vi.fn(),
   updateArgumentSet: vi.fn(),
@@ -41,35 +41,54 @@ beforeEach(() => {
   api.listArgumentSetVersions.mockResolvedValue([]);
 });
 
+const page = <T,>(items: T[], total = items.length) => ({ items, total });
+
 describe('loadArgumentSets', () => {
-  it('lists this callable\'s sets and the library\'s, without duplicating', async () => {
-    const own = set('urn:sqlib:argument-set:mine', 'Made here', QUERY);
-    api.listArgumentSets.mockResolvedValue([own]);
-    api.listLibraryArgumentSets.mockResolvedValue([
-      own,
+  it('lists the library\'s sets a page at a time, this callable\'s first', async () => {
+    api.pageLibraryArgumentSets.mockResolvedValue(page([
+      set('urn:sqlib:argument-set:mine', 'Made here', QUERY),
       set('urn:sqlib:argument-set:other', 'Made elsewhere', 'urn:sqlib:query:q2'),
-    ]);
+    ], 120));
 
     const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
     await args.loadArgumentSets();
 
+    expect(api.pageLibraryArgumentSets).toHaveBeenCalledWith(LIBRARY, { limit: 50, offset: 0, preferTarget: QUERY });
     expect(args.argumentSets.value.map((entry) => entry.id)).toEqual([
       'urn:sqlib:argument-set:mine',
       'urn:sqlib:argument-set:other',
     ]);
+    expect(args.savedTotal.value).toBe(120);
   });
 
-  it('puts this callable\'s sets first, whatever order the library returns', async () => {
-    api.listArgumentSets.mockResolvedValue([set('urn:sqlib:argument-set:mine', 'Made here', QUERY)]);
-    api.listLibraryArgumentSets.mockResolvedValue([
-      set('urn:sqlib:argument-set:a', 'A', 'urn:sqlib:query:q2'),
-      set('urn:sqlib:argument-set:mine', 'Made here', QUERY),
-    ]);
+  it('loads the next page after the rows it holds, without duplicating', async () => {
+    // The second page starts with a row the first already holds.
+    api.pageLibraryArgumentSets.mockImplementation(async (_library: string, params: { offset: number }) =>
+      params.offset === 0
+        ? page([set('urn:sqlib:argument-set:a', 'A', QUERY)], 2)
+        : page([set('urn:sqlib:argument-set:a', 'A', QUERY), set('urn:sqlib:argument-set:b', 'B', null)], 2));
 
     const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
     await args.loadArgumentSets();
+    await args.loadMoreArgumentSets();
 
-    expect(args.argumentSets.value[0].id).toBe('urn:sqlib:argument-set:mine');
+    expect(api.pageLibraryArgumentSets).toHaveBeenLastCalledWith(LIBRARY, { limit: 50, offset: 1, preferTarget: QUERY });
+    expect(args.argumentSets.value.map((entry) => entry.id)).toEqual(['urn:sqlib:argument-set:a', 'urn:sqlib:argument-set:b']);
+
+    // Every match is listed, so there is nothing more to ask for.
+    const calls = api.pageLibraryArgumentSets.mock.calls.length;
+    await args.loadMoreArgumentSets();
+    expect(api.pageLibraryArgumentSets).toHaveBeenCalledTimes(calls);
+  });
+
+  it('searches on the server, from the first page', async () => {
+    api.pageLibraryArgumentSets.mockResolvedValue(page([]));
+    const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
+    await args.loadArgumentSets();
+    await args.searchArgumentSets('perth');
+
+    expect(api.pageLibraryArgumentSets).toHaveBeenLastCalledWith(LIBRARY, { limit: 50, offset: 0, q: 'perth', preferTarget: QUERY });
+    expect(args.isLoading.value).toBe(false);
   });
 
   /*
@@ -77,8 +96,8 @@ describe('loadArgumentSets', () => {
    * the others, so the library read is best-effort.
    */
   it('keeps the target-scoped list when the library listing fails', async () => {
-    api.listArgumentSets.mockResolvedValue([set('urn:sqlib:argument-set:mine', 'Made here', QUERY)]);
-    api.listLibraryArgumentSets.mockRejectedValue(new Error('nope'));
+    api.pageArgumentSets.mockResolvedValue(page([set('urn:sqlib:argument-set:mine', 'Made here', QUERY)]));
+    api.pageLibraryArgumentSets.mockRejectedValue(new Error('nope'));
 
     const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
     await args.loadArgumentSets();
@@ -87,14 +106,15 @@ describe('loadArgumentSets', () => {
     expect(args.error.value).toBeNull();
   });
 
-  /* A caller that passes no library gets what this always returned. */
+  /* A caller that passes no library gets this callable's sets. */
   it('does not reach for the library when none is given', async () => {
-    api.listArgumentSets.mockResolvedValue([set('urn:sqlib:argument-set:mine', 'Made here', QUERY)]);
+    api.pageArgumentSets.mockResolvedValue(page([set('urn:sqlib:argument-set:mine', 'Made here', QUERY)]));
 
     const args = useArgumentSets(ref(QUERY), 'query');
     await args.loadArgumentSets();
 
-    expect(api.listLibraryArgumentSets).not.toHaveBeenCalled();
+    expect(api.pageLibraryArgumentSets).not.toHaveBeenCalled();
+    expect(api.pageArgumentSets).toHaveBeenCalledWith(QUERY, 'query', { limit: 50, offset: 0 });
     expect(args.argumentSets.value).toHaveLength(1);
   });
 
@@ -103,8 +123,8 @@ describe('loadArgumentSets', () => {
     await args.loadArgumentSets();
 
     expect(args.argumentSets.value).toEqual([]);
-    expect(api.listArgumentSets).not.toHaveBeenCalled();
-    expect(api.listLibraryArgumentSets).not.toHaveBeenCalled();
+    expect(api.pageArgumentSets).not.toHaveBeenCalled();
+    expect(api.pageLibraryArgumentSets).not.toHaveBeenCalled();
   });
 
   /*
@@ -114,16 +134,17 @@ describe('loadArgumentSets', () => {
    * deployment, where nothing can be saved, the only list there is.
    */
   it('lists the library\'s sets for a scratch callable', async () => {
-    api.listLibraryArgumentSets.mockResolvedValue([
+    api.pageLibraryArgumentSets.mockResolvedValue(page([
       set('urn:sqlib:argument-set:seeded', 'Seeded', 'urn:sqlib:query:q2'),
-    ]);
+    ]));
 
     const args = useArgumentSets(ref(''), 'query', () => LIBRARY, {
       scratchTargetId: () => SCRATCH,
     });
     await args.loadArgumentSets();
 
-    expect(api.listArgumentSets).not.toHaveBeenCalled();
+    expect(api.pageArgumentSets).not.toHaveBeenCalled();
+    expect(api.pageLibraryArgumentSets).toHaveBeenCalledWith(LIBRARY, { limit: 50, offset: 0 });
     expect(args.argumentSets.value.map((entry) => entry.id)).toEqual(['urn:sqlib:argument-set:seeded']);
   });
 });
@@ -141,8 +162,8 @@ describe('rename', () => {
 
   function openSaved() {
     const saved = { ...set(SET, 'Untitled set 1', QUERY), currentVersion: undefined };
-    api.listArgumentSets.mockResolvedValue([saved]);
-    api.listLibraryArgumentSets.mockResolvedValue([saved]);
+    api.pageArgumentSets.mockResolvedValue({ items: [saved], total: 1 });
+    api.pageLibraryArgumentSets.mockResolvedValue({ items: [saved], total: 1 });
     api.listArgumentSetVersions.mockResolvedValue([
       { id: `${SET}:v1`, isPartOf: SET, version: 1, tupleBindings: [], scalarBindings: [] },
     ]);
@@ -211,8 +232,8 @@ describe('rename', () => {
 
   /* A scratch set has no server identity to rename. */
   it('keeps a scratch set local', async () => {
-    api.listArgumentSets.mockResolvedValue([]);
-    api.listLibraryArgumentSets.mockResolvedValue([]);
+    api.pageArgumentSets.mockResolvedValue({ items: [], total: 0 });
+    api.pageLibraryArgumentSets.mockResolvedValue({ items: [], total: 0 });
     const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
     await args.loadArgumentSets();
     args.createScratch();

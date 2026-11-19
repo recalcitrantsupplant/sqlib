@@ -23,6 +23,7 @@ import {
 } from '../lib/groupVersionReferences.js';
 import { setEntityConcurrencyHeaders, typedRoute, reposRoute, RouteError } from './route-helpers.js';
 import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
+import { parseListPageQuery, sendTotal, withListPageQuery } from '../lib/listPage.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
 import {
@@ -470,6 +471,7 @@ export default async function (fastify: FastifyInstance) {
 
   fastify.get('/:id/argument-sets', ...reposRoute({
       params: groupIdParamSchema,
+      querystring: withListPageQuery(undefined),
       response: {
         200: argumentSetListResponseSchema,
         404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
@@ -481,8 +483,9 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: `QueryGroup ${id} not found` });
     }
     requireEntityMode(request, group, 'read');
-    const sets = await argumentSetService.listForTarget(id, 'queryGroup');
-    return reply.send(sets);
+    const page = await argumentSetService.pageForTarget(id, 'queryGroup', parseListPageQuery(request));
+    sendTotal(reply, page.total);
+    return reply.send(page.items);
   }));
 
   fastify.post('/:id/argument-sets', ...reposRoute({

@@ -6,7 +6,7 @@
  * zero and the measurement that draws the shade never fires; and nothing wraps,
  * which is exactly the case the line count gets wrong.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN } from './api-origin';
 
@@ -61,7 +61,9 @@ async function openSubjectPeek(page: Page, srl: string) {
   await page.route(`${API_ORIGIN}/data-graphs*`, (route: Route) => json(route, []));
   await page.route(`${API_ORIGIN}/argument-sets*`, (route: Route) => json(route, []));
 
-  await page.goto('/?section=tests&new=test');
+  await page.goto('/?section=tests');
+
+  await page.getByTestId('section-overview-new').click();
   await page.getByTestId('test-subject').click();
   await page.getByTestId('test-subject-option').first().click();
   await expect(page.getByTestId('test-subject-preview')).toBeVisible();

@@ -2,9 +2,9 @@
  * Backends as a record page — the sidebar list, the record at rest, and
  * creation as a draft record rather than a dialog.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 const existingBackend = {
   id: 'urn:sqlib:backend:test-1',
@@ -216,7 +216,7 @@ test.describe('Backends record page (mocked)', () => {
     }));
     const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     await page.route(`${API_ORIGIN}/libraries`, (route) => route.fulfill(json(libraries)));
-    await page.route(`${API_ORIGIN}/queries`, (route) => route.fulfill(json(queries)));
+    await page.route(listRoute('/queries'), (route) => route.fulfill(json(queries)));
     await page.route(`${API_ORIGIN}/environments*`, (route) => route.fulfill(json(environments)));
     await page.reload();
 

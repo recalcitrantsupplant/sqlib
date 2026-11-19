@@ -61,17 +61,12 @@ function etlJob(fields: Record<string, unknown> = {}) {
     columns: JSON.stringify([
       {
         columnName: 'id',
-        targetVariable: 'person',
-        termType: 'uri',
-        iriTemplate: 'http://ex/person/{value}',
-        nullPolicy: 'undef',
+        termType: 'literal',
       },
       {
         columnName: 'label',
-        targetVariable: 'label',
         termType: 'literal',
         datatypeIri: 'http://www.w3.org/2001/XMLSchema#string',
-        nullPolicy: 'undef',
       },
     ]),
   });
@@ -83,7 +78,8 @@ function etlJob(fields: Record<string, unknown> = {}) {
     sql: 'SELECT id, label FROM people ORDER BY id',
     sparqlTemplate:
       'CONSTRUCT { ?person <http://www.w3.org/2000/01/rdf-schema#label> ?label } '
-      + 'WHERE { VALUES (?person ?label) { (UNDEF UNDEF) } }',
+      + 'WHERE { VALUES (?id ?label) { (UNDEF UNDEF) } '
+      + 'BIND(IRI(CONCAT("http://ex/person/", ENCODE_FOR_URI(STR(?id)))) AS ?person) }',
     // Never reached: the runner hands the pipeline an ephemeral store instead.
     backendId: 'urn:sqlib:backend:live',
     currentColumnMappingVersion: MAPPING_VERSION,
@@ -238,7 +234,9 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
     etlJob({
       sparqlTemplate:
         'CONSTRUCT { ?person <http://ex/team> ?team } '
-        + 'WHERE { VALUES (?person ?label) { (UNDEF UNDEF) } ?person <http://ex/team> ?team }',
+        + 'WHERE { VALUES (?id ?label) { (UNDEF UNDEF) } '
+        + 'BIND(IRI(CONCAT("http://ex/person/", ENCODE_FOR_URI(STR(?id)))) AS ?person) '
+        + '?person <http://ex/team> ?team }',
     });
     const versionId = etlTest(
       { expectationKind: 'graph' },

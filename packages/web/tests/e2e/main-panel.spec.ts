@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/test';
 import { mockEntityApi, QUERY, QUERY_GROUP, RULE_SET } from './fixtures/entities';
 import { openSplash, openSavedEntity, openCreateLibraryDialog } from './navigate';
 

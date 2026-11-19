@@ -40,6 +40,40 @@ export const argumentSetDetailSchema = z.object({
   modifiedBy: z.string().nullable().optional(),
 });
 
+/** A tuple binding in a list: its clause, without the rows. */
+export const argumentTupleBindingSummarySchema = z.object({
+  id: z.string(),
+  // The API always sends it; optional so an older server's list still parses.
+  position: z.number().optional(),
+  tupleSignature: z.string(),
+  variables: z.array(z.string()),
+  tupleSetVersions: z.array(z.string()).optional(),
+});
+
+/**
+ * An argument set as the list routes return it: what a list or a picker
+ * shows, and what the fit verdict needs. The rows come from the detail route.
+ */
+export const argumentSetSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  scope: z.enum(['query', 'queryGroup']).nullable().optional(),
+  targetId: z.string().nullable().optional(),
+  libraryId: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  currentVersionId: z.string().nullable().optional(),
+  currentVersionNumber: z.number().optional(),
+  tupleBindings: z.array(argumentTupleBindingSummarySchema),
+  scalarBindings: z.array(z.any()),
+  dateCreated: z.string().optional(),
+  dateModified: z.string().optional(),
+  createdBy: z.string().nullable().optional(),
+  modifiedBy: z.string().nullable().optional(),
+});
+
+export type ArgumentSetSummary = z.infer<typeof argumentSetSummarySchema>;
+
 /**
  * A set as a run payload: what `/argument-sets/:id/export` (and the per-version
  * export) answer with — the arguments, limits and offsets a run would send.

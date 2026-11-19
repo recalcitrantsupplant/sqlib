@@ -15,6 +15,7 @@ import { setupValidator } from '../lib/validator-setup.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { AuthorizationError, filterReadable, requireAdmin, requireLibraryMode } from '../auth/enforce.js';
 import { toEntityUrn } from '../lib/id.js';
+import { sendListPage, withListPage } from '../lib/listPage.js';
 
 export default async function etlJobRoutes(fastify: FastifyInstance) {
   /*
@@ -142,13 +143,13 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
   // and library included, went to any authenticated principal. The same shape
   // `GET /tests` and `GET /rule-sets` were fixed in, and the filter belongs
   // here rather than in the service for the reason `listEtlJobs` gives.
-  fastify.get('/', ...reposRoute({
+  fastify.get('/', ...reposRoute(withListPage({
       response: {
         200: etlJobListSchema,
       },
-    }, async ({ request, reply }) => {
+    }), async ({ request, reply }) => {
     const result = await etlService.listEtlJobs(jobs => filterReadable(request, jobs));
-    return reply.send(result);
+    return sendListPage(request, reply, result, job => job);
   }));
 
   // Get ETL job by ID
@@ -448,16 +449,14 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             type: 'array',
             items: {
               type: 'object',
-              required: ['columnName', 'targetVariable', 'termType', 'nullPolicy'],
+              required: ['columnName', 'termType'],
               properties: {
                 columnName: { type: 'string' },
-                targetVariable: { type: 'string' },
                 termType: { type: 'string', enum: ['uri', 'literal'] },
                 datatypeIri: { type: 'string' },
                 lang: { type: 'string' },
-                iriTemplate: { type: 'string' },
-                nullPolicy: { type: 'string', enum: ['undef', 'skipRow'] },
               },
+              additionalProperties: false,
             },
           },
         },
@@ -528,15 +527,12 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
                   type: 'array',
                   items: {
                     type: 'object',
-                    required: ['columnName', 'targetVariable', 'termType', 'nullPolicy'],
+                    required: ['columnName', 'termType'],
                     properties: {
                       columnName: { type: 'string' },
-                      targetVariable: { type: 'string' },
                       termType: { type: 'string' },
                       datatypeIri: { type: 'string' },
                       lang: { type: 'string' },
-                      iriTemplate: { type: 'string' },
-                      nullPolicy: { type: 'string' },
                     },
                   },
                 },
@@ -771,15 +767,12 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['columnName', 'targetVariable', 'termType', 'nullPolicy'],
+                required: ['columnName', 'termType'],
                 properties: {
                   columnName: { type: 'string' },
-                  targetVariable: { type: 'string' },
                   termType: { type: 'string' },
                   datatypeIri: { type: 'string' },
                   lang: { type: 'string' },
-                  iriTemplate: { type: 'string' },
-                  nullPolicy: { type: 'string' },
                 },
               },
             },

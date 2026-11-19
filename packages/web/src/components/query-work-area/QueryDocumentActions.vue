@@ -17,6 +17,8 @@
       @update:code="(value) => emit('update:code', value)"
     />
 
+    <CopyButton :text="code" subject="query" testid="copy-query" />
+
     <!--
       Diff comes down here with them: it reframes the document rather than
       acting on the query, and it is a toggle, so it needs to sit where the
@@ -49,6 +51,7 @@
  */
 import { GitCompare, WandSparkles } from '@lucide/vue';
 import PrefixConversionButtons from '../shared/PrefixConversionButtons.vue';
+import CopyButton from '../shared/CopyButton.vue';
 import { NOTHING_TO_DIFF } from '@/lib/versionDiff';
 
 defineProps<{

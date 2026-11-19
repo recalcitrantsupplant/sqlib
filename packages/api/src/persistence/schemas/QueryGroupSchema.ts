@@ -38,7 +38,7 @@ export const QueryGroupSchema = {
     '@type': sqlib.IRI,
     '@optional': true,
     '@readOnly': true,
-    '@references': { types: ['ArgumentSet'] },
+    '@references': { types: ['ArgumentSet', 'ArgumentSetVersion'] },
   },
   /**
    * The data graph the web app selects for each input when this opens, by

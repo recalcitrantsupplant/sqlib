@@ -62,13 +62,12 @@ function toUrn(kind: string, value: string): string {
 function normalizeColumnDefinitions(columns: ColumnDefinition[]): ColumnDefinition[] {
   return columns.map((col) => ({
     ...col,
-    targetVariable: String(col.targetVariable ?? '').trim().replace(/^\?/, ''),
     columnName: String(col.columnName ?? '').trim(),
   }));
 }
 
 function bindingsToArgumentSet(bindings: SparqlBinding[], columnDefs: ColumnDefinition[]): ArgumentSet {
-  const vars = columnDefs.map((c) => c.targetVariable.replace(/^\?/, ''));
+  const vars = columnDefs.map((c) => c.columnName);
   return {
     head: { vars },
     results: { bindings },
@@ -362,15 +361,12 @@ export default async function playgroundRoutes(
               minItems: 1,
               items: {
                 type: 'object',
-                required: ['columnName', 'targetVariable', 'termType', 'nullPolicy'],
+                required: ['columnName', 'termType'],
                 properties: {
                   columnName: { type: 'string' },
-                  targetVariable: { type: 'string' },
                   termType: { type: 'string', enum: ['uri', 'literal'] },
                   datatypeIri: { type: 'string' },
                   lang: { type: 'string' },
-                  iriTemplate: { type: 'string' },
-                  nullPolicy: { type: 'string', enum: ['undef', 'skipRow'] },
                 },
                 additionalProperties: false,
               },

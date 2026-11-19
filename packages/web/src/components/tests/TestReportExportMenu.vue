@@ -44,7 +44,7 @@
  * file are the ones that run produced rather than whatever this tab last saw.
  *
  * The formats come from `lib/testReportFormats`, which mirrors the server's
- * registry: the by-tag menu offers the same list from the same place, so
+ * registry: the Tests Run menu offers the same list from the same place, so
  * neither surface can quietly end up missing a format the other has.
  */
 import { ref } from 'vue';

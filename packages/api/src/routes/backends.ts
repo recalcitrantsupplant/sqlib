@@ -78,6 +78,7 @@ import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
 import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { sendListPage, withListPage } from '../lib/listPage.js';
 
 type ErrorResponse = { error: string; [key: string]: unknown };
 
@@ -615,7 +616,7 @@ export default async function (
   // Retrieves all Backend entities using memory cache
   fastify.get<{ Reply: Backend[] | ErrorResponse }>(
     '/',
-    ...reposRoute(getBackendsSchema,
+    ...reposRoute(withListPage(getBackendsSchema),
     async ({ repos, reply, request }) => {
       // Use memory cache for fast reads
       const persistedBackends = repos.Backend.list() as PersistedBackend[];
@@ -626,7 +627,7 @@ export default async function (
         ? persistedBackends
         : persistedBackends.filter(backend => context.grants.backends.has(backend.$id));
       request.log.info(`Successfully fetched ${visible.length} backends from cache`);
-      return reply.send(visible.map(serializeBackend));
+      return sendListPage(request, reply, visible, serializeBackend);
     })
   );
 

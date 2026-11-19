@@ -2,4 +2,4 @@ PREFIX : <http://example/>
 
 # A second GROUP may list the first one's result as a key; it is carried
 # through.
-RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x ?n { ?y :petOf ?x } [ ?m := COUNT(*) ] }
+RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x ?n { ?z :petOf ?x } [ ?m := COUNT(*) ] }

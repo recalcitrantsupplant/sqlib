@@ -52,6 +52,7 @@ import InlineNote from '@/components/shared/InlineNote.vue';
 import { useFeatureFlags } from '@/composables/useFeatureFlags';
 import { useApiClient } from '@/composables/useApiClient';
 import { useCallableDrafts } from '@/composables/useCallableDrafts';
+import { usePanelResize } from '@/composables/usePanelResize';
 import { useEntityDraft } from '@/composables/useEntityDraft';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
@@ -73,6 +74,12 @@ import type { SnippetRequest } from '@/lib/codeSnippets';
 import { useRuntimeConfig } from '#imports';
 import type { ArgumentSetDetail } from '@/types/argument-sets';
 import { seriesLookup } from '@/lib/seriesPalette';
+import { sectionPath } from '@/lib/sectionRoutes';
+import {
+  groupNodeCosts, groupNodeRows, type GroupNodeRow, type RawNodeObservation,
+} from '@/lib/benchmarkGroupNodes';
+import type { GroupNodeView } from '@/components/benchmarks/BenchmarkCaseEditor.vue';
+import type { QueryGroupVersionExpanded } from '@sparql-query-lib/contracts';
 import type {
   AxisGroupView,
   AxisKey,
@@ -178,6 +185,7 @@ const argumentSetLoading = ref(false);
 const selectedRunId = ref<string | null>(null);
 const observations = ref<RawObservation[]>([]);
 const iterationObservations = ref<RawIterationObservation[]>([]);
+const nodeObservations = ref<RawNodeObservation[]>([]);
 const observationsLoading = ref(false);
 const selectedRequestKey = ref<string | null>(null);
 
@@ -693,6 +701,11 @@ const onlyRuleSetCases = computed(() => {
   return cases.length > 0 && cases.every((planCase) => planCase.subjectType === 'ruleSet');
 });
 
+const queryCaseCount = computed(() =>
+  plan.value.cases.filter((planCase) => planCase.subjectType === 'query').length);
+const mixedKinds = computed(() =>
+  plan.value.cases.some((planCase) => planCase.subjectType !== 'query'));
+
 const groups = computed<AxisGroupView[]>(() => {
   const count = (label: string) => factorCount(expansion.value, label);
   const groupViews: AxisGroupView[] = [
@@ -724,10 +737,18 @@ const groups = computed<AxisGroupView[]>(() => {
       hint: onlyRuleSetCases.value
         ? 'Rule sets run in-process, so this axis applies to query cases only.'
         : 'Each query case runs once on each backend. A query case needs at least one.',
+      /*
+       * A plan backend multiplies query cases only: a group's nodes and a rule
+       * set name their own stores. With other kinds in the plan, each backend
+       * shows how many query cases it runs.
+       */
       items: plan.value.backendIds.map((id) => ({
         id,
         name: backendName(id),
         dot: colourFor.value(id),
+        ...(mixedKinds.value
+          ? { meta: `${queryCaseCount.value} ${queryCaseCount.value === 1 ? 'query' : 'queries'}` }
+          : {}),
       })),
     },
     {
@@ -919,6 +940,108 @@ watch(selectedCase, (planCase) => {
   if (planCase?.subjectType !== 'ruleSet' || !planCase.subjectId || !planCase.versionId) return;
   void loadRuleSetDocument(planCase.subjectId, planCase.versionId);
 }, { immediate: true });
+
+/*
+ * A query group case's nodes, keyed by group version IRI. A group version is
+ * immutable once saved, so a loaded version is not fetched again.
+ */
+const groupNodesByVersion = ref<Record<string, GroupNodeRow[]>>({});
+/** Query version IRI → the query it belongs to, from the loaded group versions. */
+const queryOfVersion = ref<Record<string, string>>({});
+const groupNodesLoading = ref(false);
+
+async function loadGroupNodes(subjectId: string, versionId: string) {
+  const entry = subjectIndex.value[versionId];
+  if (!entry || groupNodesByVersion.value[versionId]) return;
+  groupNodesLoading.value = true;
+  try {
+    const expanded = await queryGroupsStore.fetchQueryGroupVersion(subjectId, entry.versionNumber) as QueryGroupVersionExpanded;
+    groupNodesByVersion.value = { ...groupNodesByVersion.value, [versionId]: groupNodeRows(expanded) };
+    const owners = { ...queryOfVersion.value };
+    for (const version of expanded.queryVersions ?? []) {
+      if (version.isPartOf) owners[version.id] = version.isPartOf;
+    }
+    queryOfVersion.value = owners;
+  } catch (error: unknown) {
+    console.error('[BenchmarkWorkArea] Failed to load the query group version:', error);
+    groupNodesByVersion.value = { ...groupNodesByVersion.value, [versionId]: [] };
+  } finally {
+    groupNodesLoading.value = false;
+  }
+}
+
+/*
+ * A rule set node stores only its rule set version IRI. `indexSubjects` finds
+ * the rule set that owns it and its version number, and the SRL is fetched the
+ * same way as for a rule set case.
+ */
+async function loadRuleSetNodes(rows: GroupNodeRow[]) {
+  if (!rulesEnabled.value) return;
+  const versionIds = rows.flatMap((row) => (row.ruleSetVersionId ? [row.ruleSetVersionId] : []));
+  if (versionIds.length === 0) return;
+  await indexSubjects(versionIds);
+  for (const versionId of versionIds) {
+    const entry = subjectIndex.value[versionId];
+    if (entry?.subjectType === 'ruleSet') await loadRuleSetDocument(entry.subjectId, versionId);
+  }
+}
+
+watch(selectedCase, async (planCase) => {
+  if (planCase?.subjectType !== 'queryGroup' || !planCase.subjectId || !planCase.versionId) return;
+  await loadGroupNodes(planCase.subjectId, planCase.versionId);
+  await loadRuleSetNodes(groupNodesByVersion.value[planCase.versionId] ?? []);
+}, { immediate: true });
+
+/** The query, group or rule set page, at the version the case runs. */
+function entityLink(
+  section: 'queries' | 'queryGroups' | 'rules',
+  id: string,
+  versionNumber: number | null | undefined,
+) {
+  const path = sectionPath({ section, id });
+  return versionNumber ? { path, query: { version: String(versionNumber) } } : path;
+}
+
+const selectedCaseLink = computed(() => {
+  const planCase = selectedCase.value;
+  if (!planCase?.subjectId || !planCase.versionId) return null;
+  const section = planCase.subjectType === 'query'
+    ? 'queries'
+    : planCase.subjectType === 'queryGroup' ? 'queryGroups' : 'rules';
+  return entityLink(section, planCase.subjectId, planCase.versionNumber);
+});
+
+/*
+ * Node backends are coloured after the plan's backends, so a store keeps the
+ * colour it has on the Backends axis and in the run charts.
+ */
+const selectedGroupNodes = computed<GroupNodeView[]>(() => {
+  const versionId = selectedCase.value?.subjectType === 'queryGroup' ? selectedCase.value.versionId : null;
+  const rows = versionId ? groupNodesByVersion.value[versionId] ?? [] : [];
+  const nodeBackends = rows.flatMap((row) => (row.target.kind === 'backend' ? [row.target.backendId] : []));
+  const colour = seriesLookup([...new Set([...plan.value.backendIds, ...nodeBackends])]);
+  return groupNodeCosts(rows, nodeObservations.value).map((row) => {
+    const backendId = row.target.kind === 'backend' ? row.target.backendId : null;
+    const queryId = row.sourceVersionId ? queryOfVersion.value[row.sourceVersionId] : undefined;
+    const ruleSet = row.ruleSetVersionId ? subjectIndex.value[row.ruleSetVersionId] : undefined;
+    if (ruleSet?.subjectType === 'ruleSet') {
+      return {
+        ...row,
+        sourceVersion: ruleSet.versionNumber || null,
+        queryString: ruleSetDocuments.value[row.ruleSetVersionId!] ?? null,
+        backendName: null,
+        dot: null,
+        link: entityLink('rules', ruleSet.subjectId, ruleSet.versionNumber),
+      };
+    }
+    return {
+      ...row,
+      backendName: backendId ? backendName(backendId) : null,
+      dot: backendId ? colour(backendId) : null,
+      link: queryId ? entityLink('queries', queryId, row.sourceVersion) : null,
+    };
+  });
+});
 
 function patchCase(patch: Partial<PlanCase>) {
   if (!selectedCase.value) return;
@@ -1220,6 +1343,7 @@ function clearRunSelection() {
   selectedRunId.value = null;
   observations.value = [];
   iterationObservations.value = [];
+  nodeObservations.value = [];
   selectedRequestKey.value = null;
 }
 
@@ -1229,13 +1353,18 @@ async function selectRun(id: string) {
   observationsLoading.value = true;
   try {
     const transient = transientRunById(id);
-    const { observations: loaded, iterationObservations: passes } = transient
-      ? { observations: transient.observations, iterationObservations: transient.iterationObservations }
+    const { observations: loaded, iterationObservations: passes, nodeObservations: nodes } = transient
+      ? {
+        observations: transient.observations,
+        iterationObservations: transient.iterationObservations,
+        nodeObservations: transient.nodeObservations,
+      }
       : await store.getRunObservations(id);
     // Another run, or another benchmark, was opened while this one loaded.
     if (selectedRunId.value !== id) return;
     observations.value = (loaded ?? []) as RawObservation[];
     iterationObservations.value = (passes ?? []) as RawIterationObservation[];
+    nodeObservations.value = (nodes ?? []) as RawNodeObservation[];
     await indexSubjects(observations.value
       .map((observation) => (observation.subject ?? observation.refSubject) as string)
       .filter(Boolean));
@@ -1243,6 +1372,7 @@ async function selectRun(id: string) {
     console.error('[BenchmarkWorkArea] Failed to load run observations:', error);
     observations.value = [];
     iterationObservations.value = [];
+    nodeObservations.value = [];
     toast.error(error instanceof Error ? error.message : 'Failed to load run observations');
   } finally {
     observationsLoading.value = false;
@@ -1432,7 +1562,25 @@ const runTitle = computed(() => {
 
 /* Details first: opening a benchmark, the question is what this is. */
 const activeTab = ref('details');
-const rightPanelCollapsed = ref(false);
+/*
+ * The inspector's edge drags like every other work area's
+ * (`usePanelResize`): drag to resize, past the floor to close, double-click to
+ * reset. The leading share is everything left of the handle.
+ */
+const shellRef = ref<HTMLElement | null>(null);
+const {
+  panelWidthPercent: inspectorLeadingPercent,
+  startResize: startInspectorResize,
+  isResizing: isResizingInspector,
+  collapsed: rightPanelCollapsed,
+  resetWidth: resetInspectorWidth,
+} = usePanelResize({
+  containerRef: shellRef,
+  storageKey: 'benchmark',
+  collapsible: true,
+  initialWidthPercent: 78,
+  resetTrailingPx: 320,
+});
 
 /**
  * The third column's tabs.
@@ -1746,7 +1894,7 @@ const runSubtitle = computed(() => {
       @discard="discardDraft"
     />
 
-    <div class="bench-shell">
+    <div ref="shellRef" class="bench-shell">
     <BenchmarkPlanSidebar
       :tab="tab"
       :groups="groups"
@@ -1821,6 +1969,9 @@ const runSubtitle = computed(() => {
         :graph-support="graphSupport"
         :query-string="selectedCaseQuery"
         :query-loading="selectedCase?.subjectType === 'ruleSet' && ruleSetDocumentLoading"
+        :target-link="selectedCaseLink"
+        :group-nodes="selectedGroupNodes"
+        :group-nodes-loading="groupNodesLoading"
         @update:subjectType="handleCaseSubjectType"
         @update:subjectId="handleCaseSubject"
         @update:versionId="handleCaseVersion"
@@ -1885,7 +2036,25 @@ const runSubtitle = computed(() => {
       rather than a column with no name on it. One tab, relabelled by which of
       the two modes is showing: they are the same slot, "what is selected".
     -->
-    <div class="right-panel" :class="{ collapsed: rightPanelCollapsed }">
+    <div
+      class="vertical-resizer"
+      :class="{ hidden: rightPanelCollapsed }"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the inspector panel"
+      title="Drag to resize · double-click to reset"
+      data-testid="benchmark-inspector-resizer"
+      @mousedown="startInspectorResize"
+      @dblclick="resetInspectorWidth"
+    >
+      <div class="resizer-handle"></div>
+    </div>
+
+    <div
+      class="right-panel"
+      :class="{ collapsed: rightPanelCollapsed, resizing: isResizingInspector }"
+      :style="rightPanelCollapsed ? undefined : { flexBasis: `calc(${100 - inspectorLeadingPercent}% - 8px)` }"
+    >
       <InspectorPanel
         v-model:active-tab="activeTab"
         v-model:collapsed="rightPanelCollapsed"
@@ -1975,6 +2144,44 @@ const runSubtitle = computed(() => {
   max-width: 48px;
 }
 
+.right-panel.resizing {
+  transition: none;
+}
+
+.vertical-resizer {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 8px;
+  background: var(--surface-raised);
+  cursor: col-resize;
+  transition: opacity 0.3s ease, width 0.3s ease;
+}
+
+.vertical-resizer.hidden {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.vertical-resizer:hover {
+  background: var(--action);
+}
+
+.vertical-resizer .resizer-handle {
+  width: 2px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--gray-600);
+  pointer-events: none;
+}
+
+.vertical-resizer:hover .resizer-handle {
+  background: var(--surface);
+}
+
 .run-bar-settings {
   display: inline-flex;
   align-items: center;
@@ -2000,7 +2207,8 @@ const runSubtitle = computed(() => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-width: 0;
+  /* Room for the run bar and the nodes table; the plan list shrinks first. */
+  min-width: 400px;
   background: var(--surface);
 }
 

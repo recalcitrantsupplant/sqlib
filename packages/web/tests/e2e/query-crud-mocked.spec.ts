@@ -1,7 +1,7 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Route } from './fixtures/test';
 import { openSection, openSplash } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 // Mock data matching exact contract schemas
 const mockBackends = [
@@ -66,7 +66,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock queries endpoint - handles GET and POST
-    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -154,7 +154,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock query groups endpoint
-    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
+    await page.route(listRoute('/query-groups'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -181,7 +181,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock rule sets endpoint
-    await page.route(`${API_ORIGIN}/rule-sets`, async (route: Route) => {
+    await page.route(listRoute('/rule-sets'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

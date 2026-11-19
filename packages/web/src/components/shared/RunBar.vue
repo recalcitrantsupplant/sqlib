@@ -76,6 +76,13 @@
       </span>
 
       <!--
+        "from" / "using": the graphs the run reads, for a subject that chooses
+        them at run time. Before "against", as `FROM` and `USING` sit in the
+        request and the endpoint is where the request goes.
+      -->
+      <slot name="reading" />
+
+      <!--
         "against". Not every subject gets to choose: a rule set runs in an
         in-process store by construction, and a query group's nodes each name
         their own. Those say so as a fact rather than offering a dropdown with
@@ -148,8 +155,6 @@
         </Select>
       </span>
 
-      <!-- "reading": what the run reads, for a subject that chooses its graphs at run time. -->
-      <slot name="reading" />
 
       <span v-if="format" class="clause">
         <span class="joiner">as</span>
