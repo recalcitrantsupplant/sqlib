@@ -52,6 +52,7 @@ import {
 import { inputVariableNames, type Callable } from '../../lib/callables';
 import StatusBadge from '../shared/StatusBadge.vue';
 import CopyTokenButton from '../shared/CopyTokenButton.vue';
+import { useAuth } from '@/composables/useAuth';
 
 const props = defineProps<{
   callable: Callable;
@@ -77,12 +78,15 @@ const bodyObject = computed(() => ({
     : {}),
 }));
 
+/* A token line only on an instance that uses sign-in, as in `CodeSnippetPanel`. */
+const { usesSignIn } = useAuth();
+
 const snippet = computed(() =>
-  renderSnippet(active.value, {
-    method: 'POST',
-    url: props.endpoint,
-    body: bodyObject.value,
-  }),
+  renderSnippet(
+    active.value,
+    { method: 'POST', url: props.endpoint, body: bodyObject.value },
+    { bearerToken: usesSignIn.value },
+  ),
 );
 
 async function copy() {
