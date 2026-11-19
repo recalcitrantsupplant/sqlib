@@ -130,27 +130,64 @@
           is for.
         -->
         <section class="group">
-          <SectionLabel as="h3" size="md">Fits</SectionLabel>
-          <p class="group-hint">
-            The queries and groups in this library, judged against what this set
-            fills.
-          </p>
+          <div class="fits-head">
+            <SectionLabel as="h3" size="md">Fits</SectionLabel>
+            <!--
+              The filter chips are the verdict pills themselves: on, a chip
+              wears its verdict's tone; off, it is neutral.
+            -->
+            <div v-if="fits.length" class="fits-filter" role="group" aria-label="Filter by fit">
+              <button
+                v-for="verdict in VERDICTS"
+                :key="verdict"
+                type="button"
+                class="fits-chip"
+                :aria-pressed="shownVerdicts.has(verdict)"
+                :data-testid="`argument-set-fits-filter-${verdict}`"
+                @click="toggleVerdict(verdict)"
+              >
+                <VerdictPill :verdict="verdict" :off="!shownVerdicts.has(verdict)">
+                  {{ VERDICT_LABEL[verdict] }} <span class="fits-chip-count">{{ verdictCounts[verdict] }}</span>
+                </VerdictPill>
+              </button>
+            </div>
+          </div>
 
-          <ul v-if="fits.length" class="fits-list" data-testid="argument-set-fits">
-            <li v-for="entry in fits" :key="entry.id" class="fits-row">
+          <ul v-if="visibleFits.length" class="fits-list" data-testid="argument-set-fits">
+            <li v-for="entry in visibleFits" :key="entry.id" class="fits-row">
               <span class="fits-name">{{ entry.name }}</span>
-              <span class="fits-verdict" :class="`fits-verdict--${entry.verdict}`">{{ entry.verdict }}</span>
+              <span v-if="entry.reason" class="fits-reason">{{ entry.reason }}</span>
+              <VerdictPill :verdict="entry.verdict" size="xs" />
+              <!--
+                Kept in place, hidden, on a row that cannot open, so the pills
+                still line up in one column.
+              -->
               <button
                 type="button"
-                class="link-button"
+                class="btn-compact fits-open"
+                :class="{ 'fits-open--none': entry.verdict === 'mismatch' }"
                 :disabled="entry.verdict === 'mismatch'"
-                data-testid="argument-set-run-with"
+                :aria-hidden="entry.verdict === 'mismatch'"
+                :title="`Open ${entry.name} with this argument set`"
+                data-testid="argument-set-open"
                 @click="emit('open-callable', { id: entry.id, kind: entry.kind, argumentSetId: setId ?? null })"
               >
-                Run with…
+                <ArrowUpRight :size="12" /> Open
               </button>
             </li>
           </ul>
+          <p v-else-if="fits.length" class="empty-hint fits-empty" data-testid="argument-set-fits-filtered">
+            No query takes these arguments.
+            <button
+              v-if="!shownVerdicts.has('mismatch') && verdictCounts.mismatch > 0"
+              type="button"
+              class="btn-compact fits-open"
+              data-testid="argument-set-fits-show-mismatch"
+              @click="toggleVerdict('mismatch')"
+            >
+              Show {{ verdictCounts.mismatch }} with no match
+            </button>
+          </p>
           <p v-else class="empty-hint">Nothing in this library takes these arguments yet.</p>
         </section>
 
@@ -240,6 +277,8 @@ import CodeSnippetPanel from './shared/CodeSnippetPanel.vue';
 import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
 import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';
 import TupleBindingEditor from './query-work-area/TupleBindingEditor.vue';
+import VerdictPill from './shared/VerdictPill.vue';
+import { ArrowUpRight } from '@lucide/vue';
 import type { SnippetRequest } from '@/lib/codeSnippets';
 import { useArgumentSetsStore } from '@/composables/useArgumentSetsStore';
 import { usePanelResize } from '@/composables/usePanelResize';
@@ -248,7 +287,7 @@ import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useEntityDraft } from '@/composables/useEntityDraft';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
-import { buildQuerySignature, compatibility } from '@/lib/argumentSignature';
+import { buildQuerySignature, compatibility, type CompatibilityVerdict } from '@/lib/argumentSignature';
 import { pinBindings, referencesOf } from '@/lib/tupleSetReferences';
 import { NO_STAMPS, stampsOf, type EntityStamps } from '@/lib/entityStamps';
 import type {
@@ -300,7 +339,43 @@ const isSaving = ref(false);
 const isDeleting = ref(false);
 const saveError = ref<string | null>(null);
 const newTableVariables = ref('');
-const fits = ref<Array<{ id: string; name: string; kind: 'query' | 'queryGroup'; verdict: string }>>([]);
+const fits = ref<Array<{
+  id: string;
+  name: string;
+  kind: 'query' | 'queryGroup';
+  verdict: CompatibilityVerdict;
+  reason: string;
+}>>([]);
+
+/*
+ * Which verdicts the Fits list shows. A set that matches nothing is usually
+ * most of the library, so No match starts hidden and is one click away.
+ */
+const VERDICTS: CompatibilityVerdict[] = ['fits', 'partial', 'mismatch'];
+const VERDICT_LABEL: Record<CompatibilityVerdict, string> = {
+  fits: 'Matches',
+  partial: 'Partial',
+  mismatch: 'No match',
+};
+const shownVerdicts = ref(new Set<CompatibilityVerdict>(['fits', 'partial']));
+
+function toggleVerdict(verdict: CompatibilityVerdict) {
+  const next = new Set(shownVerdicts.value);
+  if (next.has(verdict)) next.delete(verdict);
+  else next.add(verdict);
+  shownVerdicts.value = next;
+}
+
+const verdictCounts = computed(() => {
+  const counts: Record<CompatibilityVerdict, number> = { fits: 0, partial: 0, mismatch: 0 };
+  for (const entry of fits.value) counts[entry.verdict] += 1;
+  return counts;
+});
+
+/** Matches first, then partial, then no match; by name within each. */
+const visibleFits = computed(() => fits.value
+  .filter(entry => shownVerdicts.value.has(entry.verdict))
+  .sort((a, b) => VERDICTS.indexOf(a.verdict) - VERDICTS.indexOf(b.verdict) || a.name.localeCompare(b.name)));
 
 /* --------------------------------------------------------------- editing */
 
@@ -584,9 +659,8 @@ const codeUnavailable = computed(() =>
  *
  * Judged with the same `compatibility` the switcher uses on a callable's
  * screen, read the other way round: there, one query against many sets; here,
- * one set against many callables. A mismatch stays listed rather than hidden,
- * because "this does not fit anything" is the answer often enough to be worth
- * showing.
+ * one set against many callables. A mismatch is kept in the list, and the
+ * filter above it hides mismatches until the person asks for them.
  */
 async function loadFits() {
   const libraryId = setLibraryId.value || activeLibraryId.value;
@@ -632,7 +706,7 @@ async function loadFits() {
           offsetParameters: (data.offsetParameters ?? []).map(parameter => String(parameter.name ?? '')),
         });
         const verdict = compatibility(signature, tupleBindings.value);
-        return { id: query.id, name: query.name, kind: 'query' as const, verdict: verdict.verdict };
+        return { id: query.id, name: query.name, kind: 'query' as const, verdict: verdict.verdict, reason: verdict.reason };
       } catch {
         return null;
       }
@@ -908,20 +982,58 @@ function clearRecord() {
   cursor: not-allowed;
 }
 
+.fits-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.fits-filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The chip is a bare button around a VerdictPill, which draws it. */
+.fits-chip {
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  cursor: pointer;
+}
+
+.fits-chip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.fits-chip-count {
+  font-weight: var(--weight-medium);
+  opacity: 0.75;
+}
+
 .fits-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .fits-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
+  min-height: 36px;
+  border-top: 1px solid var(--border-subtle);
   font-size: var(--text-body-lg);
+}
+
+.fits-row:first-child {
+  border-top: none;
 }
 
 .fits-name {
@@ -932,27 +1044,31 @@ function clearRecord() {
   white-space: nowrap;
 }
 
-.fits-verdict {
-  font-size: var(--text-label);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-default);
-}
-
-.fits-verdict--fits {
-  border-color: var(--success);
-  color: var(--success);
-}
-
-.fits-verdict--partial {
-  border-color: var(--warning);
-  color: var(--warning);
-}
-
-.fits-verdict--mismatch {
+.fits-reason {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-micro);
   color: var(--ink-muted);
+}
+
+.fits-open {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  font-size: var(--text-label);
+}
+
+.fits-open--none {
+  visibility: hidden;
+}
+
+.fits-empty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
 
 .provenance {

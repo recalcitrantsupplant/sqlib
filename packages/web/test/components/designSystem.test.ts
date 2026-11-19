@@ -587,7 +587,8 @@ describe('SectionLabel adoption', () => {
     'components/shared/SparqlEditorPanel.vue: .outputs-label': 'painted --action: it names a live detection, not a section',
 
     // 4. Not a label: a datum, a pill, table chrome, or a control's own text.
-    'components/ArgumentSetWorkArea.vue: .fits-verdict': 'a pill with a state modifier — StatusBadge’s shape',
+    'components/benchmarks/BenchmarkCaseEditor.vue: .node-row-head':
+      'the group nodes table header row: a grid row whose cells carry per-column layout',
     'components/EtlPlayground.vue: .peek-badge': 'a pill on --action, reading "LIMIT 10"',
     'components/EtlPlayground.vue: .peek-col-type': 'the column’s DuckDB type, printed inside a th — a datum',
     'components/EtlPlayground.vue: .table-header':
@@ -1798,7 +1799,6 @@ describe('StatusBadge adoption', () => {
      * what it is drawn as: uppercase with tracking, an outline form, or a
      * monospace value.
      */
-    'components/ArgumentSetWorkArea.vue: .fits-verdict': 'uppercase with tracking, and an outline pill: the base colours, not the -ink/-surface triples',
     'components/EtlPlayground.vue: .peek-badge': 'uppercase with tracking, reading "LIMIT 10"',
     'components/QueryWorkArea.vue: .var-nodekind-badge': 'uppercase with tracking, and a literal form that leaves the state families entirely',
     'components/shared/SparqlEditorPanel.vue: .output-badge': 'a monospace output media type: the primitive has no mono step',

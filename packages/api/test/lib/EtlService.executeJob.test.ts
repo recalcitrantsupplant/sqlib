@@ -92,7 +92,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
         return {
           $id: MAPPING,
           columns: JSON.stringify([
-            { sourceColumn: 'name', targetVariable: 'name', mappingType: 'literal', datatype: 'http://www.w3.org/2001/XMLSchema#string' },
+            { columnName: 'name', termType: 'literal', datatypeIri: 'http://www.w3.org/2001/XMLSchema#string' },
           ]),
         };
       }
@@ -285,7 +285,7 @@ describe('EtlService.executeEtlJob on a read-only deployment', () => {
         return {
           $id: MAPPING,
           columns: JSON.stringify([
-            { sourceColumn: 'name', targetVariable: 'name', mappingType: 'literal', datatype: 'http://www.w3.org/2001/XMLSchema#string' },
+            { columnName: 'name', termType: 'literal', datatypeIri: 'http://www.w3.org/2001/XMLSchema#string' },
           ]),
         };
       }

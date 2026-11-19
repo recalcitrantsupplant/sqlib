@@ -14,7 +14,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { TemplateCompileError, compileQueryTemplate } from '@sparql-query-lib/compiler';
 import { DuckDbService } from '@sparql-query-lib/runtime-duckdb';
-import { runEtl, type ColumnDefinition } from '@sparql-query-lib/runtime-etl';
+import { RetiredColumnFieldError, runEtl, toColumnDefinitions, type ColumnDefinition } from '@sparql-query-lib/runtime-etl';
 import type { Executor, QueryTemplate } from '@sparql-query-lib/runtime';
 import { pick, readBundle } from '../bundle.js';
 import { chooseExecutor } from '../executor.js';
@@ -50,11 +50,12 @@ The job file is JSON:
   {
     "sql": "SELECT …"          or "sqlFile": "extract.sql",
     "template": "CONSTRUCT …"  or "templateFile": "construct.rq",
-    "columns": [ { "columnName": "id", "targetVariable": "customer",
-                   "termType": "uri", "iriTemplate": "http://ex/c/{value}",
-                   "nullPolicy": "skipRow" }, … ],
+    "columns": [ { "columnName": "customer", "termType": "uri" },
+                 { "columnName": "name", "termType": "literal",
+                   "datatypeIri": "http://www.w3.org/2001/XMLSchema#string" }, … ],
     "chunkSize": 1000
   }
+Each column binds the variable of its name, and its value is used as it is.
 Paths in it are relative to the job file. SQL paths are relative to the
 directory sqlib runs in.
 `;
@@ -125,7 +126,6 @@ export async function etlCommand(io: Io, argv: string[]): Promise<number> {
         onChunk: async done => { progress = done; },
         ...(maxRows ? { maxRows } : {}),
         dryRun: values['dry-run'],
-        warn: (message, context) => io.stderr(`warning: ${message} ${JSON.stringify(context)}\n`),
       });
     } finally {
       await out.close();
@@ -167,6 +167,16 @@ function timedExecutor(executor: Executor, report: RunReport): Executor {
   };
 }
 
+/** A job's columns, with a retired mapping field reported against the file it came from. */
+function plainColumns(columns: readonly unknown[], where: string): ColumnDefinition[] {
+  try {
+    return toColumnDefinitions(columns);
+  } catch (error) {
+    if (error instanceof RetiredColumnFieldError) throw new CliError(`${where}: ${error.message}`);
+    throw error;
+  }
+}
+
 /** A job ready to run: whichever way it arrived, the template is compiled and checked. */
 interface ResolvedJob {
   sql: string;
@@ -183,7 +193,7 @@ async function jobFromBundle(io: Io, file: string, key: string): Promise<Resolve
   return {
     sql: job.sql,
     template: job.template,
-    columns: job.columns,
+    columns: plainColumns(job.columns, `${file}: ETL job '${key}'`),
     chunkSize: job.chunkSize,
     provenance: {
       bundle: file,
@@ -224,14 +234,15 @@ async function readJob(io: Io, file: string): Promise<ResolvedJob> {
     throw new CliError(`${file}: the template needs exactly one VALUES … { UNDEF … } slot for the rows; it has ${compiled.template.slots.length}.`);
   }
   const slotVars = new Set(compiled.template.slots[0]!.vars);
-  const unmapped = job.columns.map(column => column.targetVariable).filter(name => !slotVars.has(name));
+  const columns = plainColumns(job.columns, file);
+  const unmapped = columns.map(column => column.columnName).filter(name => !slotVars.has(name));
   if (unmapped.length > 0) {
     throw new CliError(`${file}: the template's VALUES slot does not declare ${unmapped.map(name => `?${name}`).join(', ')}.`);
   }
   return {
     sql,
     template: compiled.template,
-    columns: job.columns,
+    columns,
     chunkSize: job.chunkSize,
     provenance: { file, textHash: sha256(compiled.template.text), sqlHash: sha256(sql) },
   };

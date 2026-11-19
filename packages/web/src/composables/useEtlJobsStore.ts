@@ -21,12 +21,9 @@ import { authorizedFetch } from './authorizedFetch';
 /** A column of the SQL result, and the RDF term it becomes. */
 export interface EtlColumnMapping {
   columnName: string;
-  targetVariable: string;
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
-  iriTemplate?: string;
-  nullPolicy: 'undef' | 'skipRow';
 }
 
 export interface EtlJob {

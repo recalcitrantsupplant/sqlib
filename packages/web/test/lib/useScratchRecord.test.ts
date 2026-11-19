@@ -194,7 +194,7 @@ describe('useScratchRecord', () => {
  * Bodies that are edited in place, which is every section but Queries.
  *
  * A ref holding an array notifies only when `.value` is replaced. The editors
- * do not replace: they set `mappings[i].targetVariable`, `rules[i]`,
+ * do not replace: they set `mappings[i].termType`, `rules[i]`,
  * `specs[i].subjectId`. A shallow watcher would autosave the query editor and
  * silently drop everything typed in the other three.
  */

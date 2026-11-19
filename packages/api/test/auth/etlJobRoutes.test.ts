@@ -135,7 +135,7 @@ async function inject(
 }
 
 const COLUMNS = JSON.stringify([
-  { columnName: 'gauge', targetVariable: 'gauge', termType: 'Literal', nullPolicy: 'skip' },
+  { columnName: 'gauge', termType: 'literal' },
 ]);
 
 beforeEach(() => {

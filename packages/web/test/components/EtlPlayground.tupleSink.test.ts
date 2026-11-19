@@ -152,7 +152,7 @@ beforeEach(() => {
   ]);
   jobs.fetchColumnMappingVersion.mockResolvedValue({
     id: MAPPING_VERSION,
-    columns: [{ columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' }],
+    columns: [{ columnName: 'name', termType: 'literal' }],
   });
 });
 

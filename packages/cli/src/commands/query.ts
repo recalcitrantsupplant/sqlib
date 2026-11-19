@@ -109,7 +109,7 @@ async function loadQuery(
   }
 
   const bundle: ExportBundle = {
-    version: 1,
+    version: 2,
     library: { id: 'urn:sqlib:cli' },
     queries: {
       query: {

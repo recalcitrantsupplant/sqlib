@@ -33,6 +33,13 @@ const api = vi.hoisted(() => ({
 }));
 
 /** The scratch record the workspace hydrates from, per test. */
+/** A rule set as a user writes it. A new scratch rule set starts empty. */
+const SAMPLE_SRL = `PREFIX : <http://x/>
+
+DATA { :a :p :b }
+
+RULE { ?s :q ?o } WHERE { ?s :p ?o }`;
+
 const scratch = vi.hoisted(() => ({ body: {} as Record<string, unknown>, name: 'Untitled rule set' }));
 const scratchCollected = vi.hoisted(() => ({ value: null as unknown }));
 const toasts = vi.hoisted(() => ({ error: [] as string[] }));
@@ -173,7 +180,7 @@ const inlineTuples = (wrapper: WorkArea) =>
 describe('RuleSetWorkArea (draft) — one document', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    scratch.body = {};
+    scratch.body = { srl: SAMPLE_SRL };
     scratchCollected.value = null;
     toasts.error.length = 0;
     api.executeRulesPlayground.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [] });
@@ -193,6 +200,15 @@ describe('RuleSetWorkArea (draft) — one document', () => {
       },
       wellFormedness: [],
     });
+  });
+
+  it('opens a new rule set on an empty document, with no example text', async () => {
+    scratch.body = {};
+    const wrapper = await mountWorkArea();
+    expect(wrapper.findComponent(EditorStub).props('sparqlCode')).toBe('');
+    // No per-part lists, and nothing to add parts to.
+    expect(wrapper.text()).not.toContain('Add Data Block');
+    expect(wrapper.text()).not.toContain('Add Rule');
   });
 
   it('opens on one document holding prefixes, DATA and rules', async () => {
@@ -267,7 +283,7 @@ describe('RuleSetWorkArea (draft) — one document', () => {
 describe('RuleSetWorkArea (draft) — rule tuples', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    scratch.body = {};
+    scratch.body = { srl: SAMPLE_SRL };
     toasts.error.length = 0;
     api.executeRulesPlayground.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [] });
     api.listDataGraphs.mockResolvedValue([]);
@@ -357,7 +373,7 @@ describe('RuleSetWorkArea (draft) — rule tuples', () => {
 describe('RuleSetWorkArea (draft) — a rule set that does not stratify', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    scratch.body = {};
+    scratch.body = { srl: SAMPLE_SRL };
     toasts.error.length = 0;
     api.executeRulesPlayground.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [] });
     api.listDataGraphs.mockResolvedValue([]);

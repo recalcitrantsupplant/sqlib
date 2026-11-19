@@ -1,5 +1,5 @@
 PREFIX : <http://example/>
 
-# A pattern variable used again after the GROUP is a new variable, as after
-# a NOT (w3c/data-shapes#690): the ?y after the GROUP is not the child.
+# A pattern variable may not be used again after the GROUP: it is in use
+# there, as after a NOT (w3c/data-shapes#690).
 RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] ?x :knows ?y }
