@@ -18,6 +18,7 @@ import ResultsFooter from '@/components/shared/ResultsFooter.vue';
 import ResultsActionBar from '@/components/shared/ResultsActionBar.vue';
 import TermDisplayToggle from '@/components/shared/TermDisplayToggle.vue';
 import TableWrapToggle from '@/components/shared/TableWrapToggle.vue';
+import CopyButton from '@/components/shared/CopyButton.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import { Input } from '@/components/ui/input';
 import RdfTermTable from '@/components/shared/RdfTermTable.vue';
@@ -570,6 +571,12 @@ defineExpose({
         </button>
         <TableWrapToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
         <TermDisplayToggle v-if="(activeTab === 'table' && hasStructuredOrTabularResults) || (activeTab === 'raw' && isPatch)" />
+        <CopyButton
+          v-if="activeTab === 'raw' && hasRawContent"
+          :text="rawContent"
+          subject="response"
+          testid="results-copy"
+        />
         <button
           v-if="canExpand"
           type="button"

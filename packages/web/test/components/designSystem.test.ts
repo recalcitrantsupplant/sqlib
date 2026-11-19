@@ -1123,8 +1123,8 @@ describe('PanelHeader adoption, closed over src', () => {
       'the title is a <SectionLabel as="h3" size="lg">, deliberately the label spec',
 
     // The bar is not a header element, or its contents are not one row.
-    'components/shared/CodePeek.vue: .peek-head':
-      'a <button>: the bar IS the disclosure control (border: 0, cursor: pointer)',
+    'components/shared/CodePeek.vue: .peek-bar':
+      'the disclosure <button> fills the bar, with Copy beside it; a PanelHeader title is not a button',
     'components/query-work-area/TupleBindingEditor.vue: .clause-header':
       'align-items: flex-start over a two-line heading column; the primitive’s title row is one centred line',
 
@@ -1451,7 +1451,6 @@ describe('InlineNote', () => {
     'components/query-work-area/ArgumentSetFooter.vue',
     'components/query-work-area/ArgumentSetSwitcher.vue',
     'components/query-work-area/TupleBindingEditor.vue',
-    'components/tests/RunByTagMenu.vue',
     'components/tests/TestReportExportMenu.vue',
     'components/tests/TestRunBreakdown.vue',
     'components/tests/TestRunExportMenu.vue',

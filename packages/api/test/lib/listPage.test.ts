@@ -32,6 +32,17 @@ describe('applyListPage', () => {
     expect(ids({ tags: ['t1', 't2'] })).toEqual(['b']);
   });
 
+  it('keeps rows with any named tag under tagMatch any', () => {
+    expect(ids({ tags: ['t2', 'tx'], tagMatch: 'any' })).toEqual(['b']);
+    expect(ids({ tags: ['t1', 't2'], tagMatch: 'any' })).toEqual(['a', 'b']);
+    expect(ids({ tags: ['t2', 'tx'], tagMatch: 'all' })).toEqual([]);
+  });
+
+  it('keeps only rows that also carry every withTag', () => {
+    expect(ids({ tags: ['t1', 'tx'], tagMatch: 'any', withTags: ['t2'] })).toEqual(['b']);
+    expect(ids({ withTags: ['t1'] })).toEqual(['a', 'b']);
+  });
+
   it('sorts newest first by default for dates, and puts missing values last', () => {
     expect(ids({ sort: 'modified' })).toEqual(['a', 'c', 'b']);
     expect(ids({ sort: 'modified', order: 'asc' })).toEqual(['b', 'c', 'a']);

@@ -572,6 +572,9 @@ const MANIFEST: Record<string, Protection> = {
    * bounded by the same grant the guard already required.
    */
   'GET /tags': 'readable-listing',
+  // Counts over the entities `filterReadable` keeps, so a caller counts only
+  // what it may read. No `:id`, so the entity guard has nothing to resolve.
+  'GET /tags/counts': 'readable-listing',
   'POST /tags': 'write-from-body',
   'GET /tags/:id': 'read',
   'PUT /tags/:id': 'write',

@@ -2,7 +2,7 @@ import { test, expect, type Page, type Route } from './fixtures/test';
 import { openCreateLibraryDialog } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { chooseSearchOption, openSearchSelect, searchSelect } from './search-select';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 // Mock data
 const mockBackends = [
@@ -85,7 +85,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
       }
     });
 
-    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -93,7 +93,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
       });
     });
 
-    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
+    await page.route(listRoute('/query-groups'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

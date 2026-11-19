@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { API_HOST } from './api-origin';
+import { API_HOST, listRoute } from './api-origin';
 
 /**
  * Editor syntax highlighting follows the app theme, and uses the RDF tokens.
@@ -72,7 +72,7 @@ test.describe('Editor syntax highlighting', () => {
     await page.route(`**//${API_HOST}/libraries`, async (route: Route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([LIBRARY]) });
     });
-    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
 

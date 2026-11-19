@@ -84,6 +84,7 @@
                 <Eye :size="14" />
                 {{ isPeeking ? 'Loading...' : 'Peek' }}
               </button>
+              <CopyButton :text="sqlQuery" subject="SQL query" testid="etl-sql-copy" />
               <ExpandButton
                 v-if="!sqlExpanded"
                 subject="the SQL query"
@@ -252,6 +253,13 @@
                 @format="formatTemplate"
                 @diff="openTemplateDiff"
                 @update:code="(value: string) => { sparqlTemplate = value; onSparqlEdit(); }"
+              />
+              <!-- Read-only or linked, the template has no document actions but can still be copied. -->
+              <CopyButton
+                v-else
+                :text="sparqlTemplate"
+                subject="template"
+                testid="etl-template-copy"
               />
               <ExpandButton
                 v-if="!templateExpanded"
@@ -484,6 +492,7 @@ import { useEditorAsPrefixTarget } from '@/composables/usePrefixTarget';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
 import ExpandButton from './shared/ExpandButton.vue';
+import CopyButton from './shared/CopyButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { languageExtensionsFor } from '../lib/codeLanguage';
 import { X, Eye, GitCompare, Unlink } from '@lucide/vue';

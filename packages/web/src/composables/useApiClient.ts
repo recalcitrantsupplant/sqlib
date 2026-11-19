@@ -1,3 +1,4 @@
+import { applyListPageLocally } from '../lib/listPageLocal';
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig, createError } from '#imports';
 import { z } from 'zod';
@@ -334,14 +335,37 @@ export interface ListPageParams {
   ids?: string[];
   library?: string;
   tag?: string[];
+  /** How `tag` combines. The server reads a missing value as `all`. */
+  tagMatch?: 'any' | 'all';
+  /** Tags every row must also carry. A tag heading loads its rows with it. */
+  withTag?: string[];
   sort?: 'name' | 'modified' | 'created' | 'creator' | 'versions';
   order?: 'asc' | 'desc';
+}
+
+/** The kinds the rail pages from the server (#197). */
+export type PagedKind = 'query' | 'queryGroup' | 'ruleSet' | 'benchmark' | 'dataGraph' | 'tupleSet' | 'argumentSet';
+
+/** The fields every paged row has. */
+export interface PagedEntity {
+  id: string;
+  name: string;
+  [key: string]: unknown;
 }
 
 /** One page of a list, and how many entities match in all. */
 export interface ListPage<T> {
   items: T[];
   total: number;
+}
+
+/**
+ * A page from a list answer. Without `X-Total-Count` the server sent the whole
+ * list, so the browser applies the controls (`lib/listPageLocal.ts`).
+ */
+function pageOf<T>(data: T[], totalCount: number | null | undefined, params: ListPageParams): ListPage<T> {
+  if (totalCount === null || totalCount === undefined) return applyListPageLocally(data, params);
+  return { items: data, total: totalCount };
 }
 
 /** `params` as a query string, with a leading `?` or `&` as `joiner` says. */
@@ -3037,7 +3061,7 @@ export function useApiClient() {
       { method: 'GET' },
       (payload) => z.array(argumentSetSummarySchema).parse(payload),
     );
-    return { items: result.data, total: result.totalCount ?? result.data.length };
+    return pageOf(result.data, result.totalCount, params);
   };
 
   /** One page of the sets made for one query or group (#197). */
@@ -3052,7 +3076,7 @@ export function useApiClient() {
       { method: 'GET' },
       (payload) => z.array(argumentSetSummarySchema).parse(payload),
     );
-    return { items: result.data, total: result.totalCount ?? result.data.length };
+    return pageOf(result.data, result.totalCount, params);
   };
 
   /** Create a set that names its own library — the rail's `+ New`. */
@@ -3453,7 +3477,63 @@ export function useApiClient() {
     );
   };
 
+  /*
+   * One page of any kind the rail lists (#197). Every kind goes through the
+   * same server helper (`lib/listPage.ts` in the API), so one call shape
+   * serves them all. An argument set names its library in `libraryId`.
+   */
+  const PAGED_KINDS: Record<PagedKind, { path: (params: ListPageParams) => string; parse: (payload: unknown) => unknown[] }> = {
+    query: { path: () => '/queries', parse: (payload) => querySchema.array().parse(payload) },
+    queryGroup: { path: () => '/query-groups', parse: (payload) => queryGroupSchema.array().parse(payload) },
+    ruleSet: { path: () => '/rule-sets', parse: (payload) => ruleSetSchema.array().parse(payload) },
+    benchmark: { path: () => '/benchmark-experiments', parse: (payload) => z.array(benchmarkExperimentSchema).parse(payload) },
+    dataGraph: { path: () => '/data-graphs', parse: (payload) => dataGraphSchema.array().parse(payload) },
+    tupleSet: { path: () => '/tuple-sets', parse: (payload) => tupleSetSchema.array().parse(payload) },
+    argumentSet: {
+      path: (params) => `/argument-sets?libraryId=${encodeURIComponent(params.library ?? '')}`,
+      parse: (payload) => z.array(argumentSetSummarySchema).parse(payload),
+    },
+  };
+
+  /**
+   * How many rows of one entity type carry each tag, inside the list filters.
+   * One request for every tag of the library.
+   */
+  const getTagCounts = async (
+    type: string,
+    params: Pick<ListPageParams, 'library' | 'q' | 'tag' | 'tagMatch' | 'withTag'> = {},
+  ): Promise<Record<string, number>> => {
+    const result = await request(
+      buildUrl(`/tags/counts${listPageQuery({ type, ...params })}`),
+      { method: 'GET' },
+      (payload) => {
+        const counts: Record<string, number> = {};
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+          for (const [id, count] of Object.entries(payload)) {
+            if (typeof count === 'number' && Number.isFinite(count)) counts[id] = count;
+          }
+        }
+        return counts;
+      },
+    );
+    return result.data ?? {};
+  };
+
+  const pageEntities = async (kind: PagedKind, params: ListPageParams): Promise<ListPage<PagedEntity>> => {
+    const { path, parse } = PAGED_KINDS[kind];
+    const base = path(params);
+    const rest = kind === 'argumentSet' ? { ...params, library: undefined } : params;
+    const result = await request(
+      buildUrl(`${base}${listPageQuery(rest, base.includes('?') ? '&' : '?')}`),
+      { method: 'GET' },
+      parse,
+    );
+    return pageOf(result.data as PagedEntity[], result.totalCount, params);
+  };
+
   return {
+    getTagCounts,
+    pageEntities,
     getTelemetryStatus,
     getLibraryExportBundle,
     getLibraryExportHtml,
