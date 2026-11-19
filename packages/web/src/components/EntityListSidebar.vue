@@ -447,21 +447,19 @@
               :data-testid="`show-more-${group.tagId}`"
               @click="emit('load-more', group.tagId)"
             >
-              <span>Show more</span>
-              <span class="cluster-meta">{{ group.total - group.loaded }} more</span>
+              Show {{ group.total - group.loaded }} more
             </button>
           </template>
         </template>
         <!-- The rest of the list, from the server a page at a time (#197). -->
         <button
-          v-if="paged && (savedRemaining ?? 0) > 0"
+          v-if="showMoreSaved"
           type="button"
           class="show-more-row"
           data-testid="show-more-saved"
           @click="emit('load-more', null)"
         >
-          <span>Show more</span>
-          <span class="cluster-meta">{{ savedRemaining }} more</span>
+          Show {{ savedRemaining }} more
         </button>
       </template>
 
@@ -707,6 +705,11 @@ const props = defineProps<{
   savedRemaining?: number;
   /** Per tag id, how many rows carry the tag. */
   tagTotals?: Record<string, number>;
+  /**
+   * Paged lists: per tag id, the rows its heading has loaded. A heading shows
+   * these rows only, so every heading starts with the same number of rows.
+   */
+  tagRowIds?: Record<string, string[]>;
   /**
    * Paged lists: per tag id, how many rows of the section carry it in the
    * whole library, for the tag menu. Unpaged lists count their own rows.
@@ -1079,7 +1082,9 @@ const tagClusters = computed<SidebarCluster[]>(() => {
   const clusters: SidebarCluster[] = [];
 
   for (const tag of props.tags ?? []) {
-    const items = unpinnedSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id));
+    const headingIds = paged.value ? new Set(props.tagRowIds?.[tag.id] ?? []) : null;
+    const items = unpinnedSaved.value.filter((entity) =>
+      (entity.tags ?? []).includes(tag.id) && (!headingIds || headingIds.has(entity.id)));
     const total = paged.value ? props.tagTotals?.[tag.id] ?? 0 : 0;
     if (items.length === 0 && total === 0) continue;
     clusters.push({
@@ -1092,7 +1097,7 @@ const tagClusters = computed<SidebarCluster[]>(() => {
       collapsible: true,
       showHeading: true,
       total,
-      loaded: visibleSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id)).length,
+      loaded: headingIds ? headingIds.size : items.length,
     });
   }
 
@@ -1174,6 +1179,14 @@ const filteredCount = computed(
     : 0)
     + (scratchEnabled.value ? props.scratch.length : 0),
 );
+
+/*
+ * The next page of the whole list. Under tag grouping a tag heading shows only
+ * the rows it loaded, so the whole list's pages add rows to Untagged only.
+ */
+const showMoreSaved = computed(() =>
+  paged.value && (props.savedRemaining ?? 0) > 0
+  && (!groupingByTag.value || tagClusters.value.some((cluster) => cluster.key === 'tag:untagged')));
 
 /** The Saved heading's count: every unpinned match, loaded or not, when paged. */
 const savedHeaderCount = computed(() =>
@@ -1543,25 +1556,26 @@ function ageOf(item: CallableDraft) {
   color: var(--ink-muted);
 }
 
+/* Smaller and lighter than a row name, so it does not read as a row. */
 .show-more-row {
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 26px;
+  height: 22px;
   padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--ink-secondary);
-  font: inherit;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--text-label);
   text-align: left;
   cursor: pointer;
 }
 
 .show-more-row:hover {
-  background: var(--surface-subtle);
+  background: var(--surface-raised);
+  color: var(--action);
 }
 
 .show-more-row.indented {

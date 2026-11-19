@@ -9,7 +9,7 @@ const api = vi.hoisted(() => ({ pageEntities: vi.fn(), getTagCounts: vi.fn() }))
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
 vi.mock('../../src/composables/useApiClient', () => ({ useApiClient: () => api }));
 
-const { useRailPaging } = await import('@/composables/useRailPaging');
+const { HEADING_ROWS, useRailPaging } = await import('@/composables/useRailPaging');
 const { useEntityPins, useEntityLastOpened } = await import('@/composables/useEntityPins');
 const { useSettings } = await import('@/composables/useSettings');
 
@@ -75,6 +75,22 @@ describe('useRailPaging', () => {
     expect(api.pageEntities).not.toHaveBeenCalledWith('query', expect.objectContaining({ limit: 1 }));
     expect(r.tagTotals.value).toEqual({ 'tag:geo': 7 });
     expect(r.tagCounts.value).toEqual({ 'tag:geo': 7 });
+  });
+
+  it('loads the first rows of each tag heading, the same number for every heading', async () => {
+    useSettings().settings.value.entityListGrouping = 'tag';
+    api.pageEntities.mockImplementation(async (_kind: string, params: { ids?: string[]; withTag?: string[] }) => {
+      if (params.ids) return { items: [], total: 0 };
+      if (params.withTag) return { items: [row('g1', ['tag:geo']), row('g2', ['tag:geo'])], total: 7 };
+      return { items: [row('a'), row('g9', ['tag:geo'])], total: 300 };
+    });
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ withTag: ['tag:geo'], limit: HEADING_ROWS, offset: 0 }));
+    // g9 is on the main page, but past the heading's first rows.
+    expect(r.tagRowIds.value).toEqual({ 'tag:geo': ['g1', 'g2'] });
+    await r.loadMore('tag:geo');
+    expect(api.pageEntities).toHaveBeenLastCalledWith('query', expect.objectContaining({ withTag: ['tag:geo'], limit: 50, offset: 2 }));
   });
 
   it('sends the tag filter, and loads a heading inside it', async () => {
