@@ -77,8 +77,22 @@ async function addDynamicQueryNode(page: Page): Promise<string> {
  * fires and the drag is discarded silently.
  */
 async function connectNodes(page: Page, sourceNodeId: string, targetNodeId: string) {
+  // A new node can land past the canvas's right edge, under the inspector.
+  // Fit the view so both handles are on the canvas before the drag.
+  await page.locator('.vue-flow__controls-fitview').click();
   const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`).first();
   const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`).first();
+  // The click resolves before the viewport transform does: wait for the target
+  // handle to stop moving before measuring.
+  let last = '';
+  await expect
+    .poll(async () => {
+      const box = JSON.stringify(await target.boundingBox());
+      const settled = box === last;
+      last = box;
+      return settled;
+    })
+    .toBe(true);
   const from = await source.boundingBox();
   const to = await target.boundingBox();
   if (!from || !to) throw new Error(`No handle to drag between ${sourceNodeId} and ${targetNodeId}`);
