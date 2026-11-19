@@ -2,6 +2,7 @@ import {FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest} fro
 import { callerOfRequest, callerRefusal, declaredReservedSlots, groupReservedSlots } from '../auth/caller.js';
 import {backendTypeIriToKey, type PersistedBackend} from '../persistence/schemas/BackendSchema.js';
 import { toError } from '../lib/toError.js';
+import { rdfMediaTypeOf, requestedRdfFormat, writeStore } from '../lib/orchestration/rdfHandoff.js';
 import type {PersistedQuery} from '../persistence/schemas/QuerySchema.js';
 import type {PersistedQueryVersion} from '../persistence/schemas/QueryVersionSchema.js';
 import {ISparqlExecutor, SparqlSelectJsonOutput} from '../server/ISparqlExecutor.js';
@@ -458,6 +459,9 @@ export default async function (
         // Reassigned once below, for a query given data graphs to run over.
         let backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
+        // The store a query given data graphs runs in, kept so an update over
+        // them can answer with the graph it leaves.
+        let ephemeralStore: ReturnType<typeof oxigraphStoreManager.createEphemeralStore> | null = null;
         // What the run leaves for observability (`lib/slowQueryLog.ts`), filled
         // in as the target resolves.
         let runVersionId: string | null = null;
@@ -1061,7 +1065,7 @@ export default async function (
             if (isEphemeralBackend) {
                 // Create ephemeral store for this execution
                 ephemeralStoreId = `ephemeral-query-${crypto.randomUUID()}`;
-                const ephemeralStore = oxigraphStoreManager.createEphemeralStore(ephemeralStoreId);
+                ephemeralStore = oxigraphStoreManager.createEphemeralStore(ephemeralStoreId);
                 for (const graph of initialDataGraphs) {
                     try {
                         await oxigraphStoreManager.loadDataFromString(ephemeralStore, graph.content, graph.format);
@@ -1352,8 +1356,29 @@ export default async function (
                         throw error__u;
                     }
                     dbDuration = duration;
-                    executionStatus = 'success';
                     request.log.info(`Executed UPDATE query ${targetId} successfully.`);
+                    /*
+                     * An update given data graphs ran in a store made for this
+                     * request, which is deleted when it ends. Its answer is the
+                     * graph it leaves: in the RDF format the Accept header
+                     * names, else the format of the first data graph. A caller
+                     * that holds its own state sends it back on the next call.
+                     */
+                    if (queryOverDataGraphs && ephemeralStore) {
+                        const format = requestedRdfFormat(acceptHeader, initialDataGraphs[0]?.format ?? 'turtle');
+                        let graph: string;
+                        try {
+                            graph = writeStore(ephemeralStore, format);
+                        } catch (error__u: unknown) {
+                            setTimingHeader();
+                            return reply.code(406).send({error: toError(error__u).message});
+                        }
+                        executionStatus = 'success';
+                        reply.header('Content-Type', rdfMediaTypeOf(format));
+                        setTimingHeader();
+                        return reply.code(200).send(graph);
+                    }
+                    executionStatus = 'success';
                     // Successful UPDATE should return 204 No Content
                     setTimingHeader();
                     return reply.code(204).send();

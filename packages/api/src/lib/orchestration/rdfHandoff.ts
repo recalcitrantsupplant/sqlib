@@ -67,6 +67,14 @@ export function mergeRdf(payloads: RdfPayload[], format: string): string {
     if (!content.trim()) continue;
     store.load(content, { format: oxigraphFormat(from) });
   }
+  return writeStore(store, format);
+}
+
+/**
+ * Write a whole store as `format`. A single-graph format refuses a store with
+ * named graphs, with an error that names the graph, rather than dropping them.
+ */
+export function writeStore(store: oxigraph.Store, format: string): string {
   const target = oxigraphFormat(format);
   if (DATASET_FORMATS.has(target)) return store.dump({ format: target });
   const named = store.match(null, null, null, null).find(quad => quad.graph.termType !== 'DefaultGraph');
@@ -82,4 +90,35 @@ export function mergeRdf(payloads: RdfPayload[], format: string): string {
 /** One payload as `format`: untouched when it already is, re-written otherwise. */
 export function convertRdf(payload: RdfPayload, format: string): string {
   return rdfFormatsAgree(payload.format, format) ? payload.content : mergeRdf([payload], format);
+}
+
+/** The media type for each format token this module writes. */
+const MEDIA_TYPES: Record<string, string> = {
+  turtle: 'text/turtle',
+  ntriples: 'application/n-triples',
+  nquads: 'application/n-quads',
+  trig: 'application/trig',
+  rdfxml: 'application/rdf+xml',
+  jsonld: 'application/ld+json',
+};
+
+/** The media type to send for a format token, as `rdfFormatFromMediaType` returns one. */
+export function rdfMediaTypeOf(format: string): string {
+  const mediaType = MEDIA_TYPES[format];
+  if (!mediaType) throw new Error(`Unsupported RDF format "${format}"`);
+  return mediaType;
+}
+
+/**
+ * The format an RDF answer is written in: the one the `Accept` header names,
+ * when it names an RDF syntax, else `fallback`.
+ *
+ * `rdfFormatFromMediaType` alone cannot decide this, because it reads anything
+ * it does not know, such as a wildcard or JSON, as N-Quads.
+ */
+export function requestedRdfFormat(accept: string | null | undefined, fallback: string): string {
+  if (!accept) return fallback;
+  const lower = accept.toLowerCase();
+  const named = ['n-quads', 'n-triples', 'turtle', 'rdf+xml', 'json-ld', 'ld+json', 'trig'].some(name => lower.includes(name));
+  return named ? rdfFormatFromMediaType(accept) : fallback;
 }
