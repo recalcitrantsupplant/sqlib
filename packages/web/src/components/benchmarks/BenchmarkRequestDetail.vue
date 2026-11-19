@@ -21,6 +21,7 @@ import { computed } from 'vue';
 import { Crosshair, TriangleAlert } from '@lucide/vue';
 import InfoHint from '../shared/InfoHint.vue';
 import MediaTypeCodeViewer from '../MediaTypeCodeViewer.vue';
+import CopyButton from '../shared/CopyButton.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import {
   formatCount,
@@ -277,10 +278,13 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
         </section>
 
         <section class="block">
-          <span class="block-label">
-            Sent
-            <InfoHint label="sent query">The query as stored, before argument values are substituted.</InfoHint>
-          </span>
+          <div class="block-head">
+            <span class="block-label">
+              Sent
+              <InfoHint label="sent query">The query as stored, before argument values are substituted.</InfoHint>
+            </span>
+            <CopyButton size="sm" :text="sent" subject="query" testid="benchmark-request-copy" />
+          </div>
           <MediaTypeCodeViewer
             v-if="sent"
             class="code-block"
@@ -315,6 +319,14 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
 </template>
 
 <style scoped>
+/* The block's label, with Copy at the right end of the same row. */
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
 .request-panel {
   display: flex;
   flex-direction: column;

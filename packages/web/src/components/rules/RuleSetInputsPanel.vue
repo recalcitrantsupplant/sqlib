@@ -32,6 +32,7 @@ import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { DATA_GRAPH_FORMATS, type DataGraphFormat, type DataGraphOption, type TupleSetOption } from '@/types/data-graphs';
 import PrefixConversionButtons from '@/components/shared/PrefixConversionButtons.vue';
+import CopyButton from '@/components/shared/CopyButton.vue';
 import SearchSelect from '@/components/shared/SearchSelect.vue';
 import SegmentedToggle, { type SegmentedOption } from '@/components/shared/SegmentedToggle.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
@@ -363,6 +364,7 @@ const onDataInput = (value: string) => {
               <Save :size="12" />{{ savingTuples ? 'Saving…' : 'Save to Tuples' }}
             </button>
           </template>
+          <CopyButton class="block-copy" :text="tupleBody" subject="named tuples" testid="copy-tuples" />
         </div>
 
         <!--
@@ -468,6 +470,7 @@ const onDataInput = (value: string) => {
               <Save :size="12" />{{ savingData ? 'Saving…' : 'Save to Data' }}
             </button>
           </template>
+          <CopyButton class="block-copy" :text="dataBody" subject="data graph" testid="copy-data" />
         </div>
 
         <div class="block-body data-body">
@@ -608,6 +611,11 @@ const onDataInput = (value: string) => {
   align-items: center;
   gap: var(--space-3);
   padding: 0 var(--space-5) var(--space-4);
+}
+
+/* Copy closes the row on the right in both modes, saved and inline. */
+.block-copy {
+  margin-left: auto;
 }
 
 /*

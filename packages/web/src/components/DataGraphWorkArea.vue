@@ -100,6 +100,7 @@
                 :content-type="contentFormat"
                 @update:code="(value: string) => (contentString = value)"
               />
+              <CopyButton :text="contentString" subject="data graph" testid="copy-data-graph" />
               <!--
                 Diff, beside Expand: it opens in the pop-out, and like the
                 other buttons on this row it acts on the whole document. The
@@ -259,6 +260,7 @@ import ExpandButton from './shared/ExpandButton.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import Toolbar from './shared/Toolbar.vue';
 import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
+import CopyButton from './shared/CopyButton.vue';
 import CodeSnippetPanel from './shared/CodeSnippetPanel.vue';
 import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
 import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';

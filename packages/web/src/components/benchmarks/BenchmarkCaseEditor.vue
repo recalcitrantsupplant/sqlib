@@ -13,6 +13,7 @@ import {
 } from '@lucide/vue';
 import InfoHint from '../shared/InfoHint.vue';
 import MediaTypeCodeViewer from '../MediaTypeCodeViewer.vue';
+import CopyButton from '../shared/CopyButton.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import Select from '../ui/select/Select.vue';
@@ -341,6 +342,13 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
             <component :is="NODE_ICON[selectedNode.kind]" :size="14" class="entity-icon" />
             {{ selectedNode.name }}
           </span>
+          <CopyButton
+            class="block-copy"
+            size="sm"
+            :text="selectedNode.queryString"
+            :subject="selectedNode.kind === 'ruleset' ? 'rule set' : 'query'"
+            testid="benchmark-case-copy"
+          />
           <NuxtLink v-if="selectedNode.link" class="btn-compact open-link" :to="selectedNode.link" data-testid="benchmark-open-node">
             <ArrowUpRight :size="12" />{{ selectedNode.kind === 'ruleset' ? 'Open rule set' : 'Open query' }}
           </NuxtLink>
@@ -364,6 +372,13 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
           {{ planCase.subjectName ?? (isRuleSet ? 'Rule set' : 'Query') }}
           <span v-if="planCase.versionNumber" class="entity-version">v{{ planCase.versionNumber }}</span>
         </span>
+        <CopyButton
+          class="block-copy"
+          size="sm"
+          :text="queryString"
+          :subject="isRuleSet ? 'rule set' : 'query'"
+          testid="benchmark-case-copy"
+        />
         <NuxtLink v-if="targetLink" class="btn-compact open-link" :to="targetLink" data-testid="benchmark-open-target">
           <ArrowUpRight :size="12" />{{ OPEN_LABEL[planCase.subjectType] }}
         </NuxtLink>
@@ -487,6 +502,15 @@ const failedNodes = computed(() => props.groupNodes.filter((node) => node.failed
 
 
 /* The same link out as the query group Editor tab's "Open query". */
+/* Copy, then Open, at the right end of the head row. */
+.block-copy {
+  margin-left: auto;
+}
+
+.block-copy + .open-link {
+  margin-left: 0;
+}
+
 .open-link {
   gap: var(--space-2);
   flex-shrink: 0;

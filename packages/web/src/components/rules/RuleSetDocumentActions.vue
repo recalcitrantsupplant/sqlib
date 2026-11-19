@@ -22,6 +22,8 @@
       @update:code="(value) => emit('update:code', value)"
     />
 
+    <CopyButton :text="code" subject="rules" testid="copy-rules" />
+
     <button
       class="icon-control"
       type="button"
@@ -58,6 +60,7 @@
  */
 import { FileInput, GitCompare, WandSparkles } from '@lucide/vue';
 import PrefixConversionButtons from '../shared/PrefixConversionButtons.vue';
+import CopyButton from '../shared/CopyButton.vue';
 import { NOTHING_TO_DIFF } from '@/lib/versionDiff';
 
 defineProps<{
