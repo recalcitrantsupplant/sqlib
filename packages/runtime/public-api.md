@@ -190,6 +190,7 @@ type ExecutionResult = SparqlSelectResults | SparqlAskResults | RdfPayload;
 ```ts
 interface Executor {
     execute(request: ExecutionRequest): Promise<ExecutionResult>;
+    executeRaw?(request: ExecutionRequest): Promise<Response>;
     update?(request: UpdateRequest): Promise<void>;
 }
 ```
@@ -592,6 +593,7 @@ declare class QueryHandle {
     text(payload?: CallPayload): string;
     run(payload?: CallPayload): Promise<ExecutionResult>;
     runText(queryText: string, signal?: AbortSignal): Promise<ExecutionResult>;
+    stream(payload?: CallPayload): Promise<Response>;
     select(payload?: CallPayload): Promise<SparqlSelectResults>;
     ask(payload?: CallPayload): Promise<boolean>;
     construct(payload?: CallPayload): Promise<RdfPayload>;
