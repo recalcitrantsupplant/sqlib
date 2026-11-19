@@ -222,3 +222,54 @@ describe('oxigraphExecutor updates', () => {
     expect(await run('SELECT ?o WHERE { GRAPH ?g { ?s ?p ?o } }', { defaultGraphs: ['http://example.org/g1'] })).toEqual([]);
   });
 });
+
+describe('exported updates', () => {
+  /** A bundle with one parameterised INSERT, its span computed from the text. */
+  async function updateBundle(): Promise<ExportBundle> {
+    const before = 'PREFIX ex: <http://example.org/>\nINSERT {\n  ?person ex:livesIn ?city .\n}\nWHERE {\n  ';
+    const slot = 'VALUES (?city ?person) { (UNDEF UNDEF) }';
+    const after = '\n}';
+    const text = before + slot + after;
+    const base = await bundle();
+    return {
+      ...base,
+      updates: {
+        'move-person': {
+          template: {
+            text,
+            slots: [{ start: before.length, end: before.length + slot.length, vars: ['city', 'person'] }],
+            prefixes: [['ex', 'http://example.org/']],
+          },
+          limitParameters: [],
+          offsetParameters: [],
+          inferredInputs: [['city', 'person']],
+          textHash: await hashTemplateText(text),
+        },
+      },
+    };
+  }
+
+  it('applies arguments to an INSERT and changes the in-browser store', async () => {
+    const executor = await oxigraphExecutor({ data: DATA });
+    const lib = fromBundle(await updateBundle(), { executor });
+
+    await lib.update('move-person').run({
+      arguments: [{ bindings: [{ city: iri('http://example.org/Perth'), person: iri('http://example.org/carol') }] }],
+    });
+
+    const results = await lib.query('people-by-city').select({
+      arguments: [{ bindings: [{ city: iri('http://example.org/Perth') }] }],
+    });
+    expect(results.results.bindings.map((row) => row.name.value).sort()).toEqual(['Alice', 'Bob', 'Carol']);
+  });
+
+  it('writes nothing when the slot is given zero rows', async () => {
+    const executor = await oxigraphExecutor({ data: DATA });
+    const lib = fromBundle(await updateBundle(), { executor });
+    const before = executor.store.size;
+
+    await lib.update('move-person').run({ arguments: [{ bindings: [] }] });
+
+    expect(executor.store.size).toBe(before);
+  });
+});

@@ -5,7 +5,7 @@ import {
   hashTemplateText,
   verifyBundleIntegrity,
 } from '../src/bundle.js';
-import { bundleOf, template } from './helpers.js';
+import { bundleOf, exportedQuery, template } from './helpers.js';
 
 const SIMPLE = () => template('SELECT ?s WHERE { «VALUES ?s { UNDEF }» ?s ?p ?o }');
 
@@ -190,5 +190,32 @@ describe('ETL jobs and rule sets', () => {
     const bundle = await withJobAndRules();
     bundle.ruleSets!.ancestors.srl = ' ';
     expect(() => assertValidBundle(bundle)).toThrow(/srl must be a non-empty string/);
+  });
+});
+
+describe('updates', () => {
+  async function withUpdate() {
+    const { queryType: _queryType, ...insert } = await exportedQuery(
+      template('INSERT { ?s ?p ?o } WHERE { «VALUES ?s { UNDEF }» ?s ?p ?o }'),
+    );
+    return { ...(await bundleOf({ people: SIMPLE() })), updates: { copy: insert } };
+  }
+
+  it('checks an update as it checks a query, on load and by hash', async () => {
+    const bundle = await withUpdate();
+    expect(() => assertValidBundle(bundle)).not.toThrow();
+    await expect(verifyBundleIntegrity(bundle)).resolves.toBeUndefined();
+
+    bundle.updates.copy.template.text = bundle.updates.copy.template.text.replace('?o }', '?z }');
+    await expect(verifyBundleIntegrity(bundle)).rejects.toThrow(/Update 'copy'/);
+
+    bundle.updates.copy.inferredInputs = [];
+    expect(() => assertValidBundle(bundle)).toThrow(/Update 'copy': inferredInputs describes 0 slots/);
+  });
+
+  it('refuses an update in the queries map, where older runtimes read only reads', async () => {
+    const bundle = await bundleOf({ people: SIMPLE() });
+    (bundle.queries.people as { queryType: string }).queryType = 'UPDATE';
+    expect(() => assertValidBundle(bundle)).toThrow(/unsupported queryType 'UPDATE'/);
   });
 });

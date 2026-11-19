@@ -5,7 +5,7 @@
  *   pnpm --filter @sparql-query-lib/api export:bundle \
  *     --library urn:sqlib:library:main --out queries.json [--tag <iri>[,<iri>]] \
  *     [--match any|all] [--typings] [--examples all|first|none] [--expected] \
- *     [--html [file]] [--no-queries] [--no-groups] [--no-etl] [--no-rule-sets]
+ *     [--html [file]] [--no-queries] [--no-groups] [--no-etl] [--no-rule-sets] [--updates]
  *
  * The output is JSON that `@sparql-query-lib/runtime` runs with no SPARQL parser
  * and no sqlib server. Compilation still happens here, with the real parser, and
@@ -66,6 +66,8 @@ interface Args {
   groups: boolean;
   etl: boolean;
   ruleSets: boolean;
+  /** Carry the library's updates in `bundle.updates`; off unless `--updates`. */
+  updates: boolean;
   /** Path for the demo page, or undefined when one was not asked for. */
   html?: string;
 }
@@ -82,6 +84,7 @@ function parseArgs(argv: string[]): Args {
     groups: true,
     etl: true,
     ruleSets: true,
+    updates: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -136,6 +139,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--no-rule-sets':
         args.ruleSets = false;
+        break;
+      case '--updates':
+        args.updates = true;
         break;
       case '--html':
         // The path is optional: `--html` alone writes alongside --out.
@@ -194,6 +200,7 @@ export async function exportBundle(args: Args): Promise<void> {
     library: { id: args.library!, name: library.name },
     queries,
     tags: args.tags,
+    updates: args.updates,
   });
 
   // The library's tests become runnable examples. A test that cannot be turned

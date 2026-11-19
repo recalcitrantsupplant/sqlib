@@ -29,8 +29,10 @@ export { detectSparqlOperation, type SparqlOperation } from './operation.js';
 export {
   TemplateCompileError,
   compileQueryTemplate,
+  compileUpdateTemplate,
   type CompileQueryOptions,
   type CompiledQuery,
+  type CompiledUpdate,
 } from './compileTemplate.js';
 
 // Traqula's SPARQL 1.2 parser and generator with LATERAL added. Every package
