@@ -38,6 +38,7 @@ test.describe('Copy button', () => {
     });
     await page.goto('/?section=queries', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="entity-list-sidebar"]');
+    await page.locator('[data-testid="section-overview-new"]').click();
     await typeQuery(page, QUERY_TEXT);
   });
 
