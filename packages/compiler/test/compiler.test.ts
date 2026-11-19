@@ -3,6 +3,7 @@ import {
   SparqlQueryParser,
   TemplateCompileError,
   compileQueryTemplate,
+  compileUpdateTemplate,
   detectSparqlOperation,
   type ParserDiagnostic,
 } from '../src/index.js';
@@ -91,6 +92,26 @@ SELECT ?person WHERE { VALUES ?city { UNDEF } ?person ex:livesIn ?city } LIMIT 0
       .toThrow(new TemplateCompileError(
         "Query 'wipe' is an update operation, which the static export path does not carry. Export read queries only.",
       ));
+  });
+
+  it('compiles an update when asked to, with its parameter slots', () => {
+    const text = 'PREFIX ex: <http://example.org/> INSERT { ?s ex:label ?label } WHERE { VALUES (?s ?label) { (UNDEF UNDEF) } }';
+    const compiled = compileUpdateTemplate(text, { name: 'label' });
+
+    expect(compiled.inferredInputs).toEqual([['label', 's']]);
+    const spliced = applyTemplateArguments(compiled.template, [
+      {
+        head: { vars: ['s', 'label'] },
+        results: { bindings: [{ s: { type: 'uri', value: 'http://example.org/a' }, label: { type: 'literal', value: 'A' } }] },
+      },
+    ]);
+    expect(spliced).toContain('ex:a "A"');
+    expect(spliced).not.toContain('UNDEF');
+  });
+
+  it('refuses a read query where an update is asked for', () => {
+    expect(() => compileUpdateTemplate('ASK {}', { name: 'probe' }))
+      .toThrow(new TemplateCompileError("Query 'probe' is not an update. Its form is ASK."));
   });
 
   it('refuses text that does not parse and names the query', () => {
