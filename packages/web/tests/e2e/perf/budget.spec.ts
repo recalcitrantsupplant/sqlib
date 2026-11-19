@@ -21,7 +21,7 @@
  * budgets carry roughly 2x headroom over measured values; they are tripwires
  * for "someone made this much worse", not precise targets.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/test';
 import { mockSidebarCollections } from '../fixtures/collections';
 import { measureOpen, summarise, type Sample } from './measure';
 import { INTERACTIONS } from './interactions';

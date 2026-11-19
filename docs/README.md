@@ -29,6 +29,7 @@ Each guide covers one task.
 - [reference/configuration.md](reference/configuration.md): each environment variable, its default and its effect.
 - [reference/feature-flags.md](reference/feature-flags.md): each feature flag, its environment variable, its default and what it turns off.
 - [reference/entity-model.md](reference/entity-model.md): each entity type, its fields and its relationships.
+- [reference/list-paging.md](reference/list-paging.md): the query parameters that page, filter and sort a list route.
 - [reference/srl-language.md](reference/srl-language.md): SRL syntax, constructs and constraints.
 - [reference/scripts.md](reference/scripts.md): the package scripts and the scripts under `scripts/`, and what each one runs.
 

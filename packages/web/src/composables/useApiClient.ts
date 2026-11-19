@@ -102,6 +102,7 @@ import {
   type BackendUsage,
   argumentSetDetailSchema,
   argumentSetSummarySchema,
+  type ArgumentSetSummary,
   argumentSetVersionDetailSchema,
   queryGroupValidationResponseSchema,
   argumentSetExportSchema,
@@ -216,6 +217,13 @@ function exportSearch(options: ExportBundleOptions): URLSearchParams {
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
+/** `X-Total-Count` as a number; null when absent or not a count. */
+function parseTotalCount(value: string | null): number | null {
+  if (value === null || value === '') return null;
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 0 ? count : null;
+}
+
 function parsePartsBehind(value: string | null): number | null {
   if (value === null) return null;
   const count = Number.parseInt(value, 10);
@@ -313,7 +321,40 @@ export type ApiResult<T> = {
    * (`X-Parts-Behind`); null on every other response.
    */
   partsBehind?: number | null;
+  /** On a paged list (#197), how many entities match, from `X-Total-Count`. */
+  totalCount?: number | null;
 };
+
+/** The list controls every collection route takes (#197). */
+export interface ListPageParams {
+  limit?: number;
+  offset?: number;
+  /** Characters of the name, in order, ignoring case. */
+  q?: string;
+  ids?: string[];
+  library?: string;
+  tag?: string[];
+  sort?: 'name' | 'modified' | 'created' | 'creator' | 'versions';
+  order?: 'asc' | 'desc';
+}
+
+/** One page of a list, and how many entities match in all. */
+export interface ListPage<T> {
+  items: T[];
+  total: number;
+}
+
+/** `params` as a query string, with a leading `?` or `&` as `joiner` says. */
+export function listPageQuery(params: ListPageParams | object, joiner: '?' | '&' = '?'): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) value.forEach((item) => search.append(key, String(item)));
+    else search.append(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `${joiner}${text}` : '';
+}
 
 type ExecuteTargetResult = {
   body: string;
@@ -847,6 +888,7 @@ export function useApiClient() {
         status: response.status,
         resultRef: normalizeHeaderValue(response.headers.get('sqlib-result-ref')),
         partsBehind: parsePartsBehind(response.headers.get('x-parts-behind')),
+        totalCount: parseTotalCount(response.headers.get('x-total-count')),
       };
       debug('useApiClient', 'request succeeded', {
         url: input.toString(),
@@ -2981,6 +3023,38 @@ export function useApiClient() {
     );
   };
 
+  /**
+   * One page of a library's sets (#197). `preferTarget` puts the sets made for
+   * that query or group first.
+   */
+  const pageLibraryArgumentSets = async (
+    libraryId: string,
+    params: ListPageParams & { preferTarget?: string } = {},
+  ): Promise<ListPage<ArgumentSetSummary>> => {
+    ensureQueriesEnabled();
+    const result = await request(
+      buildUrl(`/argument-sets?libraryId=${encodeURIComponent(libraryId)}${listPageQuery(params, '&')}`),
+      { method: 'GET' },
+      (payload) => z.array(argumentSetSummarySchema).parse(payload),
+    );
+    return { items: result.data, total: result.totalCount ?? result.data.length };
+  };
+
+  /** One page of the sets made for one query or group (#197). */
+  const pageArgumentSets = async (
+    targetId: string,
+    scope: 'query' | 'queryGroup',
+    params: ListPageParams = {},
+  ): Promise<ListPage<ArgumentSetSummary>> => {
+    ensureQueriesEnabled();
+    const result = await request(
+      buildUrl(`${buildArgumentSetsPath(scope, targetId)}${listPageQuery(params)}`),
+      { method: 'GET' },
+      (payload) => z.array(argumentSetSummarySchema).parse(payload),
+    );
+    return { items: result.data, total: result.totalCount ?? result.data.length };
+  };
+
   /** Create a set that names its own library — the rail's `+ New`. */
   const createStandaloneArgumentSet = (input: {
     name: string;
@@ -3535,6 +3609,8 @@ export function useApiClient() {
     // Argument Sets
     listArgumentSets,
     listLibraryArgumentSets,
+    pageLibraryArgumentSets,
+    pageArgumentSets,
     createStandaloneArgumentSet,
     getArgumentSet,
     createArgumentSet,

@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockEntityApi, QUERY } from './fixtures/entities';
 import { openSavedEntity } from './navigate';
 

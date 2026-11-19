@@ -1149,12 +1149,18 @@ const mediaTypeOptions = computed(() => getAllMediaTypeOptions());
 // The run bar heads the formats by result shape and greys the ones this query
 // type would not usually answer with — selectable still, just not suggested.
 const mediaTypeChoiceGroups = computed(() => getMediaTypeChoiceGroups(queryType.value));
-const argumentSetOptions = computed(() =>
-  argumentSetsComposable.argumentSets.value.map(set => ({
+const argumentSetOptions = computed(() => {
+  const options = argumentSetsComposable.argumentSets.value.map(set => ({
     value: set.id,
     label: set.name || set.id,
-  })),
-);
+  }));
+  // The sets load a page at a time (#197), so the open set may not be listed.
+  const open = argumentSetsComposable.currentSet.value;
+  if (open && !options.some(option => option.value === open.id)) {
+    options.unshift({ value: open.id, label: open.name || open.id });
+  }
+  return options;
+});
 const argumentSetLoading = computed(() => argumentSetsComposable.isLoading.value);
 
 /* ------------------------------------------------------------------ *

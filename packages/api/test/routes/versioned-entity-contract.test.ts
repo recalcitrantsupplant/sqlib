@@ -167,6 +167,28 @@ describe.each(NOUNS)('/$path', noun => {
     expect(response.json().map((version: { version: number }) => Number(version.version))).toEqual([1, 2]);
   });
 
+  it('pages and filters the list, with the match count in X-Total-Count (#197)', async () => {
+    const { id } = seed(noun);
+    for (const name of ['Alpha', 'Bravo']) {
+      const extra = `urn:sqlib:${noun.path}:${name}`;
+      store.set(extra, {
+        $id: extra, '@type': noun.type, name, isPartOf: noun.single ? LIBRARY : [LIBRARY],
+        subject: 'urn:sqlib:query:subject', subjectKind: 'query',
+      });
+    }
+    const names = (response: { json: () => Array<{ name: string }> }) => response.json().map(entity => entity.name);
+
+    const first = await inject('GET', `/${noun.path}?sort=name&limit=2`);
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['x-total-count']).toBe('3');
+    expect(names(first)).toEqual(['Alpha', 'Bravo']);
+    expect(names(await inject('GET', `/${noun.path}?sort=name&limit=2&offset=2`))).toEqual(['Seeded']);
+    expect(names(await inject('GET', `/${noun.path}?q=sdd`))).toEqual(['Seeded']);
+    expect(names(await inject('GET', `/${noun.path}?ids=${encodeURIComponent(id)}`))).toEqual(['Seeded']);
+    // Only Seeded has a current version, so it sorts first and the rest by name.
+    expect(names(await inject('GET', `/${noun.path}?sort=versions`))).toEqual(['Seeded', 'Alpha', 'Bravo']);
+  });
+
   it('answers a stale If-Match on PUT with 412 and the entity as it stands', async () => {
     const { id, url } = seed(noun);
     const response = await inject('PUT', url, { name: 'Renamed' }, { 'if-match': '"stale"' });

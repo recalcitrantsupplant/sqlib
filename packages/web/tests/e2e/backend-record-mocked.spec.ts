@@ -2,7 +2,7 @@
  * Backends as a record page — the sidebar list, the record at rest, and
  * creation as a draft record rather than a dialog.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN } from './api-origin';
 

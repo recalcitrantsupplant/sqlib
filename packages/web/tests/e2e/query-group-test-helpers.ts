@@ -513,7 +513,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, set);
   });
 
-  await page.route(/\/query-groups\/[^/]+\/argument-sets$/, async (route) => {
+  await page.route(/\/query-groups\/[^/]+\/argument-sets(\?.*)?$/, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[segments.length - 2] ?? '');
     if (route.request().method() === 'GET') {

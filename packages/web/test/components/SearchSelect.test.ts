@@ -59,6 +59,25 @@ describe('SearchSelect', () => {
     expect(wrapper.emitted('update:modelValue')).toEqual([['urn:q2']]);
   });
 
+  it('draws the first 50 matches, and Show more draws the next 50 (#197)', async () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({ value: `urn:q${i}`, label: `Query ${i}` }));
+    const wrapper = mountSelect({ options: many });
+    const input = await open(wrapper);
+    expect(wrapper.findAll('[data-testid="chooser-option"]')).toHaveLength(50);
+    const more = wrapper.get('[data-testid="chooser-more"]');
+    expect(more.text()).toContain('70 more');
+
+    await more.trigger('click');
+    await nextTick();
+    expect(wrapper.findAll('[data-testid="chooser-option"]')).toHaveLength(100);
+
+    // Typing searches every option, drawn or not.
+    await input.setValue('Query 119');
+    await nextTick();
+    expect(wrapper.findAll('[data-testid="chooser-option"]').map((option) => option.text())).toContain('Query 119');
+    expect(wrapper.find('[data-testid="chooser-more"]').exists()).toBe(false);
+  });
+
   it('says so when nothing matches', async () => {
     const wrapper = mountSelect();
     const input = await open(wrapper);

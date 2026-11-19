@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TupleBindingEditor from '@/components/query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '@/components/query-work-area/ArgumentScalarsPanel.vue';
@@ -422,8 +422,37 @@ describe('ArgumentSetSwitcher list', () => {
     w.unmount();
   });
 
-  it('draws the first 50 saved sets, and Show more draws the next 50 (#197)', async () => {
-    const many = Array.from({ length: 120 }, (_, i) => ({ id: `set${i}`, name: `Set ${i}`, meta: 'v1' }));
+  it('asks the caller for more and for a search when the server pages the sets (#197)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const loaded = Array.from({ length: 50 }, (_, i) => ({ id: `set${i}`, name: `Set ${i}`, meta: 'v1' }));
+    const w = mount(ArgumentSetSwitcher, {
+      props: { ...props, scratchSets: [], savedSets: loaded, savedTotal: 4476 },
+      attachTo: document.body,
+    });
+    await w.get('[data-testid="argument-set-switcher"]').trigger('keydown', { key: 'Enter' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(document.querySelector('.menu-heading-count')?.textContent).toBe('4476');
+    expect(document.querySelector('[data-testid="argument-set-range"]')?.textContent?.trim()).toBe('1–10 of 4476');
+    const next = () => document.querySelector<HTMLButtonElement>('[data-testid="argument-set-next"]')!;
+    // Pages 2 to 5 are loaded already; page 6 needs the next rows.
+    for (let page = 0; page < 4; page += 1) { next().click(); await vi.advanceTimersByTimeAsync(0); }
+    expect(w.emitted('load-more')).toBeUndefined();
+    next().click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(w.emitted('load-more')).toHaveLength(1);
+
+    const box = document.querySelector<HTMLInputElement>('[data-testid="argument-set-filter"]')!;
+    box.value = 'perth';
+    box.dispatchEvent(new Event('input'));
+    await vi.advanceTimersByTimeAsync(250);
+    expect(w.emitted('search')).toEqual([['perth']]);
+    w.unmount();
+    vi.useRealTimers();
+  });
+
+  it('draws 10 saved sets a page, with a pager (#197)', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => ({ id: `set${i}`, name: `Set ${i}`, meta: 'v1' }));
     const w = mount(ArgumentSetSwitcher, {
       props: { ...props, scratchSets: [], savedSets: many },
       attachTo: document.body,
@@ -431,22 +460,35 @@ describe('ArgumentSetSwitcher list', () => {
     await openList(w);
 
     const savedRows = () => rowNames().filter((name) => name?.startsWith('Set '));
-    expect(savedRows()).toHaveLength(50);
-    const more = document.querySelector<HTMLElement>('[data-testid="argument-set-show-more"]')!;
-    expect(more.textContent).toContain('70 more');
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const range = () => document.querySelector('[data-testid="argument-set-range"]')?.textContent?.trim();
+    const prev = () => document.querySelector<HTMLButtonElement>('[data-testid="argument-set-prev"]')!;
+    const next = () => document.querySelector<HTMLButtonElement>('[data-testid="argument-set-next"]')!;
+    expect(savedRows()).toHaveLength(10);
+    expect(range()).toBe('1–10 of 25');
+    expect(prev().disabled).toBe(true);
 
-    more.click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(savedRows()).toHaveLength(100);
-    expect(document.querySelector('[data-testid="argument-set-show-more"]')?.textContent).toContain('20 more');
+    next().click();
+    await tick();
+    next().click();
+    await tick();
+    expect(savedRows()).toEqual(['Set 20', 'Set 21', 'Set 22', 'Set 23', 'Set 24']);
+    expect(range()).toBe('21–25 of 25');
+    // The short last page keeps the height of 10 rows.
+    expect(document.querySelectorAll('[data-testid="argument-set-spacer"]')).toHaveLength(5);
+    expect(next().disabled).toBe(true);
 
-    // The filter searches every set, drawn or not.
+    prev().click();
+    await tick();
+    expect(savedRows()[0]).toBe('Set 10');
+
+    // The filter searches every set, and starts again at the first page.
     const box = document.querySelector<HTMLInputElement>('[data-testid="argument-set-filter"]')!;
-    box.value = 'Set 119';
+    box.value = 'Set 24';
     box.dispatchEvent(new Event('input'));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(savedRows()).toEqual(['Set 119']);
-    expect(document.querySelector('[data-testid="argument-set-show-more"]')).toBeNull();
+    await tick();
+    expect(savedRows()).toEqual(['Set 24']);
+    expect(document.querySelector('[data-testid="argument-set-pager"]')).toBeNull();
     w.unmount();
   });
 });

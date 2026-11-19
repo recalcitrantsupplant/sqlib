@@ -61,7 +61,7 @@
             </ComboboxItemIndicator>
           </ComboboxItem>
           <ComboboxItem
-            v-for="match in matches"
+            v-for="match in shownMatches"
             :key="match.item.value"
             class="search-select__option"
             :value="match.item.value"
@@ -80,6 +80,21 @@
               <Check :size="13" aria-hidden="true" />
             </ComboboxItemIndicator>
           </ComboboxItem>
+          <!--
+            A long list draws its first page of matches only (#197). Typing
+            narrows every option; this row draws the next page.
+          -->
+          <button
+            v-if="hiddenCount > 0"
+            type="button"
+            class="search-select__more"
+            :data-testid="testId ? `${testId}-more` : undefined"
+            @pointerdown.prevent
+            @click="limit += PAGE"
+          >
+            <span class="search-select__label">Show more</span>
+            <span class="search-select__more-count">{{ hiddenCount }} more</span>
+          </button>
         </ComboboxViewport>
       </ComboboxContent>
     </ComboboxRoot>
@@ -114,7 +129,7 @@
  * already read off a `<select>`'s `value`. Omit it and there is no way back to
  * empty, which is right where the choice is mandatory.
  */
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import {
   ComboboxAnchor,
   ComboboxContent,
@@ -184,6 +199,18 @@ const searchTerm = ref('');
 
 const matches = computed(() => fuzzyFilter(searchTerm.value, props.options, (option) => option.label));
 
+/**
+ * How many matches the menu draws. A menu of thousands of rows took seconds
+ * to open (#197), and the best matches come first.
+ */
+const PAGE = 50;
+const limit = ref(PAGE);
+const shownMatches = computed(() => matches.value.slice(0, limit.value));
+const hiddenCount = computed(() => Math.max(0, matches.value.length - limit.value));
+watch(searchTerm, () => {
+  limit.value = PAGE;
+});
+
 /** `''` and `null` are the same state — nothing chosen — however a caller spells it. */
 const selectedValue = computed(() =>
   props.modelValue ? props.modelValue : props.emptyLabel !== undefined ? EMPTY_VALUE : '',
@@ -252,6 +279,31 @@ const onSelect = (value: unknown) => {
  */
 :deep(.search-select__root) {
   min-width: 0;
+}
+
+.search-select__more {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-select__more:hover {
+  background: var(--surface-subtle);
+}
+
+.search-select__more-count {
+  margin-left: auto;
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
 }
 
 .search-select__anchor {

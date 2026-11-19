@@ -35,6 +35,7 @@ import {
   resolveOwningLibrary,
 } from '../auth/enforce.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { sendListPage, withListPage } from '../lib/listPage.js';
 
 const experimentService = new BenchmarkExperimentService();
 
@@ -140,8 +141,10 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.list), async ({ request, reply }) => {
-    return reply.send(filterReadable(request, experimentService.listExperiments()));
+  fastify.get('/', ...reposRoute(withListPage(stripSchemaMeta(benchmarkRouteSchemas.list)), async ({ request, reply }) => {
+    return sendListPage(request, reply, filterReadable(request, experimentService.listExperiments()), experiment => experiment, {
+      versionOf: experiment => (experiment as { currentVersionNumber?: number }).currentVersionNumber ?? undefined,
+    });
   }));
 
   fastify.post('/', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.create), async ({ request, reply }) => {

@@ -52,6 +52,7 @@
           :draft-saved-at="args.draftSavedAt.value"
           :scratch-sets="scratchEntries"
           :saved-sets="savedEntries"
+          :saved-total="args.savedTotal.value"
           :versions="args.versionsNewestFirst.value"
           :run-target="args.runTarget.value"
           :can-delete="!!args.selectedSetId.value"
@@ -66,6 +67,8 @@
           @rename="handleRename"
           @copy="handleCopyExecutionPayload"
           @delete="handleDeleteArgumentSet"
+          @search="args.searchArgumentSets"
+          @load-more="args.loadMoreArgumentSets()"
         />
 
         <ArgumentSetBrowserDefault

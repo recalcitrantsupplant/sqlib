@@ -28,6 +28,7 @@ import { TAGGABLE_TYPES } from '../lib/tagMembership.js';
 import { createTagSchema, updateTagSchema } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { filterReadable } from '../auth/enforce.js';
+import { sendListPage, withListPageQuery } from '../lib/listPage.js';
 
 export const tagResponseSchema = {
   type: 'object',
@@ -98,7 +99,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.get('/', ...reposRoute({
       tags: ['Tag'],
       summary: 'List tags',
-      querystring: listQuerystringSchema,
+      querystring: withListPageQuery(listQuerystringSchema),
       response: {
         200: { type: 'array', items: tagResponseSchema },
       },
@@ -106,7 +107,7 @@ export default async function (fastify: FastifyInstance) {
     const { library } = request.query;
     const items = repos.Tag.list() as PersistedTag[];
     const scoped = library ? items.filter(tag => tag.isPartOf === library) : items;
-    return reply.send(filterReadable(request, scoped).map(tag => toRestApi(tag)));
+    return sendListPage(request, reply, filterReadable(request, scoped), tag => toRestApi(tag));
   }));
 
   fastify.post('/', ...reposRoute({

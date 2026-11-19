@@ -16,8 +16,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref, nextTick } from 'vue';
 
 const api = vi.hoisted(() => ({
-  listArgumentSets: vi.fn(),
-  listLibraryArgumentSets: vi.fn(),
+  pageArgumentSets: vi.fn(),
+  pageLibraryArgumentSets: vi.fn(),
   listArgumentSetVersions: vi.fn(),
   getArgumentSet: vi.fn(),
   createArgumentSet: vi.fn(),
@@ -40,8 +40,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   useArgumentSetDrafts().reload();
-  api.listArgumentSets.mockResolvedValue([]);
-  api.listLibraryArgumentSets.mockResolvedValue([]);
+  api.pageArgumentSets.mockResolvedValue({ items: [], total: 0 });
+  api.pageLibraryArgumentSets.mockResolvedValue({ items: [], total: 0 });
   api.listArgumentSetVersions.mockResolvedValue([]);
 });
 

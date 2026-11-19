@@ -13,7 +13,7 @@
  * A surface paired with ink it cannot be read against is what must not come
  * back, however the panes are built.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { textContrast } from './contrast';
 import { API_ORIGIN } from './api-origin';

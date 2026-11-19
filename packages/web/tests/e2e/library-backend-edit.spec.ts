@@ -1,4 +1,4 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { openCreateLibraryDialog, openSplash, openSplashLibraries, splashLibraryRow } from './navigate';
 import { chooseSearchOption, searchSelect } from './search-select';

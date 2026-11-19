@@ -145,6 +145,37 @@ describe('POST /argument-sets', () => {
     expect(detail.json().tupleBindings[0].rows).toHaveLength(2);
   });
 
+  it('pages, filters and counts the library list (#197)', async () => {
+    for (const name of ['Delta', 'Alpha', 'Charlie', 'Bravo', 'Echo']) {
+      await create({ name, libraryId: LIBRARY });
+    }
+    const url = (query: string) => `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}&${query}`;
+
+    const first = await app.inject({ method: 'GET', url: url('limit=2') });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['x-total-count']).toBe('5');
+    expect(first.json().map((set: { name: string }) => set.name)).toEqual(['Alpha', 'Bravo']);
+
+    const second = await app.inject({ method: 'GET', url: url('limit=2&offset=2') });
+    expect(second.json().map((set: { name: string }) => set.name)).toEqual(['Charlie', 'Delta']);
+
+    const filtered = await app.inject({ method: 'GET', url: url('q=ca&limit=10') });
+    expect(filtered.headers['x-total-count']).toBe('1');
+    expect(filtered.json().map((set: { name: string }) => set.name)).toEqual(['Charlie']);
+
+    const desc = await app.inject({ method: 'GET', url: url('sort=name&order=desc&limit=1') });
+    expect(desc.json().map((set: { name: string }) => set.name)).toEqual(['Echo']);
+
+    await create({ name: 'Zulu', libraryId: LIBRARY, scope: 'queryGroup', targetId: GROUP });
+    const preferred = await app.inject({ method: 'GET', url: url(`preferTarget=${encodeURIComponent(GROUP)}&limit=2`) });
+    expect(preferred.json().map((set: { name: string }) => set.name)).toEqual(['Zulu', 'Alpha']);
+    expect(preferred.headers['x-total-count']).toBe('6');
+
+    const all = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}` });
+    expect(all.json()).toHaveLength(6);
+    expect(all.headers['x-total-count']).toBe('6');
+  });
+
   it('scopes the write by the library on the body', async () => {
     await create({ name: 'Composed', libraryId: LIBRARY });
     expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'write' });

@@ -1,3 +1,4 @@
+import { applyListPage, type ListPage, type ListPageQuery } from './listPage.js';
 import type { FastifyRequest } from 'fastify';
 import { isReservedSlotVariable } from '@sparql-query-lib/runtime';
 import { mintId } from './id.js';
@@ -209,11 +210,13 @@ const toArray = <T>(value?: T | T[] | null): T[] => {
 
 export class ArgumentSetService {
   async listForTarget(targetId: string, scope: ArgumentScope): Promise<ArgumentSetSummary[]> {
-    const cacheCoordinator = getCacheCoordinator();
-    const all = (cacheCoordinator.list('ArgumentSet') as PersistedArgumentSet[]) || [];
-    const filtered = all.filter(set => set.targetEntity === targetId && set.argumentScope === scope);
-    const summaries = await Promise.all(filtered.map(entity => this.summarizeArgumentSet(entity)));
-    return summaries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return (await this.pageForTarget(targetId, scope, { offset: 0 })).items;
+  }
+
+  /** One page of a target's sets, with the paging controls of `lib/listPage.ts`. */
+  async pageForTarget(targetId: string, scope: ArgumentScope, query: ListPageQuery): Promise<ListPage<ArgumentSetSummary>> {
+    const all = (getCacheCoordinator().list('ArgumentSet') as PersistedArgumentSet[]) || [];
+    return this.pageSummaries(all.filter(set => set.targetEntity === targetId && set.argumentScope === scope), query);
   }
 
   /**
@@ -226,11 +229,37 @@ export class ArgumentSetService {
    * Summaries only (#197): a library with 4,150 sets sent 8.7 MB of rows here.
    */
   async listForLibrary(libraryId: string): Promise<ArgumentSetSummary[]> {
-    const cacheCoordinator = getCacheCoordinator();
-    const all = (cacheCoordinator.list('ArgumentSet') as PersistedArgumentSet[]) || [];
-    const filtered = all.filter(set => set.isPartOf === libraryId);
-    const summaries = await Promise.all(filtered.map(entity => this.summarizeArgumentSet(entity)));
-    return summaries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return (await this.pageForLibrary(libraryId, { offset: 0 })).items;
+  }
+
+  /** One page of a library's sets, with the paging controls of `lib/listPage.ts`. */
+  async pageForLibrary(
+    libraryId: string,
+    query: ListPageQuery,
+    preferTarget?: string,
+  ): Promise<ListPage<ArgumentSetSummary>> {
+    const all = (getCacheCoordinator().list('ArgumentSet') as PersistedArgumentSet[]) || [];
+    return this.pageSummaries(all.filter(set => set.isPartOf === libraryId), query, preferTarget);
+  }
+
+  /**
+   * Filter, sort and cut the page on the stored entities, then summarise only
+   * the page. Name order is the default, as the lists have always used.
+   */
+  private async pageSummaries(
+    entities: PersistedArgumentSet[],
+    query: ListPageQuery,
+    preferTarget?: string,
+  ): Promise<ListPage<ArgumentSetSummary>> {
+    const page = applyListPage(entities, { ...query, sort: query.sort ?? 'name' }, {
+      versionOf: (entity) => {
+        const version = entity.currentVersion ? this.findVersionById(entity.currentVersion) : null;
+        return typeof version?.version === 'number' ? version.version : undefined;
+      },
+      // The switcher lists the open callable's own sets first.
+      ...(preferTarget ? { first: (entity: PersistedArgumentSet) => entity.targetEntity === preferTarget } : {}),
+    });
+    return { items: await Promise.all(page.items.map(entity => this.summarizeArgumentSet(entity))), total: page.total };
   }
 
   async getById(id: string): Promise<ArgumentSetDetail | null> {
