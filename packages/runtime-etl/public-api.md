@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 12 exported names.
+Version `0.1.0`. 1 entry point, 13 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,13 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime-etl`
 
-12 exports, from `index.d.ts`.
+13 exports, from `index.d.ts`.
+
+### `assertPlainColumns` — function, from `columns`
+
+```ts
+declare function assertPlainColumns(columns: ReadonlyArray<unknown>): void;
+```
 
 ### `Binding` — type, from `columns`
 
@@ -27,12 +33,9 @@ type Binding = Record<string, TermValue>;
 ```ts
 interface ColumnDefinition {
     columnName: string;
-    targetVariable: string;
     termType: 'uri' | 'literal';
     datatypeIri?: string;
     lang?: string;
-    iriTemplate?: string;
-    nullPolicy: 'undef' | 'skipRow';
 }
 ```
 
@@ -80,20 +83,21 @@ interface EtlRun {
     dryRun?: boolean;
     signal?: AbortSignal;
     abortError?: (signal: AbortSignal) => Error;
-    warn?: EtlWarning;
 }
 ```
 
-### `EtlWarning` — type, from `columns`
+### `RetiredColumnFieldError` — class, from `columns`
 
 ```ts
-type EtlWarning = (message: string, context: Record<string, unknown>) => void;
+declare class RetiredColumnFieldError extends Error {
+    constructor(message: string);
+}
 ```
 
 ### `rowsToBindings` — function, from `columns`
 
 ```ts
-declare function rowsToBindings(rows: ReadonlyArray<Record<string, unknown>>, columns: ReadonlyArray<ColumnDefinition>, warn?: EtlWarning): Binding[];
+declare function rowsToBindings(rows: ReadonlyArray<Record<string, unknown>>, columns: ReadonlyArray<ColumnDefinition>): Binding[];
 ```
 
 ### `runEtl` — function, from `run`
@@ -108,10 +112,10 @@ declare function runEtl(run: EtlRun): Promise<EtlResult>;
 declare function toArgumentSet(bindings: Binding[], columns: ReadonlyArray<ColumnDefinition>): TemplateArgumentSet;
 ```
 
-### `toLexicalForm` — function, from `columns`
+### `toColumnDefinitions` — function, from `columns`
 
 ```ts
-declare function toLexicalForm(value: unknown, datatypeIri?: string): string;
+declare function toColumnDefinitions(columns: ReadonlyArray<unknown>): ColumnDefinition[];
 ```
 
 ### `valuesLookLikeIris` — function, from `infer`

@@ -61,7 +61,9 @@ async function openSubjectPeek(page: Page, srl: string) {
   await page.route(`${API_ORIGIN}/data-graphs*`, (route: Route) => json(route, []));
   await page.route(`${API_ORIGIN}/argument-sets*`, (route: Route) => json(route, []));
 
-  await page.goto('/?section=tests&new=test');
+  await page.goto('/?section=tests');
+
+  await page.getByTestId('section-overview-new').click();
   await page.getByTestId('test-subject').click();
   await page.getByTestId('test-subject-option').first().click();
   await expect(page.getByTestId('test-subject-preview')).toBeVisible();

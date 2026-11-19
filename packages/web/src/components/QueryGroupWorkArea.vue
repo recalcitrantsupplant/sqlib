@@ -56,17 +56,16 @@
       <!--
         The run, as one sentence (design 3b).
 
-        A group's "against" is a statement rather than a choice: every execution
-        node names its own backend, so there is nothing group-level to pick and
-        a dropdown here would claim otherwise. Same for the output format — a
-        node names the media type it wants back. What is left is genuinely the
-        group's own: what it runs *with*, and what the recipe can be kept as.
+        A group has no "against" clause: every execution node names its own
+        backend in the Editor tab, and a run that finds a node without one
+        names that node in its error. The output format is per node too. What
+        is left is the group's own: what it runs *with*, and what the recipe
+        can be kept as.
       -->
       <RunBar
         :running="isExecuting"
         :run-title="runTitle"
         :inputs="runInputs"
-        :backend="PER_NODE_BACKENDS"
         :create-targets="['benchmark', 'test']"
         :create-disabled-reason="createDisabledReason"
         :creating="creatingFromRecipe"
@@ -582,7 +581,7 @@ import { useArgumentSets } from '../composables/useArgumentSets';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { useTestsStore } from '../composables/useTestsStore';
 import RunBar from './shared/RunBar.vue';
-import type { CreateTarget, RunBarChoice, RunBarPick } from '../lib/runBar';
+import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { QueryGroupCreationRequest, ValidationIssue } from '../composables/queryGroupTypes';
 import {
@@ -1153,23 +1152,6 @@ const isExecuting = execution.isExecuting;
 /* ------------------------------------------------------------------ *
  * The run sentence (design 3b)
  * ------------------------------------------------------------------ */
-
-/**
- * "against", for a subject that does not get to choose.
- *
- * A group has no backend of its own: each execution node names one, and the
- * same is true of the media type each node asks for. Offering a group-level
- * dropdown would be claiming a knob that does not exist, so the sentence states
- * the fact and the Editor tab is where a node's backend is actually set.
- */
-const PER_NODE_BACKENDS: RunBarChoice = {
-  value: 'per-node',
-  options: [],
-  readonly: true,
-  label: 'node backends',
-  title: 'A query group has no backend of its own — every execution node names one. '
-    + 'Select a node and use the Editor tab to change it.',
-};
 
 const argumentsSummary = computed(() => {
   const selection = argumentSetsState.selection.value;

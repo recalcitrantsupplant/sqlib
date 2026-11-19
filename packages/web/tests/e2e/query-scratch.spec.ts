@@ -180,145 +180,155 @@ test.describe('Scratch queries', () => {
     await page.waitForSelector('[data-testid="entity-list-sidebar"]');
   });
 
-  test('lands on a scratch query rather than a playground', async ({ page }) => {
-    // An empty library and no unsaved work: an empty editor is a better first
-    // screen than an empty list, and it is a real item, not a separate screen.
+  test('lands on an empty state, and New starts a scratch query', async ({ page }) => {
+    // An empty library and no unsaved work: nothing opens until the user asks.
+    await expect(page.locator('[data-testid="section-overview"]')).toBeVisible();
+    await expect(scratchRows(page)).toHaveCount(0);
+
+    await page.locator('[data-testid="section-overview-new"]').click();
     await expect(scratchRows(page)).toHaveCount(1);
     await expect(scratchChip(page)).toBeVisible();
     await expect(page).toHaveURL(scratchUrl('queries'));
   });
 
-  test('runs an unsaved body without saving it first', async ({ page }) => {
-    let executed: string | null = null;
-    await page.route(`**//${API_HOST}/sparql`, async (route: Route) => {
-      executed = route.request().postDataJSON()?.query ?? null;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/sparql-results+json',
-        body: JSON.stringify({ head: { vars: ['s'] }, results: { bindings: [] } }),
-      });
+  test.describe('with a new scratch query open', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.locator('[data-testid="section-overview-new"]').click();
+      await expect(scratchRows(page)).toHaveCount(1);
     });
 
-    await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+    test('runs an unsaved body without saving it first', async ({ page }) => {
+      let executed: string | null = null;
+      await page.route(`**//${API_HOST}/sparql`, async (route: Route) => {
+        executed = route.request().postDataJSON()?.query ?? null;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/sparql-results+json',
+          body: JSON.stringify({ head: { vars: ['s'] }, results: { bindings: [] } }),
+        });
+      });
 
-    // Any backend will do; the ephemeral one needs nothing configured.
-    await page.locator('[data-testid="run-bar-backend"]').click();
-    await page.getByRole('option').filter({ hasText: /ephemeral/i }).first().click();
-    await page.locator('[data-testid="run-bar-run"]').click();
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
 
-    // Straight down the direct-execution path: a scratch query has no version
-    // for an /execute call to point at, and never having to save something
-    // just to try it is the whole reason the playground existed.
-    await expect.poll(() => executed).toContain('SELECT ?s WHERE');
-  });
+      // Any backend will do; the ephemeral one needs nothing configured.
+      await page.locator('[data-testid="run-bar-backend"]').click();
+      await page.getByRole('option').filter({ hasText: /ephemeral/i }).first().click();
+      await page.locator('[data-testid="run-bar-run"]').click();
 
-  test('saves with the name from Details, and the item moves to Saved', async ({ page }) => {
-    await typeQuery(page, 'SELECT ?country WHERE { ?country a ?type }');
+      // Straight down the direct-execution path: a scratch query has no version
+      // for an /execute call to point at, and never having to save something
+      // just to try it is the whole reason the playground existed.
+      await expect.poll(() => executed).toContain('SELECT ?s WHERE');
+    });
 
-    await expect(saveButton(page)).toContainText('Save v1');
-    await nameIt(page, 'Country types');
-    await saveButton(page).click();
+    test('saves with the name from Details, and the item moves to Saved', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?country WHERE { ?country a ?type }');
 
-    await expect(page.getByText(/Saved “Country types” as v1/)).toBeVisible();
-    expect(createdQueries).toHaveLength(1);
-    expect(createdQueries[0].name).toBe('Country types');
-    expect(createdVersions[0].queryString).toContain('SELECT ?country');
+      await expect(saveButton(page)).toContainText('Save v1');
+      await nameIt(page, 'Country types');
+      await saveButton(page).click();
 
-    // The handoff: gone from Scratch, present in Saved, and still open.
-    await expect(scratchRows(page)).toHaveCount(0);
-    await expect(savedRows(page).filter({ hasText: 'Country types' })).toBeVisible();
-    await expect(page).toHaveURL(recordUrl('queries', 'urn:sqlib:query:created-1'));
-  });
+      await expect(page.getByText(/Saved “Country types” as v1/)).toBeVisible();
+      expect(createdQueries).toHaveLength(1);
+      expect(createdQueries[0].name).toBe('Country types');
+      expect(createdVersions[0].queryString).toContain('SELECT ?country');
 
-  test('saves into the library the sidebar is pointing at', async ({ page }) => {
-    await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
-    await nameIt(page, 'Anything');
-    await saveButton(page).click();
+      // The handoff: gone from Scratch, present in Saved, and still open.
+      await expect(scratchRows(page)).toHaveCount(0);
+      await expect(savedRows(page).filter({ hasText: 'Country types' })).toBeVisible();
+      await expect(page).toHaveURL(recordUrl('queries', 'urn:sqlib:query:created-1'));
+    });
 
-    await expect.poll(() => createdQueries.length).toBe(1);
-    // Scratch reads `unassigned` until this moment; save inherits the
-    // selected library rather than asking (nav doc open question, resolved).
-    expect(createdQueries[0].isPartOf).toEqual([LIBRARY.id]);
-  });
+    test('saves into the library the sidebar is pointing at', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+      await nameIt(page, 'Anything');
+      await saveButton(page).click();
 
-  test('Save on a still-unnamed item sends you to the name field, not the server', async ({ page }) => {
-    await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+      await expect.poll(() => createdQueries.length).toBe(1);
+      // Scratch reads `unassigned` until this moment; save inherits the
+      // selected library rather than asking (nav doc open question, resolved).
+      expect(createdQueries[0].isPartOf).toEqual([LIBRARY.id]);
+    });
 
-    await saveButton(page).click();
+    test('Save on a still-unnamed item sends you to the name field, not the server', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
 
-    // The name has exactly one editor, and this is it.
-    await expect(detailsName(page)).toBeFocused();
-    await expect(detailsName(page)).toHaveValue(/Untitled query \d+/);
-    await expect(scratchChip(page)).toBeVisible();
-    expect(createdQueries).toHaveLength(0);
-    // Still there, still yours.
-    await expect(scratchRows(page)).toHaveCount(1);
-  });
+      await saveButton(page).click();
 
-  test('a failed save keeps the scratch item exactly where it was', async ({ page }) => {
-    failNextCreate = true;
-    await typeQuery(page, 'SELECT ?doomed WHERE { ?s ?p ?o }');
-    await nameIt(page, 'Doomed');
-    await saveButton(page).click();
+      // The name has exactly one editor, and this is it.
+      await expect(detailsName(page)).toBeFocused();
+      await expect(detailsName(page)).toHaveValue(/Untitled query \d+/);
+      await expect(scratchChip(page)).toBeVisible();
+      expect(createdQueries).toHaveLength(0);
+      // Still there, still yours.
+      await expect(scratchRows(page)).toHaveCount(1);
+    });
 
-    await expect(page.getByText(/Boom/)).toBeVisible();
-    await expect(scratchChip(page)).toBeVisible();
-    await expect(scratchRows(page)).toHaveCount(1);
-    await expect(page.locator('.cm-content')).toContainText('SELECT ?doomed');
-  });
+    test('a failed save keeps the scratch item exactly where it was', async ({ page }) => {
+      failNextCreate = true;
+      await typeQuery(page, 'SELECT ?doomed WHERE { ?s ?p ?o }');
+      await nameIt(page, 'Doomed');
+      await saveButton(page).click();
 
-  test('says so when the entity was created but its first version was not', async ({ page }) => {
-    failNextVersion = true;
-    await typeQuery(page, 'SELECT ?halfway WHERE { ?s ?p ?o }');
-    await nameIt(page, 'Halfway');
-    await saveButton(page).click();
+      await expect(page.getByText(/Boom/)).toBeVisible();
+      await expect(scratchChip(page)).toBeVisible();
+      await expect(scratchRows(page)).toHaveCount(1);
+      await expect(page.locator('.cm-content')).toContainText('SELECT ?doomed');
+    });
 
-    // Leaving a bodyless query in the library without saying so is worse than
-    // saying so, and the user's text is never the thing that gets lost.
-    await expect(page.getByText(/could not save its first version/)).toBeVisible();
-    await expect(scratchRows(page)).toHaveCount(1);
-    await expect(page.locator('.cm-content')).toContainText('SELECT ?halfway');
-  });
+    test('says so when the entity was created but its first version was not', async ({ page }) => {
+      failNextVersion = true;
+      await typeQuery(page, 'SELECT ?halfway WHERE { ?s ?p ?o }');
+      await nameIt(page, 'Halfway');
+      await saveButton(page).click();
 
-  test('a saved query saves again on one click, asking for nothing', async ({ page }) => {
-    await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
-    await nameIt(page, 'Already named');
-    await saveButton(page).click();
-    await expect(page.getByText(/Saved “Already named” as v1/)).toBeVisible();
+      // Leaving a bodyless query in the library without saying so is worse than
+      // saying so, and the user's text is never the thing that gets lost.
+      await expect(page.getByText(/could not save its first version/)).toBeVisible();
+      await expect(scratchRows(page)).toHaveCount(1);
+      await expect(page.locator('.cm-content')).toContainText('SELECT ?halfway');
+    });
 
-    // A saved query is past the naming question entirely: from here on Save
-    // means vN+1 and nothing is collected — the version note is written on the
-    // version's row in Details, after it exists.
-    await typeQuery(page, 'SELECT ?s2 WHERE { ?s2 ?p ?o }');
-    await expect(saveButton(page)).toContainText('Save v2');
-    await saveButton(page).click();
-    await expect(page.locator('[data-testid="version-pill"]')).toContainText('v2');
-  });
+    test('a saved query saves again on one click, asking for nothing', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+      await nameIt(page, 'Already named');
+      await saveButton(page).click();
+      await expect(page.getByText(/Saved “Already named” as v1/)).toBeVisible();
 
-  test('the Details tab says there are no versions yet rather than listing any', async ({ page }) => {
-    await page.locator('[data-testid="details-tab"]').click();
+      // A saved query is past the naming question entirely: from here on Save
+      // means vN+1 and nothing is collected — the version note is written on the
+      // version's row in Details, after it exists.
+      await typeQuery(page, 'SELECT ?s2 WHERE { ?s2 ?p ?o }');
+      await expect(saveButton(page)).toContainText('Save v2');
+      await saveButton(page).click();
+      await expect(page.locator('[data-testid="version-pill"]')).toContainText('v2');
+    });
 
-    await expect(page.locator('[data-testid="no-versions"]')).toContainText('No versions yet');
-    // No Library row: the sidebar and the save bar both already say where a
-    // scratch query will land. The id is the row that reports the same thing,
-    // and while scratch there is not one yet.
-    await expect(page.locator('[data-testid="details-library"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="details-panel"]')).toContainText('not assigned');
-  });
+    test('the Details tab says there are no versions yet rather than listing any', async ({ page }) => {
+      await page.locator('[data-testid="details-tab"]').click();
 
-  test('naming from the Details tab means Save goes straight through', async ({ page }) => {
-    await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
-    await nameIt(page, 'Named up front');
+      await expect(page.locator('[data-testid="no-versions"]')).toContainText('No versions yet');
+      // No Library row: the sidebar and the save bar both already say where a
+      // scratch query will land. The id is the row that reports the same thing,
+      // and while scratch there is not one yet.
+      await expect(page.locator('[data-testid="details-library"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid="details-panel"]')).toContainText('not assigned');
+    });
 
-    await saveButton(page).click();
+    test('naming from the Details tab means Save goes straight through', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+      await nameIt(page, 'Named up front');
 
-    // Already named, so there is nothing to ask about.
-    await expect(page.getByText(/Saved “Named up front” as v1/)).toBeVisible();
-  });
+      await saveButton(page).click();
 
-  test('Save is disabled until there is something to save', async ({ page }) => {
-    await expect(saveButton(page)).toBeDisabled();
-    await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
-    await expect(saveButton(page)).toBeEnabled();
+      // Already named, so there is nothing to ask about.
+      await expect(page.getByText(/Saved “Named up front” as v1/)).toBeVisible();
+    });
+
+    test('Save is disabled until there is something to save', async ({ page }) => {
+      await expect(saveButton(page)).toBeDisabled();
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+      await expect(saveButton(page)).toBeEnabled();
+    });
   });
 });

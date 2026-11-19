@@ -120,6 +120,7 @@ Run one with `pnpm --filter @sparql-query-lib/<pkg> <script>`.
 | `smoke:provider` | Checks that the model provider of the assistant is reachable |
 | `smoke:etl-extensions` | Checks that DuckDB community extensions install on this platform |
 | `smoke:storage` | Checks that this process can write to the storage directory |
+| `smoke:throughput` | Checks the request rate of the built server against a mock SPARQL endpoint and an in-memory store |
 | `clean`, `clean:test`, `clean:scripts` | Remove `dist`, and any compiled `.js` file next to the TypeScript sources |
 
 The smoke scripts need a running service or a network, and are not part of the CI
@@ -178,7 +179,9 @@ scripts. `bash scripts/ci/all.sh` runs the required sequence:
 7. `build.sh`: `pnpm -r build` in topological order. This also typechecks each
    other package.
 8. `publish-check.sh`: four checks on the publishable packages.
-9. `test.sh`: vitest across the affected packages.
+9. `throughput.sh`: starts the built API server and fails when small queries
+   fall under 200 requests/s (`smoke:throughput`).
+10. `test.sh`: vitest across the affected packages.
 
 Steps outside that sequence:
 

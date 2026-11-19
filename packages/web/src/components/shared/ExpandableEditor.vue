@@ -234,9 +234,18 @@ defineExpose({ expanded, toggle, collapse, regionId });
   overflow: hidden;
 }
 
-/* The box the layer is positioned against, and the one it covers exactly. */
+/*
+ * The box the layer is positioned against, and the one it covers exactly.
+ *
+ * It paints the page surface itself. The dim above is a child of the region
+ * at `z-index: -1`, so it paints over the region's own background, and every
+ * box inside that has no background of its own shows the dim through it. The
+ * ETL template editor has none, and popped out it read as dark grey with the
+ * syntax colours on top of it.
+ */
 .expand-region.expanded > .expand-stack {
   position: relative;
+  background: var(--surface);
 }
 
 .expand-layer {
