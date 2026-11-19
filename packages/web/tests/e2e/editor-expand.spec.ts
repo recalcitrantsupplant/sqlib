@@ -43,6 +43,7 @@ test.describe('Expanding an editor', () => {
     });
     await page.goto('/?section=queries', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="entity-list-sidebar"]');
+    await page.getByTestId('section-overview-new').click();
     await typeQuery(page, QUERY_TEXT);
   });
 
