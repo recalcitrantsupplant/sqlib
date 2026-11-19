@@ -5,7 +5,7 @@ import {
   type CallerIdentity,
   type SlotPolicy,
 } from '@sparql-query-lib/runtime';
-import { SparqlQueryParser } from './parser.js';
+import { sharedSparqlQueryParser, type SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
 import type { RuntimeArgumentPayload } from './ArgumentSetService.js';
 import type { FastifyRequest } from 'fastify';
@@ -99,7 +99,7 @@ export function applyExecutionArguments(
      */
     caller: CallerIdentity | null;
   },
-  parser: SparqlQueryParser = new SparqlQueryParser()
+  parser: SparqlQueryParser = sharedSparqlQueryParser()
 ): string {
   const limits = payload.limits ?? [];
   const offsets = payload.offsets ?? [];
