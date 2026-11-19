@@ -2,7 +2,7 @@ import { test, expect, type Route } from './fixtures/test';
 import { openCreateLibraryDialog, openSplash } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { chooseSearchOption, searchSelect } from './search-select';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 /**
  * Test for library backend selection bug fix:
@@ -84,7 +84,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
       }
     });
 
-    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -92,7 +92,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
       });
     });
 
-    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
+    await page.route(listRoute('/query-groups'), async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

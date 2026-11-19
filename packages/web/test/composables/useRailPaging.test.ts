@@ -1,0 +1,90 @@
+/**
+ * The rail's saved rows from server pages, with pinned and recently opened
+ * rows loaded by id (#197).
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { nextTick, ref } from 'vue';
+
+const api = vi.hoisted(() => ({ pageEntities: vi.fn() }));
+vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
+vi.mock('../../src/composables/useApiClient', () => ({ useApiClient: () => api }));
+
+const { useRailPaging } = await import('@/composables/useRailPaging');
+const { useEntityPins, useEntityLastOpened } = await import('@/composables/useEntityPins');
+const { useSettings } = await import('@/composables/useSettings');
+
+const LIB = 'urn:sqlib:library:l1';
+const row = (id: string, tags: string[] = []) => ({ id, name: id, tags });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.localStorage.clear();
+  const { settings } = useSettings();
+  settings.value.entityListGrouping = 'none';
+  settings.value.entityListSort = {};
+  for (const id of [...useEntityPins().pins.value]) useEntityPins().setPinned(id, false);
+  api.pageEntities.mockImplementation(async (_kind: string, params: { ids?: string[]; tag?: string[] }) => {
+    if (params.ids) return { items: params.ids.map((id) => row(id)), total: params.ids.length };
+    if (params.tag) return { items: [], total: 7 };
+    return { items: [row('a'), row('b')], total: 300 };
+  });
+});
+
+function rail(kind: 'query' | 'argumentSet' = 'query') {
+  return useRailPaging({
+    section: ref('queries'),
+    kind: ref(kind),
+    library: ref(LIB),
+    tags: ref([{ id: 'tag:geo' }]),
+  });
+}
+
+describe('useRailPaging', () => {
+  it('loads the first page of the kind in the library, sorted by the section setting', async () => {
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', { sort: 'name', order: 'asc', limit: 50, offset: 0, library: LIB });
+    expect(r.rows.value.map((entity) => entity.id)).toEqual(['a', 'b']);
+    expect(r.total.value).toBe(300);
+  });
+
+  it('loads pinned rows by id, whatever page they are on', async () => {
+    useEntityPins().setPinned('z', true);
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ ids: ['z'], library: LIB }));
+    expect(r.rows.value.map((entity) => entity.id)).toContain('z');
+  });
+
+  it('asks for name order under Last opened, and loads the opened rows by id', async () => {
+    useSettings().setEntityListSort('queries', { key: 'opened', dir: 'desc' });
+    useEntityLastOpened().markOpened('recent', 1000);
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ sort: 'name', order: 'asc', limit: 50 }));
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ ids: ['recent'] }));
+  });
+
+  it('counts each tag on the server when grouping by tag', async () => {
+    useSettings().settings.value.entityListGrouping = 'tag';
+    const r = rail();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenCalledWith('query', expect.objectContaining({ tag: ['tag:geo'], limit: 1 }));
+    expect(r.tagTotals.value).toEqual({ 'tag:geo': 7 });
+  });
+
+  it('searches on the server', async () => {
+    const r = rail();
+    await r.ensureLoaded();
+    r.setSearch('perth');
+    await nextTick();
+    await r.ensureLoaded();
+    expect(api.pageEntities).toHaveBeenLastCalledWith('query', expect.objectContaining({ q: 'perth', offset: 0 }));
+  });
+
+  it('loads once for the same section, sort and search', async () => {
+    const r = rail();
+    await Promise.all([r.ensureLoaded(), r.ensureLoaded()]);
+    expect(api.pageEntities).toHaveBeenCalledTimes(1);
+  });
+});

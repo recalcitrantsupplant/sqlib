@@ -48,6 +48,11 @@
       :tags="libraryTags"
       :supports-tags="flatSidebar.supportsTags"
       :supports-origin="flatSidebar.supportsOrigin"
+      :saved-total="railKind ? rail.total.value : undefined"
+      :saved-remaining="railKind ? railRemaining : undefined"
+      :tag-totals="railKind ? rail.tagTotals.value : undefined"
+      @search="rail.setSearch"
+      @load-more="(tagId) => rail.loadMore(tagId)"
       @select-saved="handleSelectSaved"
       @select-scratch="handleSelectScratch"
       @create-scratch="handleCreateFromSidebar"
@@ -302,7 +307,7 @@ import { useBackendsStore } from '../../composables/useBackendsStore';
 import { isBrowserBackendId, useBrowserBackends } from '../../composables/useBrowserBackends';
 import { useBackendProbes } from '../../composables/useBackendProbes';
 import { useQueriesStore } from '../../composables/useQueriesStore';
-import { useEntityKinds, isInLibrary } from '../../composables/useEntityKinds';
+import { useEntityKinds, isInLibrary, type KindEntity } from '../../composables/useEntityKinds';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
 import { useLibraryEvents } from '../../composables/useLibraryEvents';
@@ -353,6 +358,7 @@ import {
   type ShareRequest,
 } from '../../lib/shareLink';
 import { setLastBackend } from '../../lib/backendDefaults';
+import { isRailPaged, useRailPaging } from '../../composables/useRailPaging';
 import type { ArgumentScalarBinding, ArgumentTupleBinding } from '../../types/argument-sets';
 
 interface QueryCreationRequest {
@@ -868,6 +874,47 @@ const activeListSection = computed<ListSection | null>(() => {
   return isFeatureEnabled(SECTION_DEFINITIONS[section].feature) ? section : null;
 });
 
+/*
+ * The rail's saved rows, from the server a page at a time (#197). Each section
+ * lists one kind; the kinds `useRailPaging` pages read from it, and the others
+ * (tests, ETL) still read the whole list from their store.
+ */
+const railKind = computed(() => {
+  const section = activeListSection.value;
+  const kind = section ? SECTION_DEFINITIONS[section].savedKinds[0]?.type ?? null : null;
+  return isRailPaged(kind) ? kind : null;
+});
+const railLibrary = computed(() => {
+  const section = activeListSection.value;
+  return section && SECTION_DEFINITIONS[section].libraryScoped ? activeLibraryId.value : null;
+});
+const rail = useRailPaging({
+  section: activeListSection,
+  kind: railKind,
+  library: railLibrary,
+  tags: libraryTags,
+});
+
+/** How many of the main list's matches are not loaded yet. */
+const railRemaining = computed(() => Math.max(0, rail.total.value - rail.mainCount.value));
+
+/** Load a kind for the rail: a page when the rail pages it, else the whole store. */
+async function loadRailKind(type: SectionItemType): Promise<unknown> {
+  if (railKind.value === type) return rail.ensureLoaded();
+  return loadKind(type);
+}
+
+/**
+ * After a save or a delete. The rail reloads its page. The store reloads too
+ * when something already loaded it, so the screens that read it stay current.
+ */
+async function refreshKind(type: SectionItemType): Promise<unknown> {
+  const reloads: Promise<unknown>[] = [];
+  if (railKind.value === type) reloads.push(rail.refresh());
+  if (railKind.value !== type || entitiesOfKind(type).length > 0) reloads.push(loadKind(type));
+  return Promise.all(reloads);
+}
+
 /** The section a scratch selection belongs to — the record's own answer. */
 const scratchSection = computed<DraftSection | null>(() => {
   if (selectedItemType.value !== 'scratch') return null;
@@ -961,8 +1008,11 @@ function savedFor(section: ListSection): SidebarEntity[] {
   if (definition.libraryScoped && !libraryId) return [];
   const rows: SidebarEntity[] = [];
   for (const kind of definition.savedKinds) {
-    const matching = entitiesOfKind(kind.type)
-      .filter((entity) => !definition.libraryScoped || isInLibrary(entity, libraryId!))
+    // The rail's rows come from the server already scoped to the library.
+    const paged = railKind.value === kind.type;
+    const source = paged ? (rail.rows.value as unknown as KindEntity[]) : entitiesOfKind(kind.type);
+    const matching = source
+      .filter((entity) => paged || !definition.libraryScoped || isInLibrary(entity, libraryId!))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
     for (const entity of matching) {
@@ -1097,7 +1147,8 @@ const selectedRecordLibrary = computed<string | null>(() => {
   const type = selectedItemType.value;
   const id = savedSelectionId.value;
   if (!type || type === 'scratch' || !id) return null;
-  const entity = entitiesOfKind(type).find((candidate) => candidate.id === id);
+  const entity = entitiesOfKind(type).find((candidate) => candidate.id === id)
+    ?? (rail.lookup(id) as unknown as KindEntity | undefined);
   const known = new Set(switchableLibraries.value.map((library) => library.id));
   return owningLibrary(entity, {
     isLibrary: (ref) => known.has(ref),
@@ -1105,6 +1156,16 @@ const selectedRecordLibrary = computed<string | null>(() => {
     entityById: (ref) => entitiesOfKind('queryGroup').find((group) => group.id === ref),
   });
 });
+
+/*
+ * A link can name a record on no loaded page, or in another library. Load it
+ * by id, so the library below can be read off it.
+ */
+watch([selectedItemType, savedSelectionId], ([type, id]) => {
+  if (!id || !type || type === 'scratch' || !isRailPaged(type)) return;
+  if (entitiesOfKind(type).some((entity) => entity.id === id) || rail.lookup(id)) return;
+  void rail.loadRecord(type, id).catch((err) => console.error('[LibraryWorkspace] Record lookup failed:', err));
+}, { immediate: true });
 
 /*
  * Opening a record points the active library at it. Watched on the record's
@@ -1215,7 +1276,7 @@ function handleCreateFromSidebar() {
  * still the thing you were writing — only now it is in the library.
  */
 async function handleSaved(kind: SectionItemType, id: string) {
-  await loadKind(kind);
+  await refreshKind(kind);
   selectSavedItem(kind, id);
   sidebarRefreshKey.value += 1;
 }
@@ -1236,7 +1297,7 @@ function closeRecord() {
  */
 async function handleDeleted(kind: SectionItemType, id: string | null) {
   if (!id || savedSelectionId.value === id) closeRecord();
-  await loadKind(kind);
+  await refreshKind(kind);
   sidebarRefreshKey.value += 1;
 }
 
@@ -1543,7 +1604,7 @@ function openTest(testId: string) {
  * triggers a load, so this was "stale until you navigate" rather than "lost".
  */
 async function handleArgumentSetSavedElsewhere() {
-  await loadKind('argumentSet');
+  await refreshKind('argumentSet');
   sidebarRefreshKey.value += 1;
 }
 
@@ -1666,10 +1727,9 @@ watch(
     // section would start an untitled query first.
     if (sharedQueryImport) await sharedQueryImport;
     const definition = SECTION_DEFINITIONS[section];
-    await Promise.all([
-      ensureLibrariesLoaded(),
-      ...definition.savedKinds.map((kind) => loadKind(kind.type)),
-    ]);
+    // The rail's page is scoped to the active library, which needs the libraries first.
+    await ensureLibrariesLoaded();
+    await Promise.all(definition.savedKinds.map((kind) => loadRailKind(kind.type)));
     if (selectionBelongsTo(section)) return;
     // With no saved item and no scratch item, nothing opens: the pane shows the
     // section's empty state and its New button. A new item is the user's

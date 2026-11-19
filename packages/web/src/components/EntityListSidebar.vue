@@ -295,7 +295,7 @@
         <div class="cluster-header">
           <Library :size="11" />
           <span class="cluster-name">Saved</span>
-          <span class="cluster-meta">{{ unpinnedSaved.length }}</span>
+          <span class="cluster-meta">{{ savedHeaderCount }}</span>
         </div>
 
         <!--
@@ -318,7 +318,7 @@
             behaviour a real button would have given.
           -->
           <div
-            v-if="group.showHeading && group.items.length > 0"
+            v-if="group.showHeading && (group.items.length > 0 || group.total > 0)"
             class="group-header"
             :class="{ 'group-header-button': group.collapsible }"
             :data-testid="group.tagId ? `tag-group-${group.tagId}` : undefined"
@@ -337,7 +337,7 @@
             />
             <TagDot v-if="group.color" :color="group.color" size="heading" />
             <span class="group-name">{{ group.label }}</span>
-            <span class="cluster-meta">{{ group.items.length }}</span>
+            <span class="cluster-meta">{{ group.total || group.items.length }}</span>
             <!-- The same action, narrowed to one heading's rows. -->
             <!--
               `.stop`, or running a heading's tests would collapse the heading
@@ -416,8 +416,29 @@
                 <PinButton :pinned="false" :name="entity.name" @toggle="togglePin(entity.id)" />
               </span>
             </div>
+            <button
+              v-if="group.tagId && group.total > group.loaded"
+              type="button"
+              class="show-more-row indented"
+              :data-testid="`show-more-${group.tagId}`"
+              @click="emit('load-more', group.tagId)"
+            >
+              <span>Show more</span>
+              <span class="cluster-meta">{{ group.total - group.loaded }} more</span>
+            </button>
           </template>
         </template>
+        <!-- The rest of the list, from the server a page at a time (#197). -->
+        <button
+          v-if="paged && (savedRemaining ?? 0) > 0"
+          type="button"
+          class="show-more-row"
+          data-testid="show-more-saved"
+          @click="emit('load-more', null)"
+        >
+          <span>Show more</span>
+          <span class="cluster-meta">{{ savedRemaining }} more</span>
+        </button>
       </template>
 
       <InlineNote v-if="visibleSaved.length === 0 && visibleScratch.length === 0" as="div" class="list-empty">
@@ -624,6 +645,16 @@ const props = defineProps<{
    * whose every row would land in one cluster has nothing to group by.
    */
   supportsOrigin?: boolean;
+  /**
+   * Set when the parent loads `saved` from the server a page at a time
+   * (#197): every match of the search. The parent then filters through
+   * `search` and loads through `load-more`.
+   */
+  savedTotal?: number;
+  /** How many matches are not loaded yet. */
+  savedRemaining?: number;
+  /** Per tag id, how many rows carry the tag. */
+  tagTotals?: Record<string, number>;
 }>();
 
 const emit = defineEmits<{
@@ -631,7 +662,13 @@ const emit = defineEmits<{
   (e: 'select-scratch', id: string): void;
   (e: 'create-scratch'): void;
   (e: 'discard-scratch', id: string): void;
+  (e: 'search', text: string): void;
+  /** The next page: of the whole list (null), or under one tag heading. */
+  (e: 'load-more', tagId: string | null): void;
 }>();
+
+/** True when the parent pages `saved` from the server. */
+const paged = computed(() => props.savedTotal !== undefined);
 
 const { collapsed, toggle: toggleCollapsed } = useSidebarCollapse(computed(() => props.section ?? 'queries'));
 const sidebarEl = ref<HTMLElement | null>(null);
@@ -701,6 +738,8 @@ watch(
 );
 
 const filter = ref('');
+/** How long typing pauses before a paged list asks the server. */
+const SEARCH_DELAY_MS = 200;
 const density = computed(() => settings.value.entityListDensity);
 
 function setDensity(value: 'compact' | 'comfortable') {
@@ -767,7 +806,8 @@ const visibleScratch = computed(() =>
 );
 const visibleSaved = computed(() => {
   if (!savedEnabled.value) return [];
-  const rows = props.saved.filter((entity) => matches(entity.name, entity.description));
+  // A paged list arrives filtered by the server, on the name only.
+  const rows = paged.value ? props.saved : props.saved.filter((entity) => matches(entity.name, entity.description));
   return sortEntities(rows, sort.value, {
     openedAt,
     nameOf: sort.value.key === 'creator' ? creatorNameOf : undefined,
@@ -828,6 +868,10 @@ interface SidebarCluster {
   color: string | null;
   collapsible: boolean;
   showHeading: boolean;
+  /** Paged lists: how many rows the server holds under this heading; 0 when unknown. */
+  total: number;
+  /** Paged lists: how many of those are loaded, pinned rows included. */
+  loaded: number;
 }
 
 /*
@@ -876,6 +920,8 @@ function kindCluster(
     color: null,
     collapsible: false,
     showHeading,
+    total: 0,
+    loaded: cluster.items.length,
   };
 }
 
@@ -911,6 +957,8 @@ const originClusters = computed<SidebarCluster[]>(() => {
       color: null,
       collapsible: true,
       showHeading: true,
+      total: 0,
+      loaded: items.length,
     });
   }
 
@@ -934,7 +982,8 @@ const tagClusters = computed<SidebarCluster[]>(() => {
 
   for (const tag of props.tags ?? []) {
     const items = unpinnedSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id));
-    if (items.length === 0) continue;
+    const total = paged.value ? props.tagTotals?.[tag.id] ?? 0 : 0;
+    if (items.length === 0 && total === 0) continue;
     clusters.push({
       key: `tag:${tag.id}`,
       type,
@@ -944,6 +993,8 @@ const tagClusters = computed<SidebarCluster[]>(() => {
       color: normalizeTagColor(tag.color),
       collapsible: true,
       showHeading: true,
+      total,
+      loaded: visibleSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id)).length,
     });
   }
 
@@ -958,6 +1009,8 @@ const tagClusters = computed<SidebarCluster[]>(() => {
       color: UNTAGGED_COLOR,
       collapsible: true,
       showHeading: true,
+      total: 0,
+      loaded: untagged.length,
     });
   }
 
@@ -1012,8 +1065,28 @@ function toggleGroup(key: string) {
  * filter — it labels the section, not the search.
  */
 const totalCount = computed(
-  () => (savedEnabled.value ? props.saved.length : 0) + (scratchEnabled.value ? props.scratch.length : 0),
+  () => (savedEnabled.value ? props.savedTotal ?? props.saved.length : 0)
+    + (scratchEnabled.value ? props.scratch.length : 0),
 );
+
+/** The Saved heading's count: every unpinned match, loaded or not, when paged. */
+const savedHeaderCount = computed(() =>
+  paged.value
+    ? Math.max(0, (props.savedTotal ?? 0) - pinnedSaved.value.length)
+    : unpinnedSaved.value.length,
+);
+
+/*
+ * A paged list searches on the server. The pause keeps a request per
+ * keystroke from going out while someone types.
+ */
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(filter, (text) => {
+  if (!paged.value) return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => emit('search', text), SEARCH_DELAY_MS);
+});
+onUnmounted(() => clearTimeout(searchTimer));
 
 function selectSaved(entity: SidebarEntity, groupType: string) {
   emit('select-saved', entity.id, entity.kind ?? groupType);
@@ -1347,6 +1420,31 @@ function ageOf(item: CallableDraft) {
 .cluster-meta {
   font-size: var(--text-micro);
   color: var(--ink-muted);
+}
+
+.show-more-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.show-more-row:hover {
+  background: var(--surface-subtle);
+}
+
+.show-more-row.indented {
+  padding-left: var(--space-6);
 }
 
 /* Indented under the Saved header: a subdivision of the cluster, not a second

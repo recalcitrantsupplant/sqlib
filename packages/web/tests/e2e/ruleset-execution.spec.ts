@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from './fixtures/test';
 import { openSection } from './navigate';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 type ExecutionResponse = {
   status: 'converged' | 'cycle' | 'maxIterations' | 'failed';
@@ -375,8 +375,8 @@ async function mockNavigationDependencies(page: Page) {
     });
   });
 
-  await page.route(`${API_ORIGIN}/queries`, fulfillWithJson([]));
-  await page.route(`${API_ORIGIN}/query-groups`, fulfillWithJson([]));
+  await page.route(listRoute('/queries'), fulfillWithJson([]));
+  await page.route(listRoute('/query-groups'), fulfillWithJson([]));
   await page.route(`${API_ORIGIN}/data-blocks`, fulfillWithJson([]));
   await page.route(`${API_ORIGIN}/backends`, fulfillWithJson([]));
 
@@ -396,7 +396,7 @@ async function mockRuleSetApis(
     getRuleSetVersions: (id: string) => Array<typeof defaultRuleSetVersion>;
   },
 ) {
-  await page.route(`${API_ORIGIN}/rule-sets`, async (route: Route) => {
+  await page.route(listRoute('/rule-sets'), async (route: Route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,

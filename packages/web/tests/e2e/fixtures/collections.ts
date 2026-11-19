@@ -12,7 +12,7 @@
  * a later `page.route('**\/libraries*', ...)` still wins.
  */
 import type { Page, Route } from '@playwright/test';
-import { API_ORIGIN } from '../api-origin';
+import { API_ORIGIN, listRoute } from '../api-origin';
 
 export type Collections = {
   libraries?: unknown[];
@@ -24,14 +24,14 @@ export type Collections = {
   ruleSets?: unknown[];
 };
 
-const PATHS: Array<[keyof Collections, string]> = [
+const PATHS: Array<[keyof Collections, string | RegExp]> = [
   ['libraries', `${API_ORIGIN}/libraries`],
   ['backends', `${API_ORIGIN}/backends`],
-  ['queries', `${API_ORIGIN}/queries`],
-  ['queryGroups', `${API_ORIGIN}/query-groups`],
+  ['queries', listRoute('/queries')],
+  ['queryGroups', listRoute('/query-groups')],
   ['rules', `${API_ORIGIN}/rules`],
   ['dataBlocks', `${API_ORIGIN}/data-blocks`],
-  ['ruleSets', `${API_ORIGIN}/rule-sets`],
+  ['ruleSets', listRoute('/rule-sets')],
 ];
 
 export async function mockSidebarCollections(page: Page, collections: Collections = {}) {
