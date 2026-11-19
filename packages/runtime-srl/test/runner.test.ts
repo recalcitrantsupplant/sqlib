@@ -45,6 +45,19 @@ describe('RuleSetRunner', () => {
     expect(inferred).toHaveLength(15);
   });
 
+  it('converges by default on a closure that needs more than 5 passes', async () => {
+    // A 7-hop chain. The step rule adds one hop per pass, so pass 6 derives
+    // the last pair and pass 7 derives nothing, which proves the fixpoint.
+    const longChain = 'abcdefgh'.slice(0, 7).split('')
+      .map((from, i) => `<http://ex/${from}> <http://ex/parent> <http://ex/${'abcdefgh'[i + 1]}> .`)
+      .join('\n');
+    const result = await new RuleSetRunner().run(source(closure), { initialGraph: longChain });
+
+    expect(result.status).toBe('converged');
+    expect(result.iterations).toHaveLength(7);
+    expect(result.finalGraphNQuads!.split('\n')).toContain('<http://ex/a> <http://ex/anc> <http://ex/h> .');
+  });
+
   it('stops at the iteration cap and says so', async () => {
     const result = await new RuleSetRunner().run(source(closure), { initialGraph: CHAIN, maxIterations: 2 });
     expect(result.status).toBe('maxIterations');

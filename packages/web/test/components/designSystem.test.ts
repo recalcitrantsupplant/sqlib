@@ -587,6 +587,8 @@ describe('SectionLabel adoption', () => {
     'components/shared/SparqlEditorPanel.vue: .outputs-label': 'painted --action: it names a live detection, not a section',
 
     // 4. Not a label: a datum, a pill, table chrome, or a control's own text.
+    'components/benchmarks/BenchmarkCaseEditor.vue: .node-row-head':
+      'the group nodes table header row: a grid row whose cells carry per-column layout',
     'components/EtlPlayground.vue: .peek-badge': 'a pill on --action, reading "LIMIT 10"',
     'components/EtlPlayground.vue: .peek-col-type': 'the column’s DuckDB type, printed inside a th — a datum',
     'components/EtlPlayground.vue: .table-header':

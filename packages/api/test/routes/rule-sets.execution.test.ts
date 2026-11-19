@@ -19,6 +19,12 @@ const hoisted = vi.hoisted(() => {
     ruleSetVersion: {
       list: vi.fn(),
     },
+    ruleVersion: {
+      get: vi.fn(),
+    },
+    rule: {
+      get: vi.fn(),
+    },
     mockExecute,
     mockExecutorCtor,
   };
@@ -28,6 +34,8 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getEntityRepositories: () => ({
     RuleSet: hoisted.ruleSet,
     RuleSetVersion: hoisted.ruleSetVersion,
+    RuleVersion: hoisted.ruleVersion,
+    Rule: hoisted.rule,
   }),
 }));
 
@@ -110,7 +118,7 @@ describe('RuleSets Routes (/rule-sets) - Execution', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual(executionResult);
+    expect(res.json()).toEqual({ ...executionResult, ruleNames: {} });
     expect(hoisted.mockExecutorCtor).toHaveBeenCalledTimes(1);
     // `tupleSeeds: null` means "run the seeds the version stored", which is what
     // a request naming no tuples has always done.
@@ -148,8 +156,40 @@ describe('RuleSets Routes (/rule-sets) - Execution', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual(executionResult);
+    expect(res.json()).toEqual({ ...executionResult, ruleNames: {} });
     expect(hoisted.mockExecute).toHaveBeenCalledWith(requestedVersion, { maxIterations: 5, inferenceFormat: 'application/n-triples', initialGraph: null, initialGraphFormat: null, tupleSeeds: null, trace: true, signal: expect.any(AbortSignal) });
+  });
+
+  it('names each rule version by its rule, or by its position', async () => {
+    const ruleSetId = 'urn:sqlib:rule-set:named';
+    const version = {
+      $id: 'urn:sqlib:rule-set-version:n1',
+      isPartOf: ruleSetId,
+      version: 1,
+      hasRule: ['urn:sqlib:rule-version:a', 'urn:sqlib:rule-version:b'],
+    };
+    hoisted.ruleSet.get.mockImplementation((id: string) =>
+      id === ruleSetId ? { $id: ruleSetId, '@type': 'RuleSet', name: 'Named', currentVersion: version.$id } : null,
+    );
+    hoisted.ruleSetVersion.list.mockReturnValue([version]);
+    hoisted.ruleVersion.get.mockImplementation((id: string) => ({
+      $id: id,
+      isPartOf: id.endsWith(':a') ? 'urn:sqlib:rule:a' : 'urn:sqlib:rule:gone',
+    }));
+    hoisted.rule.get.mockImplementation((id: string) => (id === 'urn:sqlib:rule:a' ? { name: 'rule-1-contains' } : undefined));
+    hoisted.mockExecute.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [] });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/rule-sets/${encodeURIComponent(ruleSetId)}/execute`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ruleNames).toEqual({
+      'urn:sqlib:rule-version:a': 'rule-1-contains',
+      'urn:sqlib:rule-version:b': 'Rule 2',
+    });
   });
 
   it('returns 404 when the rule set is missing', async () => {

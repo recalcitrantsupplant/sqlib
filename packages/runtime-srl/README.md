@@ -52,7 +52,7 @@ result, on each host.
 
 ## Options
 
-`maxIterations` (passes per stratum, default 5), `timeoutMs` (per rule),
+`maxIterations` (passes per stratum, default 25), `timeoutMs` (per rule),
 `trace` (record each rule's inserted and deleted quads), `signal`,
 `initialGraph` with `initialGraphFormat`, and `inferenceFormat`. `store`,
 `executor` and `loadGraph` default to a new store and an executor over it.

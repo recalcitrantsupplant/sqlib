@@ -139,9 +139,9 @@ const lib = fromBundle(bundle, { executor: await oxigraphExecutor({ data: turtle
 
 ## The bundle format
 
-A bundle has `version: 1`. That number is the compatibility promise:
+A bundle has `version: 2`. That number is the compatibility promise:
 
-- **Each runtime that reads version 1 can read a version-1 bundle.** A bundle that
+- **Each runtime that reads a version can read a bundle of that version.** A bundle that
   you committed a year ago still works after you upgrade this package.
 - **A newer exporter can add optional fields without a new version number.** This
   reader ignores fields that it does not know. After the server is upgraded, you
@@ -151,8 +151,12 @@ A bundle has `version: 1`. That number is the compatibility promise:
   query text. A bundle read in part would put a VALUES block over the wrong span,
   and give wrong results with no error.
 
-`test/fixtures/bundle-v1.json` is a committed bundle. CI loads and runs it on each
-build, so a test checks the first promise.
+This runtime reads versions 1 and 2. Version 2 removed `targetVariable`,
+`iriTemplate` and `nullPolicy` from an ETL column. A version-1 ETL job that
+used one of them is refused when it runs.
+
+`test/fixtures/bundle-v2.json` and `test/fixtures/bundle-v1.json` are committed
+bundles. CI loads and runs them on each build, so a test checks the first promise.
 
 ## The surface
 

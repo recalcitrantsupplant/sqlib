@@ -39,7 +39,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
    mf:action  <wellformed-group-agg-01.srl> ;
    .
 
-:test_2 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+:test_2 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-02.srl" ;
    mf:action  <wellformed-group-agg-02.srl> ;
    .
@@ -74,7 +74,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
    mf:action  <wellformed-group-agg-08.srl> ;
    .
 
-:test_9 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+:test_9 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-09.srl" ;
    mf:action  <wellformed-group-agg-09.srl> ;
    .
@@ -94,7 +94,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
    mf:action  <wellformed-group-agg-12.srl> ;
    .
 
-:test_13 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+:test_13 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-13.srl" ;
    mf:action  <wellformed-group-agg-13.srl> ;
    .

@@ -188,19 +188,16 @@ export interface ExportedGroup {
   sourceVersion?: string;
 }
 
-/** One column of an exported ETL job's mapping: a SQL column to a variable. */
+/**
+ * One column of an exported ETL job's mapping: the term a SQL column becomes.
+ * The column binds the variable of its own name, and its value is used as it is.
+ */
 export interface ExportedEtlColumn {
-  /** The SQL output column, by its alias. */
+  /** The SQL output column, by its alias, and the variable it binds. */
   columnName: string;
-  /** The variable it binds, without `?`. */
-  targetVariable: string;
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
-  /** For IRIs, e.g. `http://ex/customer/{value}`; the value is URI-encoded. */
-  iriTemplate?: string;
-  /** `undef` leaves the variable unbound; `skipRow` drops the row. */
-  nullPolicy: 'undef' | 'skipRow';
 }
 
 /**
@@ -262,8 +259,11 @@ export interface ExportBundle {
    * newer exporter has to keep loading here. Do not make the validator reject
    * unknown fields. `test/bundleFormat.test.ts` pins both halves against a
    * committed bundle.
+   *
+   * Exporters write 2. The reader also accepts 1, typed here as 2: the two
+   * differ only in the ETL column fields that version 2 removed.
    */
-  version: 1;
+  version: 2;
   library: { id: string; name?: string };
   /** Compiled queries, keyed by a stable slug unique within the bundle. */
   queries: Record<string, ExportedQuery>;
@@ -573,11 +573,12 @@ function assertValidEtlJob(job: ExportedEtlJob, where: string): void {
     if (!column || typeof column !== 'object') fail(`${at} is not an object.`);
     if (typeof column.columnName !== 'string' || column.columnName.length === 0) fail(`${at} has no columnName.`);
     if (column.termType !== 'uri' && column.termType !== 'literal') fail(`${at} has an unknown termType.`);
-    if (column.nullPolicy !== 'undef' && column.nullPolicy !== 'skipRow') fail(`${at} has an unknown nullPolicy.`);
     // A column bound to a variable the slot does not declare would be dropped
-    // from every row without a word.
-    if (!slotVars.has(column.targetVariable)) {
-      fail(`${at} binds ?${String(column.targetVariable)}, which the template's slot does not declare.`);
+    // from every row without a word. A version-1 column names its variable in
+    // `targetVariable`; the runner refuses one that differs from `columnName`.
+    const variable = (column as { targetVariable?: unknown }).targetVariable ?? column.columnName;
+    if (!slotVars.has(variable as string)) {
+      fail(`${at} binds ?${String(variable)}, which the template's slot does not declare.`);
     }
   });
   if (job.chunkSize !== undefined && (!Number.isInteger(job.chunkSize) || job.chunkSize < 1)) {
@@ -605,11 +606,19 @@ function assertValidMap<T>(
   for (const [name, entry] of Object.entries(map)) check(entry, `${label} '${name}'`);
 }
 
+/**
+ * Version 2 removed `targetVariable`, `iriTemplate` and `nullPolicy` from an ETL
+ * column. A version-1 bundle still loads. Its queries, groups and rule sets
+ * mean what they did. An ETL job that used a removed field is refused when it
+ * runs (`assertPlainColumns` in `@sparql-query-lib/runtime-etl`).
+ */
+const READABLE_VERSIONS = new Set<unknown>([1, 2]);
+
 export function assertValidBundle(bundle: unknown): asserts bundle is ExportBundle {
   if (!bundle || typeof bundle !== 'object') fail('Bundle must be an object.');
   const candidate = bundle as ExportBundle;
-  if (candidate.version !== 1) {
-    fail(`Unsupported bundle version ${String(candidate.version)}; this runtime reads version 1.`);
+  if (!READABLE_VERSIONS.has(candidate.version)) {
+    fail(`Unsupported bundle version ${String(candidate.version)}; this runtime reads versions 1 and 2.`);
   }
   if (!candidate.library || typeof candidate.library.id !== 'string') {
     fail('Bundle is missing library.id.');

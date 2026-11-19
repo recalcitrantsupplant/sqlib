@@ -19,6 +19,7 @@ import {
   type ExportedEtlJob,
 } from '@sparql-query-lib/runtime';
 import { TemplateCompileError, compileQueryTemplate } from '@sparql-query-lib/compiler';
+import { RetiredColumnFieldError, toColumnDefinitions } from '@sparql-query-lib/runtime-etl';
 import { SparqlQueryParser } from '../parser.js';
 import type { PersistedEtlJob } from '../../persistence/schemas/EtlJobSchema.js';
 import type { PersistedEtlJobVersion } from '../../persistence/schemas/EtlJobVersionSchema.js';
@@ -87,11 +88,18 @@ async function compileJob(
   if (!mapping) {
     throw new EtlJobExportError(`Its column mapping version ${version.currentColumnMappingVersion} could not be found.`);
   }
-  let columns: ExportedEtlColumn[];
+  let parsed: unknown;
   try {
-    columns = JSON.parse(mapping.columns) as ExportedEtlColumn[];
+    parsed = JSON.parse(mapping.columns);
   } catch {
     throw new EtlJobExportError('Its column mapping is not valid JSON.');
+  }
+  let columns: ExportedEtlColumn[];
+  try {
+    columns = toColumnDefinitions(Array.isArray(parsed) ? parsed : []);
+  } catch (error) {
+    if (error instanceof RetiredColumnFieldError) throw new EtlJobExportError(error.message);
+    throw error;
   }
 
   let compiled;
@@ -146,7 +154,7 @@ export async function attachEtlJobsToBundle(
       const entry = await compileJob(job, source, parser);
       // The runtime's own validator decides what a carried job must be, so the
       // export cannot write one a reader would refuse.
-      assertValidBundle({ version: 1, library: bundle.library, queries: {}, etlJobs: { [name]: entry } });
+      assertValidBundle({ version: 2, library: bundle.library, queries: {}, etlJobs: { [name]: entry } });
       exported[reserveKey(name, keys)] = entry;
     } catch (error) {
       if (error instanceof EtlJobExportError || error instanceof InvalidBundleError) {
