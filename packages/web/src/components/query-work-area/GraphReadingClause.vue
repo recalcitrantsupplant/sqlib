@@ -1,8 +1,8 @@
 <template>
-  <span class="clause" data-testid="run-bar-reading">
-    <span class="joiner">reading</span>
-    <button v-if="isUpdate" type="button" class="reading inert" disabled title="An update names its graphs in its text">
-      graphs in text
+  <span v-if="updateGraphs !== 'none'" class="clause" data-testid="run-bar-reading">
+    <span class="joiner">{{ isUpdate ? 'using' : 'from' }}</span>
+    <button v-if="fixed" type="button" class="reading inert" disabled :title="fixed.title" data-testid="run-bar-graphs">
+      {{ fixed.label }}
     </button>
     <PopoverRoot v-else v-model:open="open">
       <PopoverTrigger as-child>
@@ -16,8 +16,8 @@
         </button>
       </PopoverTrigger>
       <PopoverPortal>
-        <PopoverContent align="start" :side-offset="4" :style="{ zIndex: 50 }" @open-auto-focus.prevent>
-          <div class="pop" role="dialog" aria-label="Graphs this query reads" data-testid="graph-dataset-picker">
+        <PopoverContent align="start" :side-offset="4" :style="{ zIndex: 50 }" @open-auto-focus.prevent @interact-outside="keepOpenForPrefix">
+          <div class="pop" role="dialog" :aria-label="popTitle" data-testid="graph-dataset-picker">
             <div v-if="showEmptyAsk" class="ask" data-testid="graph-empty-ask">
               <span class="ask-text">No graphs chosen. The run will match nothing.</span>
               <button type="button" class="btn-compact" @click="dataset.restricted.value = false; emit('dismiss-empty')">Read all</button>
@@ -25,7 +25,8 @@
             </div>
             <div class="pop-head">
               <div class="title-row">
-                <h3 class="pop-title">Graphs this query reads</h3>
+                <h3 class="pop-title">{{ popTitle }}</h3>
+                <TermDisplayToggle v-if="dataset.restricted.value" />
               </div>
               <span class="which">
                 <SegmentedToggle
@@ -51,15 +52,21 @@
                 <p v-else-if="loadError" class="row-note error">{{ loadError }}</p>
                 <template v-for="graph in visibleGraphs" :key="graph">
                   <div v-if="separate" class="row">
-                    <span class="iri" :title="graph"><span class="pre">{{ splitIri(graph).head }}</span>{{ splitIri(graph).tail }}</span>
+                    <span class="iri-wrap">
+                      <span class="iri" :title="graph">{{ shown(graph) }}</span>
+                      <InlinePrefixAdder v-if="canAddPrefix(graph)" :iri="graph" />
+                    </span>
                     <span class="dn" role="group" :aria-label="graph">
                       <button type="button" :class="{ on: dataset.defaultGraphs.value.includes(graph) }" :aria-pressed="dataset.defaultGraphs.value.includes(graph)" @click="toggle(dataset.defaultGraphs, graph)">Default</button>
                       <button type="button" :class="{ on: dataset.namedGraphs.value.includes(graph) }" :aria-pressed="dataset.namedGraphs.value.includes(graph)" @click="toggle(dataset.namedGraphs, graph)">Named</button>
                     </span>
                   </div>
                   <label v-else class="row">
-                    <input type="checkbox" :checked="dataset.graphs.value.includes(graph)" :aria-label="`Read ${graph}`" @change="toggle(dataset.graphs, graph)" />
-                    <span class="iri" :title="graph"><span class="pre">{{ splitIri(graph).head }}</span>{{ splitIri(graph).tail }}</span>
+                    <input type="checkbox" :checked="dataset.graphs.value.includes(graph)" :aria-label="`${isUpdate ? 'Use' : 'Read'} ${graph}`" @change="toggle(dataset.graphs, graph)" />
+                    <span class="iri-wrap">
+                      <span class="iri" :title="graph">{{ shown(graph) }}</span>
+                      <InlinePrefixAdder v-if="canAddPrefix(graph)" :iri="graph" />
+                    </span>
                   </label>
                 </template>
                 <p v-if="!loading && !loadError && visibleGraphs.length === 0" class="row-note">No graphs to show.</p>
@@ -88,8 +95,10 @@
 
 <script setup lang="ts">
 /**
- * "reading …": the graphs a query reads, as a clause of the run sentence
- * instead of `FROM` in its text.
+ * "from …" on a query and "using …" on an update: the graphs the run reads,
+ * as a clause of the run sentence instead of `FROM` or `USING` in its text.
+ * On an update they are the graphs its `WHERE` clause reads. They do not
+ * change where the update writes.
  *
  * The clause says the state at a glance: all graphs, the count a policy
  * leaves readable, the count chosen, or none. Pressing it opens the list.
@@ -104,7 +113,10 @@ import { useApiClient } from '@/composables/useApiClient';
 import InlineNote from '@/components/shared/InlineNote.vue';
 import FilterBox from '@/components/shared/FilterBox.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
-import { splitIri } from '@/lib/accessModel';
+import TermDisplayToggle from '@/components/shared/TermDisplayToggle.vue';
+import InlinePrefixAdder from '@/components/shared/InlinePrefixAdder.vue';
+import { usePrefixManager } from '@/composables/usePrefixManager';
+import { useTermDisplay } from '@/composables/useTermDisplay';
 import {
   GRAPH_LIST_LIMIT,
   LIST_GRAPHS_QUERY,
@@ -112,6 +124,7 @@ import {
   parseGraphIris,
   type GraphDatasetComposable,
 } from '@/lib/graphDataset';
+import type { UpdateGraphsState } from '@/lib/updateGraphs';
 
 const props = defineProps<{
   dataset: GraphDatasetComposable;
@@ -119,7 +132,8 @@ const props = defineProps<{
   backendName?: string;
   /** The backend has a graph policy, so its list is already what this caller may read. */
   policed?: boolean;
-  isUpdate?: boolean;
+  /** For an update, whether graphs can be chosen (`lib/updateGraphs.ts`). Absent for a query. */
+  updateGraphs?: UpdateGraphsState | null;
   /** A run was asked for with no graphs chosen; the clause asks first. */
   askingEmpty?: boolean;
 }>();
@@ -130,6 +144,24 @@ const emit = defineEmits<{
 }>();
 
 const api = useApiClient();
+const { abbreviateIri } = usePrefixManager();
+const { isPrefixed } = useTermDisplay();
+
+/** A graph as the result tables show it: a prefixed name where a prefix matches, else the full IRI. */
+function shown(graph: string): string {
+  return isPrefixed.value ? abbreviateIri(graph).abbreviated : graph;
+}
+
+/** "+ prefix" goes on a graph that no prefix shortens, as in the result tables. */
+function canAddPrefix(graph: string): boolean {
+  return isPrefixed.value && !abbreviateIri(graph).wasAbbreviated;
+}
+
+/** The "+ prefix" form is drawn outside this popover; a click in it must not close the list. */
+function keepOpenForPrefix(event: Event) {
+  const target = event.target as Element | null;
+  if (target?.closest?.('.prefix-popover')) event.preventDefault();
+}
 
 const open = ref(false);
 const available = ref<string[]>([]);
@@ -140,6 +172,21 @@ const loadError = ref<string | null>(null);
 const filter = ref('');
 const pasting = ref(false);
 const pasted = ref('');
+
+const isUpdate = computed(() => Boolean(props.updateGraphs));
+/** An update's `USING` picks the graphs it uses, as a query's `FROM` picks the graphs it reads. */
+const verb = computed(() => (isUpdate.value ? 'use' : 'read'));
+const popTitle = computed(() => (isUpdate.value ? 'Graphs this update uses' : 'Graphs this query reads'));
+
+/** The clause as a fixed fact, for an update whose graphs cannot be chosen here. */
+const fixed = computed(() => {
+  switch (props.updateGraphs) {
+    case 'text': return { label: 'graphs in text', title: 'This update names its graphs with USING or WITH' };
+    case 'deleteWhere': return { label: 'all graphs', title: 'Write DELETE WHERE as DELETE … WHERE to choose graphs' };
+    case 'backend': return { label: 'all graphs', title: "This backend cannot limit an update's graphs" };
+    default: return null;
+  }
+});
 
 const separate = computed(() => props.dataset.applyTo.value === 'separate');
 const summary = computed(() => datasetSummary(props.dataset.payload()));
@@ -153,12 +200,12 @@ const clauseLabel = computed(() => {
 
 const clauseTitle = computed(() => {
   if (matchesNothing.value) return 'No graphs chosen: the run matches nothing';
-  if (props.dataset.restricted.value) return 'The graphs this run reads';
+  if (props.dataset.restricted.value) return isUpdate.value ? 'The graphs this update uses' : 'The graphs this run reads';
   return props.policed ? 'Every graph the policy lets you read' : 'Every graph in the backend';
 });
 
 const whichOptions = computed(() => [
-  { value: 'all', label: loadedFor.value === props.backendId ? `All I can read · ${available.value.length}` : 'All I can read' },
+  { value: 'all', label: loadedFor.value === props.backendId ? `All I can ${verb.value} · ${available.value.length}` : `All I can ${verb.value}` },
   { value: 'choose', label: 'Choose' },
 ]);
 
@@ -309,7 +356,7 @@ async function loadGraphs() {
 .pop {
   display: flex;
   flex-direction: column;
-  width: 380px;
+  width: min(460px, calc(100vw - 32px));
   max-height: 70vh;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-panel);
@@ -344,7 +391,7 @@ async function loadGraphs() {
 
 .title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
 }
 
@@ -409,6 +456,49 @@ async function loadGraphs() {
   margin: 0;
 }
 
+.iri-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.iri-wrap > :deep(.inline-prefix-adder) {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.iri-wrap > :deep(.inline-prefix-adder) {
+  isolation: isolate;
+}
+
+.iri-wrap :deep(.prefix-trigger) {
+  position: relative;
+  background: var(--surface-subtle);
+  pointer-events: none;
+}
+
+/* Fades the IRI under the button into the row colour, as in the result tables. */
+.iri-wrap :deep(.prefix-trigger::before) {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -1px;
+  bottom: -1px;
+  right: -1px;
+  width: calc(100% + 2px + var(--space-7));
+  background: linear-gradient(to right, transparent, var(--surface-subtle) var(--space-7));
+}
+
+.row:hover .iri-wrap :deep(.prefix-trigger),
+.iri-wrap :deep(.prefix-trigger:focus-visible),
+.iri-wrap :deep(.prefix-trigger.is-open) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .iri {
   flex: 1;
   min-width: 0;
@@ -418,10 +508,6 @@ async function loadGraphs() {
   font-size: var(--text-label);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.pre {
-  color: var(--ink-muted);
 }
 
 .dn {

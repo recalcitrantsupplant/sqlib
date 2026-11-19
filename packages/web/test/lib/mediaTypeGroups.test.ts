@@ -5,6 +5,7 @@ import {
   getGroupedMediaTypeOptions,
   getMediaTypeChoiceGroups,
   getMediaTypeHint,
+  UPDATE_RESULT_MEDIA_TYPE,
 } from '../../src/lib/mediaTypes';
 
 const flatten = (queryType: Parameters<typeof getGroupedMediaTypeOptions>[0]) =>
@@ -21,16 +22,15 @@ describe('grouped mediatype options', () => {
       expect(flatten(queryType).map(o => o.value).sort()).toEqual(
         getAllMediaTypeOptions()
           .map(o => o.value)
-          .filter(value => value !== OUTPUT_MEDIA_TYPES.RDF_PATCH)
+          .filter(value => value !== OUTPUT_MEDIA_TYPES.RDF_PATCH && value !== UPDATE_RESULT_MEDIA_TYPE)
           .sort(),
       );
     }
   });
 
-  it('adds the patch group only where there is a patch to ask for', () => {
-    // Not a format the result comes back in — a different thing to ask for.
+  it('adds the update and patch groups only for an update', () => {
     expect(getGroupedMediaTypeOptions(QueryTypeIri.update).map(g => g.category))
-      .toEqual(['TABULAR', 'GRAPH', 'PATCH']);
+      .toEqual(['TABULAR', 'GRAPH', 'RESULT', 'PATCH']);
     expect(getGroupedMediaTypeOptions(QueryTypeIri.drop).map(g => g.category))
       .toEqual(['TABULAR', 'GRAPH']);
   });
@@ -64,9 +64,9 @@ describe('grouped mediatype options', () => {
     }
   });
 
-  it('narrows an update to the one output it has', () => {
+  it('narrows an update to a plain run and its patch', () => {
     for (const queryType of [QueryTypeIri.update, QueryTypeIri.insert, QueryTypeIri.deleteInsert]) {
-      expect(suggested(queryType)).toEqual([OUTPUT_MEDIA_TYPES.RDF_PATCH]);
+      expect(suggested(queryType)).toEqual([UPDATE_RESULT_MEDIA_TYPE, OUTPUT_MEDIA_TYPES.RDF_PATCH]);
     }
   });
 
@@ -80,9 +80,11 @@ describe('grouped mediatype options', () => {
   it('says why a format is played down for an update', () => {
     const groups = getGroupedMediaTypeOptions(QueryTypeIri.update);
     const turtle = groups[1].options.find(o => o.value === OUTPUT_MEDIA_TYPES.TURTLE)!;
-    const patch = groups[2].options.find(o => o.value === OUTPUT_MEDIA_TYPES.RDF_PATCH)!;
+    const result = groups[2].options.find(o => o.value === UPDATE_RESULT_MEDIA_TYPE)!;
+    const patch = groups[3].options.find(o => o.value === OUTPUT_MEDIA_TYPES.RDF_PATCH)!;
 
-    expect(getMediaTypeHint(turtle, QueryTypeIri.update)).toContain('the patch it would make');
+    expect(getMediaTypeHint(turtle, QueryTypeIri.update)).toBe('An update has no Turtle output');
+    expect(getMediaTypeHint(result, QueryTypeIri.update)).toBeNull();
     expect(getMediaTypeHint(patch, QueryTypeIri.update)).toBeNull();
   });
 

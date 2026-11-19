@@ -2995,7 +2995,7 @@ export function useApiClient() {
   /**
    * The diff an unsaved update would make, as an RDF Patch document.
    *
-   * An update query's output is its patch (#290), and a saved one gets it from
+   * An update can be asked for its patch (#290), and a saved one gets it from
    * `/execute`. A draft has no version to name, so it asks the surface that
    * takes the SPARQL directly — `POST /patches/preview`, which is read-only by
    * construction. Deliberately *not* the raw `/sparql` proxy: that one runs the
