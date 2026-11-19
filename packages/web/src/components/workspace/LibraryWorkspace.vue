@@ -1736,11 +1736,15 @@ watch(
     // The rail's page is scoped to the active library, which needs the libraries first.
     await ensureLibrariesLoaded();
     await Promise.all(definition.savedKinds.map((kind) => loadRailKind(kind.type)));
+    // The user moved on while the list loaded. Landing now would open this
+    // section's record under the next section's sidebar.
+    if (activeListSection.value !== section) return;
     if (selectionBelongsTo(section)) return;
-    // With no saved item and no scratch item, nothing opens: the pane shows the
-    // section's empty state and its New button. A new item is the user's
-    // choice, so a fresh library does not open example text it did not ask for.
-    selectMostRecent(section);
+    // The click restored from what was loaded then, which for a paged section
+    // is nothing until its page answers. Restore again now that it has. With no
+    // saved item and no scratch item, nothing opens: the pane shows the
+    // section's empty state and its New button.
+    restoreSection(section);
   },
   { immediate: true }
 );

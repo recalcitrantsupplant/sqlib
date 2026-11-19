@@ -115,4 +115,32 @@ describe('useRailPaging', () => {
     await Promise.all([r.ensureLoaded(), r.ensureLoaded()]);
     expect(api.pageEntities).toHaveBeenCalledTimes(1);
   });
+
+  it('holds no rows of the section left while the next section loads', async () => {
+    api.pageEntities.mockImplementation(async (kind: string) => ({ items: [row(`${kind}-1`)], total: 1 }));
+    const kind = ref<'query' | 'dataGraph'>('dataGraph');
+    const r = useRailPaging({ section: ref('dataGraphs'), kind, library: ref(LIB), tags: ref([]) });
+    await r.ensureLoaded();
+    expect(r.rows.value.map((entity) => entity.id)).toEqual(['dataGraph-1']);
+
+    // The switch and the read in one tick, as a click on the rail does them.
+    kind.value = 'query';
+    expect(r.rows.value).toEqual([]);
+    expect(r.lookup('dataGraph-1')).toBeUndefined();
+
+    await r.ensureLoaded();
+    expect(r.rows.value.map((entity) => entity.id)).toEqual(['query-1']);
+  });
+
+  it('holds no rows of the library left while the next library loads', async () => {
+    api.pageEntities.mockImplementation(async (_kind: string, params: { library?: string }) =>
+      ({ items: [row(`${params.library}-1`)], total: 1 }));
+    const library = ref(LIB);
+    const r = useRailPaging({ section: ref('queries'), kind: ref('query'), library, tags: ref([]) });
+    await r.ensureLoaded();
+    library.value = 'urn:sqlib:library:l2';
+    expect(r.rows.value).toEqual([]);
+    await r.ensureLoaded();
+    expect(r.rows.value.map((entity) => entity.id)).toEqual(['urn:sqlib:library:l2-1']);
+  });
 });
