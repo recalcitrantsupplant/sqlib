@@ -143,7 +143,8 @@ export async function registerPublishedModePlugin(
 /**
  * Whether a rule set call is one a published rule set tool makes: its pinned
  * version, and either the caller's own RDF or the tool's pinned data graph,
- * never another stored graph and never tuple seeds.
+ * never another stored graph. Seed rows come only inline, never from a stored
+ * tuple set.
  */
 function pinnedRuleSetCall(request: FastifyRequest): boolean {
   const id = (request.params as { id?: unknown } | undefined)?.id;
@@ -153,11 +154,19 @@ function pinnedRuleSetCall(request: FastifyRequest): boolean {
     dataGraphId?: unknown;
     tuples?: unknown;
   };
-  if (body.dataGraphId != null || body.tuples != null) return false;
+  if (body.dataGraphId != null || !onlyInlineTuples(body.tuples)) return false;
   return getPublishedCatalogue().specs.some(({ targetKind, ruleSet }) =>
     targetKind === 'ruleSet'
     && ruleSet !== undefined
     && ruleSet.id === id
     && ruleSet.version === body.version
     && (body.dataGraphVersionId == null || body.dataGraphVersionId === ruleSet.dataGraphVersionId));
+}
+
+/** Absent, or seed rows given inline only. */
+function onlyInlineTuples(tuples: unknown): boolean {
+  if (tuples == null) return true;
+  if (typeof tuples !== 'object') return false;
+  const { tupleSetVersionId, tupleSetId } = tuples as { tupleSetVersionId?: unknown; tupleSetId?: unknown };
+  return tupleSetVersionId == null && tupleSetId == null;
 }
