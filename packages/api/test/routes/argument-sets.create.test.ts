@@ -110,6 +110,72 @@ describe('POST /argument-sets', () => {
     expect(body.tupleBindings[0].rows[0].values.city.value).toBe('Perth');
   });
 
+  /*
+   * The list is summaries (#197): the clause and its variables, which the fit
+   * verdict needs, and no rows. `GET /argument-sets/:id` returns the rows.
+   */
+  it('lists the set without its rows', async () => {
+    const created = await create({
+      name: 'Composed',
+      libraryId: LIBRARY,
+      tupleBindings: [{
+        variables: ['city', 'state'],
+        rows: [
+          { values: { city: { type: 'literal', value: 'Perth' } } },
+          { values: { city: { type: 'literal', value: 'Hobart' } } },
+        ],
+      }],
+      scalarBindings: [{ parameterKind: 'limit', parameterName: 'pageSize', numericValue: 20 }],
+    });
+    const id = created.json().id;
+
+    const list = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}` });
+    expect(list.statusCode).toBe(200);
+    const [summary] = list.json();
+    expect(summary.id).toBe(id);
+    expect(summary.currentVersionNumber).toBe(1);
+    expect(summary).not.toHaveProperty('currentVersion');
+    expect(summary.tupleBindings).toEqual([
+      expect.objectContaining({ position: 0, variables: ['city', 'state'], tupleSignature: 'city|state' }),
+    ]);
+    expect(summary.tupleBindings[0]).not.toHaveProperty('rows');
+    expect(summary.scalarBindings[0].parameterName).toBe('pageSize');
+
+    const detail = await app.inject({ method: 'GET', url: `/argument-sets/${encodeURIComponent(id)}` });
+    expect(detail.json().tupleBindings[0].rows).toHaveLength(2);
+  });
+
+  it('pages, filters and counts the library list (#197)', async () => {
+    for (const name of ['Delta', 'Alpha', 'Charlie', 'Bravo', 'Echo']) {
+      await create({ name, libraryId: LIBRARY });
+    }
+    const url = (query: string) => `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}&${query}`;
+
+    const first = await app.inject({ method: 'GET', url: url('limit=2') });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['x-total-count']).toBe('5');
+    expect(first.json().map((set: { name: string }) => set.name)).toEqual(['Alpha', 'Bravo']);
+
+    const second = await app.inject({ method: 'GET', url: url('limit=2&offset=2') });
+    expect(second.json().map((set: { name: string }) => set.name)).toEqual(['Charlie', 'Delta']);
+
+    const filtered = await app.inject({ method: 'GET', url: url('q=ca&limit=10') });
+    expect(filtered.headers['x-total-count']).toBe('1');
+    expect(filtered.json().map((set: { name: string }) => set.name)).toEqual(['Charlie']);
+
+    const desc = await app.inject({ method: 'GET', url: url('sort=name&order=desc&limit=1') });
+    expect(desc.json().map((set: { name: string }) => set.name)).toEqual(['Echo']);
+
+    await create({ name: 'Zulu', libraryId: LIBRARY, scope: 'queryGroup', targetId: GROUP });
+    const preferred = await app.inject({ method: 'GET', url: url(`preferTarget=${encodeURIComponent(GROUP)}&limit=2`) });
+    expect(preferred.json().map((set: { name: string }) => set.name)).toEqual(['Zulu', 'Alpha']);
+    expect(preferred.headers['x-total-count']).toBe('6');
+
+    const all = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}` });
+    expect(all.json()).toHaveLength(6);
+    expect(all.headers['x-total-count']).toBe('6');
+  });
+
   it('scopes the write by the library on the body', async () => {
     await create({ name: 'Composed', libraryId: LIBRARY });
     expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'write' });

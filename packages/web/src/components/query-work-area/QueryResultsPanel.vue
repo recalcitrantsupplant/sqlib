@@ -52,6 +52,7 @@
           :draft-saved-at="args.draftSavedAt.value"
           :scratch-sets="scratchEntries"
           :saved-sets="savedEntries"
+          :saved-total="args.savedTotal.value"
           :versions="args.versionsNewestFirst.value"
           :run-target="args.runTarget.value"
           :can-delete="!!args.selectedSetId.value"
@@ -66,6 +67,8 @@
           @rename="handleRename"
           @copy="handleCopyExecutionPayload"
           @delete="handleDeleteArgumentSet"
+          @search="args.searchArgumentSets"
+          @load-more="args.loadMoreArgumentSets()"
         />
 
         <ArgumentSetBrowserDefault
@@ -96,10 +99,7 @@
             Verdicts are computed, for now: only from variable names and arity,
             which is all the model knows today (design §5).
           -->
-          <p class="signature-verdict" :class="`signature-verdict--${verdict.verdict}`">
-            <template v-if="verdict.verdict === 'fits'">matches the query signature</template>
-            <template v-else>{{ verdict.reason }}</template>
-          </p>
+          <SignatureVerdict :verdict="verdict" />
         </template>
 
         <div
@@ -264,6 +264,7 @@ import EntityDetailsPanel from '../shared/EntityDetailsPanel.vue';
 import SlotPoliciesSection from './SlotPoliciesSection.vue';
 import type { WhenEmptyMode } from '@/lib/slotPolicies';
 import EmptyState from '../shared/EmptyState.vue';
+import SignatureVerdict from '../shared/SignatureVerdict.vue';
 import SubjectTestsPanel from '../tests/SubjectTestsPanel.vue';
 import { useTestsSurface } from '@/composables/useTestsSurface';
 import ArgumentSetSwitcher, { type SwitcherEntry } from './ArgumentSetSwitcher.vue';
@@ -469,11 +470,8 @@ const scratchEntries = computed<SwitcherEntry[]>(() =>
 const savedEntries = computed<SwitcherEntry[]>(() => {
   const openTarget = props.queryId ?? null
   const rows = args.argumentSets.value.map((set) => {
-    const version = set.currentVersion?.version
-    const fit = compatibility(
-      signature.value,
-      set.currentVersion?.tupleBindings ?? set.tupleBindings ?? [],
-    )
+    const version = set.currentVersionNumber
+    const fit = compatibility(signature.value, set.tupleBindings ?? [])
     const ownedHere = !set.targetId || (!!openTarget && set.targetId === openTarget)
     const parts = [version ? `v${version}` : 'no version']
     if (!ownedHere) parts.push('elsewhere in the library')
@@ -818,20 +816,8 @@ const hasDetectedOutputs = computed(() => {
   gap: 12px; /* Add 12px gap */
 }
 
-/* The one line that says whether these values answer this query. */
-.signature-verdict {
-  margin: 0;
-  font-size: var(--text-micro);
-  color: var(--ink-muted);
-}
 
-.signature-verdict--partial {
-  color: var(--warning-ink);
-}
 
-.signature-verdict--mismatch {
-  color: var(--danger-ink);
-}
 
 .results-content {
   flex: 1;

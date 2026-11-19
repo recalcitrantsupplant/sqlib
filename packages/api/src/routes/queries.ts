@@ -13,6 +13,7 @@ import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEnt
 import { requireEntityMode } from '../auth/enforce.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import { toQueryTypeIri } from '../lib/queryTypes.js';
+import { parseListPageQuery, sendTotal, withListPageQuery } from '../lib/listPage.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import {
   argumentSetBodySchema,
@@ -282,6 +283,7 @@ export default async function (fastify: FastifyInstance) {
 
   fastify.get('/:id/argument-sets', ...reposRoute({
     params: queryIdParamSchema,
+    querystring: withListPageQuery(undefined),
     response: {
       200: argumentSetListResponseSchema,
       404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
@@ -293,8 +295,9 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: `Query ${id} not found` });
     }
     requireEntityMode(request, query, 'read');
-    const sets = await argumentSetService.listForTarget(id, 'query');
-    return reply.send(sets);
+    const page = await argumentSetService.pageForTarget(id, 'query', parseListPageQuery(request));
+    sendTotal(reply, page.total);
+    return reply.send(page.items);
   }));
 
   fastify.post('/:id/argument-sets', ...reposRoute({

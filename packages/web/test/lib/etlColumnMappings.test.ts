@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { mergeColumnMappings, type EtlColumnMappingRow } from '@/lib/etlColumnMappings';
+import { mergeColumnMappings, toMappingRow, type EtlColumnMappingRow } from '@/lib/etlColumnMappings';
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
 
 describe('mergeColumnMappings', () => {
   const saved: EtlColumnMappingRow[] = [
-    { columnName: 'subject', targetVariable: 'site', termType: 'uri', nullPolicy: 'skipRow' },
-    { columnName: 'label', targetVariable: 'label', termType: 'uri', iriTemplate: 'https://example.org/p/{value}', nullPolicy: 'skipRow' },
+    { columnName: 'subject', termType: 'uri' },
+    { columnName: 'label', termType: 'literal', lang: 'en' },
   ];
   const inferred: EtlColumnMappingRow[] = [
-    { columnName: 'subject', targetVariable: 'subject', termType: 'uri', nullPolicy: 'undef' },
-    { columnName: 'label', targetVariable: 'label', termType: 'literal', datatypeIri: `${XSD}string`, nullPolicy: 'undef' },
-    { columnName: 'value', targetVariable: 'value', termType: 'literal', datatypeIri: `${XSD}double`, nullPolicy: 'undef' },
+    { columnName: 'subject', termType: 'uri' },
+    { columnName: 'label', termType: 'literal', datatypeIri: `${XSD}string` },
+    { columnName: 'value', termType: 'literal', datatypeIri: `${XSD}double` },
   ];
 
   it('keeps each saved row and adds the inferred row for a new column', () => {
@@ -25,7 +25,16 @@ describe('mergeColumnMappings', () => {
 
   it('falls back to a string literal when nothing was inferred', () => {
     expect(mergeColumnMappings([], [{ columnName: 'x' }], [])).toEqual([
-      { columnName: 'x', targetVariable: 'x', termType: 'literal', datatypeIri: `${XSD}string`, nullPolicy: 'undef' },
+      { columnName: 'x', termType: 'literal', datatypeIri: `${XSD}string` },
     ]);
+  });
+});
+
+describe('toMappingRow', () => {
+  it('keeps only the fields a mapping has', () => {
+    const stored = {
+      columnName: 'id', targetVariable: 'id', termType: 'uri', iriTemplate: 'http://ex/{value}', nullPolicy: 'skipRow',
+    } as unknown as EtlColumnMappingRow;
+    expect(toMappingRow(stored)).toEqual({ columnName: 'id', termType: 'uri' });
   });
 });

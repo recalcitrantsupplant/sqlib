@@ -12,7 +12,7 @@
  * experiment the other way round: they put the blur and the animation back on
  * the pop-out, which is what a future change would be doing.
  */
-import { test } from '@playwright/test';
+import { test } from '../fixtures/test';
 import { mockSidebarCollections } from '../fixtures/collections';
 import { measureOpen, summarise, type Sample } from './measure';
 

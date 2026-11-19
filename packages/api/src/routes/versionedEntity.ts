@@ -53,6 +53,7 @@ import { mintId } from '../lib/id.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { describePins, pinsOn } from '../lib/versionPins.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
+import { sendListPage, withListPage } from '../lib/listPage.js';
 import {
   filterReadable,
   requireContainmentWritable,
@@ -316,10 +317,18 @@ export function registerVersionedEntityRoutes(fastify: FastifyInstance, options:
   const deleteVersion = options.deleteVersion ?? ((version: StoredEntity) => versions().delete(version.$id));
 
   // GET / — the entities the caller may read
-  fastify.get('/', ...reposRoute(withStandardParts(schemas.list, null), async ({ request, reply }) => {
+  // `limit`, `q`, `sort` and the other controls are in `lib/listPage.ts` (#197).
+  const listSchema = withListPage(schemas.list as RouteSchema & { querystring?: unknown });
+  fastify.get('/', ...reposRoute(withStandardParts(listSchema, null), async ({ request, reply }) => {
     const all = entities().list();
     const narrowed = options.filterList ? options.filterList(all, request) : all;
-    return reply.send(filterReadable(request, narrowed).map(entity => present(entity, request)));
+    return sendListPage(request, reply, filterReadable(request, narrowed), entity => present(entity, request), {
+      versionOf: (entity) => {
+        const current = entity.currentVersion ? versions().get(String(entity.currentVersion)) : null;
+        const number = Number(current?.version);
+        return Number.isFinite(number) ? number : undefined;
+      },
+    });
   }));
 
   // POST / — create the stable entity; versions come after

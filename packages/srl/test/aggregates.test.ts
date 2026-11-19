@@ -215,24 +215,27 @@ describe('GROUP — well-formedness', () => {
       .toEqual([]);
   });
 
-  it('treats an unlisted pattern variable bound before the GROUP as a new variable', () => {
+  // w3c/data-shapes#1455 wellformed-group-inuse-bad-01.
+  it('refuses an unlisted pattern variable bound before the GROUP', () => {
     expect(issues('RULE { ?x :n ?n ; :knows ?y } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
-      .toEqual([]);
+      .toEqual(['?y is bound before this GROUP and is not a key. List it after BY to use the same value, or rename it here.']);
+    // The compiler still keeps the pattern's ?y apart from the outer one.
     expect(compile('RULE { ?x :n ?n } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }').program)
       .toContain('?_agg0_y <http://example/c> ?x');
   });
 
-  it('treats a pattern variable used again after the GROUP as a new variable', () => {
+  // w3c/data-shapes#1455 wellformed-group-inuse-bad-03.
+  it('refuses a pattern variable used again after the GROUP', () => {
     expect(issues('RULE { ?x :n ?n ; :knows ?y } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] ?x :knows ?y }'))
-      .toEqual([]);
+      .toEqual(['?y is local to a GROUP pattern earlier in the rule. Rename one of the two.']);
     // Not bound by the GROUP, so the head cannot use it unless a later element binds it.
     expect(issues('RULE { ?x :n ?y } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
       .toEqual(['Head variable ?y is not bound by the rule body']);
   });
 
-  it('counts a SET target in the pattern as a pattern variable, apart from one bound before', () => {
+  it('refuses a SET target in the pattern with the name of an unlisted variable bound before', () => {
     expect(issues('RULE { ?x :n ?n ; :q ?z } WHERE { ?x a :P ; :q ?z . GROUP BY ?x { ?y :c ?x SET (?z := 1) } [ ?n := COUNT(*) ] }'))
-      .toEqual([]);
+      .toEqual(['?z is bound before this GROUP and is not a key. List it after BY to use the same value, or rename it here.']);
   });
 
   it('refuses a SET in the pattern that re-binds a variable', () => {
@@ -240,16 +243,21 @@ describe('GROUP — well-formedness', () => {
       .toContain('SET (?a := …) in the GROUP pattern re-binds a variable already bound there');
   });
 
-  it('lets two GROUPs each have a pattern variable of the same name', () => {
+  // w3c/data-shapes#1455 wellformed-group-inuse-bad-02 and -05.
+  it('refuses two GROUPs that each have a pattern variable of the same name', () => {
     expect(issues(
       'RULE { ?x :pets ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] '
       + 'GROUP BY ?x { ?y :pet ?x } [ ?m := COUNT(*) ] }',
+    )).toEqual(['?y is local to a GROUP pattern earlier in the rule. Rename one of the two.']);
+    expect(issues(
+      'RULE { ?x :pets ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] '
+      + 'GROUP BY ?x { ?z :pet ?x } [ ?m := COUNT(*) ] }',
     )).toEqual([]);
   });
 
   it('keeps a first GROUP\'s results through a second, listed or not', () => {
     const second = (by: string) =>
-      `RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] GROUP BY ${by} { ?y :pet ?x } [ ?m := COUNT(*) ] }`;
+      `RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] GROUP BY ${by} { ?z :pet ?x } [ ?m := COUNT(*) ] }`;
     expect(issues(second('?x'))).toEqual([]);
     expect(issues(second('?x ?n'))).toEqual([]);
   });

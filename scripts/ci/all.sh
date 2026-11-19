@@ -12,6 +12,7 @@ bash "$REPO_ROOT/scripts/ci/orphan-ratchet.sh"
 bash "$REPO_ROOT/scripts/ci/typecheck.sh"
 bash "$REPO_ROOT/scripts/ci/build.sh"
 bash "$REPO_ROOT/scripts/ci/publish-check.sh"
+bash "$REPO_ROOT/scripts/ci/throughput.sh"
 bash "$REPO_ROOT/scripts/ci/test.sh"
 
 log "all required checks passed"

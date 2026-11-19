@@ -6,10 +6,13 @@
     </header>
 
     <InlineNote v-if="rows.length === 0" size="xs" class="scalars-empty">
-      No parameterised LIMIT or OFFSET clauses supplied. Parameterise with a
-      leading <code class="hint-code">000</code> then an identifier — a LIMIT
-      clause with identifier 1 has the signature
-      <code class="hint-code">LIMIT 0001</code>.
+      <em>No parameterised LIMIT or OFFSET clauses supplied.</em>
+      <a
+        :href="PARAMETERS_DOC_URL"
+        target="_blank"
+        rel="noreferrer"
+        data-testid="argument-scalars-docs"
+      >Documentation</a>
     </InlineNote>
 
     <ul v-else class="scalars-list">
@@ -48,6 +51,10 @@ import { computed } from 'vue';
 import type { ArgumentScalarBinding } from '@/types/argument-sets';
 import { scalarKey } from '@/lib/argumentSignature';
 import InlineNote from '../shared/InlineNote.vue';
+import { conceptsDocUrl } from '@/lib/docs';
+
+/** How a LIMIT or OFFSET clause becomes a parameter: `LIMIT 0001`. */
+const PARAMETERS_DOC_URL = conceptsDocUrl('parameters');
 
 /**
  * The query's LIMIT / OFFSET parameters and the numbers filling them.
@@ -159,18 +166,13 @@ function updateValue(row: ScalarRow, value: string) {
   color: var(--ink-muted);
 }
 
-/* The signature is machine text and reads as such, inline in the sentence. */
-.hint-code {
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  color: var(--ink-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
-}
-
 .scalars-empty {
   padding: var(--space-4) var(--space-5);
+}
+
+.scalars-empty a {
+  margin-left: var(--space-2);
+  color: var(--action);
 }
 
 .scalars-list {

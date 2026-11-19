@@ -18,6 +18,7 @@
         :draft-saved-at="args.draftSavedAt.value"
         :scratch-sets="scratchEntries"
         :saved-sets="savedEntries"
+        :saved-total="args.savedTotal.value"
         :versions="args.versionsNewestFirst.value"
         :run-target="args.runTarget.value"
         :can-delete="!!args.selectedSetId.value"
@@ -30,6 +31,8 @@
         @rename="handleRename"
         @copy="handleCopyExecutionPayload"
         @delete="handleDeleteArgumentSet"
+        @search="args.searchArgumentSets"
+        @load-more="args.loadMoreArgumentSets()"
       />
 
       <ArgumentSetBrowserDefault kind="queryGroup" :owner-id="groupId" :args="args" />
@@ -43,10 +46,7 @@
           @update:model-value="(value) => handleClauseChange(clause.variables, value)"
         />
 
-        <p class="signature-verdict" :class="`signature-verdict--${verdict.verdict}`">
-          <template v-if="verdict.verdict === 'fits'">matches the group signature</template>
-          <template v-else>{{ verdict.reason }}</template>
-        </p>
+        <SignatureVerdict :verdict="verdict" />
       </template>
 
       <EmptyState
@@ -187,6 +187,7 @@ import DataGraphBrowserDefault from '../shared/DataGraphBrowserDefault.vue';
 import TupleBindingEditor from '../query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '../query-work-area/ArgumentScalarsPanel.vue';
 import EmptyState from '../shared/EmptyState.vue';
+import SignatureVerdict from '../shared/SignatureVerdict.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import { useArgumentSets } from '@/composables/useArgumentSets';
 import { useApiClient } from '@/composables/useApiClient';
@@ -315,11 +316,8 @@ const scratchEntries = computed<SwitcherEntry[]>(() =>
 
 const savedEntries = computed<SwitcherEntry[]>(() =>
   args.argumentSets.value.map((set) => {
-    const version = set.currentVersion?.version;
-    const fit = compatibility(
-      signature.value,
-      set.currentVersion?.tupleBindings ?? set.tupleBindings ?? [],
-    );
+    const version = set.currentVersionNumber;
+    const fit = compatibility(signature.value, set.tupleBindings ?? []);
     const parts = [version ? `v${version}` : 'no version'];
     if (fit.verdict !== 'fits') parts.push(fit.reason || fit.verdict);
     return { id: set.id, name: set.name, meta: parts.join(' · ') };
@@ -444,11 +442,6 @@ defineExpose({
   gap: var(--space-5);
 }
 
-.signature-verdict {
-  margin: 0;
-  font-size: var(--text-micro);
-  color: var(--ink-muted);
-}
 
 .data-graph-inputs {
   display: flex;
@@ -481,11 +474,5 @@ defineExpose({
   min-width: 0;
 }
 
-.signature-verdict--partial {
-  color: var(--warning-ink);
-}
 
-.signature-verdict--mismatch {
-  color: var(--danger-ink);
-}
 </style>

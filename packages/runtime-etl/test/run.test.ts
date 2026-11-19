@@ -2,12 +2,16 @@ import { compileQueryTemplate } from '@sparql-query-lib/compiler';
 import { oxigraphExecutor } from '@sparql-query-lib/runtime-oxigraph';
 import { runEtl, type ColumnDefinition, type EtlOutputChunk } from '../src/index.js';
 
+// The IRI is built in the template, which is where a mapping's logic goes.
 const TEMPLATE = `PREFIX ex: <http://ex/>
-CONSTRUCT { ?customer ex:name ?name } WHERE { VALUES (?customer ?name) { (UNDEF UNDEF) } }`;
+CONSTRUCT { ?customer ex:name ?name } WHERE {
+  VALUES (?id ?name) { (UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://ex/c/", ENCODE_FOR_URI(?id))) AS ?customer)
+}`;
 
 const columns: ColumnDefinition[] = [
-  { columnName: 'id', targetVariable: 'customer', termType: 'uri', iriTemplate: 'http://ex/c/{value}', nullPolicy: 'skipRow' },
-  { columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' },
+  { columnName: 'id', termType: 'literal' },
+  { columnName: 'name', termType: 'literal' },
 ];
 
 async function* chunks(...batches: Array<Array<Record<string, unknown>>>) {
@@ -41,21 +45,29 @@ describe('runEtl', () => {
     expect(outputs[1]!.rdf).toContain('<http://ex/c/3> <http://ex/name> "Cy" .');
   });
 
-  it('runs no query for a chunk whose rows all drop', async () => {
+  it('runs no query for an empty chunk', async () => {
     const executed: string[] = [];
     const { result, outputs } = await collect({
-      source: chunks([{ id: null, name: 'gone' }]),
+      source: chunks([]),
       executor: { execute: async ({ queryText }) => { executed.push(queryText); return { contentType: 'x', data: '' }; } },
     });
-    expect(result).toEqual({ totalRows: 1, completedChunks: 1 });
+    expect(result).toEqual({ totalRows: 0, completedChunks: 1 });
     expect(executed).toEqual([]);
     expect(outputs).toEqual([]);
   });
 
+  it('refuses a mapping with a retired field before it reads the source', async () => {
+    let read = false;
+    async function* source() { read = true; yield { rows: [] }; }
+    const retired = [{ columnName: 'id', termType: 'uri', nullPolicy: 'skipRow' }] as unknown as ColumnDefinition[];
+    await expect(collect({ source: source(), columns: retired })).rejects.toThrow(/nullPolicy 'skipRow'/);
+    expect(read).toBe(false);
+  });
+
   it('accepts a function in place of a template, for a host that applies arguments itself', async () => {
     const seen: unknown[] = [];
-    await collect({ query: argumentSet => { seen.push(argumentSet.head.vars); return TEMPLATE.replace('(UNDEF UNDEF)', '(<http://ex/c/9> "Z")'); } });
-    expect(seen).toEqual([['customer', 'name'], ['customer', 'name']]);
+    await collect({ query: argumentSet => { seen.push(argumentSet.head.vars); return TEMPLATE.replace('(UNDEF UNDEF)', '("9" "Z")'); } });
+    expect(seen).toEqual([['id', 'name'], ['id', 'name']]);
   });
 
   it('stops at the chunk boundary after maxRows, or fails under the fail policy', async () => {

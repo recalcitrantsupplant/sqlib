@@ -91,6 +91,27 @@ describe('RuleSetExecutor — stratified evaluation', () => {
   });
 });
 
+describe('RuleSetExecutor — default iteration limit', () => {
+  it('converges without a limit on a closure that needs more than 5 passes', async () => {
+    // A 7-hop chain. The step rule adds one hop per pass, so pass 6 derives
+    // the last pair and pass 7 derives nothing, which proves the fixpoint.
+    const ids = [
+      rule('anc-base', 'RULE { ?x :anc ?z } WHERE { ?x :parent ?z }'),
+      rule('anc-step', 'RULE { ?x :anc ?z } WHERE { ?x :anc ?y . ?y :parent ?z }'),
+    ];
+    const nodes = 'abcdefgh'.split('');
+    const chain = nodes.slice(0, -1)
+      .map((from, i) => `<http://ex/${from}> <http://ex/parent> <http://ex/${nodes[i + 1]}> .`)
+      .join('\n');
+
+    const result = await new RuleSetExecutor().execute(ruleSetVersion(ids), { initialGraph: chain });
+
+    expect(result.status).toBe('converged');
+    expect(result.iterations).toHaveLength(7);
+    expect(result.finalGraphNQuads ?? '').toContain('<http://ex/a> <http://ex/anc> <http://ex/h> .');
+  });
+});
+
 describe('RuleSetExecutor — convergence sees the tuple store', () => {
   it('keeps iterating while only tuples are growing', async () => {
     // The closure is computed entirely in tuples; the only triple-producing rule

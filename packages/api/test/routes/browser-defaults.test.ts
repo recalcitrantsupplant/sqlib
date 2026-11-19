@@ -139,10 +139,11 @@ describe('/:id/browser-defaults', () => {
 
     });
 
-    it('refuses an argument set version: the switcher selects a set', async () => {
-      const response = await put(`/queries/${QUERY}`, { argumentSet: SET_V1 });
-      expect(response.statusCode).toBe(400);
-      expect(response.json().error).toMatch(/must be: ArgumentSet$/);
+    it('takes an argument set version, as a pin', async () => {
+      const pinned = await put(`/queries/${QUERY}`, { argumentSet: SET_V1 });
+      expect(pinned.statusCode).toBe(200);
+      expect(pinned.json()).toEqual({ argumentSet: SET_V1, dataGraphs: [] });
+      expect(store.get(QUERY)?.browserDefaultArgumentSet).toBe(SET_V1);
     });
 
     it('takes no data graph: its store is its backend', async () => {
@@ -160,7 +161,7 @@ describe('/:id/browser-defaults', () => {
     it('refuses an id that names something else', async () => {
       const response = await put(`/queries/${QUERY}`, { argumentSet: GRAPH });
       expect(response.statusCode).toBe(400);
-      expect(response.json().error).toMatch(/must be: ArgumentSet$/);
+      expect(response.json().error).toMatch(/must be: ArgumentSet or ArgumentSetVersion$/);
     });
 
     it('clears on {}', async () => {

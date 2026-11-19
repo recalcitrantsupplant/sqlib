@@ -729,11 +729,7 @@ const backendsLoading = computed(() => backendsStore.loading.value);
 const backendsError = computed(() => backendsStore.error.value);
 
 // SPARQL editor state
-const queryCode = ref(`SELECT ?country ?countryLabel WHERE {
-  ?country wdt:P31 wd:Q6256 .
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
-}
-LIMIT 100`);
+const queryCode = ref('');
 // Extensions defined after executeQuery is available
 let extensions = shallowRef([
   ...languageExtensionsFor('application/sparql-query'),
@@ -1175,12 +1171,18 @@ const mediaTypeOptions = computed(() => getAllMediaTypeOptions());
 // The run bar heads the formats by result shape and greys the ones this query
 // type would not usually answer with — selectable still, just not suggested.
 const mediaTypeChoiceGroups = computed(() => getMediaTypeChoiceGroups(formatQueryType.value));
-const argumentSetOptions = computed(() =>
-  argumentSetsComposable.argumentSets.value.map(set => ({
+const argumentSetOptions = computed(() => {
+  const options = argumentSetsComposable.argumentSets.value.map(set => ({
     value: set.id,
     label: set.name || set.id,
-  })),
-);
+  }));
+  // The sets load a page at a time (#197), so the open set may not be listed.
+  const open = argumentSetsComposable.currentSet.value;
+  if (open && !options.some(option => option.value === open.id)) {
+    options.unshift({ value: open.id, label: open.name || open.id });
+  }
+  return options;
+});
 const argumentSetLoading = computed(() => argumentSetsComposable.isLoading.value);
 
 /* ------------------------------------------------------------------ *

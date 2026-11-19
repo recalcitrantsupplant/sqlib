@@ -141,6 +141,7 @@ import {
   type SnippetRequest,
 } from '@/lib/codeSnippets';
 import { loadLanguage } from '@/lib/codeLanguage';
+import { useAuth } from '@/composables/useAuth';
 import { highlightSegments, type HighlightSegment } from '@/lib/staticHighlight';
 
 const props = withDefaults(
@@ -215,7 +216,16 @@ const activeLabel = computed(
   () => SNIPPET_LANGUAGES.find((language) => language.id === active.value)?.label ?? 'cURL',
 );
 
-const snippet = computed(() => renderSnippet(active.value, activeVariant.value.request));
+/*
+ * The token line follows the instance. Where it uses sign-in, every call needs
+ * a token, so every reader sees the line. Where it does not (`disabled`,
+ * `anonymous`), the API ignores a token and nobody can get one.
+ */
+const { usesSignIn } = useAuth();
+
+const snippet = computed(() =>
+  renderSnippet(active.value, activeVariant.value.request, { bearerToken: usesSignIn.value }),
+);
 
 /*
  * The snippet as coloured spans. It is shown as plain text at once and coloured

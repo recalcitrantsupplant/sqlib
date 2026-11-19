@@ -107,6 +107,18 @@ describe('Tags Routes (/tags)', () => {
     expect(res.json().id).toMatch(/^urn:sqlib:tag:/);
   });
 
+  it('pages the list with the shared list controls (#197)', async () => {
+    hoisted.tag.list.mockReturnValue(['geo', 'admin', 'core'].map(name => ({
+      $id: `urn:sqlib:tag:${name}`, '@type': 'Tag', name, isPartOf: LIBRARY_ID,
+    })));
+
+    const res = await app.inject({ method: 'GET', url: `/tags?library=${encodeURIComponent(LIBRARY_ID)}&sort=name&limit=2` });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-total-count']).toBe('3');
+    expect(res.json().map((tag: { name: string }) => tag.name)).toEqual(['admin', 'core']);
+  });
+
   it('accepts a hex colour and rejects anything that is not one', async () => {
     hoisted.tag.create.mockImplementation(async (entity: Record<string, unknown>) => entity);
 
