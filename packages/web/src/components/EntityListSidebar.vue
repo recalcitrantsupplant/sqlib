@@ -70,13 +70,22 @@
         and says so in its own tabs, so the section's count stands down rather
         than contradicting it.
       -->
-      <span v-if="!$slots['list-body']" class="section-count" data-testid="section-count">{{ totalCount }}</span>
+      <span v-if="!$slots['list-body']" class="section-count" :class="{ filtered: tagFiltered }">
+        <span data-testid="section-count">{{ tagFiltered ? filteredCount : totalCount }}</span>
+        <span v-if="tagFiltered" class="section-count-of" data-testid="section-count-of">of {{ totalCount }}</span>
+      </span>
       <!--
         Whatever the section can do to its whole list — Tests puts Run all here.
         A slot rather than a prop because the action belongs to the section, and
         this component has no business knowing what running a test means.
       -->
-      <slot v-if="!$slots['list-body']" name="section-actions" :items="visibleSaved" />
+      <slot
+        v-if="!$slots['list-body']"
+        name="section-actions"
+        :items="visibleSaved"
+        :tag-filter="tagFilter"
+        :filter-text="filter.trim()"
+      />
       <!--
         Authoring belongs to the list you author against. A replaced body is a
         view of something already made — a run — so it gets no New button.
@@ -117,6 +126,14 @@
           placeholder="Filter"
           :aria-label="`Filter ${nounPlural}`"
           data-testid="entity-filter"
+        />
+        <!-- Inside the field: the bar has no width left for another control at 288 px. -->
+        <TagFilterMenu
+          v-if="taggingEnabled"
+          :tags="tags ?? []"
+          :counts="menuCounts"
+          :model-value="tagFilter"
+          @update:model-value="setTagFilter"
         />
       </label>
       <!--
@@ -192,6 +209,13 @@
 
       <DensityToggle :model-value="density" @update:model-value="setDensity" />
     </div>
+
+    <TagFilterChips
+      v-if="!collapsed && !$slots['list-body'] && tagFiltered"
+      :tags="tags ?? []"
+      :model-value="tagFilter"
+      @update:model-value="setTagFilter"
+    />
 
     <div v-if="!collapsed && !$slots['list-body']" class="entity-list" :class="`density-${density}`">
       <!-- Scratch pins above Saved: an unsaved body is the thing that
@@ -441,9 +465,34 @@
         </button>
       </template>
 
-      <InlineNote v-if="visibleSaved.length === 0 && visibleScratch.length === 0" as="div" class="list-empty">
+      <InlineNote
+        v-if="visibleSaved.length === 0 && (visibleScratch.length === 0 || tagFiltered)"
+        as="div"
+        class="list-empty"
+      >
         <template v-if="filter.trim()">
           <span>Nothing matches “{{ filter }}”.</span>
+        </template>
+        <template v-else-if="tagFiltered">
+          <span data-testid="tag-filter-empty">{{ tagEmptyText }}</span>
+          <button
+            v-if="tagFilter.match === 'all' && tagFilter.tags.length > 1"
+            type="button"
+            class="btn-compact"
+            data-testid="tag-filter-match-any-empty"
+            @click="setTagFilter({ tags: tagFilter.tags, match: 'any' })"
+          >
+            Match any tag
+          </button>
+          <button
+            v-else
+            type="button"
+            class="btn-compact"
+            data-testid="tag-filter-clear-empty"
+            @click="setTagFilter({ tags: [], match: tagFilter.match })"
+          >
+            Clear tags
+          </button>
         </template>
         <template v-else>
           <span>No {{ nounPlural }} yet.</span>
@@ -573,6 +622,9 @@ import PersonChip from './shared/PersonChip.vue';
 import InlineNote from './shared/InlineNote.vue';
 import TagDot from './tags/TagDot.vue';
 import TagManagerDialog from './tags/TagManagerDialog.vue';
+import TagFilterMenu from './tags/TagFilterMenu.vue';
+import TagFilterChips from './tags/TagFilterChips.vue';
+import { EMPTY_TAG_FILTER, matchesTagFilter, type TagFilter } from '../lib/tagFilter';
 import { fuzzyMatches } from '../lib/fuzzy';
 import { normalizeTagColor, UNTAGGED_COLOR } from '../lib/tagPalette';
 import { useCallableDrafts, type CallableDraft } from '../composables/useCallableDrafts';
@@ -655,6 +707,13 @@ const props = defineProps<{
   savedRemaining?: number;
   /** Per tag id, how many rows carry the tag. */
   tagTotals?: Record<string, number>;
+  /**
+   * Paged lists: per tag id, how many rows of the section carry it in the
+   * whole library, for the tag menu. Unpaged lists count their own rows.
+   */
+  tagCounts?: Record<string, number>;
+  /** Paged lists: how many rows the section holds without the tag filter. */
+  unfilteredTotal?: number;
 }>();
 
 const emit = defineEmits<{
@@ -696,7 +755,7 @@ const emptyHint = computed(() => {
 });
 
 const { draftFor } = useCallableDrafts();
-const { settings, entityListSortFor, setEntityListSort } = useSettings();
+const { settings, entityListSortFor, setEntityListSort, entityListTagFilterFor, setEntityListTagFilter } = useSettings();
 const { isPinned, togglePin } = useEntityPins();
 const { openedAt, markOpened } = useEntityLastOpened();
 
@@ -706,6 +765,42 @@ const sort = computed<EntityListSort>(() => entityListSortFor(sortSection.value)
 function setSort(value: EntityListSort) {
   setEntityListSort(sortSection.value, value);
 }
+
+/*
+ * The tag filter, per section, kept with the sort. A chosen tag the library no
+ * longer holds is dropped here, so a deleted tag cannot empty the list. A
+ * paged list gets the same filter from the server (`useRailPaging`).
+ */
+const tagFilter = computed<TagFilter>(() => {
+  if (!taggingEnabled.value) return EMPTY_TAG_FILTER;
+  const stored = entityListTagFilterFor(sortSection.value);
+  const known = new Set((props.tags ?? []).map((tag) => tag.id));
+  const tags = stored.tags.filter((id) => known.has(id));
+  return tags.length === stored.tags.length ? stored : { tags, match: stored.match };
+});
+const tagFiltered = computed(() => tagFilter.value.tags.length > 0);
+
+function setTagFilter(value: TagFilter) {
+  setEntityListTagFilter(sortSection.value, value);
+}
+
+/** The tag menu's counts: from the parent when paged, else from the rows held. */
+const menuCounts = computed<Record<string, number>>(() => {
+  if (props.tagCounts) return props.tagCounts;
+  const counts: Record<string, number> = {};
+  for (const entity of props.saved) {
+    for (const tag of new Set(entity.tags ?? [])) counts[tag] = (counts[tag] ?? 0) + 1;
+  }
+  return counts;
+});
+
+const tagEmptyText = computed(() => {
+  const count = tagFilter.value.tags.length;
+  if (count === 1) return `No ${nounPlural.value} carry this tag.`;
+  return tagFilter.value.match === 'all'
+    ? `No ${nounPlural.value} carry all ${count} tags.`
+    : `No ${nounPlural.value} carry these tags.`;
+});
 
 /*
  * Version count needs a version number on the row. ETL and Bench runs have
@@ -806,8 +901,11 @@ const visibleScratch = computed(() =>
 );
 const visibleSaved = computed(() => {
   if (!savedEnabled.value) return [];
-  // A paged list arrives filtered by the server, on the name only.
-  const rows = paged.value ? props.saved : props.saved.filter((entity) => matches(entity.name, entity.description));
+  // A paged list arrives filtered by the server, on the name and the tags.
+  const rows = paged.value
+    ? props.saved
+    : props.saved.filter((entity) =>
+      matchesTagFilter(entity.tags, tagFilter.value) && matches(entity.name, entity.description));
   return sortEntities(rows, sort.value, {
     openedAt,
     nameOf: sort.value.key === 'creator' ? creatorNameOf : undefined,
@@ -1065,7 +1163,15 @@ function toggleGroup(key: string) {
  * filter — it labels the section, not the search.
  */
 const totalCount = computed(
-  () => (savedEnabled.value ? props.savedTotal ?? props.saved.length : 0)
+  () => (savedEnabled.value ? props.unfilteredTotal ?? props.savedTotal ?? props.saved.length : 0)
+    + (scratchEnabled.value ? props.scratch.length : 0),
+);
+
+/** The section's count inside the tag filter, scratch included. */
+const filteredCount = computed(
+  () => (savedEnabled.value
+    ? props.savedTotal ?? props.saved.filter((entity) => matchesTagFilter(entity.tags, tagFilter.value)).length
+    : 0)
     + (scratchEnabled.value ? props.scratch.length : 0),
 );
 
@@ -1257,6 +1363,21 @@ function ageOf(item: CallableDraft) {
 .section-count {
   color: var(--ink-muted);
   font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.section-count.filtered > :first-child {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.list-empty .btn-compact {
+  align-self: flex-start;
+}
+
+.section-count-of {
+  margin-left: var(--space-1);
 }
 
 .new-button {

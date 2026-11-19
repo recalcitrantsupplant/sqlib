@@ -24,7 +24,9 @@ Every collection route takes the parameters, through one helper (`sendListPage`)
 | `q` | text | Keeps the entities whose name holds the characters of `q` in order, ignoring case and spaces. `qgrp` matches "Query group". |
 | `ids` | entity IRI, repeatable | Keeps the named entities only. |
 | `library` | library IRI | Keeps the entities in that library. |
-| `tag` | tag IRI, repeatable | Keeps the entities that carry every named tag. |
+| `tag` | tag IRI, repeatable | Keeps the entities that carry the named tags: every one by default, at least one with `tagMatch=any`. |
+| `tagMatch` | `any`, `all` | How `tag` combines. Default `all`. |
+| `withTag` | tag IRI, repeatable | Keeps the entities that also carry every named tag, whatever `tagMatch` says. A tag heading loads its rows inside the tag filter this way. |
 | `sort` | `name`, `modified`, `created`, `creator`, `versions` | Orders the matches before the page is cut. Without it, the order is the store's order. The argument-set routes sort by `name` by default. |
 | `order` | `asc`, `desc` | The direction. Default `asc` for `name` and `creator`, `desc` for the others. |
 | `preferTarget` | query or group IRI | `GET /argument-sets` only. Puts the sets made for that query or group before the others. |
@@ -39,6 +41,14 @@ The body is a JSON array of the entities on the page. The `X-Total-Count` header
 curl -sD - "$API/argument-sets?libraryId=$LIB&limit=50&q=perth&preferTarget=$QUERY" -o page.json
 ```
 
+## Tag counts
+
+`GET /tags/counts?type=Query` returns how many readable entities of one type carry each tag, as an object from tag IRI to count. `type` is one of the taggable entity types (`Query`, `QueryGroup`, `Rule`, `RuleSet`, `DataBlock`, `DataGraph`, `Test`, `ArgumentSet`, `TupleSet`, `Notebook`). The list filters `library`, `q`, `tag`, `tagMatch` and `withTag` apply first. A tag that no entity carries is absent from the answer.
+
+```sh
+curl -s "$API/tags/counts?type=Query&library=$LIB"
+```
+
 ## Argument-set lists
 
 The argument-set lists return summaries. A summary has the name, `currentVersionNumber`, and each tuple binding's variables. It has no rows. `GET /argument-sets/:id` returns the set with its rows.
@@ -51,6 +61,8 @@ The argument-set lists return summaries. A summary has the name, `currentVersion
   - The filter box searches on the server with `q`. The sort menu sets `sort` and `order`.
   - Pinned rows load by `ids`, whatever page they are on.
   - "Last opened" is a browser setting, so it asks the server for name order and loads the 100 most recently opened rows by `ids`. Those rows sort first.
-  - Grouped by tag, each tag heading shows the server's count (`tag=…&limit=1`) and loads its own rows with Show more. The Untagged heading counts the loaded rows only.
-- The Tests and ETL sections still load each full list. Run all in Tests runs every test in the list, so it needs the full list.
+  - The tag filter in the filter bar sets `tag` and `tagMatch`. "Any of" is the default, so the web sends `tagMatch=any` until someone picks "All of". The filter is kept per section in this browser, with the sort.
+  - Grouped by tag, the tag headings show the counts of one `GET /tags/counts` request, inside the search and the tag filter. Each heading loads its own rows with Show more, through `withTag`. The Untagged heading counts the loaded rows only.
+  - The tag menu counts each tag over the section's whole kind in the library, from one more `GET /tags/counts` request.
+- The Tests and ETL sections still load each full list. Run all in Tests runs every test in the list, so it needs the full list. The Tests tag filter runs in the browser, with the same rule. With a tag filter, Run runs the filtered tests, and its menu runs all tests or downloads a report of the filtered run.
 - The screens that pick an entity (`SearchSelect`) still load each full list from their store, and draw 50 rows at a time.

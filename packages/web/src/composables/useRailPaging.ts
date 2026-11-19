@@ -8,6 +8,11 @@
  * - under "Last opened", the rows this browser opened most recently, by id;
  * - under tag grouping, the pages loaded for each tag heading.
  *
+ * The section's tag filter (`useSettings`) goes to the server as `tag` and
+ * `tagMatch`, so every page, pinned row and heading is inside it. Tag counts
+ * come from one `GET /tags/counts` request: one for the headings, inside the
+ * filters, and one for the tag menu, over the whole library.
+ *
  * The section sort and the tag grouping are this browser's settings
  * (`useSettings`). Pins and last-opened times are this browser's too
  * (`useEntityPins`). The server sorts by every key except "Last opened",
@@ -20,11 +25,22 @@ import { PAGE_SIZE, fetchByIds, usePagedList, type FetchPage } from './usePagedL
 import { useEntityLastOpened, useEntityPins } from './useEntityPins';
 import { useSettings } from './useSettings';
 import type { EntityListSortKey } from '../lib/entityListSort';
+import { tagFilterParams, type TagFilter } from '../lib/tagFilter';
 
 /** The kinds whose rail loads a page at a time. */
 export const RAIL_PAGED_KINDS: readonly PagedKind[] = [
   'query', 'queryGroup', 'ruleSet', 'benchmark', 'dataGraph', 'tupleSet', 'argumentSet',
 ];
+
+/** The API's entity type for each paged kind that can carry tags. */
+const TAGGABLE_TYPE: Partial<Record<PagedKind, string>> = {
+  query: 'Query',
+  queryGroup: 'QueryGroup',
+  ruleSet: 'RuleSet',
+  dataGraph: 'DataGraph',
+  tupleSet: 'TupleSet',
+  argumentSet: 'ArgumentSet',
+};
 
 export function isRailPaged(kind: string | null | undefined): kind is PagedKind {
   return !!kind && (RAIL_PAGED_KINDS as readonly string[]).includes(kind);
@@ -59,7 +75,7 @@ export function useRailPaging(options: {
   const api = useApiClient();
   const { pins } = useEntityPins();
   const { opened } = useEntityLastOpened();
-  const { settings, entityListSortFor } = useSettings();
+  const { settings, entityListSortFor, entityListTagFilterFor } = useSettings();
 
   const search = ref('');
 
@@ -74,10 +90,19 @@ export function useRailPaging(options: {
   const sortSetting = computed(() =>
     options.section.value ? entityListSortFor(options.section.value) : { key: 'name' as const, dir: 'asc' as const });
 
+  /** The section's tag filter, without tags the library no longer holds. */
+  const tagFilter = computed<TagFilter>(() => {
+    const section = options.section.value;
+    const stored = section ? entityListTagFilterFor(section) : { tags: [], match: 'any' as const };
+    const known = new Set(options.tags.value.map((tag) => tag.id));
+    return { tags: stored.tags.filter((id) => known.has(id)), match: stored.match };
+  });
+
   const listParams = computed<ListPageParams>(() => {
     const sort = sortSetting.value;
     const key = SERVER_SORT[sort.key];
     return {
+      ...tagFilterParams(tagFilter.value),
       sort: key,
       // "Last opened" asks for name order, which reads A to Z.
       order: sort.key === 'opened' ? 'asc' : sort.dir,
@@ -122,15 +147,52 @@ export function useRailPaging(options: {
     byId.value = new Map(rows.map((row) => [row.id, row]));
   }
 
+  /** The API type the counts route takes, or null for a kind without tags. */
+  const countType = () => (options.kind.value ? TAGGABLE_TYPE[options.kind.value] ?? null : null);
+
+  /** The library filter as the counts route takes it. An argument set always has one. */
+  const libraryParam = () => (options.library.value ? { library: options.library.value } : {});
+
+  /** The heading counts: one request, inside the search and the tag filter. */
   async function loadTagTotals(mine: number) {
     for (const key of Object.keys(tagPages)) delete tagPages[key];
+    const type = countType();
+    if (!fetchPage() || !groupingByTag.value || !type) return;
+    const { q, tag, tagMatch } = listParams.value;
+    const counts = await api.getTagCounts(type, { ...libraryParam(), q, tag, tagMatch });
+    if (mine !== generation) return;
+    for (const tagEntry of options.tags.value) {
+      const total = counts[tagEntry.id] ?? 0;
+      if (total > 0) tagPages[tagEntry.id] = { total, items: [] };
+    }
+  }
+
+  /** The tag menu's counts: every row of the kind in the library, without filters. */
+  const tagCounts = shallowRef<Record<string, number>>({});
+
+  async function loadTagCounts() {
+    const type = countType();
+    if (!fetchPage() || !type) {
+      tagCounts.value = {};
+      return;
+    }
+    const key = JSON.stringify([type, options.library.value]);
+    const counts = await api.getTagCounts(type, libraryParam());
+    if (key === JSON.stringify([countType(), options.library.value])) tagCounts.value = counts;
+  }
+
+  /** How many rows the section holds without the tag filter, while one is set. */
+  const unfilteredTotal = ref<number | null>(null);
+
+  async function loadUnfilteredTotal(mine: number) {
     const fetch = fetchPage();
-    if (!fetch || !groupingByTag.value) return;
-    await Promise.all(options.tags.value.map(async (tag) => {
-      const page = await fetch({ ...listParams.value, tag: [tag.id], limit: 1, offset: 0 });
-      if (mine !== generation) return;
-      tagPages[tag.id] = { total: page.total, items: [] };
-    }));
+    if (!fetch || tagFilter.value.tags.length === 0) {
+      unfilteredTotal.value = null;
+      return;
+    }
+    const { tag: _tag, tagMatch: _match, ...rest } = listParams.value;
+    const page = await fetch({ ...rest, limit: 1, offset: 0 });
+    if (mine === generation) unfilteredTotal.value = page.total;
   }
 
   /*
@@ -168,6 +230,8 @@ export function useRailPaging(options: {
       main.clear();
       byId.value = new Map();
       for (const key of Object.keys(tagPages)) delete tagPages[key];
+      tagCounts.value = {};
+      unfilteredTotal.value = null;
       heldScope.value = loading;
       return;
     }
@@ -175,6 +239,8 @@ export function useRailPaging(options: {
       main.reload(listParams.value),
       loadExtras(mine).catch((err) => console.error('[useRailPaging] Rows by id failed:', err)),
       loadTagTotals(mine).catch((err) => console.error('[useRailPaging] Tag counts failed:', err)),
+      loadUnfilteredTotal(mine).catch((err) => console.error('[useRailPaging] Unfiltered count failed:', err)),
+      loadTagCounts().catch((err) => console.error('[useRailPaging] Tag menu counts failed:', err)),
     ]);
     if (mine === generation) heldScope.value = loading;
   }
@@ -186,7 +252,7 @@ export function useRailPaging(options: {
     const entry = tagPages[tagId];
     if (!fetch || !entry) return;
     // The heading's own pages, in order. `rows` drops a row the main list also holds.
-    const page = await fetch({ ...listParams.value, tag: [tagId], limit: PAGE_SIZE, offset: entry.items.length });
+    const page = await fetch({ ...listParams.value, withTag: [tagId], limit: PAGE_SIZE, offset: entry.items.length });
     entry.total = page.total;
     entry.items = [...entry.items, ...page.items];
   }
@@ -237,7 +303,10 @@ export function useRailPaging(options: {
   // The tag headings' counts follow the tags and the grouping; the rows do not.
   watch(
     () => [groupingByTag.value, options.tags.value.map((tag) => tag.id).join('|')] as const,
-    () => { void loadTagTotals(generation).catch((err) => console.error('[useRailPaging] Tag counts failed:', err)); },
+    () => {
+      void loadTagTotals(generation).catch((err) => console.error('[useRailPaging] Tag counts failed:', err));
+      void loadTagCounts().catch((err) => console.error('[useRailPaging] Tag menu counts failed:', err));
+    },
   );
   // A pin or, under "Last opened", an open adds a row by id.
   watch(
@@ -254,6 +323,10 @@ export function useRailPaging(options: {
     loading: main.loading,
     error: main.error,
     tagTotals,
+    /** Per tag id, how many rows of the kind carry it in the library. For the tag menu. */
+    tagCounts,
+    /** The section's count without the tag filter; null when no filter is set. */
+    unfilteredTotal,
     search,
     setSearch,
     refresh,

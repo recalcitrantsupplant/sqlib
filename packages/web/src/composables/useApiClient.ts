@@ -335,6 +335,10 @@ export interface ListPageParams {
   ids?: string[];
   library?: string;
   tag?: string[];
+  /** How `tag` combines. The server reads a missing value as `all`. */
+  tagMatch?: 'any' | 'all';
+  /** Tags every row must also carry. A tag heading loads its rows with it. */
+  withTag?: string[];
   sort?: 'name' | 'modified' | 'created' | 'creator' | 'versions';
   order?: 'asc' | 'desc';
 }
@@ -3491,6 +3495,30 @@ export function useApiClient() {
     },
   };
 
+  /**
+   * How many rows of one entity type carry each tag, inside the list filters.
+   * One request for every tag of the library.
+   */
+  const getTagCounts = async (
+    type: string,
+    params: Pick<ListPageParams, 'library' | 'q' | 'tag' | 'tagMatch' | 'withTag'> = {},
+  ): Promise<Record<string, number>> => {
+    const result = await request(
+      buildUrl(`/tags/counts${listPageQuery({ type, ...params })}`),
+      { method: 'GET' },
+      (payload) => {
+        const counts: Record<string, number> = {};
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+          for (const [id, count] of Object.entries(payload)) {
+            if (typeof count === 'number' && Number.isFinite(count)) counts[id] = count;
+          }
+        }
+        return counts;
+      },
+    );
+    return result.data ?? {};
+  };
+
   const pageEntities = async (kind: PagedKind, params: ListPageParams): Promise<ListPage<PagedEntity>> => {
     const { path, parse } = PAGED_KINDS[kind];
     const base = path(params);
@@ -3504,6 +3532,7 @@ export function useApiClient() {
   };
 
   return {
+    getTagCounts,
     pageEntities,
     getTelemetryStatus,
     getLibraryExportBundle,
