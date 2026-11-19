@@ -17,7 +17,7 @@ const SAVED_SQL = `SELECT * FROM read_csv('data/examples/people.csv')`;
 const SAVED_TEMPLATE = 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?s ?p ?o) {} }';
 const MAPPING_VERSION = 'urn:sqlib:etl-column-mapping-version:m1';
 const SAVED_MAPPINGS = [
-  { columnName: 'name', targetVariable: 'name', termType: 'literal' as const, nullPolicy: 'undef' as const },
+  { columnName: 'name', termType: 'literal' as const },
 ];
 
 const store = vi.hoisted(() => ({

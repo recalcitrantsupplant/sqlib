@@ -255,7 +255,9 @@ the data changes.
 ## 7. Create an ETL job, and get the file it writes
 
 An ETL job version holds the extraction SQL, a CONSTRUCT template, and the backend that the
-template runs against. The column mapping sets how the columns of a row become terms.
+template runs against. The column mapping sets the term that each column of a row becomes: an IRI,
+or a literal with a datatype or a language tag. The mapping has no other logic. Put each other
+step in the SQL or in the template.
 
 The SQL here reads a literal `VALUES` table and nothing outside the process. It therefore runs
 under the default capability profile, with no file or network access. A real extraction reads
@@ -276,14 +278,15 @@ is built on Debian. The extension is not published for Alpine (musl).
 ```json
 {
   "sql": "SELECT * FROM (VALUES ('alice','Alice','Perth'),('bob','Bob','Darwin'),('cara','Cara','Perth'),('dan','Dan','Hobart'),('eve','Eve','Darwin'),('fred','Fred','Perth'),('gus','Gus','Hobart'),('hana','Hana','Darwin')) AS t(slug, name, city)",
-  "sparqlTemplate": "PREFIX ex: <http://example.org/> CONSTRUCT { ?person a ex:Person ; ex:name ?name ; ex:city ?city } WHERE { VALUES (?person ?name ?city) { (UNDEF UNDEF UNDEF) } }",
+  "sparqlTemplate": "PREFIX ex: <http://example.org/> CONSTRUCT { ?person a ex:Person ; ex:name ?name ; ex:city ?city } WHERE { VALUES (?slug ?name ?city) { (UNDEF UNDEF UNDEF) } BIND(IRI(CONCAT(STR(ex:), \"person/\", ENCODE_FOR_URI(?slug))) AS ?person) }",
   "backendId": "{{backendId}}",
   "chunkSize": 3
 }
 ```
 
-The `VALUES (?person ?name ?city) { (UNDEF UNDEF UNDEF) }` of the template is the slot that the rows
-of each chunk are bound into. sqlib runs one CONSTRUCT for each chunk.
+The `VALUES (?slug ?name ?city) { (UNDEF UNDEF UNDEF) }` of the template is the slot that the rows
+of each chunk are bound into. sqlib runs one CONSTRUCT for each chunk. The `BIND` makes the IRI of
+each person from its slug.
 
 <!-- example: createColumnMapping -->
 ```json
@@ -292,32 +295,27 @@ of each chunk are bound into. sqlib runs one CONSTRUCT for each chunk.
   "columns": [
     {
       "columnName": "slug",
-      "targetVariable": "person",
-      "termType": "uri",
-      "iriTemplate": "http://example.org/person/{value}",
-      "nullPolicy": "skipRow"
+      "termType": "literal",
+      "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
     },
     {
       "columnName": "name",
-      "targetVariable": "name",
       "termType": "literal",
-      "datatypeIri": "http://www.w3.org/2001/XMLSchema#string",
-      "nullPolicy": "skipRow"
+      "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
     },
     {
       "columnName": "city",
-      "targetVariable": "city",
       "termType": "literal",
-      "datatypeIri": "http://www.w3.org/2001/XMLSchema#string",
-      "nullPolicy": "skipRow"
+      "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
     }
   ]
 }
 ```
 
-`iriTemplate` replaces the literal token `{value}` with the value of the column, URI-encoded. It
-replaces nothing else. `POST /etl-jobs/versions/{{etlJobVersionId}}/column-mappings` returns the
-mapping and makes it the current mapping of the version.
+Each column binds the variable of its own name, and its value is used as it is. A NULL leaves the
+variable unbound. To rename a column, use an alias in the SQL. To drop rows, use `WHERE` in the
+SQL. `POST /etl-jobs/versions/{{etlJobVersionId}}/column-mappings` returns the mapping and makes it
+the current mapping of the version.
 
 Then run it:
 

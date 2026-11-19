@@ -1,18 +1,43 @@
 W3C SPARQL-RL test suite — vendored snapshot
-Source: https://github.com/w3c/data-shapes/tree/gh-pages/shacl12-test-suite/tests/sparql-rl
-Branch: gh-pages
-Commit: 752769264137d192b3d603075162819466c46690
-PR:     w3c/data-shapes#1380 (the GROUP tests) is merged into gh-pages
+Source: https://github.com/w3c/data-shapes/tree/inuse-tests/shacl12-test-suite/tests/sparql-rl
+Branch: inuse-tests
+Commit: 335659b7c7a7eab2ff2122f979c434a2dbb14a05
+PR:     inuse-tests is w3c/data-shapes#1455 (tests for the inUse condition)
+Base:   gh-pages at 7e3ded5841fa20756505a0a872a6614a31b0adf6; #1455 is not behind it
 Dirs:   syntax/ wellformed/ stratification/ eval/ eval2/ examples/
 
-#1380 merged into gh-pages, and its branch srl-group-tests was deleted. This
-pin follows gh-pages from now on.
+This pin assumes that #1455 merges as it is. If #1455 changes before it
+merges, refresh from its new head. After it merges, and its branch is
+deleted, refresh from gh-pages.
 
 How the snapshot was made: every directory above, README.md and
-manifest-sparql-rl.ttl were taken unchanged from gh-pages at 75276926. There
-is no local change.
+manifest-sparql-rl.ttl were taken unchanged from #1455 at 335659b7. There is
+no local change. The one commit on gh-pages between the previous pin and
+#1455's base, 7e3ded58, changes only the specification text.
 
-What this refresh changed, relative to the previous pin, #1380 at 643cf6a7:
+What this refresh changed, relative to the previous pin, gh-pages at 75276926:
+
+  #1455 adds the tests for inUse, the well-formedness condition of
+  w3c/data-shapes#690 (on gh-pages since 04ecbb4a). A variable used in a NOT
+  or a GROUP pattern, and not bound outside it, is in use after that element,
+  and no later element may use the name. Inside a GROUP pattern the variables
+  bound before the GROUP that are not keys are in use too.
+
+  New wellformed entries: wellformed-inuse-01 .. -06 and -bad-01 .. -06,
+  wellformed-group-inuse-01 .. -06 and -bad-01 .. -07, and
+  wellformed-group-bad-extra-16 (an aggregate over another aggregate's
+  variable). Four existing rules break inUse, so #1455 renames a variable in
+  each: eval-group-09, stratification-04, wellformed-group-04 and
+  wellformed-group-09. Their expected results do not change.
+
+  sqlib failed 10 of the 26 new entries before it implemented inUse, as the
+  `in-use` category of checkWellFormed (packages/srl/src/wellformed.ts).
+  Every entry passes now.
+
+  Entries: wellformed 33 -> 59. 368 in all.
+
+What the refresh before that changed (to gh-pages at 75276926), relative to
+#1380 at 643cf6a7:
 
   eval-group-13 has a constant predicate in its rule head:
   RULE { ?t :summary ( ?st ?n ) }. The old head, { ?t ?st ?n }, made the rule
@@ -54,7 +79,8 @@ What the refresh before those changed, relative to gh-pages at 9c863967:
   Entries: syntax 139 -> 212, wellformed 8 -> 33, stratification 10 -> 21,
   eval 35 -> 59; eval2 6 and examples 5 are unchanged. 336 in all.
 
-Previous pins, for reference: 643cf6a7ce95e63457b7b293c1c22819af1cbb71
+Previous pins, for reference: 752769264137d192b3d603075162819466c46690
+(gh-pages, after #1380 merged), 643cf6a7ce95e63457b7b293c1c22819af1cbb71
 (#1380, the last head of srl-group-tests), 87514ecb410bedb6cd0640b980b4b7bc10f2f411
 (#1380, with #1375 at a3eac70d), 9c863967bceaef1a87c24e4dd761eda763823120
 (gh-pages, before #1347 merged), 628cef6f5d0da8cc3fa8d8e97d015e854fbae37b (head

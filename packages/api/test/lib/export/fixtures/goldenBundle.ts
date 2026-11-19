@@ -1,7 +1,7 @@
 /**
  * The inputs behind the committed bundle-format fixture.
  *
- * `packages/runtime/test/fixtures/bundle-v1.json` is a real bundle: this module
+ * `packages/runtime/test/fixtures/bundle-v2.json` is a real bundle: this module
  * is what produced it, and `bundleFormat.test.ts` re-runs it on every CI run and
  * compares. So the fixture is not a hand-written approximation of the format —
  * it is what `GET /libraries/:id/export` writes, frozen.
@@ -293,9 +293,12 @@ const ETL_SOURCE: LibraryEtlJobSource = {
           $id: id,
           isPartOf: 'urn:sqlib:etl-job:customers',
           version: 1,
-          sql: "SELECT id, name, joined FROM read_csv('customers.csv')",
+          sql: "SELECT id, name, joined FROM read_csv('customers.csv') WHERE id IS NOT NULL",
           sparqlTemplate: `PREFIX ex: <http://example.org/>
-CONSTRUCT { ?person ex:name ?name ; ex:joined ?joined } WHERE { VALUES (?person ?name ?joined) { (UNDEF UNDEF UNDEF) } }`,
+CONSTRUCT { ?person ex:name ?name ; ex:joined ?joined } WHERE {
+  VALUES (?id ?name ?joined) { (UNDEF UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://example.org/person/", ENCODE_FOR_URI(?id))) AS ?person)
+}`,
           backendId: 'urn:sqlib:backend:not-exported',
           currentColumnMappingVersion: 'urn:sqlib:etl-column-mapping-version:customers-1',
           chunkSize: 500,
@@ -310,24 +313,17 @@ CONSTRUCT { ?person ex:name ?name ; ex:joined ?joined } WHERE { VALUES (?person 
           columns: JSON.stringify([
             {
               columnName: 'id',
-              targetVariable: 'person',
-              termType: 'uri',
-              iriTemplate: 'http://example.org/person/{value}',
-              nullPolicy: 'skipRow',
+              termType: 'literal',
             },
             {
               columnName: 'name',
-              targetVariable: 'name',
               termType: 'literal',
               lang: 'en',
-              nullPolicy: 'undef',
             },
             {
               columnName: 'joined',
-              targetVariable: 'joined',
               termType: 'literal',
               datatypeIri: 'http://www.w3.org/2001/XMLSchema#dateTime',
-              nullPolicy: 'undef',
             },
           ]),
         }
@@ -398,7 +394,7 @@ export const GOLDEN_GENERATED_AT = '2026-09-07T00:00:00.000Z';
  * stopped carrying its group would still have been a valid bundle, and the
  * comparison would have passed once someone re-ran the update.
  */
-export async function buildGoldenBundleV1(): Promise<ExportBundle> {
+export async function buildGoldenBundle(): Promise<ExportBundle> {
   const bundle = await buildExportBundle({
     library: LIBRARY,
     queries: QUERIES,

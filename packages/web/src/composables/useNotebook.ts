@@ -59,6 +59,7 @@ import {
 import { useApiClient } from './useApiClient';
 import { useCallables } from './useCallables';
 import { useRuleSetsStore } from './useRuleSetsStore';
+import { summarizeRuleRun, type RuleRunSummary } from '../lib/ruleSetDisplay';
 import { resolveQueryDefault } from '../lib/backendDefaults';
 import { useActiveEnvironment } from './useActiveEnvironment';
 
@@ -105,6 +106,8 @@ export interface CellRunState {
    * iteration cap or on a cycle. The value is bound; Run all stops here.
    */
   warning?: string | null;
+  /** A rule set run's iterations, and what each rule added and removed. */
+  ruleRun?: RuleRunSummary | null;
 }
 
 /**
@@ -207,8 +210,8 @@ export function useNotebook(
         limitParameters: [],
         offsetParameters: [],
         version: ruleSet.currentVersionNumber ?? null,
-        // A rule set is a document of rules, not one query: the cell links to
-        // the editor for it rather than pretending it has a body to show.
+        // A rule set's text is its SRL document, which the cell loads itself:
+        // the rule set list does not carry it.
         queryString: null,
       });
     }
@@ -587,7 +590,8 @@ export function useNotebook(
         : response.status === 'cycle'
           ? 'The rule set stopped on a cycle: its rules keep changing the graph, so this graph may be incomplete.'
           : null;
-    if (warning) runState.value = { ...runState.value, [cell.id]: { ...stateFor(cell.id), warning } };
+    const ruleRun = summarizeRuleRun(response.iterations, response.ruleNames);
+    runState.value = { ...runState.value, [cell.id]: { ...stateFor(cell.id), warning, ruleRun } };
   }
 
   /** Bind a value and mark everything downstream of it stale. */
@@ -651,7 +655,7 @@ export function useNotebook(
       return;
     }
 
-    runState.value = { ...runState.value, [cellId]: { ...stateFor(cellId), status: 'running', error: null, warning: null } };
+    runState.value = { ...runState.value, [cellId]: { ...stateFor(cellId), status: 'running', error: null, warning: null, ruleRun: null } };
     const started = performance.now();
 
     try {

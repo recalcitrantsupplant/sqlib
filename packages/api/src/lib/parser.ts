@@ -35,3 +35,15 @@ export class SparqlQueryParser extends CompilerParser {
     super({ diagnostics: logDiagnostic });
   }
 }
+
+let shared: SparqlQueryParser | null = null;
+
+/**
+ * One parser for callers that keep none of their own. Building a parser takes
+ * about 25 ms, so code that runs for each request must reuse one. The parser is
+ * built on the first call, so it adds nothing to server start-up.
+ */
+export function sharedSparqlQueryParser(): SparqlQueryParser {
+  shared ??= new SparqlQueryParser();
+  return shared;
+}

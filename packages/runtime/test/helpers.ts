@@ -8,7 +8,7 @@
  * Which means they are not evidence about the format. Nothing compares what this
  * file builds against what `packages/api` writes, so the two can drift with every
  * test in both packages still green. The arbiter is
- * `test/fixtures/bundle-v1.json` — a real exported bundle, committed — and
+ * `test/fixtures/bundle-v2.json` — a real exported bundle, committed — and
  * `test/bundleFormat.test.ts` is what reads it. Assertions about the *format*
  * belong there; assertions about the validator's edges belong here.
  */
@@ -103,7 +103,7 @@ export async function bundleOf(
     ]),
   );
   return {
-    version: 1,
+    version: 2,
     library: { id: 'urn:sqlib:library:test', name: 'Test' },
     queries: Object.fromEntries(entries) as Record<string, ExportedQuery>,
   };

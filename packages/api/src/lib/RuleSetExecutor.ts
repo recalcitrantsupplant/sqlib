@@ -43,7 +43,7 @@ export type {
   RuleSetExecutionResult,
 } from '@sparql-query-lib/runtime-srl';
 
-const DEFAULT_MAX_ITERATIONS = 5;
+const DEFAULT_MAX_ITERATIONS = 25;
 const DEFAULT_RULE_TIMEOUT_MS = Number.parseInt(process.env.RULE_EXECUTION_TIMEOUT_MS ?? '30000', 10) || 30000;
 const DEFAULT_RULE_SAMPLE_LIMIT = Number.parseInt(process.env.RULE_EXECUTION_SAMPLE_LIMIT ?? '10', 10) || 10;
 
