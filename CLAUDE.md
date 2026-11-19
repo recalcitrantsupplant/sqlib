@@ -5,6 +5,20 @@
 Write documentation, READMEs, commit messages, pull requests and code comments
 to [docs/writing-style.md](docs/writing-style.md).
 
+## Where the hosted demos run
+
+The hosted demo instances are deployed from the `sqlib-demo` repository, not
+from this one.
+
+| Instance | Host |
+| --- | --- |
+| SRL | AWS: the API on ECS Fargate in `ap-southeast-2`, the web app on S3 and CloudFront |
+| main | Cloudflare: the API as a Worker container, the web app as a static Worker |
+
+No demo instance runs on Azure. The Bicep files in `infrastructure/` and the
+Azure sections of `docs/guides/deploying.md` are an example for operators.
+They do not describe a hosted demo.
+
 ## On-screen text in the web app and in mocks
 
 These rules apply to every screen in `packages/web` and to every mock or
