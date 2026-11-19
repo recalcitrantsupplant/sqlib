@@ -26,6 +26,7 @@
 import { ref, watch, computed, type Ref } from 'vue'
 import type {
   ArgumentSetDetail,
+  ArgumentSetSummary,
   ArgumentSetInput,
   ArgumentSetVersionInput,
   ArgumentSetVersionDetail,
@@ -34,7 +35,7 @@ import type {
   SparqlBinding,
   ExecutionArgument,
 } from '../types/argument-sets'
-import { useApiClient } from './useApiClient'
+import { useApiClient, type ListPage, type ListPageParams } from './useApiClient'
 import {
   useArgumentSetDrafts,
   newScratchId,
@@ -44,6 +45,9 @@ import { useTupleSetsStore } from './useTupleSetsStore'
 import { bareVariable, pruneUndef } from '../lib/argumentSignature'
 import { pinBindings, referenceKey, referencesOf } from '../lib/tupleSetReferences'
 import { readTupleDocument } from '../types/tuple-sets'
+
+/** How many saved sets one request lists. */
+export const SAVED_PAGE_SIZE = 50
 
 /** What the "Run with" control is pointing at. */
 export type RunTarget = { kind: 'draft' } | { kind: 'version'; versionId: string }
@@ -118,7 +122,21 @@ export function useArgumentSets(
   // Core state
   // ========================================================================
 
-  const argumentSets = ref<ArgumentSetDetail[]>([])
+  /*
+   * The saved sets load a page at a time (#197): a library can hold thousands.
+   * `savedTotal` counts every match of `savedSearch`; `argumentSets` holds the
+   * pages loaded so far, this callable's own sets first.
+   */
+  const argumentSets = ref<ArgumentSetSummary[]>([])
+  const savedTotal = ref(0)
+  const savedSearch = ref('')
+  type SavedSource = (params: ListPageParams) => Promise<ListPage<ArgumentSetSummary>>
+  let savedSource: SavedSource | null = null
+  const savedParams = (offset: number): ListPageParams => ({
+    limit: SAVED_PAGE_SIZE,
+    offset,
+    ...(savedSearch.value.trim() ? { q: savedSearch.value.trim() } : {}),
+  })
   const selection = ref<ArgumentSetSelection>({ kind: 'none' })
   const currentSet = ref<ArgumentSetDetail | null>(null)
   const versions = ref<ArgumentSetVersionDetail[]>([])
@@ -240,36 +258,84 @@ export function useArgumentSets(
    */
   async function loadArgumentSets(library: string | null = libraryId?.() ?? null) {
     if (!localTargetId.value) {
+      savedSource = null
       argumentSets.value = []
+      savedTotal.value = 0
       return
     }
     isLoading.value = true
     error.value = null
     try {
-      /*
-       * Nothing to ask the server about a callable it has never seen. A
-       * scratch one still gets the library's sets, which is the whole list it
-       * can have — and the one that makes a seeded set usable from a draft
-       * query on a read-only deployment.
-       */
-      const own = targetId.value ? await apiClient.listArgumentSets(targetId.value, scope) : []
-      if (!library) {
-        argumentSets.value = own
-        return
-      }
-      let elsewhere: ArgumentSetDetail[] = []
-      try {
-        elsewhere = await apiClient.listLibraryArgumentSets(library) as ArgumentSetDetail[]
-      } catch (err) {
-        console.error('[useArgumentSets] Library listing failed; showing this target\'s sets only:', err)
-      }
-      const seen = new Set(own.map((set) => set.id))
-      argumentSets.value = [...own, ...elsewhere.filter((set) => !seen.has(set.id))]
+      await loadFirstSavedPage(library)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load argument sets'
       console.error('[useArgumentSets] Load error:', err)
     } finally {
       isLoading.value = false
+    }
+  }
+
+  /**
+   * The first page of saved sets for the current search. It leaves
+   * `isLoading` alone, so the switcher stays open while a search runs.
+   */
+  let savedRequest = 0
+  async function loadFirstSavedPage(library: string | null) {
+    const request = ++savedRequest
+    /*
+     * Nothing to ask the server about a callable it has never seen. A
+     * scratch one still gets the library's sets, which is the whole list it
+     * can have — and the one that makes a seeded set usable from a draft
+     * query on a read-only deployment.
+     */
+    const own = targetId.value
+    const ownPage: SavedSource = (params) =>
+      own ? apiClient.pageArgumentSets(own, scope, params) : Promise.resolve({ items: [], total: 0 })
+    let source: SavedSource = ownPage
+    let first: ListPage<ArgumentSetSummary>
+    if (library) {
+      const libraryPage: SavedSource = (params) =>
+        apiClient.pageLibraryArgumentSets(library, { ...params, ...(own ? { preferTarget: own } : {}) })
+      try {
+        first = await libraryPage(savedParams(0))
+        source = libraryPage
+      } catch (err) {
+        console.error('[useArgumentSets] Library listing failed; showing this target\'s sets only:', err)
+        first = await ownPage(savedParams(0))
+      }
+    } else {
+      first = await ownPage(savedParams(0))
+    }
+    // A later search has answered or will: this answer is stale.
+    if (request !== savedRequest) return
+    savedSource = source
+    argumentSets.value = first.items
+    savedTotal.value = first.total
+  }
+
+  /** The next page of saved sets, after the ones already listed. */
+  async function loadMoreArgumentSets() {
+    if (!savedSource || argumentSets.value.length >= savedTotal.value) return
+    const source = savedSource
+    try {
+      const page = await source(savedParams(argumentSets.value.length))
+      if (source !== savedSource) return
+      const seen = new Set(argumentSets.value.map((set) => set.id))
+      argumentSets.value = [...argumentSets.value, ...page.items.filter((set) => !seen.has(set.id))]
+      savedTotal.value = page.total
+    } catch (err) {
+      console.error('[useArgumentSets] Load more error:', err)
+    }
+  }
+
+  /** List the saved sets whose name matches `text`, from the first page. */
+  async function searchArgumentSets(text: string) {
+    if (text === savedSearch.value || !localTargetId.value) return
+    savedSearch.value = text
+    try {
+      await loadFirstSavedPage(libraryId?.() ?? null)
+    } catch (err) {
+      console.error('[useArgumentSets] Search error:', err)
     }
   }
 
@@ -793,6 +859,9 @@ export function useArgumentSets(
     (newId, oldId) => {
       if (newId === oldId) return
       argumentSets.value = []
+      savedTotal.value = 0
+      savedSearch.value = ''
+      savedSource = null
       clearSelection()
       /*
        * The load waits for a microtask, and has to.
@@ -822,6 +891,8 @@ export function useArgumentSets(
   return {
     // Core state
     argumentSets,
+    savedTotal,
+    savedSearch,
     selection,
     selectedSetId,
     scratchId,
@@ -857,6 +928,8 @@ export function useArgumentSets(
 
     // Actions
     loadArgumentSets,
+    loadMoreArgumentSets,
+    searchArgumentSets,
     loadVersions,
     selectSet,
     selectScratch,

@@ -13,7 +13,7 @@
  * view then drags the whole column sideways and cuts the section labels off the
  * left. That is what "renders funny" was.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN } from './api-origin';
 

@@ -19,8 +19,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref } from 'vue';
 
 const api = vi.hoisted(() => ({
-  listArgumentSets: vi.fn(),
-  listLibraryArgumentSets: vi.fn(),
+  pageArgumentSets: vi.fn(),
+  pageLibraryArgumentSets: vi.fn(),
   listArgumentSetVersions: vi.fn(),
   createArgumentSet: vi.fn(),
   createArgumentSetVersion: vi.fn(),
@@ -61,8 +61,8 @@ const LYON = { city: { type: 'literal', value: 'Lyon' } };
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  api.listArgumentSets.mockResolvedValue([]);
-  api.listLibraryArgumentSets.mockResolvedValue([]);
+  api.pageArgumentSets.mockResolvedValue({ items: [], total: 0 });
+  api.pageLibraryArgumentSets.mockResolvedValue({ items: [], total: 0 });
   api.listArgumentSetVersions.mockResolvedValue([]);
   api.createArgumentSet.mockResolvedValue({ data: { id: 'urn:sqlib:argument-set:new' } });
   api.createArgumentSetVersion.mockResolvedValue({ data: {} });

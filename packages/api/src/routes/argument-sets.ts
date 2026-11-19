@@ -12,6 +12,7 @@ import {
   argumentSetVersionPatchSchema,
   argumentSetVersionResponseSchema,
 } from './argument-set-schemas.js';
+import { parseListPageQuery, sendTotal, withListPageQuery } from '../lib/listPage.js';
 import { reposRoute, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { describePins, pinsOn } from '../lib/versionPins.js';
@@ -97,21 +98,26 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
    * the library" needs. It could not exist before `ArgumentSet.isPartOf`,
    * because the only path to a library ran through each set's target, making
    * enumeration one request per query.
+   *
+   * It takes the paging controls of `lib/listPage.ts` (#197). `preferTarget`
+   * puts the sets made for that query or group before the rest.
    */
   fastify.get('/', ...reposRoute({
-      querystring: {
+      querystring: withListPageQuery({
         type: 'object',
-        properties: { libraryId: { type: 'string' } },
+        properties: { libraryId: { type: 'string' }, preferTarget: { type: 'string' } },
         required: ['libraryId'],
         additionalProperties: false,
-      },
+      } as const),
       response: {
         200: argumentSetListResponseSchema,
       },
     }, async ({ request, reply }) => {
     const { libraryId } = request.query;
     requireLibraryMode(request, libraryId, 'read');
-    return reply.send(await service.listForLibrary(libraryId));
+    const page = await service.pageForLibrary(libraryId, parseListPageQuery(request), request.query.preferTarget);
+    sendTotal(reply, page.total);
+    return reply.send(page.items);
   }));
 
   /**

@@ -6,7 +6,7 @@
  * zero and the measurement that draws the shade never fires; and nothing wraps,
  * which is exactly the case the line count gets wrong.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN } from './api-origin';
 

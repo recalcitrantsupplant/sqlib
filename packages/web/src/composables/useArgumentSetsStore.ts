@@ -13,10 +13,11 @@
  */
 import { computed, reactive } from 'vue';
 import { useApiClient } from './useApiClient.js';
-import type { ArgumentSetDetail, ArgumentSetVersionDetail } from '../types/argument-sets';
+import { summarizeArgumentSet } from '../types/argument-sets';
+import type { ArgumentSetDetail, ArgumentSetSummary, ArgumentSetVersionDetail } from '../types/argument-sets';
 
 type ArgumentSetsState = {
-  argumentSets: ArgumentSetDetail[];
+  argumentSets: ArgumentSetSummary[];
   versionsBySet: Record<string, ArgumentSetVersionDetail[]>;
   loading: boolean;
   error: string | null;
@@ -46,7 +47,7 @@ export function useArgumentSetsStore() {
     state.loading = true;
     state.error = null;
     try {
-      state.argumentSets = (await apiClient.listLibraryArgumentSets(filter.library)) as ArgumentSetDetail[];
+      state.argumentSets = (await apiClient.listLibraryArgumentSets(filter.library)) as ArgumentSetSummary[];
     } catch (err: unknown) {
       state.error = err instanceof Error ? err.message : 'Failed to load argument sets';
       state.argumentSets = [];
@@ -70,7 +71,7 @@ export function useArgumentSetsStore() {
 
   const createArgumentSet = async (input: Parameters<typeof apiClient.createStandaloneArgumentSet>[0]) => {
     const { data } = await apiClient.createStandaloneArgumentSet(input);
-    state.argumentSets = [...state.argumentSets, data as ArgumentSetDetail];
+    state.argumentSets = [...state.argumentSets, summarizeArgumentSet(data as ArgumentSetDetail)];
     return data as ArgumentSetDetail;
   };
 
@@ -83,9 +84,21 @@ export function useArgumentSetsStore() {
     state.versionsBySet[setId] = [...(state.versionsBySet[setId] ?? []), version];
     // The server repoints the set at the new version; mirroring it keeps a
     // listing's "v3" from lagging a save by one refresh.
-    state.argumentSets = state.argumentSets.map(set =>
-      set.id === setId ? { ...set, currentVersionId: version.id, currentVersion: version } : set,
-    );
+    state.argumentSets = state.argumentSets.map((set) => {
+      if (set.id !== setId) return set;
+      const fresh = summarizeArgumentSet({
+        ...(set as unknown as ArgumentSetDetail),
+        currentVersionId: version.id,
+        currentVersion: version,
+      });
+      return {
+        ...set,
+        currentVersionId: fresh.currentVersionId,
+        currentVersionNumber: fresh.currentVersionNumber,
+        tupleBindings: fresh.tupleBindings,
+        scalarBindings: fresh.scalarBindings,
+      };
+    });
     return version;
   };
 

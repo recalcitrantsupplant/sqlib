@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { openSavedEntity } from './navigate';
 import { mockEntityApi, QUERY } from './fixtures/entities';
 
@@ -223,5 +223,75 @@ test.describe('Query arguments', () => {
 
     await expect(state(page)).toHaveText('v1');
     await expect(discard(page)).toHaveCount(0);
+  });
+});
+
+test.describe('Query arguments, a library with many saved sets', () => {
+  const MANY = 61;
+  const summary = (i: number) => ({
+    id: `urn:sqlib:argument-set:many-${i}`,
+    name: `Label Calcite ${String(i).padStart(2, '0')}`,
+    scope: 'query' as const,
+    targetId: QUERY.id,
+    currentVersionId: `urn:sqlib:argument-set:many-${i}:v1`,
+    currentVersionNumber: 1,
+    tupleBindings: [],
+    scalarBindings: [],
+  });
+
+  test.beforeEach(async ({ page }) => {
+    // A short window, where the 50 rows of one loaded page ran off the bottom (#197).
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await mockEntityApi(page, {
+      extraRoutes: [
+        [/\/detect-inputs$/, async (route: Route) => {
+          await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DETECTED) });
+        }],
+        [/\/argument-sets$/, async (route: Route) => {
+          const url = new URL(route.request().url());
+          const offset = Number(url.searchParams.get('offset') ?? 0);
+          const limit = Number(url.searchParams.get('limit') ?? MANY);
+          const all = Array.from({ length: MANY }, (_, i) => summary(i + 1));
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            headers: { 'X-Total-Count': String(MANY), 'Access-Control-Expose-Headers': 'X-Total-Count' },
+            body: JSON.stringify(all.slice(offset, offset + limit)),
+          });
+        }],
+      ],
+    });
+    await openArguments(page);
+  });
+
+  test('the switcher draws 10 sets a page, inside the window', async ({ page }) => {
+    await switcher(page).click();
+    const menu = page.locator('.set-menu');
+    await expect(page.locator('.set-row').filter({ hasText: 'Label Calcite' })).toHaveCount(10);
+    await expect(page.locator('[data-testid="argument-set-range"]')).toHaveText('1–10 of 61');
+
+    const box = await menu.boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(720);
+
+    // Page 7 holds the last row, past the first 50 loaded. The pager does not move.
+    const settled = () => menu.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+    const pagerBox = async () => {
+      await settled();
+      return (await page.locator('[data-testid="argument-set-pager"]').boundingBox())!;
+    };
+    const menuWidth = async () => {
+      await settled();
+      return (await menu.boundingBox())!.width;
+    };
+    const firstWidth = await menuWidth();
+    const pagerTop = async () => (await pagerBox()).y;
+    const firstTop = await pagerTop();
+    for (let page_ = 1; page_ < 7; page_ += 1) await page.locator('[data-testid="argument-set-next"]').click();
+    await expect(page.locator('[data-testid="argument-set-range"]')).toHaveText('61–61 of 61');
+    const last = page.locator('.set-row').filter({ hasText: 'Label Calcite' });
+    await expect(last).toHaveCount(1);
+    await expect(last).toContainText('Label Calcite 61');
+    expect(await pagerTop()).toBe(firstTop);
+    expect(await menuWidth()).toBe(firstWidth);
   });
 });

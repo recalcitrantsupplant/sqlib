@@ -1,6 +1,6 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { API_HOST } from './api-origin';
+import { API_HOST, listRoute } from './api-origin';
 import { recordUrl, scratchUrl } from './navigate';
 
 /**
@@ -64,7 +64,7 @@ test.describe('Scratch queries', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([LIBRARY]) });
     });
 
-    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
+    await page.route(listRoute('/queries'), async (route: Route) => {
       if (route.request().method() === 'POST') {
         if (failNextCreate) {
           failNextCreate = false;

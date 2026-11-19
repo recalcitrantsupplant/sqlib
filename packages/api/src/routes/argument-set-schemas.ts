@@ -187,9 +187,50 @@ export const argumentSetResponseSchema = {
   additionalProperties: false,
 } as const;
 
+/** A tuple binding in a list: its clause, without the rows (#197). */
+export const argumentTupleBindingSummarySchema = {
+  type: 'object',
+  properties: {
+    id: iriString,
+    position: { type: 'integer', minimum: 0 },
+    tupleSignature: { type: 'string' },
+    variables: { type: 'array', items: { type: 'string' } },
+    tupleSetVersions: { type: 'array', items: iriString },
+  },
+  required: ['id', 'position', 'tupleSignature', 'variables'],
+  additionalProperties: false,
+} as const;
+
+/**
+ * An argument set in a list. It carries what a list or a picker shows and
+ * what the fit verdict needs. The rows come from `GET /argument-sets/:id`.
+ */
+export const argumentSetSummarySchema = {
+  type: 'object',
+  properties: {
+    id: iriString,
+    name: { type: 'string' },
+    description: { type: 'string', nullable: true },
+    scope: { type: 'string', enum: ['query', 'queryGroup'], nullable: true },
+    targetId: { type: 'string', nullable: true },
+    libraryId: iriString,
+    tags: { type: 'array', items: iriString },
+    currentVersionId: iriString,
+    currentVersionNumber: { type: 'integer' },
+    tupleBindings: { type: 'array', items: argumentTupleBindingSummarySchema },
+    scalarBindings: { type: 'array', items: argumentScalarBindingSchema },
+    dateCreated: { type: 'string' },
+    dateModified: { type: 'string' },
+    createdBy: { type: 'string', nullable: true },
+    modifiedBy: { type: 'string', nullable: true },
+  },
+  required: ['id', 'name', 'tupleBindings', 'scalarBindings'],
+  additionalProperties: false,
+} as const;
+
 export const argumentSetListResponseSchema = {
   type: 'array',
-  items: argumentSetResponseSchema,
+  items: argumentSetSummarySchema,
 } as const;
 
 export const argumentSetIdParamSchema = {

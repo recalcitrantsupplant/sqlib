@@ -6,7 +6,7 @@
  * library with four tests showed `Tests 267`. The count must equal the list
  * header's count: the library's saved tests plus its scratch tests.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { createMockState, setupMockApi } from './query-group-test-helpers';
 import { EXISTING_QUERY_ID, LIBRARY_ID } from './fixtures/query-group-mock-state';
 import { API_ORIGIN } from './api-origin';

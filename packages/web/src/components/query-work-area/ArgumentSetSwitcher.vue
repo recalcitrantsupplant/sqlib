@@ -39,7 +39,7 @@
             <ChevronsUpDown :size="13" class="name-chevron" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" class="set-menu" @open-auto-focus="focusFilter">
+        <DropdownMenuContent align="start" class="set-menu w-[360px] max-w-[calc(100vw-32px)]" @open-auto-focus="focusFilter">
           <!--
             New first, then the filter, then the sets. At the foot of the list
             it moved down every time a set was added, and fell off the bottom
@@ -50,7 +50,7 @@
             <span class="set-row-name">New scratch set</span>
           </DropdownMenuItem>
 
-          <template v-if="scratchSets.length || savedSets.length">
+          <template v-if="scratchSets.length || savedSets.length || filter">
             <DropdownMenuSeparator />
             <!--
               The same box as the other lists (`FilterBox`, fuzzy on the name).
@@ -92,10 +92,15 @@
             <DropdownMenuSeparator />
             <DropdownMenuLabel class="menu-heading">
               Saved
-              <span class="menu-heading-count">{{ visibleSaved.length }}</span>
+              <span class="menu-heading-count">{{ savedCount }}</span>
             </DropdownMenuLabel>
+            <!--
+              A library can hold thousands of sets (#197). The menu draws one
+              page of 10 matches, so it fits the window; the pager and the
+              filter reach the rest.
+            -->
             <DropdownMenuItem
-              v-for="entry in visibleSaved"
+              v-for="entry in shownSaved"
               :key="entry.id"
               class="set-row"
               @select="emit('select-set', entry.id)"
@@ -103,6 +108,50 @@
               <span class="set-row-name">{{ entry.name }}</span>
               <span class="set-row-meta">{{ entry.meta }}</span>
             </DropdownMenuItem>
+            <!--
+              A short last page keeps the height of a full one, and the menu
+              has a fixed width, so the pager stays under the pointer while
+              paging.
+            -->
+            <template v-if="savedPageCount > 1">
+              <DropdownMenuItem
+                v-for="n in SAVED_PAGE - shownSaved.length"
+                :key="`spacer-${n}`"
+                disabled
+                aria-hidden="true"
+                class="set-row set-row--spacer"
+                data-testid="argument-set-spacer"
+              >
+                <span class="set-row-name">&nbsp;</span>
+              </DropdownMenuItem>
+            </template>
+            <div v-if="savedPageCount > 1" class="set-pager" data-testid="argument-set-pager">
+              <button
+                type="button"
+                class="set-pager-button"
+                aria-label="Previous page"
+                title="Previous page"
+                data-testid="argument-set-prev"
+                :disabled="savedPage === 0"
+                @click="previousSavedPage"
+              >
+                <ChevronLeft :size="14" />
+              </button>
+              <span class="set-pager-range" data-testid="argument-set-range">
+                {{ savedRangeStart }}–{{ savedRangeEnd }} of {{ savedCount }}
+              </span>
+              <button
+                type="button"
+                class="set-pager-button"
+                aria-label="Next page"
+                title="Next page"
+                data-testid="argument-set-next"
+                :disabled="savedPage >= savedPageCount - 1"
+                @click="nextSavedPage"
+              >
+                <ChevronRight :size="14" />
+              </button>
+            </div>
           </template>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -181,8 +230,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef } from 'vue';
-import { ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
+import { ChevronLeft, ChevronRight, ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -222,6 +271,12 @@ const props = defineProps<{
   disabled?: boolean;
   /** Draws the pop-out button. Off where there is no focus mode to open. */
   canExpand?: boolean;
+  /**
+   * Every saved set that matches, when the caller pages them from the server
+   * (#197). The caller then filters through `search` and loads through
+   * `load-more`; without it the switcher filters and pages `savedSets` itself.
+   */
+  savedTotal?: number;
 }>();
 
 const emit = defineEmits<{
@@ -233,6 +288,8 @@ const emit = defineEmits<{
   (e: 'copy'): void;
   (e: 'delete'): void;
   (e: 'expand'): void;
+  (e: 'search', text: string): void;
+  (e: 'load-more'): void;
 }>();
 
 const renaming = ref(false);
@@ -274,13 +331,54 @@ const filterBox = useTemplateRef<InstanceType<typeof FilterBox>>('filterBox');
 const visibleScratch = computed(() =>
   props.scratchSets.filter((entry) => fuzzyMatches(filter.value, entry.name || 'Untitled set', entry.meta)),
 );
+const serverPaged = computed(() => props.savedTotal !== undefined);
 const visibleSaved = computed(() =>
-  props.savedSets.filter((entry) => fuzzyMatches(filter.value, entry.name, entry.meta)),
+  serverPaged.value
+    ? props.savedSets
+    : props.savedSets.filter((entry) => fuzzyMatches(filter.value, entry.name, entry.meta)),
 );
+
+/**
+ * How many saved rows one page of the menu draws. Ten rows keep the menu
+ * inside the window under the switcher; the pager reaches the rest.
+ */
+const SAVED_PAGE = 10;
+/** How long typing pauses before the server is asked. */
+const SEARCH_DELAY_MS = 200;
+const savedPage = ref(0);
+const savedCount = computed(() => (serverPaged.value ? props.savedTotal! : visibleSaved.value.length));
+const savedPageCount = computed(() => Math.max(1, Math.ceil(savedCount.value / SAVED_PAGE)));
+const shownSaved = computed(() =>
+  visibleSaved.value.slice(savedPage.value * SAVED_PAGE, (savedPage.value + 1) * SAVED_PAGE),
+);
+const savedRangeStart = computed(() => (shownSaved.value.length ? savedPage.value * SAVED_PAGE + 1 : 0));
+const savedRangeEnd = computed(() => savedPage.value * SAVED_PAGE + shownSaved.value.length);
+
+function previousSavedPage() {
+  if (savedPage.value > 0) savedPage.value -= 1;
+}
+
+/** The next page. A server-paged list asks for more rows when the page is not loaded yet. */
+function nextSavedPage() {
+  if (savedPage.value >= savedPageCount.value - 1) return;
+  savedPage.value += 1;
+  const needed = (savedPage.value + 1) * SAVED_PAGE;
+  if (serverPaged.value && visibleSaved.value.length < Math.min(needed, savedCount.value)) emit('load-more');
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(filter, (text) => {
+  savedPage.value = 0;
+  if (!serverPaged.value) return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => emit('search', text), SEARCH_DELAY_MS);
+});
+onBeforeUnmount(() => clearTimeout(searchTimer));
 
 /** Each opening starts from the whole list, with the caret in the filter. */
 function focusFilter(event: Event) {
   filter.value = '';
+  savedPage.value = 0;
   const input = (filterBox.value?.$el as HTMLElement | undefined) ?? null;
   if (!input) return;
   event.preventDefault();
@@ -587,8 +685,46 @@ const activeRunKey = computed(() =>
   padding: var(--space-1) var(--space-3);
 }
 
+.set-row--spacer {
+  visibility: hidden;
+}
+
 .set-row--new {
   color: var(--ink-secondary);
+}
+
+.set-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink-secondary);
+  font-size: var(--text-body);
+}
+
+.set-pager-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border-radius: var(--radius);
+  color: var(--ink-secondary);
+}
+
+.set-pager-button:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.set-pager-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.set-pager-range {
+  font-variant-numeric: tabular-nums;
 }
 
 .menu-danger {

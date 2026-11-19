@@ -8,7 +8,7 @@
  * production build is Vite compiling a dynamic import on demand, not an
  * application problem.
  */
-import { test } from '@playwright/test';
+import { test } from '../fixtures/test';
 import { mockSidebarCollections } from '../fixtures/collections';
 import { measureOpen, summarise, type Sample } from './measure';
 import { INTERACTIONS } from './interactions';

@@ -8,7 +8,7 @@
  * number of rows BEHIND the overlay, the expense is compositing the backdrop,
  * not mounting the editor.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/test';
 import { mockSidebarCollections } from '../fixtures/collections';
 import { measureOpen, summarise, type Sample } from './measure';
 import { API_ORIGIN } from '../api-origin';

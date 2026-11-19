@@ -1,9 +1,10 @@
 /**
  * The export menu, which is a Run button that saves its answer.
  *
- * The mounting notes in `RunByTagMenu.test.ts` apply here for the same reason:
- * this is a radix dropdown, so the portal is stubbed to keep every query scoped
- * to the mount, and the menu is closed before the wrapper goes.
+ * This is a radix dropdown, so the portal is stubbed to keep every query scoped
+ * to the mount, and the menu is closed before the wrapper goes: radix schedules
+ * its listener teardown, and unmounting an open layer leaves that work to run
+ * after the test environment has gone.
  */
 import { afterEach, describe, it, expect } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
