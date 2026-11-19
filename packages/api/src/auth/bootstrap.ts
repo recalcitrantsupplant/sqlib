@@ -10,6 +10,7 @@ import { getAuthStore, inMemoryPersistence } from './AuthStore.js';
 import { getAuthConfig } from './config.js';
 import { authGraphPersistenceFor } from './persistence.js';
 import { canonicalizeAdminEntry } from './principals.js';
+import { demoAdminPrincipals, recordDemoPeople } from './demoPeople.js';
 
 export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> {
   const config = getAuthConfig();
@@ -27,6 +28,8 @@ export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> 
       return canonical;
     })
     .filter((value): value is string => Boolean(value));
+  // Demo people marked `admin` (`config/demoMode.ts`). Empty outside demo mode.
+  admins.push(...demoAdminPrincipals());
 
   if (config.mode === 'disabled') {
     // Nothing enforces grants, so nothing needs loading — but keep the store
@@ -48,6 +51,7 @@ export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> 
   }
 
   store.setBootstrapAdmins(admins);
+  await recordDemoPeople(store, logger);
 
   logger?.info(
     {

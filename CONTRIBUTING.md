@@ -1,15 +1,10 @@
 # Contributing
 
-## External pull requests are not being accepted before 1.0
+sqlib is released under the [MIT licence](LICENSE). A contribution is
+licensed under the same terms. Issues, bug reports, questions, design
+discussion and pull requests are welcome.
 
-Before 1.0, sqlib uses a review-only licence (see [LICENSE](LICENSE)). That
-licence does not let us accept contributed code. We close pull requests from
-outside the project without a merge, whatever their quality. Issues, bug
-reports, questions and design discussion are welcome.
-
-The rest of this page describes how the repository is built and checked. It
-applies to a person who works in a fork for review, and the maintainers use it
-as their reference.
+This page describes how the repository is built and checked.
 
 ## Local setup
 

@@ -6,6 +6,7 @@ import {
   buildCanvasNodeData,
   useQueryGroupGraphState,
   LEFT_TO_RIGHT_HANDLES,
+  TOP_TO_BOTTOM_HANDLES,
 } from '../../src/composables/useQueryGroupGraphState';
 import { canvasNodeLabel } from '../../src/composables/queryGroupNodeLabel';
 import { createGraphStateFromExpanded, type GraphNodeState } from '../../src/composables/useQueryGroupGraph';
@@ -35,6 +36,26 @@ const nodeIn = (graph: ReturnType<typeof makeGraph>, id: string) =>
 
 const edgeIn = (graph: ReturnType<typeof makeGraph>, id: string) =>
   graph.edges.value.find(edge => edge.id === id)!;
+
+describe('useQueryGroupGraphState: layout direction', () => {
+  it('saves a top-to-bottom canvas as top to bottom, and reopens it that way', () => {
+    const graph = makeGraph();
+    for (const node of graph.nodes.value) Object.assign(node, TOP_TO_BOTTOM_HANDLES);
+    const snapshot = graph.serializeCanvasSnapshot()!;
+    expect(JSON.parse(snapshot).direction).toBe('TB');
+
+    const state = loaded();
+    const reopened = useQueryGroupGraphState({
+      initialGraphState: { ...state, version: { ...state.version!, canvasData: snapshot } },
+    });
+    for (const node of reopened.nodes.value) expect(node).toMatchObject(TOP_TO_BOTTOM_HANDLES);
+  });
+
+  it('writes no direction for a left-to-right canvas', () => {
+    const snapshot = makeGraph().serializeCanvasSnapshot()!;
+    expect(JSON.parse(snapshot)).not.toHaveProperty('direction');
+  });
+});
 
 describe('useQueryGroupGraphState: VueFlow conversion', () => {
   it('converts every graph node to a VueFlow node with left-to-right handles', () => {

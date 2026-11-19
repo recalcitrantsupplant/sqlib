@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { memoryCacheManager } from '../lib/MemoryCacheManager.js';
 import { getAuthConfig } from '../auth/config.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
+import { demoPeople, isDemoMode } from '../config/demoMode.js';
 import {
   MAX_DATA_GRAPH_LIBRARY_BYTES,
   MAX_DATA_GRAPH_VERSION_BYTES,
@@ -69,6 +70,22 @@ export function getHealthPayload() {
      * version is over a cap instead of offering a Run the server will refuse.
      * Null on a writable deployment, where none of them applies.
      */
+    /*
+     * Demo mode (`config/demoMode.ts`), and the people a visitor may act as.
+     * The account menu lists them; a pick sends `X-Sqlib-Demo-Person`. Null
+     * outside demo mode. Names and groups only: the operator chose them to be
+     * shown.
+     */
+    demo: isDemoMode()
+      ? {
+          people: demoPeople().map(person => ({
+            id: person.id,
+            name: person.name,
+            groups: [...person.groups],
+            admin: person.admin,
+          })),
+        }
+      : null,
     readOnlyRunLimits: isReadOnlyDeployment()
       ? {
           benchMaxRequests: readOnlyBenchMaxRequests(),
@@ -125,6 +142,25 @@ const healthResponseSchema = {
         'tupleSetVersionBytes',
         'tupleSetLibraryBytes',
       ],
+    },
+    demo: {
+      type: ['object', 'null'],
+      properties: {
+        people: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              groups: { type: 'array', items: { type: 'string' } },
+              admin: { type: 'boolean' },
+            },
+            required: ['id', 'name', 'groups', 'admin'],
+          },
+        },
+      },
+      required: ['people'],
     },
     readOnlyRunLimits: {
       type: ['object', 'null'],

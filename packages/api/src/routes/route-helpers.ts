@@ -242,14 +242,16 @@ export function sendRouteError(request: FastifyRequest, reply: FastifyReply, err
 
 export function withCacheHandler<TResult>(
   handler: RouteHandler<TResult>
-): (request: FastifyRequest, reply: FastifyReply) => Promise<Awaited<TResult> | void> {
-  return async (request, reply): Promise<Awaited<TResult> | void> => {
+): (request: FastifyRequest, reply: FastifyReply) => Promise<Awaited<TResult> | FastifyReply> {
+  return async (request, reply): Promise<Awaited<TResult> | FastifyReply> => {
     try {
       const cache = getCacheCoordinator();
       return await handler({ request, reply, cache }) as Awaited<TResult>;
     } catch (err) {
       sendRouteError(request, reply, err);
-      return;
+      // The reply, not undefined: the async onSend hooks have not finished, so
+      // Fastify would read undefined as "nothing sent" and send a second reply.
+      return reply;
     }
   };
 }
@@ -339,14 +341,15 @@ export function cacheRoute<const TSchema extends object, TResult>(
 
 export function withReposHandler<TResult>(
   handler: RouteReposHandler<TResult>
-): (request: FastifyRequest, reply: FastifyReply) => Promise<Awaited<TResult> | void> {
-  return async (request, reply): Promise<Awaited<TResult> | void> => {
+): (request: FastifyRequest, reply: FastifyReply) => Promise<Awaited<TResult> | FastifyReply> {
+  return async (request, reply): Promise<Awaited<TResult> | FastifyReply> => {
     try {
       const repos = getEntityRepositories();
       return await handler({ request, reply, repos }) as Awaited<TResult>;
     } catch (err) {
       sendRouteError(request, reply, err);
-      return;
+      // See withCacheHandler.
+      return reply;
     }
   };
 }

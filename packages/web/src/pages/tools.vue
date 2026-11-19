@@ -133,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import { demoPersonHeaders } from '../lib/demoPerson';
 import { computed, ref } from 'vue';
 import { useApiClient } from '../composables/useApiClient';
 import { useAuth } from '../composables/useAuth';
@@ -294,7 +295,7 @@ const executeTargetStreamHandler = async () => {
     const token = await auth.accessToken();
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...demoPersonHeaders() },
       body: JSON.stringify(payload),
     });
 

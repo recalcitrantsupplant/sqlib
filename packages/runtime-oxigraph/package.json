@@ -48,7 +48,7 @@
     "oxigraph",
     "wasm"
   ],
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "dependencies": {
     "oxigraph": "0.5.13"
   },

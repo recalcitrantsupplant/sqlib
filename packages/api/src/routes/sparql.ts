@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
+import { oxigraphExecutor } from '../lib/isolatedQuery.js';
 import { callerOfRequest, declaredReservedSlots, requireCallerForSlots } from '../auth/caller.js';
 import {
   sparqlQuerystringJsonSchema,
@@ -8,7 +9,6 @@ import {
 import { HttpSparqlExecutor } from '../server/HttpSparqlExecutor.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import { toError } from '../lib/toError.js';
-import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { ReadOnlySparqlExecutor } from '../server/ReadOnlySparqlExecutor.js';
 import { Backends } from '../persistence/utils/BackendUtils.js';
 import { backendTypeIriToKey, queryMethodIriToKey, resolveOxigraphConfig } from '../persistence/schemas/BackendSchema.js';
@@ -141,7 +141,7 @@ export default async function (
       const ephemeralStoreId = `ephemeral-sparql-${crypto.randomUUID()}`;
       const store = oxigraphStoreManager.createEphemeralStore(ephemeralStoreId);
       return {
-        executor: new OxigraphSparqlExecutor(store),
+        executor: oxigraphExecutor(store),
         ephemeralStoreId,
       };
     }
@@ -186,7 +186,7 @@ export default async function (
       const store = oxigraphStoreManager.getEphemeralStore(backend.$id) ??
         oxigraphStoreManager.createEphemeralStore(backend.$id);
       return {
-        executor: new OxigraphSparqlExecutor(store),
+        executor: oxigraphExecutor(store),
         ephemeralStoreId: null,
       };
     }
@@ -196,7 +196,7 @@ export default async function (
         ?? { storeType: 'ephemeral' as const, mode: 'readOnly' as const };
       const store = oxigraphStoreManager.getMemoryStore(backend.$id)
         ?? await oxigraphStoreManager.createMemoryStore(backend.$id, oxigraphConfig);
-      const executor = new OxigraphSparqlExecutor(store);
+      const executor = oxigraphExecutor(store);
       // Same guard the executor factory applies, and for the same reason: the
       // store has no read-only flag of its own, so an unguarded handle here
       // would accept updates that the next reload discards.

@@ -13,7 +13,9 @@
  *   returns. A run over in-process stores therefore stops at the first
  *   boundary after the deadline, not at the deadline itself (decision D4 in
  *   `docs/proposals/2026-09-review-work-packages.md` chose caps over moving
- *   Oxigraph onto worker threads).
+ *   Oxigraph onto worker threads). The rules playground is the exception: it
+ *   runs text that any caller types, so it runs in a worker thread that is
+ *   stopped at the deadline (`lib/isolatedRuleSet.ts`).
  * - The **iteration cap** bounds how far a rule set's fixpoint may iterate,
  *   whatever a request asks for.
  * - The **ETL node row cap** bounds what one ETL node in a group may read; a
@@ -96,4 +98,25 @@ export function readOnlyBenchConcurrentRuns(): number {
  */
 export function readOnlyEtlMaxRows(): number {
   return positiveInteger('SQLIB_READ_ONLY_ETL_MAX_ROWS', 100_000);
+}
+
+/**
+ * `SQLIB_PLAYGROUND_RULE_RUNS`: rules playground runs allowed at once. Each
+ * run has its own worker thread (`lib/isolatedRuleSet.ts`), so this bounds the
+ * CPU and memory that visitors' rules can take together.
+ */
+export function playgroundRuleRuns(): number {
+  return positiveInteger('SQLIB_PLAYGROUND_RULE_RUNS', 2);
+}
+
+/**
+ * `SQLIB_QUERY_WORKERS`: queries over in-memory Oxigraph stores that may run at
+ * once in worker threads (`lib/isolatedQuery.ts`). `0`, the default, runs them
+ * on the main thread, where the deadline cannot stop one query. A positive
+ * value runs each query in a worker that holds a copy of the store, and stops
+ * the worker at `SQLIB_EXECUTION_TIMEOUT_MS`. Each worker holds a full copy, so
+ * memory grows with the number of workers and the size of the stores.
+ */
+export function queryWorkers(): number {
+  return positiveInteger('SQLIB_QUERY_WORKERS', 0, { allowZero: true });
 }

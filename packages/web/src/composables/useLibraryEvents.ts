@@ -17,6 +17,7 @@
  * them for as long as the page is open; several of them would starve ordinary
  * fetches.
  */
+import { demoPersonHeaders } from '../lib/demoPerson';
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue';
 import { z } from 'zod';
 // @ts-ignore - Nuxt auto-import
@@ -179,7 +180,7 @@ export function useLibraryEvents(options: UseLibraryEventsOptions) {
     try {
       const token = await auth.accessToken();
       const response = await fetch(`${baseUrl}/events?${params.toString()}`, {
-        headers: token ? { authorization: `Bearer ${token}` } : {},
+        headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...demoPersonHeaders() },
         signal: controller.signal,
       });
 

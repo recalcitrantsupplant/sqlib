@@ -1,7 +1,7 @@
 {
   "name": "@sparql-query-lib/rdf-delta",
   "version": "0.0.0",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Turn a SPARQL update into the ground set of quads it would add and remove, without executing it.",

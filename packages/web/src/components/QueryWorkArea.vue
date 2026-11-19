@@ -535,6 +535,7 @@ import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { getLastBackend, queryDefaultSource, resolveQueryBackend, setLastBackend } from '@/lib/backendDefaults';
+import { backendDisplayName } from '@/lib/backendLabels';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
@@ -726,6 +727,8 @@ const currentQueryId = ref<string | null>(null);
 const availableBackends = computed<ApiBackend[]>(() => backendsStore.backends.value);
 const selectedBackendRecord = computed(() => availableBackends.value.find((backend) => backend.id === selectedBackend.value) ?? null);
 const backendsLoading = computed(() => backendsStore.loading.value);
+/** Whether the backends list has loaded. After that, an id it lacks is one this caller cannot use. */
+const backendsListLoaded = computed(() => backendsStore.loaded?.value ?? false);
 const backendsError = computed(() => backendsStore.error.value);
 
 // SPARQL editor state
@@ -1034,8 +1037,10 @@ const backendOptions = computed(() => {
   for (const backend of availableBackends.value) {
     optionMap.set(backend.id, backend.name);
   }
+  // Before the list loads, a default or pick is kept by its id. After, an id
+  // the list lacks is a backend this caller cannot run against: it is left out.
   const ensureOption = (value: string) => {
-    if (!value || value === NONE_BACKEND || optionMap.has(value)) {
+    if (!value || value === NONE_BACKEND || optionMap.has(value) || backendsListLoaded.value) {
       return;
     }
     optionMap.set(value, value);
@@ -1088,7 +1093,7 @@ const environmentDefaultBackend = computed<string | null>(() => {
 function backendLabel(id: string | null | undefined): string {
   if (!id) return '';
   if (id === EPHEMERAL_BACKEND_ID) return EPHEMERAL_BACKEND_LABEL;
-  return availableBackends.value.find((backend) => backend.id === id)?.name ?? id;
+  return backendDisplayName(id, availableBackends.value, backendsListLoaded.value);
 }
 
 /*
@@ -1122,7 +1127,7 @@ const detailsBackendOptions = computed(() => {
   }
   const current = defaultBackend.value;
   if (current && current !== NONE_BACKEND && !optionMap.has(current)) {
-    optionMap.set(current, current);
+    optionMap.set(current, backendDisplayName(current, availableBackends.value, backendsListLoaded.value));
   }
   return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
 });
@@ -1145,7 +1150,7 @@ const effectiveDefaultSource = computed(() => queryDefaultSource({
  * candidate is taken at its word, so a slow list does not empty the run bar.
  */
 function isBackendAvailable(id: string): boolean {
-  if (id === EPHEMERAL_BACKEND_ID || availableBackends.value.length === 0) return true;
+  if (id === EPHEMERAL_BACKEND_ID || (availableBackends.value.length === 0 && !backendsListLoaded.value)) return true;
   return availableBackends.value.some((backend) => backend.id === id);
 }
 

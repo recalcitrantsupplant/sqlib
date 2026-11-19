@@ -8,11 +8,14 @@
 
 type CanvasLabelSnapshot = {
   nodes?: Array<{ id?: string; label?: unknown; position?: { x?: unknown; y?: unknown } }>;
+  direction?: unknown;
 };
 
 export type SavedCanvasState = {
   positions: Map<string, { x: number; y: number }>;
   labels: Map<string, string>;
+  /** Which side edges leave each node from. A snapshot without it was drawn left to right. */
+  direction: 'LR' | 'TB';
 };
 
 /**
@@ -24,7 +27,7 @@ export type SavedCanvasState = {
  * position.
  */
 export const parseCanvasData = (canvasDataString: string | null | undefined): SavedCanvasState => {
-  const saved: SavedCanvasState = { positions: new Map(), labels: new Map() };
+  const saved: SavedCanvasState = { positions: new Map(), labels: new Map(), direction: 'LR' };
 
   if (!canvasDataString || typeof canvasDataString !== 'string') {
     return saved;
@@ -32,6 +35,7 @@ export const parseCanvasData = (canvasDataString: string | null | undefined): Sa
 
   try {
     const canvasData = JSON.parse(canvasDataString) as CanvasLabelSnapshot;
+    if (canvasData?.direction === 'TB') saved.direction = 'TB';
     if (canvasData?.nodes && Array.isArray(canvasData.nodes)) {
       for (const node of canvasData.nodes) {
         if (!node.id) {
