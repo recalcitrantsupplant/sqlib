@@ -727,11 +727,7 @@ const backendsLoading = computed(() => backendsStore.loading.value);
 const backendsError = computed(() => backendsStore.error.value);
 
 // SPARQL editor state
-const queryCode = ref(`SELECT ?country ?countryLabel WHERE {
-  ?country wdt:P31 wd:Q6256 .
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
-}
-LIMIT 100`);
+const queryCode = ref('');
 // Extensions defined after executeQuery is available
 let extensions = shallowRef([
   ...languageExtensionsFor('application/sparql-query'),

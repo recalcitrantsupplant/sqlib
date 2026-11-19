@@ -71,7 +71,7 @@ bash scripts/ci/all.sh
 each CI step is one `bash scripts/ci/<name>.sh`. You can therefore run the whole
 required pipeline locally, without GitHub Actions. `all.sh` runs, in order: `install.sh`, `lint.sh`, `ratchet-selftest.sh`,
 `any-ratchet.sh`, `orphan-ratchet.sh`, `typecheck.sh`, `build.sh`,
-`publish-check.sh`, `test.sh`.
+`publish-check.sh`, `throughput.sh`, `test.sh`.
 
 What each script does:
 
@@ -100,6 +100,11 @@ What each script does:
     like a consumer's (`check-generated-typings.mjs`).
 
   It publishes nothing, and needs no token.
+- **`throughput.sh`**: starts the built API server with a mock SPARQL endpoint,
+  and sends small queries to `POST /execute` and `POST /sparql` for about 20 s
+  (`packages/api/scripts/throughput-smoke.ts`). It fails when a case serves
+  fewer than 200 requests/s. One core serves more than 1,000, so the floor
+  detects synchronous work added to each request.
 - **`test.sh`**: vitest, for the affected packages. On a PR, it runs the packages
   changed since the base branch, and their dependents. On a trunk push, or with
   `CI_TEST_MODE=full`, it runs all packages. It calls vitest through

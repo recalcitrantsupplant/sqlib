@@ -90,7 +90,7 @@ beforeEach(async () => {
   put({
     $id: MAPPING,
     '@type': 'EtlColumnMappingVersion',
-    columns: JSON.stringify([{ columnName: 's', targetVariable: 's', termType: 'uri', nullPolicy: 'undef' }]),
+    columns: JSON.stringify([{ columnName: 's', termType: 'uri' }]),
   });
 });
 

@@ -16,16 +16,75 @@
     <Handle type="source" :position="sourceHandlePosition" />
 
     <div class="node-shell">
-      <button class="node-toggle" type="button" @click.stop="toggleOpen">
-        <span class="node-kind">{{ nodeTitle }}</span>
+      <div class="node-head">
+        <button
+          class="node-toggle"
+          type="button"
+          :aria-expanded="isOpen"
+          data-testid="node-toggle"
+          @click.stop="toggleOpen"
+        >
+          <span class="node-kind">{{ nodeTitle }}</span>
+        </button>
         <span
           v-if="validation"
           class="node-validation-badge"
           :class="validation.level"
           :title="validationTitle"
         >{{ validationBadgeText }}</span>
-        <span class="node-toggle-icon" :class="{ open: isOpen }">v</span>
-      </button>
+        <PopoverRoot v-if="canPeek" v-model:open="peekOpen">
+          <PopoverAnchor as-child>
+            <button
+              ref="peekButton"
+              type="button"
+              class="btn-compact node-peek nodrag"
+              :class="{ pinned: peekPinned }"
+              :aria-expanded="peekOpen"
+              data-testid="node-peek"
+              @click.stop="togglePeekPin"
+              @pointerenter="openPeekSoon"
+              @pointerleave="closePeekSoon"
+            >
+              <Eye :size="12" />Peek
+            </button>
+          </PopoverAnchor>
+          <PopoverPortal>
+            <PopoverContent
+              side="bottom"
+              align="start"
+              :side-offset="6"
+              :collision-padding="12"
+              class="node-peek-panel"
+              data-testid="node-peek-panel"
+              @open-auto-focus.prevent
+              @interact-outside="keepOpenForAnchor"
+              @pointerenter="cancelPeekClose"
+              @pointerleave="closePeekSoon"
+            >
+              <p v-if="peekState === 'loading'" class="node-peek-note">Loading…</p>
+              <p v-else-if="peekState === 'missing'" class="node-peek-note">{{ peekMissingText }}</p>
+              <Codemirror
+                v-else
+                :model-value="peekText"
+                :extensions="peekExtensions"
+                :style="{ width: '100%' }"
+              />
+            </PopoverContent>
+          </PopoverPortal>
+        </PopoverRoot>
+        <button
+          type="button"
+          class="icon-control icon-control--sm node-disclosure nodrag"
+          :title="isOpen ? 'Collapse' : 'Expand'"
+          :aria-label="isOpen ? 'Collapse' : 'Expand'"
+          :aria-expanded="isOpen"
+          data-testid="node-disclosure"
+          @click.stop="toggleOpen"
+        >
+          <ChevronDown v-if="isOpen" />
+          <ChevronRight v-else />
+        </button>
+      </div>
 
       <div v-if="execution" class="node-execution" :class="execution.status">
         <span class="node-execution-status">{{ executionStatusLabel }}</span>
@@ -60,9 +119,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import { Handle, Position, type NodeProps } from '@vue-flow/core';
+import { ChevronDown, ChevronRight, Eye } from '@lucide/vue';
+import { PopoverAnchor, PopoverContent, PopoverPortal, PopoverRoot } from 'reka-ui';
+import { Codemirror } from 'vue-codemirror';
+import { EditorState, type Extension } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { SHOW_NODE_RESULT } from '../../lib/nodeResult';
+import { languageExtensionsFor } from '@/lib/codeLanguage';
+import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
+import { useApiClient } from '@/composables/useApiClient';
+import { resolveRuleSetVersion } from '@/composables/ruleSetVersionLookup';
 
 const props = defineProps<NodeProps>();
 
@@ -249,6 +317,122 @@ const previewText = computed(() => {
 const toggleOpen = () => {
   isOpen.value = !isOpen.value;
 };
+
+/* ------------------------------------------------------------------ *
+ * Peek: the node's whole text, read-only, without opening the node.
+ * ------------------------------------------------------------------ */
+
+const ruleSetVersionId = computed(() => (props.data as { ruleSetVersionId?: string | null } | undefined)?.ruleSetVersionId ?? null);
+
+/*
+ * A query or patch node carries its text. A rule set node carries only the
+ * version IRI, so its SRL is read when the peek first opens.
+ */
+const canPeek = computed(() => {
+  if (nodeKind.value === 'ruleset') return !!ruleSetVersionId.value;
+  if (nodeKind.value === 'start' || nodeKind.value === 'end') return false;
+  return !!(queryString.value && queryString.value.trim());
+});
+
+const peekOpen = ref(false);
+const ruleSetSrl = ref<string | null>(null);
+const ruleSetState = ref<'idle' | 'loading' | 'ready' | 'missing'>('idle');
+const api = useApiClient();
+
+watch(ruleSetVersionId, () => {
+  ruleSetSrl.value = null;
+  ruleSetState.value = 'idle';
+});
+
+watch(peekOpen, async (open) => {
+  if (!open || nodeKind.value !== 'ruleset' || ruleSetState.value !== 'idle') return;
+  const versionId = ruleSetVersionId.value;
+  if (!versionId) return;
+  ruleSetState.value = 'loading';
+  try {
+    const resolved = await resolveRuleSetVersion(api, versionId);
+    if (versionId !== ruleSetVersionId.value) return;
+    ruleSetSrl.value = resolved?.srlDocument ?? null;
+    ruleSetState.value = ruleSetSrl.value?.trim() ? 'ready' : 'missing';
+  } catch {
+    if (versionId === ruleSetVersionId.value) ruleSetState.value = 'missing';
+  }
+});
+
+const peekState = computed(() => {
+  if (nodeKind.value !== 'ruleset') return 'ready';
+  return ruleSetState.value === 'idle' ? 'loading' : ruleSetState.value;
+});
+const peekMissingText = 'No rules to show';
+const peekText = computed(() => (nodeKind.value === 'ruleset' ? ruleSetSrl.value ?? '' : queryString.value ?? ''));
+
+const peekContentType = computed(() => {
+  switch (nodeKind.value) {
+    case 'ruleset': return 'application/srl';
+    case 'patch': return 'application/sparql-update';
+    default: return 'application/sparql-query';
+  }
+});
+
+const peekExtensions = computed<Extension[]>(() => [
+  ...languageExtensionsFor(peekContentType.value),
+  EditorState.readOnly.of(true),
+  EditorView.editable.of(false),
+  rdfSyntaxHighlighting,
+  EditorView.lineWrapping,
+  EditorView.theme({
+    '&': { backgroundColor: 'transparent' },
+    '.cm-gutters': { display: 'none' },
+    '.cm-activeLine': { backgroundColor: 'transparent' },
+    '.cm-content': { padding: '0' },
+  }),
+]);
+
+/*
+ * Hover shows the peek, and it goes when the pointer leaves both the button and
+ * the panel, after a short grace so the pointer can cross the gap. A click pins
+ * it open until a second click, Escape or a click outside.
+ */
+const peekPinned = ref(false);
+const peekButton = ref<HTMLElement | null>(null);
+/* The button toggles the pin itself; a press on it is not a click outside. */
+const keepOpenForAnchor = (event: Event) => {
+  const target = event.target as Node | null;
+  if (target && peekButton.value?.contains(target)) event.preventDefault();
+};
+watch(peekOpen, (open) => { if (!open) peekPinned.value = false; });
+const togglePeekPin = () => {
+  clearTimers();
+  if (peekPinned.value) {
+    peekOpen.value = false;
+    return;
+  }
+  peekPinned.value = true;
+  peekOpen.value = true;
+};
+let openTimer: ReturnType<typeof setTimeout> | null = null;
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
+const clearTimers = () => {
+  if (openTimer) clearTimeout(openTimer);
+  if (closeTimer) clearTimeout(closeTimer);
+  openTimer = null;
+  closeTimer = null;
+};
+const openPeekSoon = () => {
+  if (peekOpen.value) return cancelPeekClose();
+  clearTimers();
+  openTimer = setTimeout(() => { peekOpen.value = true; }, 250);
+};
+const closePeekSoon = () => {
+  if (peekPinned.value) return;
+  clearTimers();
+  closeTimer = setTimeout(() => { peekOpen.value = false; }, 200);
+};
+const cancelPeekClose = () => {
+  if (closeTimer) clearTimeout(closeTimer);
+  closeTimer = null;
+};
+onBeforeUnmount(clearTimers);
 </script>
 
 <style scoped>
@@ -291,8 +475,6 @@ const toggleOpen = () => {
   justify-content: center;
   min-width: 1.25rem;
   height: 1.25rem;
-  margin-left: auto;
-  margin-right: var(--space-4);
   padding: 0 var(--space-3);
   border-radius: var(--radius-full, 999px);
   border: 1px solid transparent;
@@ -394,11 +576,18 @@ const toggleOpen = () => {
   padding: var(--space-5) var(--space-6);
 }
 
+.node-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .node-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
   border: none;
   background: transparent;
   padding: 0;
@@ -415,14 +604,25 @@ const toggleOpen = () => {
   color: var(--ink-secondary);
 }
 
-.node-toggle-icon {
-  font-size: var(--text-body);
-  color: var(--ink-muted);
-  transition: transform 0.2s ease;
+.node-peek {
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
-.node-toggle-icon.open {
-  transform: rotate(180deg);
+.node-peek.pinned {
+  border-color: var(--action);
+  color: var(--action);
+}
+
+.node-disclosure {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+.node-disclosure:hover {
+  border-color: var(--border-default);
+  color: var(--ink);
 }
 
 .node-details {
@@ -471,5 +671,28 @@ const toggleOpen = () => {
   height: 10px;
   background: var(--gray-800);
   border: 2px solid var(--surface);
+}
+</style>
+
+<!-- The peek panel is portalled to <body>, outside this component's scope. -->
+<style>
+.node-peek-panel {
+  z-index: 50;
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: min(24rem, 60vh);
+  overflow: auto;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  color: var(--ink);
+  font-size: var(--text-code, var(--text-body));
+}
+
+.node-peek-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-body);
 }
 </style>

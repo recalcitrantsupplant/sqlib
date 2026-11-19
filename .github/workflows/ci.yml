@@ -68,6 +68,9 @@ jobs:
       # After build: it checks the built entry points of the packages that are
       # not `private: true` (issue #258). Nothing is published here.
       - run: bash scripts/ci/publish-check.sh
+      # After build: it starts the built server. Fails when small queries fall
+      # under a request-rate floor. About 20 s.
+      - run: bash scripts/ci/throughput.sh
       - if: github.event_name == 'pull_request'
         run: bash scripts/ci/commitlint.sh
 

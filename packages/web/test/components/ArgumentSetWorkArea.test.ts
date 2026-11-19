@@ -287,7 +287,37 @@ describe('ArgumentSetWorkArea — the Fits list', () => {
     const rows = area.findAll('[data-testid="argument-set-fits"] li');
     expect(rows).toHaveLength(1);
     expect(rows[0].text()).toContain('Cities');
-    expect(rows[0].text()).toContain('fits');
+    expect(rows[0].text()).toContain('Matches');
+  });
+
+  it('hides queries that do not match until the No match filter is on', async () => {
+    api.listQueries.mockResolvedValue([
+      { id: 'urn:sqlib:query:1', name: 'Cities', isPartOf: ['urn:sqlib:library:lib1'], currentVersionNumber: 1 },
+      { id: 'urn:sqlib:query:2', name: 'Rivers', isPartOf: ['urn:sqlib:library:lib1'], currentVersionNumber: 1 },
+    ]);
+    api.getQueryVersion.mockImplementation(async (id: string) =>
+      queryVersion(id === 'urn:sqlib:query:1' ? ['city'] : ['river']));
+    store.getArgumentSet.mockResolvedValue({
+      id: 'urn:sqlib:argument-set:1', name: 'Cities', libraryId: 'urn:sqlib:library:lib1',
+      scope: null, targetId: null, tupleBindings: [{ tupleSignature: 'city', variables: ['city'], rows: [] }],
+      scalarBindings: [], dateCreated: '', dateModified: '',
+    });
+
+    const area = mount(ArgumentSetWorkArea, { props: { argumentSetId: 'urn:sqlib:argument-set:1' } });
+    await flushPromises();
+
+    expect(area.findAll('[data-testid="argument-set-fits"] li').map(row => row.text())).toEqual([
+      expect.stringContaining('Cities'),
+    ]);
+    const mismatch = area.get('[data-testid="argument-set-fits-filter-mismatch"]');
+    expect(mismatch.attributes('aria-pressed')).toBe('false');
+    expect(mismatch.text()).toContain('1');
+
+    await mismatch.trigger('click');
+    const rows = area.findAll('[data-testid="argument-set-fits"] li');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].text()).toContain('Rivers');
+    expect(rows[1].get('[data-testid="argument-set-open"]').attributes('disabled')).toBeDefined();
   });
 
   it('leaves out a query in another library', async () => {

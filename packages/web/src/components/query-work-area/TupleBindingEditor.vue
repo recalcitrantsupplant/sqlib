@@ -185,12 +185,12 @@
         <button
           v-if="view === 'rows'"
           type="button"
-          class="btn-add"
+          class="btn-compact"
           data-testid="argument-add-row"
           :disabled="disabled"
           @click="addRow"
         >
-          <CirclePlus :size="13" /> Add row
+          <CirclePlus :size="12" /> Add row
         </button>
         <!--
           Rows typed here belong to this query; rows worth reusing belong to a
@@ -212,12 +212,12 @@
         <button
           v-if="rows.length > 0"
           type="button"
-          class="btn-add"
+          class="btn-compact"
           data-testid="tuple-set-export-open"
           :disabled="disabled"
           @click="exporting = !exporting"
         >
-          <Table2 :size="13" /> Save as tuple set…
+          <Table2 :size="12" /> Save as tuple set…
         </button>
         <InlineNote v-if="rows.length && view === 'rows'" as="span" size="xs">Blank cells bind UNDEF.</InlineNote>
       </div>
@@ -262,12 +262,12 @@
         <div class="export-actions">
           <button
             type="button"
-            class="btn-add"
+            class="btn-compact btn-primary"
             data-testid="tuple-set-export-confirm"
             :disabled="exportBusy || exportName.trim().length === 0"
             @click="saveAsTupleSet"
           >{{ exportBusy ? 'Saving…' : 'Save as tuple set' }}</button>
-          <button type="button" class="btn-add" data-testid="tuple-set-export-cancel" @click="exporting = false">
+          <button type="button" class="btn-compact" data-testid="tuple-set-export-cancel" @click="exporting = false">
             Cancel
           </button>
         </div>
@@ -777,6 +777,7 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
 
 .clause-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
@@ -824,27 +825,7 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
   margin-top: var(--space-3);
 }
 
-.btn-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: var(--space-1) var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink-secondary);
-  font-family: inherit;
-  font-size: var(--text-micro);
-  cursor: pointer;
-}
 
-.btn-add:hover:not(:disabled) {
-  background: var(--surface-subtle);
-}
 
-.btn-add:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 </style>

@@ -19,7 +19,6 @@ overrideCacheCoordinatorProvider({
 import { EtlService } from '../../src/lib/EtlService.js';
 import type { ColumnDefinition } from '../../src/persistence/schemas/EtlColumnMappingVersionSchema.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
-import { log } from '../../src/lib/log.js';
 
 describe('EtlService', () => {
   let service: EtlService;
@@ -215,17 +214,13 @@ describe('EtlService', () => {
       const columns: ColumnDefinition[] = [
         {
           columnName: 'name',
-          targetVariable: 'customerName',
           termType: 'literal',
           datatypeIri: 'http://www.w3.org/2001/XMLSchema#string',
-          nullPolicy: 'undef',
         },
         {
           columnName: 'age',
-          targetVariable: 'customerAge',
           termType: 'literal',
           datatypeIri: 'http://www.w3.org/2001/XMLSchema#integer',
-          nullPolicy: 'skipRow',
         },
       ];
 
@@ -270,210 +265,72 @@ describe('EtlService', () => {
   });
 
   describe('convertRowsToBindings', () => {
-    it('converts DuckDB rows to SPARQL bindings using literal mappings', () => {
+    it('binds each column to the variable of its name, with its datatype', () => {
       const rows = [
         { name: 'Alice', age: 25 },
         { name: 'Bob', age: 30 },
       ];
 
       const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'name',
-          targetVariable: 'customerName',
-          termType: 'literal',
-          datatypeIri: 'http://www.w3.org/2001/XMLSchema#string',
-          nullPolicy: 'undef',
-        },
-        {
-          columnName: 'age',
-          targetVariable: 'customerAge',
-          termType: 'literal',
-          datatypeIri: 'http://www.w3.org/2001/XMLSchema#integer',
-          nullPolicy: 'undef',
-        },
+        { columnName: 'name', termType: 'literal', datatypeIri: 'http://www.w3.org/2001/XMLSchema#string' },
+        { columnName: 'age', termType: 'literal', datatypeIri: 'http://www.w3.org/2001/XMLSchema#integer' },
       ];
 
       const bindings = service.convertRowsToBindings(rows, columnDefs);
 
       expect(bindings).toHaveLength(2);
       expect(bindings[0]).toEqual({
-        customerName: {
-          type: 'literal',
-          value: 'Alice',
-          datatype: 'http://www.w3.org/2001/XMLSchema#string',
-        },
-        customerAge: {
-          type: 'literal',
-          value: '25',
-          datatype: 'http://www.w3.org/2001/XMLSchema#integer',
-        },
+        name: { type: 'literal', value: 'Alice', datatype: 'http://www.w3.org/2001/XMLSchema#string' },
+        age: { type: 'literal', value: '25', datatype: 'http://www.w3.org/2001/XMLSchema#integer' },
       });
     });
 
-    /**
-     * Issue #200: DuckDB's TIMESTAMP has a space where xsd:dateTime wants a `T`,
-     * so the literal declared a datatype its own lexical form did not satisfy.
-     * Scoped to columns mapped to xsd:dateTime, so a string column that happens
-     * to look like a timestamp goes out as it was read.
-     */
-    it('writes a DuckDB timestamp in the lexical form xsd:dateTime declares', () => {
-      const rows = [
-        { seen: '2020-01-02 03:04:05', note: '2020-01-02 03:04:05' },
-      ];
+    it('uses a value as it is, for an IRI and for a literal', () => {
+      const rows = [{ customer: 'http://example.org/customer/123', seen: '2020-01-02 03:04:05' }];
 
       const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'seen',
-          targetVariable: 'seen',
-          termType: 'literal',
-          datatypeIri: 'http://www.w3.org/2001/XMLSchema#dateTime',
-          nullPolicy: 'undef',
-        },
-        {
-          columnName: 'note',
-          targetVariable: 'note',
-          termType: 'literal',
-          datatypeIri: 'http://www.w3.org/2001/XMLSchema#string',
-          nullPolicy: 'undef',
-        },
+        { columnName: 'customer', termType: 'uri' },
+        { columnName: 'seen', termType: 'literal', datatypeIri: 'http://www.w3.org/2001/XMLSchema#dateTime' },
       ];
 
-      const [binding] = service.convertRowsToBindings(rows, columnDefs);
-
-      expect(binding.seen).toEqual({
-        type: 'literal',
-        value: '2020-01-02T03:04:05',
-        datatype: 'http://www.w3.org/2001/XMLSchema#dateTime',
-      });
-      expect(binding.note).toEqual({
-        type: 'literal',
-        value: '2020-01-02 03:04:05',
-        datatype: 'http://www.w3.org/2001/XMLSchema#string',
-      });
+      expect(service.convertRowsToBindings(rows, columnDefs)).toEqual([{
+        customer: { type: 'uri', value: 'http://example.org/customer/123' },
+        seen: { type: 'literal', value: '2020-01-02 03:04:05', datatype: 'http://www.w3.org/2001/XMLSchema#dateTime' },
+      }]);
     });
 
-    it('converts rows to URI bindings with IRI template', () => {
-      const rows = [{ customerId: '123' }];
-
-      const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'customerId',
-          targetVariable: 'customer',
-          termType: 'uri',
-          iriTemplate: 'http://example.org/customer/{value}',
-          nullPolicy: 'undef',
-        },
-      ];
-
-      const bindings = service.convertRowsToBindings(rows, columnDefs);
-
-      expect(bindings[0]).toEqual({
-        customer: {
-          type: 'uri',
-          value: 'http://example.org/customer/123',
-        },
-      });
-    });
-
-    it('handles null values with undef policy by omitting from binding', () => {
-      const rows = [{ name: 'Alice', age: null }];
-
-      const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'name',
-          targetVariable: 'name',
-          termType: 'literal',
-          nullPolicy: 'undef',
-        },
-        {
-          columnName: 'age',
-          targetVariable: 'age',
-          termType: 'literal',
-          nullPolicy: 'undef',
-        },
-      ];
-
-      const bindings = service.convertRowsToBindings(rows, columnDefs);
-
-      expect(bindings).toHaveLength(1);
-      expect(bindings[0]).toHaveProperty('name');
-      expect(bindings[0]).not.toHaveProperty('age');
-    });
-
-    it('handles null values with skipRow policy by excluding entire row', () => {
+    it('leaves a NULL unbound and keeps the row', () => {
       const rows = [
         { name: 'Alice', age: 25 },
         { name: 'Bob', age: null },
-        { name: 'Charlie', age: 35 },
       ];
 
       const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'name',
-          targetVariable: 'name',
-          termType: 'literal',
-          nullPolicy: 'undef',
-        },
-        {
-          columnName: 'age',
-          targetVariable: 'age',
-          termType: 'literal',
-          nullPolicy: 'skipRow',
-        },
+        { columnName: 'name', termType: 'literal' },
+        { columnName: 'age', termType: 'literal' },
       ];
 
       const bindings = service.convertRowsToBindings(rows, columnDefs);
 
       expect(bindings).toHaveLength(2);
-      expect(bindings[0].name.value).toBe('Alice');
-      expect(bindings[1].name.value).toBe('Charlie');
+      expect(bindings[1]).toHaveProperty('name');
+      expect(bindings[1]).not.toHaveProperty('age');
     });
 
     it('adds language tag to literals when specified', () => {
       const rows = [{ description: 'Hello' }];
 
       const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'description',
-          targetVariable: 'desc',
-          termType: 'literal',
-          lang: 'en',
-          nullPolicy: 'undef',
-        },
+        { columnName: 'description', termType: 'literal', lang: 'en' },
       ];
 
       const bindings = service.convertRowsToBindings(rows, columnDefs);
 
-      expect(bindings[0].desc).toEqual({
+      expect(bindings[0].description).toEqual({
         type: 'literal',
         value: 'Hello',
         'xml:lang': 'en',
       });
-    });
-
-    it('skips invalid IRIs with warning', () => {
-      const warnSpy = vi.spyOn(log, 'warn');
-      const rows = [{ id: 'invalid value' }];
-
-      const columnDefs: ColumnDefinition[] = [
-        {
-          columnName: 'id',
-          targetVariable: 'uri',
-          termType: 'uri',
-          nullPolicy: 'undef',
-        },
-      ];
-
-      const bindings = service.convertRowsToBindings(rows, columnDefs);
-
-      expect(bindings).toHaveLength(1);
-      expect(bindings[0]).not.toHaveProperty('uri');
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ iri: 'invalid value' }),
-        expect.stringContaining('Invalid IRI generated'),
-      );
-
-      warnSpy.mockRestore();
     });
   });
 
@@ -548,9 +405,7 @@ describe('EtlService', () => {
       const columns: ColumnDefinition[] = [
         {
           columnName: 'test',
-          targetVariable: 'var',
           termType: 'literal',
-          nullPolicy: 'undef',
         },
       ];
 

@@ -124,7 +124,7 @@ describe('QueryGroupArgumentsPanel', () => {
       tupleBindings: ref([{ tupleSignature: 'lat|lon', variables: ['lat', 'lon'], rows: [] }]),
     });
     const w = mountPanel([tuple('city')], args);
-    expect(w.find('.signature-verdict--mismatch').exists()).toBe(true);
+    expect(w.find('[data-testid="signature-verdict-mismatch"]').exists()).toBe(true);
   });
 
   it('hands the work area what the composable says should run', () => {

@@ -186,7 +186,7 @@ const BODIES: Record<string, object> = {
     sql: "SELECT 'nobody runs this' AS name",
     sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
     backendId: 'urn:sqlib:backend:ephemeral',
-    columns: [{ columnName: 'name', targetVariable: '?name', termType: 'literal', nullPolicy: 'undef' }],
+    columns: [{ columnName: 'name', termType: 'literal' }],
   },
 };
 

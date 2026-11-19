@@ -50,6 +50,7 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { requireAdmin, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { duckDbService } from './DuckDbService.js';
 import { EtlService } from './EtlService.js';
+import { RetiredColumnFieldError, toColumnDefinitions } from '@sparql-query-lib/runtime-etl';
 import { createTupleSetVersion, MAX_TUPLE_SET_VERSION_BYTES } from './TupleSetVersionWriter.js';
 import { currentVersionOfParent, isUnchangedReSnapshot } from './reSnapshot.js';
 import { beginEtlExecution, completeEtlExecution, failEtlExecution } from './etlRunLog.js';
@@ -96,22 +97,31 @@ function variablesOf(columns: ColumnDefinition[]): string[] {
   const seen = new Set<string>();
   const vars: string[] = [];
   for (const column of columns) {
-    if (!column.targetVariable || seen.has(column.targetVariable)) continue;
-    seen.add(column.targetVariable);
-    vars.push(column.targetVariable);
+    if (!column.columnName || seen.has(column.columnName)) continue;
+    seen.add(column.columnName);
+    vars.push(column.columnName);
   }
   return vars;
 }
 
 function parseColumnDefinitions(mapping: PersistedEtlColumnMappingVersion): ColumnDefinition[] {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(mapping.columns) as unknown;
-    return Array.isArray(parsed) ? (parsed as ColumnDefinition[]) : [];
+    parsed = JSON.parse(mapping.columns) as unknown;
   } catch {
     throw new TupleSetEtlSourceError(
       `Column mapping version ${mapping.$id} does not hold a readable column list`,
       400,
     );
+  }
+  if (!Array.isArray(parsed)) return [];
+  try {
+    return toColumnDefinitions(parsed);
+  } catch (error) {
+    if (error instanceof RetiredColumnFieldError) {
+      throw new TupleSetEtlSourceError(`Column mapping version ${mapping.$id}: ${error.message}`, 400);
+    }
+    throw error;
   }
 }
 

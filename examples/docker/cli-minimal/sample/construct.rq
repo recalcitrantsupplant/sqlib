@@ -1,2 +1,5 @@
 PREFIX ex: <http://ex/>
-CONSTRUCT { ?c ex:name ?name ; ex:joined ?joined } WHERE { VALUES (?c ?name ?joined) { (UNDEF UNDEF UNDEF) } }
+CONSTRUCT { ?c ex:name ?name ; ex:joined ?joined } WHERE {
+  VALUES (?id ?name ?joined) { (UNDEF UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://ex/c/", ENCODE_FOR_URI(?id))) AS ?c)
+}

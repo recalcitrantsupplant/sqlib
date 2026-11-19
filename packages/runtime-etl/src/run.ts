@@ -14,7 +14,7 @@ import {
   type QueryTemplate,
   type TemplateArgumentSet,
 } from '@sparql-query-lib/runtime';
-import { rowsToBindings, toArgumentSet, type ColumnDefinition, type EtlWarning } from './columns.js';
+import { assertPlainColumns, rowsToBindings, toArgumentSet, type ColumnDefinition } from './columns.js';
 
 /** What is known about one chunk's CONSTRUCT result besides its text. */
 export interface EtlOutputChunk {
@@ -57,8 +57,6 @@ export interface EtlRun {
   signal?: AbortSignal;
   /** Turns an aborted signal into the error to throw. Default: its reason. */
   abortError?: (signal: AbortSignal) => Error;
-  /** Rows that map with a problem the run continues past. */
-  warn?: EtlWarning;
 }
 
 export interface EtlResult {
@@ -72,6 +70,8 @@ function defaultAbortError(signal: AbortSignal): Error {
 }
 
 export async function runEtl(run: EtlRun): Promise<EtlResult> {
+  // Refused before the source query runs, not on its first chunk.
+  assertPlainColumns(run.columns);
   const abortError = run.abortError ?? defaultAbortError;
   const render = typeof run.query === 'function'
     ? run.query
@@ -98,7 +98,7 @@ export async function runEtl(run: EtlRun): Promise<EtlResult> {
       );
     }
 
-    const bindings = rowsToBindings(rows, run.columns, run.warn);
+    const bindings = rowsToBindings(rows, run.columns);
 
     if (bindings.length > 0) {
       const queryText = render(toArgumentSet(bindings, run.columns));

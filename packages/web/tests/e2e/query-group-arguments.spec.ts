@@ -102,9 +102,9 @@ test.describe('Query group arguments (mocked)', () => {
      * is what makes the verdict, and the verdict is computed against the start
      * node's declaration, so this is the group's signature answering.
      */
-    await expect(page.locator('.signature-verdict')).toHaveText('no values');
+    await expect(page.getByTestId('signature-verdict-mismatch')).toContainText('no values');
     await fillOneRow(page, 'https://example.org/city/perth', 'https://example.org/country/au');
-    await expect(page.locator('.signature-verdict')).toHaveText('matches the group signature');
+    await expect(page.getByTestId('signature-verdict-fits')).toContainText('Matches signature');
   });
 
   test('a set authored here is created on the group, and comes back as its v1', async ({ page }) => {
