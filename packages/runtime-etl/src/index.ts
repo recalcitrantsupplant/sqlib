@@ -7,12 +7,13 @@
  * will run it with the same stream and an in-process store.
  */
 export {
+  assertPlainColumns,
+  RetiredColumnFieldError,
   rowsToBindings,
   toArgumentSet,
-  toLexicalForm,
+  toColumnDefinitions,
   type Binding,
   type ColumnDefinition,
-  type EtlWarning,
 } from './columns.js';
 
 export { DETECTED_IRI_SCHEMES, valuesLookLikeIris } from './infer.js';

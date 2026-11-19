@@ -148,12 +148,10 @@
 
             <div v-else class="mappings-table">
               <div class="table-header">
-                <div class="col-sql-var">SQL Column</div>
+                <div class="col-sql-var">Column</div>
                 <div class="col-sql-type">SQL Type</div>
-                <div class="col-sparql-var">SPARQL Variable</div>
                 <div class="col-term-type">Term Type</div>
-                <div class="col-datatype">Datatype / IRI template</div>
-                <div class="col-null-policy">If null</div>
+                <div class="col-datatype">Datatype</div>
               </div>
               <div class="table-body">
                 <div v-for="(mapping, index) in columnMappings" :key="index" class="mapping-row">
@@ -163,9 +161,6 @@
                   <div class="col-sql-type">
                     <span class="sql-type">{{ getSqlType(mapping.columnName) }}</span>
                   </div>
-                  <div class="col-sparql-var">
-                    <input v-model="mapping.targetVariable" :disabled="isReadOnly" @input="onMappingEdit" placeholder="?var" />
-                  </div>
                   <div class="col-term-type">
                     <select v-model="mapping.termType" :disabled="isReadOnly" @change="onMappingEdit">
                       <option value="literal">Literal</option>
@@ -173,30 +168,13 @@
                     </select>
                   </div>
                   <div class="col-datatype">
-                    <template v-if="mapping.termType === 'literal'">
-                      <DatatypeSelect
-                        :model-value="mapping.datatypeIri"
-                        :disabled="isReadOnly"
-                        test-id="etl-datatype"
-                        @update:model-value="(next) => onDatatypeChange(mapping, next)"
-                      />
-                    </template>
-                    <input
-                      v-else
-                      v-model="mapping.iriTemplate"
+                    <DatatypeSelect
+                      v-if="mapping.termType === 'literal'"
+                      :model-value="mapping.datatypeIri"
                       :disabled="isReadOnly"
-                      data-testid="etl-iri-template"
-                      title="{value} takes the column value, URI-encoded"
-                      placeholder="Value as is, or https://example.org/{value}"
-                      class="datatype-custom-input"
-                      @input="onIriTemplateEdit(mapping)"
+                      test-id="etl-datatype"
+                      @update:model-value="(next) => onDatatypeChange(mapping, next)"
                     />
-                  </div>
-                  <div class="col-null-policy">
-                    <select v-model="mapping.nullPolicy" :disabled="isReadOnly" data-testid="etl-null-policy" @change="onMappingEdit">
-                      <option value="undef">Leave unbound</option>
-                      <option value="skipRow">Skip row</option>
-                    </select>
                   </div>
                 </div>
               </div>
@@ -552,19 +530,16 @@ import { useEntityDraft } from '../composables/useEntityDraft';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useEtlJobsStore, type EtlJobVersion } from '../composables/useEtlJobsStore';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
-import { mergeColumnMappings } from '../lib/etlColumnMappings';
+import { mergeColumnMappings, toMappingRow } from '../lib/etlColumnMappings';
 import { NO_STAMPS, stampsOf, type EntityStamps } from '../lib/entityStamps';
 
 const config = useRuntimeConfig();
 
 interface ColumnMapping {
   columnName: string;
-  targetVariable: string;
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
-  iriTemplate?: string;
-  nullPolicy: 'undef' | 'skipRow';
 }
 
 interface PreviewSchema {
@@ -744,7 +719,7 @@ const { isScratch, savedAt: scratchSavedAt, flush: flushScratch } = useScratchRe
     templateQuery.value = body.templateQuery ?? null;
     outputFormat.value = body.outputFormat ?? 'text/turtle';
     selectedBackendId.value = body.backendId ?? EPHEMERAL_BACKEND_ID;
-    columnMappings.value = body.columnMappings ? [...body.columnMappings] : [];
+    columnMappings.value = body.columnMappings ? body.columnMappings.map(toMappingRow) : [];
     mappingSourceSql.value = sqlQuery.value;
     /*
      * Carried across too, because it is not a preference — it is the record of
@@ -836,7 +811,7 @@ function applyEditorBody(body: EtlDraftBody) {
   sqlQuery.value = body.sql ?? DEFAULT_SQL;
   sparqlTemplate.value = body.sparqlTemplate ?? '';
   templateQuery.value = body.templateQuery ?? null;
-  columnMappings.value = body.columnMappings ? body.columnMappings.map((mapping) => ({ ...mapping })) : [];
+  columnMappings.value = body.columnMappings ? body.columnMappings.map(toMappingRow) : [];
   mappingSourceSql.value = sqlQuery.value;
   // A body that was saved is the author's, never the generator's: editing the
   // mappings must not overwrite the template it came back with.
@@ -1034,7 +1009,7 @@ const applyVersion = async (version: EtlJobVersion) => {
     if (version.currentColumnMappingVersionId) {
       try {
         const mapping = await etlJobsStore.fetchColumnMappingVersion(version.currentColumnMappingVersionId);
-        columnMappings.value = mapping.columns.map((column) => ({ ...column })) as ColumnMapping[];
+        columnMappings.value = mapping.columns.map(toMappingRow);
         mappingSourceSql.value = version.sql;
       } catch (error) {
         console.error('[EtlPlayground] Failed to load the column mapping', error);
@@ -1549,7 +1524,7 @@ const generateSparqlTemplate = () => {
     return;
   }
 
-  const variables = columnMappings.value.map(m => m.targetVariable);
+  const variables = columnMappings.value.map(m => m.columnName);
   const predicateTriples = variables.map(v => `   <https://etl/${v}> ?${v}`).join(' ;\n');
   const valuesVars = variables.map(v => `?${v}`).join(' ');
   const undefValues = variables.map(() => 'UNDEF').join(' ');
@@ -1561,12 +1536,6 @@ const generateSparqlTemplate = () => {
     ( ${undefValues} )
   }
 }`;
-};
-
-/** An empty template means "the value as is", which the saved row records by omission. */
-const onIriTemplateEdit = (mapping: ColumnMapping) => {
-  if (!mapping.iriTemplate) delete mapping.iriTemplate;
-  onMappingEdit();
 };
 
 /*
@@ -2002,7 +1971,7 @@ onUnmounted(() => {
 
 .table-header {
   display: grid;
-  grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 2fr 1.1fr;
+  grid-template-columns: 1.3fr 0.9fr 1fr 2fr;
   gap: 6px;
   padding: var(--space-2) var(--space-5);
   background: var(--surface-subtle);
@@ -2021,7 +1990,7 @@ onUnmounted(() => {
 
 .mapping-row {
   display: grid;
-  grid-template-columns: 1.3fr 0.9fr 1.3fr 1fr 2fr 1.1fr;
+  grid-template-columns: 1.3fr 0.9fr 1fr 2fr;
   gap: 6px;
   padding: var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--border-default);
@@ -2035,10 +2004,8 @@ onUnmounted(() => {
 
 .col-sql-var,
 .col-sql-type,
-.col-sparql-var,
 .col-term-type,
-.col-datatype,
-.col-null-policy {
+.col-datatype {
   display: flex;
   align-items: center;
   min-height: 28px;
@@ -2060,7 +2027,6 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
 }
 
-.col-sparql-var input,
 .col-datatype input {
   width: 100%;
   padding: var(--space-2) var(--space-3);
@@ -2072,8 +2038,7 @@ onUnmounted(() => {
 }
 
 .col-term-type select,
-.col-datatype select,
-.col-null-policy select {
+.col-datatype select {
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
@@ -2086,11 +2051,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.datatype-custom-input {
-  font-size: var(--text-micro) !important;
-  padding: var(--space-1) var(--space-2) !important;
 }
 
 /* Vertical Resizer (between main content and results panel) */

@@ -161,7 +161,7 @@ export async function buildExportBundle(options: BuildExportBundleOptions): Prom
   );
 
   return {
-    version: 1,
+    version: 2,
     library: options.library,
     queries: Object.fromEntries(entries),
     generatedAt: options.generatedAt ?? new Date().toISOString(),

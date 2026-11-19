@@ -12,11 +12,8 @@ const SAVED_SQL = 'SELECT site, label FROM sample';
 const MAPPING_VERSION = 'urn:sqlib:etl-column-mapping-version:m1';
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
 const SAVED_MAPPINGS = [
-  { columnName: 'site', targetVariable: 'thing', termType: 'uri' as const, nullPolicy: 'skipRow' as const },
-  {
-    columnName: 'label', targetVariable: 'label', termType: 'uri' as const,
-    iriTemplate: 'https://example.org/property/{value}', nullPolicy: 'skipRow' as const,
-  },
+  { columnName: 'site', termType: 'uri' as const },
+  { columnName: 'label', termType: 'literal' as const, lang: 'en' },
 ];
 
 const store = vi.hoisted(() => ({
@@ -68,10 +65,8 @@ function previewFor(sql: string) {
     inferredMapping: {
       columns: columns.map((columnName) => ({
         columnName,
-        targetVariable: columnName,
         termType: 'literal',
         datatypeIri: columnName === 'value' ? `${XSD}double` : `${XSD}string`,
-        nullPolicy: 'undef',
       })),
     },
   };
@@ -108,7 +103,7 @@ beforeEach(() => {
   });
   store.loadEtlJobVersions.mockResolvedValue([{
     id: 'urn:sqlib:etl-job-version:v1', isPartOf: JOB_ID, version: 1, sql: SAVED_SQL,
-    sparqlTemplate: 'CONSTRUCT { ?thing ?p ?label } WHERE { VALUES (?thing ?label) { (UNDEF UNDEF) } }',
+    sparqlTemplate: 'CONSTRUCT { ?site ?p ?label } WHERE { VALUES (?site ?label) { (UNDEF UNDEF) } }',
     backendId: 'urn:sqlib:backend:ephemeral', currentColumnMappingVersionId: MAPPING_VERSION,
   }]);
   store.fetchColumnMappingVersion.mockResolvedValue({ id: MAPPING_VERSION, columns: SAVED_MAPPINGS });
@@ -135,15 +130,26 @@ describe('EtlPlayground: the column preview and a saved mapping', () => {
 
     expect((area.vm as unknown as Editors).columnMappings).toEqual([
       ...SAVED_MAPPINGS,
-      { columnName: 'value', targetVariable: 'value', termType: 'literal', datatypeIri: `${XSD}double`, nullPolicy: 'undef' },
+      { columnName: 'value', termType: 'literal', datatypeIri: `${XSD}double` },
     ]);
   });
 
-  it('shows the IRI template of a saved row', async () => {
+  it('drops the retired fields of a mapping saved before they were removed', async () => {
+    store.fetchColumnMappingVersion.mockResolvedValue({
+      id: MAPPING_VERSION,
+      columns: [
+        { columnName: 'site', targetVariable: 'site', termType: 'uri', nullPolicy: 'undef' },
+        { columnName: 'label', targetVariable: 'label', termType: 'literal', lang: 'en', nullPolicy: 'undef' },
+      ],
+    });
     const area = await mountSaved();
     await settle();
-    const inputs = area.findAll('[data-testid="etl-iri-template"]');
-    expect(inputs).toHaveLength(2);
-    expect((inputs[1].element as HTMLInputElement).value).toBe('https://example.org/property/{value}');
+    expect((area.vm as unknown as Editors).columnMappings).toEqual(SAVED_MAPPINGS);
+  });
+
+  it('offers a datatype for a literal row only', async () => {
+    const area = await mountSaved();
+    await settle();
+    expect(area.findAll('[data-testid="etl-datatype"]')).toHaveLength(1);
   });
 });

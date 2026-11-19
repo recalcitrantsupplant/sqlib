@@ -16,7 +16,10 @@ try {
 const BY_CITY = `PREFIX ex: <http://ex/>
 SELECT ?person WHERE { VALUES ?city { UNDEF } ?person ex:livesIn ?city } ORDER BY ?person`;
 const JOB_TEMPLATE = `PREFIX ex: <http://ex/>
-CONSTRUCT { ?c ex:name ?name } WHERE { VALUES (?c ?name) { (UNDEF UNDEF) } }`;
+CONSTRUCT { ?c ex:name ?name } WHERE {
+  VALUES (?id ?name) { (UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://ex/c/", ?id)) AS ?c)
+}`;
 const SRL = `RULE { ?x <http://ex/anc> ?z } WHERE { ?x <http://ex/parent> ?z }
 RULE { ?x <http://ex/anc> ?z } WHERE { ?x <http://ex/anc> ?y . ?y <http://ex/parent> ?z }`;
 
@@ -25,7 +28,7 @@ async function exportedBundle(sql = "SELECT 1 AS id, 'Ann' AS name"): Promise<Ex
   const query = compileQueryTemplate(BY_CITY, { name: 'by city' });
   const job = compileQueryTemplate(JOB_TEMPLATE, { name: 'customers' });
   return {
-    version: 1,
+    version: 2,
     library: { id: 'urn:sqlib:library:main', name: 'Main' },
     queries: {
       'by-city': {
@@ -43,8 +46,8 @@ async function exportedBundle(sql = "SELECT 1 AS id, 'Ann' AS name"): Promise<Ex
         textHash: await hashTemplateText(job.template.text),
         sql,
         columns: [
-          { columnName: 'id', targetVariable: 'c', termType: 'uri', iriTemplate: 'http://ex/c/{value}', nullPolicy: 'skipRow' },
-          { columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' },
+          { columnName: 'id', termType: 'literal' },
+          { columnName: 'name', termType: 'literal' },
         ],
       },
     },
@@ -99,6 +102,15 @@ describe('--bundle', () => {
     expect(stdout.trim()).toBe('<http://ex/c/1> <http://ex/name> "Ann" .');
   });
 
+  it.skipIf(!duckdbAvailable)('refuses a version-1 ETL job that used an IRI template', async () => {
+    const bundle = { ...(await exportedBundle()), version: 1 } as unknown as ExportBundle;
+    Object.assign(bundle.etlJobs!.customers.columns[0], { targetVariable: 'id', iriTemplate: 'http://ex/c/{value}' });
+    const dir = await bundleWorkspace(bundle);
+    const { status, stderr } = await sqlib(dir, ['etl', 'run', '--bundle', 'bundle.json', '--job', 'customers']);
+    expect(status).toBe(1);
+    expect(stderr).toContain("ETL job 'customers': Column 'id' has an iriTemplate");
+  });
+
   it('checks a bundle and lists its keys', async () => {
     const dir = await bundleWorkspace();
     const { status, stdout } = await sqlib(dir, ['check', 'bundle.json']);
@@ -108,7 +120,7 @@ describe('--bundle', () => {
 });
 
 describe('the committed golden bundle, as the server exports it', () => {
-  const GOLDEN = path.resolve(import.meta.dirname, '../../runtime/test/fixtures/bundle-v1.json');
+  const GOLDEN = path.resolve(import.meta.dirname, '../../runtime/test/fixtures/bundle-v2.json');
 
   it('checks, and its rule set runs with its seed rows', async () => {
     const dir = await workspace({ 'golden.json': await readFile(GOLDEN, 'utf8') });
@@ -188,12 +200,12 @@ describe('sqlib pull', () => {
   });
 
   it('refuses a response that is not a valid bundle, and writes nothing', async () => {
-    const { server, url } = await serve(() => ({ status: 200, body: { bundle: { version: 2 } } }));
+    const { server, url } = await serve(() => ({ status: 200, body: { bundle: { version: 3 } } }));
     try {
       const dir = await workspace({});
       const { status, stderr } = await sqlib(dir, ['pull', '--from', url, '--library', 'urn:x']);
       expect(status).toBe(1);
-      expect(stderr).toContain('Unsupported bundle version 2');
+      expect(stderr).toContain('Unsupported bundle version 3');
       await expect(readFile(path.join(dir, 'queries.json'))).rejects.toThrow();
     } finally {
       server.close();
