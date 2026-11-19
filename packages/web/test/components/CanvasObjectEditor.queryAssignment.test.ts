@@ -114,3 +114,21 @@ describe('CanvasObjectEditor query assignment', () => {
     expect(wrapper.text()).toContain('no saved query versions');
   });
 });
+
+describe('CanvasObjectEditor link to the query page', () => {
+  it('names the version when the node pins one that is not current', async () => {
+    const state = loadedState();
+    const wrapper = await mountEditor(state, { type: 'node', node: nodeIn(state, IDS.queryNode) });
+    expect(setupState(wrapper).assignedQueryLink).toEqual({
+      path: `/queries/${encodeURIComponent(IDS.selectQuery)}`,
+      query: { version: '1' },
+    });
+  });
+
+  it('opens the query itself when the node runs its current version', async () => {
+    const state = loadedState();
+    const node = { ...nodeIn(state, IDS.queryNode), queryVersionId: 'urn:sqlib:query-version:select-2' };
+    const wrapper = await mountEditor(state, { type: 'node', node });
+    expect(setupState(wrapper).assignedQueryLink).toBe(`/queries/${encodeURIComponent(IDS.selectQuery)}`);
+  });
+});
