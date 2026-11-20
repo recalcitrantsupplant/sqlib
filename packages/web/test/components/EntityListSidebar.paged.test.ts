@@ -56,7 +56,7 @@ describe('EntityListSidebar — paged', () => {
     expect(wrapper.findAll('[data-testid="saved-row"]')).toHaveLength(50);
     expect(wrapper.text()).toContain('4476');
     const more = wrapper.get('[data-testid="show-more-saved"]');
-    expect(more.text()).toContain('4426 more');
+    expect(more.text()).toBe('Show 4426 more');
     await more.trigger('click');
     expect(wrapper.emitted('load-more')).toEqual([[null]]);
   });
@@ -79,6 +79,23 @@ describe('EntityListSidebar — paged', () => {
     expect(heading.text()).toContain('12');
     await wrapper.get('[data-testid="show-more-tag:geo"]').trigger('click');
     expect(wrapper.emitted('load-more')).toEqual([['tag:geo']]);
+  });
+
+  it('shows only the rows a tag heading loaded, and counts the rest', () => {
+    useSettings().settings.value.entityListGrouping = 'tag';
+    const saved = PAGE.map((entity, i) => (i < 4 ? { ...entity, tags: ['tag:geo'] } : entity));
+    const wrapper = mountSidebar({ saved, tagRowIds: { 'tag:geo': ['q:0', 'q:1'] } });
+    const geoRows = wrapper.findAll('[data-testid="saved-row"]')
+      .filter((rowEl) => ['q:0', 'q:1', 'q:2', 'q:3'].includes(rowEl.attributes('data-entity-id') ?? ''));
+    expect(geoRows.map((rowEl) => rowEl.attributes('data-entity-id'))).toEqual(['q:0', 'q:1']);
+    expect(wrapper.get('[data-testid="show-more-tag:geo"]').text()).toBe('Show 10 more');
+  });
+
+  it('draws no whole-list Show more under tag grouping when every row has a tag', () => {
+    useSettings().settings.value.entityListGrouping = 'tag';
+    const saved = PAGE.map((entity) => ({ ...entity, tags: ['tag:geo'] }));
+    const wrapper = mountSidebar({ saved, tagRowIds: { 'tag:geo': ['q:0'] } });
+    expect(wrapper.find('[data-testid="show-more-saved"]').exists()).toBe(false);
   });
 
   it('draws no Show more when every match is loaded', () => {

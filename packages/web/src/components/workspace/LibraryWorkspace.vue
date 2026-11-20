@@ -51,6 +51,7 @@
       :saved-total="railKind ? rail.total.value : undefined"
       :saved-remaining="railKind ? railRemaining : undefined"
       :tag-totals="railKind ? rail.tagTotals.value : undefined"
+      :tag-row-ids="railKind ? rail.tagRowIds.value : undefined"
       :tag-counts="railKind ? rail.tagCounts.value : undefined"
       :unfiltered-total="railKind ? rail.unfilteredTotal.value ?? undefined : undefined"
       @search="rail.setSearch"
