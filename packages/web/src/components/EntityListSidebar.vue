@@ -1561,7 +1561,7 @@ function ageOf(item: CallableDraft) {
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  height: 22px;
+  height: var(--control-h-sm);
   padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-sm);
