@@ -272,12 +272,16 @@ POST /rule-sets/{id}/srl
 }
 ```
 
-A rule set tool has no `params` and no `refusals`. It takes two arguments:
+A rule set tool has no `params` and no `refusals`. It takes these arguments:
 
 | Argument | Meaning |
 | --- | --- |
 | `data` | Optional. RDF for the rules to run on. When given, the data graph is not used. |
 | `format` | The format of `data`: `text/turtle` (the default), `application/n-triples` or `application/n-quads`. Only with `data`. |
+| `tuples` | Optional. Seed rows for the `TUPLE( … )` reads of the rules, as one SPARQL Results JSON document. `head.vars` gives the column order. Without it, the run starts with no rows. |
+
+The tool offers `tuples` only when its pinned version has `tuplesEnabled` and
+the server has the `ruleTuples` feature flag on.
 
 The rules run on:
 
@@ -438,8 +442,9 @@ client library. Use MCP for agents, analysis and exploration.
 
 In `published` mode, `POST /rule-sets/{id}/execute` also runs only the pinned
 version of a published rule set. The call can send its own RDF, or name the
-pinned data graph version of the tool. Any other stored graph, or tuple seeds,
-gives a `403`. In the same way, `POST /execute` takes `dataGraphs` only as RDF in
+pinned data graph version of the tool. It can send seed rows inline, as
+`tuples.inline`. Any other stored graph, or a stored tuple set
+(`tuples.tupleSetId` or `tuples.tupleSetVersionId`), gives a `403`. In the same way, `POST /execute` takes `dataGraphs` only as RDF in
 the request. It refuses a stored graph by id.
 
 In `published` mode, the server keeps these routes: `/execute`,

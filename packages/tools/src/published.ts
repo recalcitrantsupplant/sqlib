@@ -65,6 +65,8 @@ export type ToolObject = {
  */
 export const RULE_SET_DATA_ARGUMENT = 'data';
 export const RULE_SET_FORMAT_ARGUMENT = 'format';
+/** The seed rows argument of a rule set tool whose version reads `TUPLE( … )`. */
+export const RULE_SET_TUPLES_ARGUMENT = 'tuples';
 
 /** The formats a published rule set's `data` may be in. The first is the default. */
 export const RULE_SET_DATA_FORMATS = ['text/turtle', 'application/n-triples', 'application/n-quads'] as const;
@@ -170,6 +172,8 @@ export type PublishedToolSpec = {
     version: number;
     /** The pinned data graph's version at startup, used when a call sends no `data`. */
     dataGraphVersionId?: string;
+    /** The pinned version reads seed rows, and the server offers rule tuples. */
+    tuplesEnabled?: boolean;
   };
 };
 
@@ -396,7 +400,23 @@ export function publishedInputSchema(spec: PublishedToolSpec): Record<string, un
 }
 
 function ruleSetInputSchema(spec: PublishedToolSpec): Record<string, unknown> & { type: 'object' } {
-  return { type: 'object', properties: dataSchemaProperties(spec), additionalProperties: false };
+  const properties = dataSchemaProperties(spec);
+  if (spec.ruleSet?.tuplesEnabled) properties[RULE_SET_TUPLES_ARGUMENT] = tuplesSchemaProperty();
+  return { type: 'object', properties, additionalProperties: false };
+}
+
+/** The `tuples` argument: one SPARQL Results JSON document of seed rows. */
+function tuplesSchemaProperty(): Record<string, unknown> {
+  return {
+    type: 'object',
+    description: 'Seed rows for the rules\' TUPLE reads, as SPARQL Results JSON. '
+      + 'head.vars gives the column order. Without it the run starts with no rows.',
+    properties: {
+      head: { type: 'object', properties: { vars: { type: 'array', items: { type: 'string' } } }, required: ['vars'] },
+      results: { type: 'object', properties: { bindings: { type: 'array', items: { type: 'object' } } }, required: ['bindings'] },
+    },
+    required: ['head', 'results'],
+  };
 }
 
 /**
@@ -622,12 +642,14 @@ export type PublishedRuleSetBody = {
   dataGraphVersionId?: string;
   dataGraphInline?: string;
   dataGraphInlineFormat?: string;
+  tuples?: { inline: unknown };
 };
 
 /**
  * The `POST /rule-sets/{id}/execute` body for a call to a published rule set:
  * the pinned version, and the caller's `data` if it sent any, else the pinned
- * data graph, else neither, so the rules run on their own data blocks.
+ * data graph, else neither, so the rules run on their own data blocks. A
+ * call's `tuples` go in as inline seed rows.
  */
 export function buildPublishedRuleSetBody(
   spec: PublishedToolSpec,
@@ -639,9 +661,14 @@ export function buildPublishedRuleSetBody(
   }
   for (const key of Object.keys(values)) {
     if (key === RULE_SET_DATA_ARGUMENT || key === RULE_SET_FORMAT_ARGUMENT) continue;
+    if (key === RULE_SET_TUPLES_ARGUMENT && ruleSet.tuplesEnabled) continue;
     throw new PublishedToolArgumentError(`${key}: this tool takes no such argument`);
   }
   const data = postedData(values);
+  const tuples = values[RULE_SET_TUPLES_ARGUMENT];
+  if (tuples !== undefined && tuples !== null && (typeof tuples !== 'object' || Array.isArray(tuples))) {
+    throw new PublishedToolArgumentError(`${RULE_SET_TUPLES_ARGUMENT}: must be a SPARQL Results JSON object`);
+  }
 
   const body: PublishedRuleSetBody = { version: ruleSet.version, inferenceFormat: RULE_SET_INFERENCE_FORMAT };
   if (data) {
@@ -650,6 +677,7 @@ export function buildPublishedRuleSetBody(
   } else if (ruleSet.dataGraphVersionId) {
     body.dataGraphVersionId = ruleSet.dataGraphVersionId;
   }
+  if (tuples !== undefined && tuples !== null) body.tuples = { inline: tuples };
   return body;
 }
 
