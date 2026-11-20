@@ -156,6 +156,19 @@ describe('the committed bundles', () => {
     expect(text).toContain('OFFSET 0002');
   });
 
+  it('splices an exported update, and applies its slot policy', () => {
+    const update = fromBundle(GOLDEN).update('mark-seen');
+    const text = update.text({
+      arguments: [{ bindings: [{ type: iri('http://example.org/City') }] }],
+      limits: { '1': 10 },
+    });
+
+    expect(text).toContain('ex:City');
+    expect(text).toContain('LIMIT 10');
+    // The author set `whenEmpty: require` on the slot.
+    expect(() => update.text()).toThrow(/Required input/);
+  });
+
   it('walks the frozen group, feeding the upstream rows downstream', async () => {
     const { executor, seen } = recordingExecutor(CITY_ROWS);
     const library = fromBundle(GOLDEN, { executor });
@@ -297,6 +310,10 @@ describe('the fixture covers the format it is meant to freeze', () => {
       for (const column of job.columns) record('ExportedEtlColumn', column);
     }
     for (const ruleSet of Object.values(GOLDEN.ruleSets ?? {})) record('ExportedRuleSet', ruleSet);
+    for (const update of Object.values(GOLDEN.updates ?? {})) {
+      record('ExportedUpdate', update);
+      for (const span of update.pageParameters ?? []) record('PageParameterSpan', span);
+    }
     return covered;
   };
 
