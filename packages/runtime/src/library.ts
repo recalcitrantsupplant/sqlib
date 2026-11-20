@@ -212,6 +212,32 @@ export class QueryHandle {
     });
   }
 
+  /**
+   * Substitute and send, returning the endpoint's response with its body unread.
+   *
+   * For a host that forwards results: pipe `response.body` on, and the whole
+   * result is never held in memory. Any query type works; the `Accept` header
+   * is the one {@link run} would send. Needs an executor with `executeRaw`,
+   * which `httpExecutor` has and an in-process store does not.
+   */
+  async stream(payload: CallPayload = {}): Promise<Response> {
+    if (!this.executor) {
+      throw new QueryCallError(
+        `No executor is configured, so '${this.name}' can only be substituted, not run. Pass one to fromBundle().`,
+      );
+    }
+    if (!this.executor.executeRaw) {
+      throw new QueryCallError(
+        `The executor for '${this.name}' returns parsed results only, so it cannot stream. Use run() or an httpExecutor.`,
+      );
+    }
+    return this.executor.executeRaw({
+      queryText: this.text(payload),
+      queryType: this.query.queryType,
+      signal: payload.signal,
+    });
+  }
+
   /** Run a SELECT, returning SPARQL Results JSON. */
   async select(payload: CallPayload = {}): Promise<SparqlSelectResults> {
     this.assertType('SELECT', 'select');

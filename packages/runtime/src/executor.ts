@@ -106,6 +106,15 @@ export function updateDatasetParameters(dataset: SparqlDataset | undefined): Arr
  */
 export interface Executor {
   execute(request: ExecutionRequest): Promise<ExecutionResult>;
+  /**
+   * Send the query and return the endpoint's response with its body unread.
+   *
+   * Optional, because only an executor with a wire response has one to give:
+   * `httpExecutor` has it, an in-process store does not. A host that forwards
+   * results, such as an edge function, pipes the body on and never holds the
+   * whole result. A non-2xx status still throws {@link SparqlEndpointError}.
+   */
+  executeRaw?(request: ExecutionRequest): Promise<Response>;
   update?(request: UpdateRequest): Promise<void>;
 }
 
@@ -219,78 +228,88 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
     }
   };
 
-  return {
-    ...(updateEndpoint ? { update } : {}),
-    async execute({ queryText, queryType, signal, dataset }: ExecutionRequest): Promise<ExecutionResult> {
-      const accept = acceptFor(queryType, rdfAccept);
-      // The dataset rides with the query: in the URL for GET, so `auto` counts
-      // it in the length, and in a form body for POST, since a
-      // `application/sparql-query` body would push it into the URL anyway.
-      const graphs = datasetParameters(dataset);
-      const form = new URLSearchParams([['query', queryText], ...graphs]).toString();
-      const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${graphs.length > 0 ? form : `query=${encodeURIComponent(queryText)}`}`;
-      const useGet = method === 'GET' || (method === 'auto' && getUrl.length <= maxUrlLength);
-      const queryUrl =
-        graphs.length > 0 ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}${new URLSearchParams(graphs).toString()}` : endpoint;
-      const useQuery = method === 'QUERY' && !queryRefused() && queryUrl.length <= maxUrlLength;
+  // The request is built and checked here once, so `execute` and a caller that
+  // streams send the same request: method choice, QUERY fallback, dataset.
+  const executeRaw = async ({ queryText, queryType, signal, dataset }: ExecutionRequest): Promise<Response> => {
+    const accept = acceptFor(queryType, rdfAccept);
+    // The dataset rides with the query: in the URL for GET, so `auto` counts
+    // it in the length, and in a form body for POST, since a
+    // `application/sparql-query` body would push it into the URL anyway.
+    const graphs = datasetParameters(dataset);
+    const form = new URLSearchParams([['query', queryText], ...graphs]).toString();
+    const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${graphs.length > 0 ? form : `query=${encodeURIComponent(queryText)}`}`;
+    const useGet = method === 'GET' || (method === 'auto' && getUrl.length <= maxUrlLength);
+    const queryUrl =
+      graphs.length > 0 ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}${new URLSearchParams(graphs).toString()}` : endpoint;
+    const useQuery = method === 'QUERY' && !queryRefused() && queryUrl.length <= maxUrlLength;
 
-      let queried: Response | null = null;
-      if (useQuery) {
-        queried = await doFetch(queryUrl, {
-          method: 'QUERY',
-          headers: { Accept: accept, 'Content-Type': 'application/sparql-query', ...headers },
-          body: queryText,
+    let queried: Response | null = null;
+    if (useQuery) {
+      queried = await doFetch(queryUrl, {
+        method: 'QUERY',
+        headers: { Accept: accept, 'Content-Type': 'application/sparql-query', ...headers },
+        body: queryText,
+        credentials,
+        signal,
+      });
+      if (queried.status === 405 || queried.status === 501) {
+        await queried.text().catch(() => '');
+        queryRefusedAt = Date.now();
+        queried = null;
+      }
+    }
+
+    const response = queried
+      ? queried
+      : useGet
+      ? await doFetch(getUrl, {
+          method: 'GET',
+          headers: { Accept: accept, ...headers },
           credentials,
           signal,
-        });
-        if (queried.status === 405 || queried.status === 501) {
-          await queried.text().catch(() => '');
-          queryRefusedAt = Date.now();
-          queried = null;
-        }
-      }
-
-      const response = queried
-        ? queried
-        : useGet
-        ? await doFetch(getUrl, {
-            method: 'GET',
-            headers: { Accept: accept, ...headers },
+        })
+      : graphs.length > 0
+        ? await doFetch(endpoint, {
+            method: 'POST',
+            headers: {
+              Accept: accept,
+              'Content-Type': 'application/x-www-form-urlencoded',
+              ...headers,
+            },
+            body: form,
             credentials,
             signal,
           })
-        : graphs.length > 0
-          ? await doFetch(endpoint, {
-              method: 'POST',
-              headers: {
-                Accept: accept,
-                'Content-Type': 'application/x-www-form-urlencoded',
-                ...headers,
-              },
-              body: form,
-              credentials,
-              signal,
-            })
-          : await doFetch(endpoint, {
-              method: 'POST',
-              headers: {
-                Accept: accept,
-                'Content-Type': 'application/sparql-query',
-                ...headers,
-              },
-              body: queryText,
-              credentials,
-              signal,
-            });
+        : await doFetch(endpoint, {
+            method: 'POST',
+            headers: {
+              Accept: accept,
+              'Content-Type': 'application/sparql-query',
+              ...headers,
+            },
+            body: queryText,
+            credentials,
+            signal,
+          });
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new SparqlEndpointError(
-          `SPARQL endpoint returned ${response.status} ${response.statusText}.`,
-          response.status,
-          body.slice(0, 2000),
-        );
-      }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new SparqlEndpointError(
+        `SPARQL endpoint returned ${response.status} ${response.statusText}.`,
+        response.status,
+        body.slice(0, 2000),
+      );
+    }
+
+    return response;
+  };
+
+  return {
+    ...(updateEndpoint ? { update } : {}),
+    executeRaw,
+    async execute(request: ExecutionRequest): Promise<ExecutionResult> {
+      const response = await executeRaw(request);
+      const { queryType } = request;
 
       if (queryType === 'CONSTRUCT' || queryType === 'DESCRIBE') {
         return {
