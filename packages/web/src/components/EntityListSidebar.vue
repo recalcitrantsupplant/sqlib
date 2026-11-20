@@ -1082,7 +1082,10 @@ const tagClusters = computed<SidebarCluster[]>(() => {
   const clusters: SidebarCluster[] = [];
 
   for (const tag of props.tags ?? []) {
-    const headingIds = paged.value ? new Set(props.tagRowIds?.[tag.id] ?? []) : null;
+    // A heading the parent has not loaded rows for (no count yet, or the count
+    // failed) shows the loaded rows that carry its tag.
+    const own = paged.value ? props.tagRowIds?.[tag.id] : undefined;
+    const headingIds = own ? new Set(own) : null;
     const items = unpinnedSaved.value.filter((entity) =>
       (entity.tags ?? []).includes(tag.id) && (!headingIds || headingIds.has(entity.id)));
     const total = paged.value ? props.tagTotals?.[tag.id] ?? 0 : 0;
@@ -1097,7 +1100,9 @@ const tagClusters = computed<SidebarCluster[]>(() => {
       collapsible: true,
       showHeading: true,
       total,
-      loaded: headingIds ? headingIds.size : items.length,
+      loaded: headingIds
+        ? headingIds.size
+        : visibleSaved.value.filter((entity) => (entity.tags ?? []).includes(tag.id)).length,
     });
   }
 
