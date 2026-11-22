@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import ruleSetRoutes from '../../src/routes/rule-sets.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
+import { formatText } from '../../src/lib/formatText.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 
 const hoisted = vi.hoisted(() => ({
@@ -487,6 +488,22 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(rules[0].sparql).toContain('PREFIX : <http://example/>');
       expect(rules[0].caveats).toEqual([]);
       expect(rules[1].label).toBe('rule-2');
+    });
+
+    it('lays the compiled program out with the editors\' formatter', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/rule-sets/srl/compile',
+        payload: {
+          srl: 'PREFIX : <http://example/>\nRULE { ?x :anc ?z } WHERE { ?x :parent ?y . ?y :anc ?z NOT { ?x a :Robot } }',
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const { sparql } = res.json().rules[0];
+      expect(sparql).toContain('\nWHERE {\n  ?x :parent ?y .\n  ?y :anc ?z .\n');
+      expect(sparql).toContain('  FILTER NOT EXISTS {\n    ?x ');
+      // Formatting twice changes nothing: the text is already the formatter's.
+      expect(formatText(sparql, 'sparql')).toBe(sparql);
     });
 
     /*

@@ -12,7 +12,7 @@
  *      behaviour where callers may supply plain SPARQL.
  */
 import { Parser as SparqlParser } from '@sparql-query-lib/compiler';
-import { compileRule, formatRuleSet, parseRuleSet } from '@sparql-query-lib/srl';
+import { compileRule, parseRuleSet } from '@sparql-query-lib/srl';
 
 import { ruleTuplesAllowed } from './ruleTuples.js';
 import { ruleAggregatesAllowed } from './ruleAggregates.js';
@@ -84,42 +84,6 @@ export class RuleGrammarValidator {
       valid: false,
       error: `Not valid SHACL Rules (SRL) or SPARQL: ${srl.error ?? ''}`.trim(),
     };
-  }
-
-  /**
-   * Format a rule or data string: validate it, then pretty-print it from the SRL
-   * AST via the SRL package's formatter (which serializes the embedded SPARQL
-   * with Traqula, exactly as `/format` does for a whole query).
-   *
-   * Only the SRL grammar is formatted here. An input that parses only as plain
-   * SPARQL comes back trimmed and is otherwise untouched — `POST /format` routes
-   * SPARQL to the query generator before it ever reaches this method, and
-   * re-generating it here would be the wrong generator for it.
-   *
-   * Formatting is cosmetic, so it must never turn a valid document into an
-   * invalid one: the formatted text is re-parsed, and if it does not parse (or
-   * generation fails outright) the trimmed input is returned unchanged rather
-   * than handing the caller something broken.
-   */
-  formatRuleOrData(input: string): { formatted: string; grammar: GrammarType } {
-    const result = this.validateWithAllGrammars(input);
-    if (!result.valid) {
-      throw new Error(result.error ?? 'Invalid SHACL rule or data syntax');
-    }
-    const grammar = result.primaryGrammar ?? 'srl';
-    const trimmed = input.trim();
-    if (grammar !== 'srl') {
-      return { formatted: trimmed, grammar };
-    }
-
-    const tuples = ruleTuplesAllowed();
-    try {
-      const formatted = formatRuleSet(parseRuleSet(trimmed, { tuples, aggregates: ruleAggregatesAllowed() })).trimEnd();
-      parseRuleSet(formatted, { tuples, aggregates: ruleAggregatesAllowed() });
-      return { formatted, grammar };
-    } catch {
-      return { formatted: trimmed, grammar };
-    }
   }
 
   /**
