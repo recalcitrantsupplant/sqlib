@@ -221,3 +221,108 @@ for (const slowMs of [0, 150, 400]) {
     await expect(page.locator('[data-testid="saved-row"]').first()).toHaveAttribute('data-entity-id', TAGGED_QUERY.id);
   });
 }
+
+/*
+ * Every paged entity screen, grouped by tag, switched from the menu. Each
+ * kind has an untagged row that sorts first by name and a tagged row that the
+ * list draws first, under its tag heading.
+ */
+const BASE = {
+  description: null,
+  currentVersion: null,
+  currentVersionNumber: 1,
+  dateCreated: '2026-01-01T00:00:00Z',
+  dateModified: '2026-01-02T00:00:00Z',
+};
+
+type KindCase = {
+  section: string;
+  path: string;
+  /** The library a row is in, as the kind's list route takes and returns it. */
+  libraryParam: string;
+  make: (id: string, name: string, library: string, tags: string[]) => Record<string, unknown>;
+  /** False where the list cannot group by tag; its first row is then the first by name. */
+  grouped: boolean;
+};
+
+const KIND_CASES: KindCase[] = [
+  { section: 'queries', path: 'queries', libraryParam: 'library',
+    make: (id, name, library, tags) => ({ ...QUERY, id, name, isPartOf: [library], tags }), grouped: true },
+  { section: 'queryGroups', path: 'query-groups', libraryParam: 'library',
+    make: (id, name, library, tags) => ({ ...QUERY_GROUP, id, name, isPartOf: library, tags }), grouped: true },
+  { section: 'rules', path: 'rule-sets', libraryParam: 'library',
+    make: (id, name, library, tags) => ({ ...RULE_SET, id, name, isPartOf: [library], tags }), grouped: true },
+  { section: 'dataGraphs', path: 'data-graphs', libraryParam: 'library',
+    make: (id, name, library, tags) => ({ ...BASE, id, name, isPartOf: [library], tags }), grouped: true },
+  { section: 'tests', path: 'tests', libraryParam: 'library',
+    make: (id, name, library, tags) => ({
+      ...BASE, id, name, isPartOf: [library], tags, subject: QUERY.id, subjectKind: 'query',
+    }), grouped: true },
+  { section: 'tupleSets', path: 'tuple-sets', libraryParam: 'library',
+    make: (id, name, library, tags) => ({ ...BASE, id, name, isPartOf: [library], tags }), grouped: false },
+  { section: 'argumentSets', path: 'argument-sets', libraryParam: 'libraryId',
+    make: (id, name, library, tags) => ({
+      id, name, description: null, scope: null, targetId: null, libraryId: library, tags,
+      currentVersionId: null, currentVersionNumber: 1, tupleBindings: [], scalarBindings: [],
+    }), grouped: false },
+];
+
+function libraryOf(row: Record<string, unknown>): string {
+  return String(([] as unknown[]).concat(row.isPartOf ?? row.libraryId)[0]);
+}
+
+for (const kind of KIND_CASES) {
+  const title = kind.grouped
+    ? 'grouped by tag: a menu switch opens the first row under the first heading'
+    : 'not groupable: a menu switch opens the first row by name';
+  test(`${kind.section}, ${title}`, async ({ page }) => {
+    const start = kind.make(`urn:sqlib:${kind.path}:start`, 'Start row', LIBRARY.id, []);
+    const tagged = kind.make(`urn:sqlib:${kind.path}:zeta`, 'Zeta row', OTHER.id, [TAG.id]);
+    const untagged = kind.make(`urn:sqlib:${kind.path}:alpha`, 'Alpha row', OTHER.id, []);
+    const rows = [start, tagged, untagged];
+    const listRoute = new RegExp(`/${kind.path}$`);
+    const itemRoute = new RegExp(`/${kind.path}/[^/]+$`);
+
+    await mockEntityApi(page, {
+      extraRoutes: [
+        [/\/libraries$/, (route) => json(route, [LIBRARY, OTHER, EMPTY])],
+        [/\/tags\/counts$/, async (route) => {
+          await delay(150);
+          const library = new URL(route.request().url()).searchParams.get('library');
+          return json(route, library === OTHER.id ? { [TAG.id]: 1 } : {});
+        }],
+        [/\/tags$/, async (route) => {
+          await delay(150);
+          const library = new URL(route.request().url()).searchParams.get('library');
+          return json(route, library === OTHER.id ? [TAG] : []);
+        }],
+        [listRoute, async (route) => {
+          const params = new URL(route.request().url()).searchParams;
+          const library = params.get(kind.libraryParam);
+          const withTag = params.getAll('withTag');
+          if (withTag.length > 0) await delay(150);
+          return json(route, rows
+            .filter((row) => !library || libraryOf(row) === library)
+            .filter((row) => withTag.every((tag) => (row.tags as string[]).includes(tag)))
+            .sort((a, b) => String(a.name).localeCompare(String(b.name))));
+        }],
+        [itemRoute, byId(rows as Array<{ id: string }>)],
+      ],
+    });
+    await page.addInitScript(([key, id]) => {
+      if (!sessionStorage.getItem('seeded')) {
+        localStorage.setItem(key as string, id as string);
+        sessionStorage.setItem('seeded', '1');
+      }
+    }, [ACTIVE_LIBRARY_KEY, LIBRARY.id]);
+
+    await page.goto(`/${kind.section}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator(`[data-entity-id="${start.id}"]`).first()).toBeVisible();
+
+    await switchTo(page, OTHER);
+
+    const first = kind.grouped ? tagged : untagged;
+    await expect(page).toHaveURL(recordUrl(kind.section, String(first.id)));
+    await expect(page.locator('[data-testid="saved-row"]').first()).toHaveAttribute('data-entity-id', String(first.id));
+  });
+}
