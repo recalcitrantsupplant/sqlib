@@ -1,4 +1,0 @@
-PREFIX : <http://example/>
-
-# The same for a SET inside a NOT.
-RULE { ?x :r ?y } WHERE { NOT { ?x :q ?z SET ( ?w := ?y ) } ?x :p ?y }

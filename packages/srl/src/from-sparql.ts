@@ -418,6 +418,7 @@ function assemble(
   }
 
   const body = mapPatterns(collectPatterns(source.where), issues);
+  issues.push(...negationPatternIssues(body));
 
   if (issues.some((issue) => issue.severity === 'error')) {
     return { rule: null, form: source.form, issues, prefixes, runOnce: false };
@@ -708,6 +709,37 @@ function unsupported(pattern: Pattern | undefined): SparqlImportIssue {
     construct: String(pattern?.subType ?? 'unknown').toUpperCase(),
     message: `A rule body has no equivalent for this pattern (${String(pattern?.subType ?? 'unknown')}).`,
   };
+}
+
+/**
+ * SRL grammar rule [20] allows only FILTER beside the triples of a NOT. A
+ * FILTER NOT EXISTS or MINUS whose pattern holds a BIND or another negation
+ * has no rule form, so report it rather than generate text that does not parse.
+ */
+function negationPatternIssues(items: SrlBodyItem[]): SparqlImportIssue[] {
+  const found: SparqlImportIssue[] = [];
+  for (const item of items) {
+    if (item.kind !== 'not') continue;
+    for (const inner of item.body) {
+      if (inner.kind === 'not') {
+        found.push({
+          severity: 'error',
+          code: 'unsupported-pattern',
+          construct: 'FILTER NOT EXISTS',
+          message: 'A NOT in a rule holds triple patterns and FILTER only, so a negation inside a negation has no rule form.',
+        });
+      }
+      if (inner.kind === 'set') {
+        found.push({
+          severity: 'error',
+          code: 'unsupported-pattern',
+          construct: 'BIND',
+          message: 'A NOT in a rule holds triple patterns and FILTER only, so a BIND inside FILTER NOT EXISTS or MINUS has no rule form.',
+        });
+      }
+    }
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------

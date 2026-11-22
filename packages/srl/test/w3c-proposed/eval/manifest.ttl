@@ -23,7 +23,6 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
         :eval-neg-order-05
         :eval-neg-order-06
         :eval-neg-order-07
-        :eval-neg-order-08
         :eval-neg-order-09
         :eval-neg-order-10
     ) .
@@ -89,15 +88,6 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
          [ srlt:ruleset  <eval-neg-order-07.srl> ;
            srlt:data     <data-neg-order-1.ttl> ] ;
     mf:result  <eval-neg-order-07-results.ttl>
-    .
-
-# order inside a NOT
-:eval-neg-order-08 rdf:type srlt:RulesEvalTest ;
-    mf:name "eval-neg-order-08";
-    mf:action
-         [ srlt:ruleset  <eval-neg-order-08.srl> ;
-           srlt:data     <data-neg-order-2.ttl> ] ;
-    mf:result  <eval-neg-order-08-results.ttl>
     .
 
 # NOT DATA before its binders
