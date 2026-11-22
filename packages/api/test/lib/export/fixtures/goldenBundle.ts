@@ -72,6 +72,15 @@ LIMIT 0001 OFFSET 0002`;
 const LABELS = `PREFIX ex: <http://example.org/>
 CONSTRUCT { ?s ex:label ?name } WHERE { ?s ex:name ?name }`;
 
+/**
+ * An update, so `bundle.updates` is in the fixture. Its sub-select pages, so the
+ * update carries `pageParameters` as a query does.
+ */
+const MARK_SEEN = `PREFIX ex: <http://example.org/>
+INSERT { ?s ex:seen true } WHERE {
+  { SELECT ?s WHERE { VALUES (?type) { (UNDEF) } ?s a ?type } LIMIT 0001 }
+}`;
+
 /** The query a group brings into the bundle with it. */
 const CITIES_IN_REGION = `PREFIX ex: <http://example.org/>
 SELECT ?city WHERE {
@@ -102,6 +111,15 @@ const QUERIES = [
     queryString: LABELS,
     sourceQuery: QUERY_LABELS,
     sourceVersion: 'urn:sqlib:query-version:labels-1',
+  },
+  {
+    name: 'Mark seen',
+    queryString: MARK_SEEN,
+    sourceQuery: 'urn:sqlib:query:mark-seen',
+    sourceVersion: 'urn:sqlib:query-version:mark-seen-1',
+    description: 'Mark the first things of the given types as seen.',
+    tags: FILTER_TAGS,
+    inputPolicies: [{ vars: ['type'], whenEmpty: 'require' as const }],
   },
 ];
 
@@ -400,6 +418,7 @@ export async function buildGoldenBundle(): Promise<ExportBundle> {
     queries: QUERIES,
     tags: FILTER_TAGS,
     generatedAt: GOLDEN_GENERATED_AT,
+    updates: true,
   });
 
   const { skipped: skippedExamples } = await attachExamplesToBundle(

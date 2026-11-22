@@ -265,11 +265,11 @@ export function collectPublishedTools(): PublishedCatalogue {
       : kind === 'group'
         ? groupReadsOnly(version as PersistedQueryGroupVersion)
         : true;
-    // A query that only reads can run over RDF the caller sends instead of a
-    // backend; an update could only write into a store that is then dropped.
+    // A query can run over RDF the caller sends instead of a backend. An
+    // update over it answers with the graph it leaves, so a caller with no
+    // backend of its own keeps that graph and sends it with the next call.
     const acceptsData = kind === 'query'
-      ? readOnly
-      : kind === 'group' && groupTakesData(version as PersistedQueryGroupVersion);
+      || (kind === 'group' && groupTakesData(version as PersistedQueryGroupVersion));
 
     specs.push({
       slug: library.slug,

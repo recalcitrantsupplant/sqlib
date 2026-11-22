@@ -98,10 +98,11 @@ export function updateDatasetParameters(dataset: SparqlDataset | undefined): Arr
 /**
  * Anything that can run a substituted query.
  *
- * `update` is optional. A bundle carries read queries only, so a page that runs
- * one needs no more than `execute`, and an executor that cannot write simply
- * leaves `update` out. A caller that writes — a rule set adding inferred
- * triples, say — checks for it and refuses an executor without it.
+ * `update` is optional. A bundle carries read queries unless it was exported
+ * with its updates, so most pages need no more than `execute`, and an executor
+ * that cannot write leaves `update` out. A caller that writes (an exported
+ * update, or a rule set adding inferred triples) checks for it and refuses an
+ * executor without it.
  */
 export interface Executor {
   execute(request: ExecutionRequest): Promise<ExecutionResult>;

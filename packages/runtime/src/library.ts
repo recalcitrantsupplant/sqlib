@@ -25,7 +25,7 @@ import {
   toExecutionParameters,
   type ExecutionParameter,
 } from './limit-offset.js';
-import { assertValidBundle, type ExportBundle, type ExportedQuery } from './bundle.js';
+import { assertValidBundle, type ExportBundle, type ExportedQuery, type ExportedUpdate } from './bundle.js';
 import { QueryCallError } from './errors.js';
 import { GroupHandle } from './group.js';
 import type {
@@ -112,7 +112,7 @@ function isShortForm(input: ArgumentSetInput): input is ShortFormArgumentSet {
  */
 function toWireArgumentSets(
   inputs: readonly ArgumentSetInput[],
-  query: ExportedQuery,
+  query: ExportedQuery | ExportedUpdate,
 ): WireArgumentSet[] {
   return inputs.map((input, index) => {
     if (isShortForm(input)) {
@@ -270,6 +270,66 @@ export class QueryHandle {
 }
 
 /**
+ * A single exported SPARQL UPDATE, bound to an executor.
+ *
+ * Arguments are applied exactly as {@link QueryHandle} applies them, over the
+ * same recorded spans. The text then goes to `executor.update`, so the
+ * executor needs one: the Oxigraph executor over a store the page owns, or an
+ * `httpExecutor` given an `updateEndpoint`.
+ */
+export class UpdateHandle {
+  constructor(
+    readonly name: string,
+    private readonly update: ExportedUpdate,
+    private readonly executor: Executor | undefined,
+  ) {}
+
+  /** The compiled update behind this handle. Frozen at export time. */
+  get exported(): ExportedUpdate {
+    return this.update;
+  }
+
+  /** The update's call signature: slot variables, and the page parameter names. */
+  signature(): {
+    inputs: string[][];
+    limitParameters: string[];
+    offsetParameters: string[];
+  } {
+    return {
+      inputs: this.update.inferredInputs.map((vars) => [...vars]),
+      limitParameters: [...this.update.limitParameters],
+      offsetParameters: [...this.update.offsetParameters],
+    };
+  }
+
+  /** Substitute the payload and return the update text, without running it. */
+  text(payload: CallPayload = {}): string {
+    const wireSets = toWireArgumentSets(payload.arguments ?? [], this.update);
+    return substituteCall(
+      this.update,
+      normalizeArguments(wireSets) ?? [],
+      toExecutionParameters(payload.limits),
+      toExecutionParameters(payload.offsets),
+    );
+  }
+
+  /** Substitute and run through `executor.update`. */
+  async run(payload: CallPayload = {}): Promise<void> {
+    if (!this.executor) {
+      throw new QueryCallError(
+        `No executor is configured, so update '${this.name}' can only be substituted, not run. Pass one to fromBundle().`,
+      );
+    }
+    if (!this.executor.update) {
+      throw new QueryCallError(
+        `The executor cannot run updates, so update '${this.name}' cannot run. Use an executor with an update() method.`,
+      );
+    }
+    await this.executor.update({ updateText: this.text(payload), signal: payload.signal });
+  }
+}
+
+/**
  * Substitute page parameters into a template, keeping its slot spans exact.
  *
  * Both kinds of parameter are spans into the same text, and replacing one shifts
@@ -287,7 +347,7 @@ export class QueryHandle {
  * author's `whenEmpty`, which the wire shape deliberately cannot.
  */
 export function substituteCall(
-  query: ExportedQuery,
+  query: ExportedQuery | ExportedUpdate,
   argumentSets: TemplateArgumentSet[],
   limits: ExecutionParameter[],
   offsets: ExecutionParameter[],
@@ -308,7 +368,7 @@ export function substituteCall(
 }
 
 function withPageParameters(
-  query: ExportedQuery,
+  query: ExportedQuery | ExportedUpdate,
   limits: ExecutionParameter[],
   offsets: ExecutionParameter[],
 ): QueryTemplate {
@@ -379,6 +439,7 @@ export interface TypedExportBundle<TName extends string> extends ExportBundle {
 export class QueryLibrary<TName extends string = string> {
   private readonly handles = new Map<string, QueryHandle>();
   private readonly groups = new Map<string, GroupHandle>();
+  private readonly updates = new Map<string, UpdateHandle>();
 
   constructor(
     private readonly bundle: ExportBundle,
@@ -389,6 +450,9 @@ export class QueryLibrary<TName extends string = string> {
     }
     for (const [name, group] of Object.entries(bundle.groups ?? {})) {
       this.groups.set(name, new GroupHandle(name, group, (key) => this.query(key as TName)));
+    }
+    for (const [name, update] of Object.entries(bundle.updates ?? {})) {
+      this.updates.set(name, new UpdateHandle(name, update, executor));
     }
   }
 
@@ -416,6 +480,22 @@ export class QueryLibrary<TName extends string = string> {
   /** Every query group name in the bundle. Empty when it carries none. */
   groupNames(): string[] {
     return [...this.groups.keys()];
+  }
+
+  /** Every update name in the bundle. Empty for a bundle exported without updates. */
+  updateNames(): string[] {
+    return [...this.updates.keys()];
+  }
+
+  /** Look up an update by name. Throws if the bundle does not carry it. */
+  update(name: string): UpdateHandle {
+    const handle = this.updates.get(name);
+    if (!handle) {
+      throw new QueryCallError(
+        `Bundle has no update named '${name}'. Available: ${this.updateNames().join(', ') || '(none)'}.`,
+      );
+    }
+    return handle;
   }
 
   /** Look up a query group by name. Throws if the bundle does not carry it. */

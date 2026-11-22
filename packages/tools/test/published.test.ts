@@ -231,9 +231,9 @@ describe('refusals', () => {
     const document = publishedOpenApiDocument({ slug: 'pm', title: 'pm', specs: [withRefusals] }) as {
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
     };
-    expect(Object.keys(document.paths['/tools/pm/record-decision'].post.responses)).toEqual(['200', '400', '409']);
+    expect(Object.keys(document.paths['/tools/pm/record-decision'].post.responses)).toEqual(['200', '204', '400', '409']);
     const plain = publishedOpenApiDocument({ slug: 'pm', title: 'pm', specs: [recordDecision] }) as typeof document;
-    expect(Object.keys(plain.paths['/tools/pm/record-decision'].post.responses)).toEqual(['200', '400']);
+    expect(Object.keys(plain.paths['/tools/pm/record-decision'].post.responses)).toEqual(['200', '204', '400']);
   });
 });
 
@@ -380,6 +380,17 @@ describe('posted data on queries and groups', () => {
     expect(() => buildPublishedExecuteBody(update, { data: TTL })).toThrow(/no such argument/);
     const clash = { ...byCity, params: { data: { kind: 'string' as const } }, inputs: { tables: [['data']], limits: [], offsets: [] } };
     expect(Object.keys(publishedInputSchema(clash).properties as object)).toEqual(['data', 'backendId']);
+  });
+
+  it('runs an update over posted RDF in place of a backend, and says the answer is the graph', () => {
+    const update: PublishedToolSpec = { ...byCity, name: 'move', readOnly: false, acceptsData: true };
+    expect(buildPublishedExecuteBody(update, { city: 'Perth', data: TTL })).toEqual({
+      targetId: byCity.targetId,
+      dataGraphs: [{ dataGraphInline: TTL, dataGraphInlineFormat: 'text/turtle' }],
+      arguments: [{ head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'literal', value: 'Perth' } }] } }],
+    });
+    const data = (publishedInputSchema(update).properties as Record<string, { description: string }>).data;
+    expect(data.description).toContain('the graph after the update');
   });
 
   it('fills a group\'s RDF input, and lists a GET tool\'s POST in the OpenAPI document', () => {

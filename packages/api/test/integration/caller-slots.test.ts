@@ -282,7 +282,7 @@ describe('the caller\'s identity slots', () => {
       const document = await send(server, 'GET', '/tools/records/openapi.json');
       expect(document.status).toBe(200);
       const schema = document.body.paths['/tools/records/approve'].post.requestBody.content['application/json'].schema;
-      expect(Object.keys(schema.properties).sort()).toEqual(['backendId', 'record']);
+      expect(Object.keys(schema.properties).sort()).toEqual(['backendId', 'data', 'format', 'record']);
     });
 
     it('refuses a caller who sends the slot as an argument', async () => {
