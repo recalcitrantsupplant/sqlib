@@ -174,9 +174,11 @@ Print the same ASTs for a person to read:
 - one prologue declaration on each line;
 - a blank line between blocks.
 
-`POST /format` uses this for an SRL document, as it uses the SPARQL generator
-for a query. Formatting is idempotent, and keeps the meaning: its output parses
-to the same rules. The single-line generator above stays the canonical form.
+Formatting is idempotent, and keeps the meaning: its output parses to the same
+rules. It prints from the AST, so it drops comments. sqlib's `POST /format` and
+the web editors do not use it: they call `formatSrl` from
+`@kurrawongai/codemirror-lang-srl`, which changes only whitespace and keeps
+comments. The single-line generator above stays the canonical form.
 Identity comes from `canonicalRuleText`, which ignores whitespace, so it gives
 the same result for both.
 
