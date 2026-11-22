@@ -733,6 +733,7 @@ const MANIFEST: Record<string, Protection> = {
    * does touch, and that is a read.
    */
   'POST /substitute': 'stateless',
+  'GET /substitute': 'read-from-body',
 
   /*
    * One route, and the only one in the API whose answer is a subscription

@@ -11,6 +11,18 @@ import { QueryTypeIri } from '../constants/queryTypes.js';
 import { typedRoute } from './route-helpers.js';
 import { deriveQueryVersionMetadata } from '../lib/QueryVersionDeriver.js';
 import { RuleGrammarValidator } from '../lib/RuleGrammarValidator.js';
+import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import {
+  cacheAudience,
+  markPinned,
+  matchesIfNoneMatch,
+  pinQueryAndArguments,
+  pinnedEtag,
+  setPinnedHeaders,
+  applyPinnedHeaders,
+} from '../lib/pinnedCaching.js';
+import type { ExecutionParameter } from '../lib/executionArguments.js';
 
 function isSrlDocument(code: string): boolean {
   // Skip comments and SPARQL prologue declarations before checking the SRL directive.
@@ -185,6 +197,124 @@ export default async function (
    * Nothing is stored and nothing is executed, which is why a read-only
    * deployment can serve it (`config/readOnly.ts`).
    */
+  // A pinned GET /substitute that succeeded may be cached (`lib/pinnedCaching.ts`).
+  fastify.addHook('onSend', async (request, reply, payload) => {
+    applyPinnedHeaders(request, reply);
+    return payload;
+  });
+
+  /**
+   * GET /substitute — the substituted text of a stored query with stored
+   * arguments (#206), in one request.
+   *
+   * `targetId` names a query version, or a query, which runs its current
+   * version. `argumentSetIds`, `limits` and `offsets` are JSON arrays, as in
+   * the POST body. A query version with argument-set versions is pinned, so
+   * the response carries an ETag and may be cached for a year.
+   */
+  fastify.get<{
+    Querystring: { targetId: string; argumentSetIds?: string; limits?: string; offsets?: string };
+  }>(
+    '/substitute',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['targetId'],
+          properties: {
+            targetId: { type: 'string', description: 'A query version id, or a query id for its current version.' },
+            argumentSetIds: { type: 'string', description: 'JSON array of argument set ids or argument-set version ids.' },
+            limits: { type: 'string', description: 'JSON array of { name, value }.' },
+            offsets: { type: 'string', description: 'JSON array of { name, value }.' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const parseArray = (name: string, raw: string | undefined): unknown[] | undefined => {
+        if (raw === undefined) return undefined;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (error) {
+          throw new SubstituteParameterError(`Invalid JSON in ${name}: ${(error as Error).message}`);
+        }
+        if (!Array.isArray(parsed)) throw new SubstituteParameterError(`${name} must be a JSON array.`);
+        return parsed;
+      };
+
+      let argumentSetIds: string[] | undefined;
+      let limits: ExecutionParameter[] | undefined;
+      let offsets: ExecutionParameter[] | undefined;
+      try {
+        const ids = parseArray('argumentSetIds', request.query.argumentSetIds);
+        if (ids && !ids.every((id): id is string => typeof id === 'string')) {
+          throw new SubstituteParameterError('argumentSetIds must be a JSON array of strings.');
+        }
+        argumentSetIds = ids as string[] | undefined;
+        limits = parseArray('limits', request.query.limits) as ExecutionParameter[] | undefined;
+        offsets = parseArray('offsets', request.query.offsets) as ExecutionParameter[] | undefined;
+      } catch (error) {
+        return reply.status(400).send({ error: (error as Error).message });
+      }
+
+      const lookup = (id: string) => getCacheCoordinator().get(id);
+      const { targetId } = request.query;
+      let target = lookup(targetId) as { '@type'?: string; currentVersion?: string; queryString?: string } | null;
+      if (target?.['@type'] === 'Query') {
+        target = target.currentVersion ? (lookup(target.currentVersion) as typeof target) : null;
+      }
+      if (!target || target['@type'] !== 'QueryVersion' || typeof target.queryString !== 'string') {
+        return reply.status(404).send({ error: `No query or query version ${targetId}.` });
+      }
+
+      // The query text is stored content: substituting it needs Read on its library.
+      requireLibraryMode(request, resolveOwningLibrary(target), 'read');
+
+      const pin = pinQueryAndArguments(lookup, { targetId, argumentSetIds });
+      if (pin.pinned) {
+        for (const id of argumentSetIds ?? []) {
+          requireLibraryMode(request, resolveOwningLibrary(lookup(id)), 'read');
+        }
+        const audience = cacheAudience(request);
+        const etag = pinnedEtag({
+          route: 'substitute',
+          ...pin.pins,
+          limits: limits ?? null,
+          offsets: offsets ?? null,
+          caller: audience.caller,
+        });
+        if (matchesIfNoneMatch(request.headers['if-none-match'], etag)) {
+          setPinnedHeaders(reply, etag, audience.scope);
+          return reply.code(304).send();
+        }
+        markPinned(request, etag, audience.scope);
+      }
+
+      try {
+        const query = target.queryString;
+        const operation = detectSparqlOperation(query);
+        const resolved = await resolveExecutionPayload(
+          { limits, offsets, argumentSetIds },
+          new ArgumentSetService(),
+          { request },
+        );
+        return reply.send({
+          query: applyExecutionArguments(query, {
+            argumentSets: resolved.argumentSets,
+            limits: resolved.limits,
+            offsets: resolved.offsets,
+            caller: callerOfRequest(request),
+          }),
+          operation: operation === QueryTypeIri.update ? 'update' : 'query',
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid request';
+        return reply.status(400).send({ error: message });
+      }
+    },
+  );
+
   fastify.post(
     '/substitute',
     ...typedRoute(substituteRouteSchemas.substitutePost, async (request, reply) => {
@@ -223,3 +353,5 @@ export default async function (
     })
   );
 }
+
+class SubstituteParameterError extends Error {}
