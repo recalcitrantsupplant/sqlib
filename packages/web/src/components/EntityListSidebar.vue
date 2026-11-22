@@ -1161,6 +1161,30 @@ function isGroupCollapsed(key: string) {
   return collapsedGroups.value.has(key);
 }
 
+/**
+ * The saved rows in the order the list draws them: pinned first, then each
+ * heading's rows, with folded headings left out. A row under two tag headings
+ * counts once, at its first place. The workspace reads the first row to open
+ * after a library switch (`useLibrarySwitchLanding`).
+ */
+const savedRowsInOrder = computed<SidebarEntity[]>(() => {
+  const seen = new Set<string>();
+  const rows: SidebarEntity[] = [];
+  const add = (entity: SidebarEntity) => {
+    if (seen.has(entity.id)) return;
+    seen.add(entity.id);
+    rows.push(entity);
+  };
+  pinnedSaved.value.forEach(add);
+  for (const group of savedClusters.value) {
+    if (group.collapsible && isGroupCollapsed(group.key)) continue;
+    group.items.forEach(add);
+  }
+  return rows;
+});
+
+defineExpose({ savedRowsInOrder });
+
 function toggleGroup(key: string) {
   const next = new Set(collapsedGroups.value);
   if (next.has(key)) next.delete(key);

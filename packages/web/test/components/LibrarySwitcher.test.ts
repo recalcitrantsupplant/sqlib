@@ -15,7 +15,7 @@ import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import LibrarySwitcher from '@/components/LibrarySwitcher.vue';
 
-const setActiveLibrary = vi.fn();
+const switchLibrary = vi.fn();
 const state = {
   libraries: ref<Array<{ id: string; name: string; description?: string | null }>>([]),
   activeLibraryId: ref<string | null>(null),
@@ -27,13 +27,13 @@ vi.mock('@/composables/useActiveLibrary', () => ({
     libraries: state.libraries,
     activeLibraryId: state.activeLibraryId,
     activeLibraryName: state.activeLibraryName,
-    setActiveLibrary,
+    switchLibrary,
     ensureLoaded: vi.fn(),
   }),
 }));
 
 beforeEach(() => {
-  setActiveLibrary.mockClear();
+  switchLibrary.mockClear();
   state.libraries.value = [
     { id: 'lib:1', name: 'Main', description: '12 queries' },
     { id: 'lib:2', name: 'Ordnance Survey', description: null },
@@ -86,7 +86,7 @@ describe('LibrarySwitcher', () => {
     option!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(setActiveLibrary).toHaveBeenCalledWith('lib:2');
+    expect(switchLibrary).toHaveBeenCalledWith('lib:2');
     wrapper.unmount();
   });
 

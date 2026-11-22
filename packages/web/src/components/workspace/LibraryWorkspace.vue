@@ -33,6 +33,7 @@
     -->
     <EntityListSidebar
       v-else-if="flatSidebar"
+      ref="entitySidebar"
       :key="flatSidebar.section"
       :section="flatSidebar.section"
       :saved="flatSidebar.saved"
@@ -163,6 +164,11 @@
         sidebar reading "No groups yet". With nothing from this section open,
         the pane says what the section holds and where to read more.
       -->
+      <!--
+        After a library switch, until the new list answers: blank, so neither
+        the old library's record nor the empty state shows for a moment.
+      -->
+      <div v-else-if="libraryLanding && activeListSection" class="content-placeholder" data-testid="library-landing" />
       <div v-else-if="sectionOverview" class="content-placeholder" data-testid="section-overview">
         <EmptyState
           :title="`No ${sectionOverview.noun} open`"
@@ -280,6 +286,7 @@ import TestsRunButton from '../tests/TestsRunButton.vue';
 import type { TagFilter } from '../../lib/tagFilter';
 import TabStrip, { type Tab } from '../shared/TabStrip.vue';
 import EmptyState from '../shared/EmptyState.vue';
+import { useLibrarySwitchLanding } from '../../composables/useLibrarySwitchLanding';
 import { Button } from '../ui/button';
 import RulesSuiteOverview from './RulesSuiteOverview.vue';
 import TestRunsPanel from '../tests/TestRunsPanel.vue';
@@ -1677,6 +1684,51 @@ function selectMostRecent(section: ListSection) {
     selectSavedItem((saved.kind ?? definition.savedKinds[0]?.type) as SectionItemType, saved.id);
   }
 }
+
+/*
+ * A library switch lands the section on the new library's first row, or on
+ * its empty state when it has none. The rule and its ordering are shared with
+ * every entity screen (`useLibrarySwitchLanding`). The first row is the first
+ * one the sidebar draws, after its sort, pins, grouping and filter.
+ */
+const entitySidebar = ref<{ savedRowsInOrder: SidebarEntity[] } | null>(null);
+
+const { landing: libraryLanding } = useLibrarySwitchLanding<SidebarEntity>({
+  scoped: () => {
+    const section = activeListSection.value;
+    return section !== null && SECTION_DEFINITIONS[section].libraryScoped;
+  },
+  close: () => {
+    clearEntitySelection();
+    selectedItemType.value = null;
+  },
+  rows: async (libraryId) => {
+    const section = activeListSection.value;
+    if (!section) return [];
+    const definition = SECTION_DEFINITIONS[section];
+    /*
+     * Under tag grouping the first row is under the first tag heading, so the
+     * order needs the new library's tags and each heading's rows. They load
+     * after the rows themselves: the tags on the library watcher, the
+     * headings when the tags arrive. Wait for the tags, let the rail see
+     * them, then wait for rows and headings together.
+     */
+    await tagsStore.loadTags(libraryId);
+    await nextTick();
+    await Promise.all(definition.savedKinds.map((kind) =>
+      railKind.value === kind.type ? rail.settled() : loadKind(kind.type)));
+    // The sidebar's order is computed from the rows just loaded.
+    await nextTick();
+    // The user moved to another section meanwhile. That section's own watcher lands it.
+    if (activeListSection.value !== section) return [];
+    return entitySidebar.value?.savedRowsInOrder ?? savedFor(section);
+  },
+  open: (row) => {
+    const section = activeListSection.value;
+    const kind = row.kind ?? (section ? SECTION_DEFINITIONS[section].savedKinds[0]?.type : undefined);
+    if (kind) selectSavedItem(kind as SectionItemType, row.id);
+  },
+});
 
 /** Whether what is already selected is something this section's list holds. */
 function selectionBelongsTo(section: ListSection): boolean {

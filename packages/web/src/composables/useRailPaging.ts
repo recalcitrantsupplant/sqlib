@@ -181,6 +181,17 @@ export function useRailPaging(options: {
     for (const [id, entry] of heads) tagPages[id] = entry;
   }
 
+  /*
+   * The latest heading load. A change of tags starts one apart from the rows,
+   * so `settled` waits on it as well as on `ensureLoaded`.
+   */
+  let headingsLoad: Promise<void> = Promise.resolve();
+
+  function reloadHeadings(mine: number): Promise<void> {
+    headingsLoad = loadTagTotals(mine).catch((err) => console.error('[useRailPaging] Tag counts failed:', err));
+    return headingsLoad;
+  }
+
   /** The tag menu's counts: every row of the kind in the library, without filters. */
   const tagCounts = shallowRef<Record<string, number>>({});
 
@@ -230,6 +241,20 @@ export function useRailPaging(options: {
     } while (loaded!.promise !== current);
   }
 
+  /**
+   * Resolves once the rows and the tag headings both answer for the current
+   * section, library and tags. For a caller that reads the list's order, such
+   * as the landing after a library switch (`useLibrarySwitchLanding`).
+   */
+  async function settled(): Promise<void> {
+    for (;;) {
+      await ensureLoaded();
+      const heads = headingsLoad;
+      await heads;
+      if (heads === headingsLoad && loaded?.key === loadKey.value) return;
+    }
+  }
+
   /** Load the first page and the rows by id, for the current section, library, sort and search. */
   function refresh(): Promise<void> {
     const promise = load();
@@ -252,7 +277,7 @@ export function useRailPaging(options: {
     await Promise.all([
       main.reload(listParams.value),
       loadExtras(mine).catch((err) => console.error('[useRailPaging] Rows by id failed:', err)),
-      loadTagTotals(mine).catch((err) => console.error('[useRailPaging] Tag counts failed:', err)),
+      reloadHeadings(mine),
       loadUnfilteredTotal(mine).catch((err) => console.error('[useRailPaging] Unfiltered count failed:', err)),
       loadTagCounts().catch((err) => console.error('[useRailPaging] Tag menu counts failed:', err)),
     ]);
@@ -322,7 +347,7 @@ export function useRailPaging(options: {
   watch(
     () => [groupingByTag.value, options.tags.value.map((tag) => tag.id).join('|')] as const,
     () => {
-      void loadTagTotals(generation).catch((err) => console.error('[useRailPaging] Tag counts failed:', err));
+      void reloadHeadings(generation);
       void loadTagCounts().catch((err) => console.error('[useRailPaging] Tag menu counts failed:', err));
     },
   );
@@ -350,6 +375,7 @@ export function useRailPaging(options: {
     setSearch,
     refresh,
     ensureLoaded,
+    settled,
     loadMore,
     lookup,
     loadRecord,
