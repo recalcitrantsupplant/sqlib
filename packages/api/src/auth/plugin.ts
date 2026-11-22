@@ -8,6 +8,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { normalizeRouteUrl } from '../config/readOnly.js';
+import { DEMO_PERSON_HEADER, demoPerson, isDemoMode } from '../config/demoMode.js';
 import { getAuthStore } from './AuthStore.js';
 import { getAuthConfig, type AuthConfig } from './config.js';
 import { resolveEffectiveGrants } from './grants.js';
@@ -18,7 +19,14 @@ import {
   registerProtectedResourceMetadataRoutes,
 } from './resourceMetadata.js';
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
-import { PRINCIPAL_ANONYMOUS, createAnonymousContext, createFullAccessContext, type AuthContext } from './types.js';
+import {
+  PRINCIPAL_ANONYMOUS,
+  createAnonymousContext,
+  createDemoPersonContext,
+  createFullAccessContext,
+  type AuthContext,
+} from './types.js';
+import { demoPrincipalsOf } from './demoPeople.js';
 import { registerWriteActorHooks } from './writeActor.js';
 
 /**
@@ -57,6 +65,13 @@ function isPublicRoute(routeUrl: string | undefined, config: AuthConfig, basePat
   if (path === '/' || path === '/health' || isProtectedResourceMetadataRoute(path)) return true;
   if (!config.protectDocs && (path === '/docs' || path.startsWith('/docs/'))) return true;
   return false;
+}
+
+/** One header value, trimmed; null when absent or empty. */
+function headerValue(raw: string | string[] | undefined): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 async function buildContext(
@@ -149,6 +164,25 @@ export async function registerAuthPlugin(
     // against. Every caller holds exactly the grants on the anonymous
     // principal, resolved per request so a grant change applies at once.
     if (config.mode === 'anonymous') {
+      // Demo mode (`config/demoMode.ts`): a visitor may act as one of the
+      // people in the operator's file. The header names the person; it cannot
+      // describe one, so a name the file lacks is refused rather than read as
+      // a guest, and a broken switch shows as an error.
+      const personId = isDemoMode() ? headerValue(request.headers[DEMO_PERSON_HEADER]) : null;
+      if (personId) {
+        const person = demoPerson(personId);
+        if (!person) {
+          reply.code(401).send({ error: `No demo person "${personId}". Switch to another person or to Guest.` });
+          return reply;
+        }
+        const principals = demoPrincipalsOf(person);
+        request.authContext = createDemoPersonContext(
+          principals.user,
+          principals.all,
+          resolveEffectiveGrants(principals.all, getAuthStore())
+        );
+        return;
+      }
       request.authContext = createAnonymousContext(
         resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore())
       );

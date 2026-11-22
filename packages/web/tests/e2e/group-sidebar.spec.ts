@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures/test';
 import { mockEntityApi, LIBRARY, QUERY_GROUP } from './fixtures/entities';
 import { recordUrl, scratchUrl } from './navigate';
 

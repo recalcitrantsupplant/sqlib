@@ -1,4 +1,5 @@
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { oxigraphExecutor } from '../isolatedQuery.js';
 import { getCacheCoordinator } from '../CacheCoordinatorProvider.js';
 import type { ResolvedNode } from './types.js';
 import { HttpSparqlExecutor } from '../../server/HttpSparqlExecutor.js';
@@ -187,7 +188,7 @@ export class ExecutorFactory {
       oxigraphStoreManager.getMemoryStore(backend.$id) ??
       (await oxigraphStoreManager.createMemoryStore(backend.$id, oxigraphConfig));
 
-    return this.wrapForMode(new OxigraphSparqlExecutor(store), backend);
+    return this.wrapForMode(oxigraphExecutor(store), backend);
   }
 
   /**
@@ -282,6 +283,6 @@ export class ExecutorFactory {
 
   private createBackendEphemeralExecutor(backend: PersistedBackend): ISparqlExecutor {
     const store = oxigraphStoreManager.getEphemeralStore(backend.$id) ?? oxigraphStoreManager.createEphemeralStore(backend.$id);
-    return new OxigraphSparqlExecutor(store);
+    return oxigraphExecutor(store);
   }
 }

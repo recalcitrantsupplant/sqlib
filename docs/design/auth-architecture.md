@@ -526,9 +526,8 @@ is the free-tier line and should appear in the deployment guide.
 
 ## Open decisions
 
-1. **The licence.** The repository's licence is review and evaluation only.
-   "Free" above is only true in writing once the core carries a licence that
-   says so.
+1. **The licence.** Settled: the repository is MIT-licensed, so "free"
+   above is true in writing.
 2. **Rauthy's upstream providers are beta.** GitHub has a template and was
    the only one documented when surveyed. `rauthy/setup.sh` creates the
    Google, GitHub, Entra and AAF providers from `.env`, and creating one was

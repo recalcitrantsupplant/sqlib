@@ -67,6 +67,7 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   'src/lib/oxigraphUpdateDataset.ts': { calls: 2, marks: 0, why: 'the update-dataset probe, on its own store' },
   'src/lib/orchestration/rdfHandoff.ts': { calls: 1, marks: 0, why: 'RDF between group nodes, parsed to re-serialise' },
   'src/lib/patchLog.ts': { calls: 1, marks: 0, why: 'parsing a patch side that uses RDF 1.2 syntax' },
+  'src/lib/queryWorker.ts': { calls: 1, marks: 0, why: 'a worker thread copy of a store, loaded from its dump (lib/isolatedQuery.ts)' },
   'src/lib/rdfCanonicalizer.ts': { calls: 1, marks: 0, why: 'canonicalisation' },
   'src/lib/w3cRulesSuite/manifest.ts': { calls: 1, marks: 0, why: 'the suite manifest' },
   'src/system-store/SystemStoreLoader.ts': { calls: 1, marks: 0, why: 'the system store' },

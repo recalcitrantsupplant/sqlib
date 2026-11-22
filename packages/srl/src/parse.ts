@@ -116,6 +116,9 @@ export function parseRuleSet(text: string, opts: ParseOptions = {}): SrlRuleSet 
     }
   }
 
+  // The body rule parses a NOT pattern as a full body; rule [20] allows less.
+  for (const rule of rules) checkNegationPatterns(rule.body);
+
   // Same arrangement as TUPLE: the GROUP rule is always registered, and
   // acceptance is decided here.
   if (rules.some((r) => bodyUsesAggregates(r.body))) {
@@ -147,6 +150,24 @@ function bodyUsesTuples(items: SrlRule['body']): boolean {
 
 function bodyUsesAggregates(items: SrlRule['body']): boolean {
   return items.some((it) => it.kind === 'aggregate' || (it.kind === 'not' && bodyUsesAggregates(it.body)));
+}
+
+/**
+ * Narrow a `NOT` pattern to what grammar rule [20] allows: triple patterns and
+ * `FILTER`. A nested `NOT` or a `SET` inside a `NOT` is a syntax error. A
+ * `GROUP` inside a `NOT` is left to `checkAggregatePlacement`, which gives it
+ * its own message.
+ */
+function checkNegationPatterns(items: SrlRule['body']): void {
+  for (const item of items) {
+    if (item.kind === 'not') {
+      for (const inner of item.body) {
+        if (inner.kind === 'not') throw new Error('SRL syntax error: NOT cannot appear inside NOT; only FILTER can appear inside NOT');
+        if (inner.kind === 'set') throw new Error('SRL syntax error: SET cannot appear inside NOT; only FILTER can appear inside NOT');
+      }
+    }
+    if (item.kind === 'aggregate') checkNegationPatterns(item.body);
+  }
 }
 
 /** The aggregation functions of w3c/data-shapes#1347, rule [27]. */

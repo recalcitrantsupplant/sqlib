@@ -64,7 +64,7 @@ import type {
   ExecutionResponseFixture,
   SetupMockApiOptions,
 } from './fixtures/query-group-mock-state';
-import { API_ORIGIN } from './api-origin';
+import { API_ORIGIN, listRoute } from './api-origin';
 
 export type {
   StoredQueryVersion,
@@ -390,7 +390,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/queries`, async (route) => {
+  await page.route(listRoute('/queries'), async (route) => {
     const method = route.request().method();
     if (method === 'GET') {
       await json(route, 200, state.queries);
@@ -513,7 +513,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, set);
   });
 
-  await page.route(/\/query-groups\/[^/]+\/argument-sets$/, async (route) => {
+  await page.route(/\/query-groups\/[^/]+\/argument-sets(\?.*)?$/, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[segments.length - 2] ?? '');
     if (route.request().method() === 'GET') {
@@ -561,7 +561,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
    * assigned from the rule sets of the group's library, and the selector reads
    * the list and then each rule set's versions.
    */
-  await page.route(`${API_ORIGIN}/rule-sets`, async (route) => {
+  await page.route(listRoute('/rule-sets'), async (route) => {
     if (route.request().method() === 'GET') {
       await json(route, 200, state.ruleSets);
       return;
@@ -705,7 +705,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route(`${API_ORIGIN}/query-groups`, async (route) => {
+  await page.route(listRoute('/query-groups'), async (route) => {
     const method = route.request().method();
     if (method === 'GET') {
       await json(route, 200, state.queryGroups);
@@ -928,8 +928,8 @@ export async function settledHandleCentre(handle: Locator) {
  * `moveNodeBy` before connecting, which is what a user does by eye.
  */
 export async function connectNodes(page: Page, sourceNodeId: string, targetNodeId: string) {
-  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle-right`);
-  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle-left`);
+  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`);
+  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`);
   const subtitle = page.locator('.canvas-editor .panel-header__subtitle');
 
   /*

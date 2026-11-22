@@ -107,6 +107,48 @@ describe('Tags Routes (/tags)', () => {
     expect(res.json().id).toMatch(/^urn:sqlib:tag:/);
   });
 
+  it('pages the list with the shared list controls (#197)', async () => {
+    hoisted.tag.list.mockReturnValue(['geo', 'admin', 'core'].map(name => ({
+      $id: `urn:sqlib:tag:${name}`, '@type': 'Tag', name, isPartOf: LIBRARY_ID,
+    })));
+
+    const res = await app.inject({ method: 'GET', url: `/tags?library=${encodeURIComponent(LIBRARY_ID)}&sort=name&limit=2` });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-total-count']).toBe('3');
+    expect(res.json().map((tag: { name: string }) => tag.name)).toEqual(['admin', 'core']);
+  });
+
+  it('counts the entities of one type that carry each tag, in one library', async () => {
+    hoisted.query.list.mockReturnValue([
+      { $id: 'urn:q:1', name: 'a', isPartOf: LIBRARY_ID, tags: ['urn:sqlib:tag:geo', 'urn:sqlib:tag:perth'] },
+      { $id: 'urn:q:2', name: 'b', isPartOf: LIBRARY_ID, tags: ['urn:sqlib:tag:geo'] },
+      { $id: 'urn:q:3', name: 'c', isPartOf: LIBRARY_ID },
+      { $id: 'urn:q:4', name: 'd', isPartOf: OTHER_LIBRARY_ID, tags: ['urn:sqlib:tag:geo'] },
+    ]);
+
+    const res = await app.inject({ method: 'GET', url: `/tags/counts?type=Query&library=${encodeURIComponent(LIBRARY_ID)}` });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ 'urn:sqlib:tag:geo': 2, 'urn:sqlib:tag:perth': 1 });
+  });
+
+  it('counts inside the list filters', async () => {
+    hoisted.query.list.mockReturnValue([
+      { $id: 'urn:q:1', name: 'perth bores', isPartOf: LIBRARY_ID, tags: ['urn:sqlib:tag:geo', 'urn:sqlib:tag:perth'] },
+      { $id: 'urn:q:2', name: 'hobart', isPartOf: LIBRARY_ID, tags: ['urn:sqlib:tag:geo'] },
+    ]);
+
+    const res = await app.inject({ method: 'GET', url: `/tags/counts?type=Query&tag=${encodeURIComponent('urn:sqlib:tag:perth')}&q=pth` });
+
+    expect(res.json()).toEqual({ 'urn:sqlib:tag:geo': 1, 'urn:sqlib:tag:perth': 1 });
+  });
+
+  it('rejects counts for a type that cannot carry tags', async () => {
+    const res = await app.inject({ method: 'GET', url: '/tags/counts?type=Backend' });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('accepts a hex colour and rejects anything that is not one', async () => {
     hoisted.tag.create.mockImplementation(async (entity: Record<string, unknown>) => entity);
 

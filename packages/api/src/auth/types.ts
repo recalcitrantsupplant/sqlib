@@ -5,6 +5,7 @@
  * in all three auth modes — in `disabled` mode it is a synthetic full-access
  * context — so downstream code never branches on "is auth on".
  */
+import { DEMO_ISSUER } from '../config/demoMode.js';
 
 /** Modes grantable on a library. `x` is deliberately independent of `r` (§4.2). */
 export const LIBRARY_MODES = ['read', 'write', 'execute', 'delete', 'control'] as const;
@@ -155,6 +156,31 @@ export function createAnonymousContext(grants: EffectiveGrants): AuthContext {
     subject: PRINCIPAL_ANONYMOUS,
     principals: [PRINCIPAL_ANONYMOUS],
     issuer: null,
+    tokenType: 'user',
+    grants,
+    claims: {},
+    fullAccess: false,
+    mode: 'anonymous',
+  };
+}
+
+/**
+ * The context of a visitor acting as a demo person (`config/demoMode.ts`).
+ *
+ * The mode stays `anonymous`: the deployment is still public, and its checks
+ * still enforce. The principals are the person's own, their groups, the
+ * anonymous principal and the authenticated sentinel, so a demo person holds
+ * at least what a guest holds, and what "everyone signed in" holds.
+ */
+export function createDemoPersonContext(
+  subject: string,
+  principals: readonly string[],
+  grants: EffectiveGrants
+): AuthContext {
+  return {
+    subject,
+    principals: [...principals],
+    issuer: DEMO_ISSUER,
     tokenType: 'user',
     grants,
     claims: {},

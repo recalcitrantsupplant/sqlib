@@ -160,6 +160,18 @@ export function validateModes(resourceKind: GrantResourceKind, modes: readonly s
   return [...new Set(normalized)];
 }
 
+/**
+ * An `xsd:dateTime` read back from the store, in the form `toISOString` writes.
+ * Oxigraph stores the canonical form, which drops trailing zeros from the
+ * fraction ("...34.010Z" reads back as "...34.01Z"), so a value written and
+ * read back would otherwise differ in one case in ten.
+ */
+function asIsoInstant(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? value : new Date(time).toISOString();
+}
+
 export class AuthStore {
   private store = new oxigraph.Store();
   private grants = new Map<string, Grant>();
@@ -360,8 +372,8 @@ export class AuthStore {
       iri,
       rawClaim,
       kind: this.objectsOf(iri, auth.principalKind)[0] ?? 'user',
-      seenAt: this.objectsOf(iri, auth.seenAt)[0],
-      lastSeenAt: this.objectsOf(iri, auth.lastSeenAt)[0],
+      seenAt: asIsoInstant(this.objectsOf(iri, auth.seenAt)[0]),
+      lastSeenAt: asIsoInstant(this.objectsOf(iri, auth.lastSeenAt)[0]),
       label: this.objectsOf(iri, auth.label)[0],
       displayName: this.objectsOf(iri, auth.displayName)[0],
     };

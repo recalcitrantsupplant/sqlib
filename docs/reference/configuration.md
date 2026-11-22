@@ -256,7 +256,9 @@ A value that does not parse as an integer falls back to the default.
 | Name | Default | Effect |
 | --- | --- | --- |
 | `RULE_EXECUTION_TIMEOUT_MS` | `30000` | Per-rule timeout during a rule set run. A rule is judged against it after it finishes; to stop a run, use `SQLIB_EXECUTION_TIMEOUT_MS`. |
-| `SQLIB_EXECUTION_TIMEOUT_MS` | `300000` (5 minutes) | The most one query group run or rule set run may take. Checked before every group node and every rule and DATA block, and aborts HTTP requests to backends in flight; a run past it fails at the node it was on, with status 504 from `/execute`. It cannot interrupt a single query against an in-process Oxigraph store, which runs synchronously, so such a run stops at the next boundary after the deadline. `0` turns it off. A client that disconnects from `/execute` or a rule set's execute route cancels its run the same way. |
+| `SQLIB_EXECUTION_TIMEOUT_MS` | `300000` (5 minutes) | The most one query group run or rule set run may take. Checked before every group node and every rule and DATA block, and aborts HTTP requests to backends in flight; a run past it fails at the node it was on, with status 504 from `/execute`. It cannot interrupt a single query against an in-process Oxigraph store, which runs synchronously, so such a run stops at the next boundary after the deadline. The rules playground (`POST /playground/rules/execute`) is the exception: it runs in a worker thread, and the server stops the thread 0.5 s after the deadline and answers 504, even in the middle of a rule. With `SQLIB_QUERY_WORKERS` above 0, a query over an in-memory store also runs in a worker thread and stops at the deadline. `0` turns it off. A client that disconnects from `/execute` or a rule set's execute route cancels its run the same way. |
+| `SQLIB_PLAYGROUND_RULE_RUNS` | `2` | The most rules playground runs at once. Each run has its own worker thread. A run past the limit gets 503. |
+| `SQLIB_QUERY_WORKERS` | `0` | Queries over in-memory Oxigraph stores (`oxigraphMemory` and ephemeral backends, a query's own data graphs, `POST /sparql`) that may run at once in worker threads. `0` runs them on the main thread, where `SQLIB_EXECUTION_TIMEOUT_MS` cannot stop one query. Above `0`, each query runs in a worker that holds a copy of the store, and the worker stops at the deadline with 504. A query that waits for a free worker spends its own deadline waiting. Each worker holds a full copy of a store, so set it for small stores, such as a public demo's. |
 | `SQLIB_MAX_RULE_ITERATIONS` | `1000` | The most fixpoint iterations a rule set run may take per stratum. A request asking for more `maxIterations` is refused by the route schema (read at startup); the executor clamps to the value in force whatever it is asked. |
 | `RULE_EXECUTION_SAMPLE_LIMIT` | `10` | How many sample bindings a rule run reports per rule. |
 | `PATCH_PREVIEW_TTL_MS` | `3600000` (1 hour) | How long a derived, unapplied RDF patch preview is retained. See [RDF patch](../explanation/rdf-patch.md). |
@@ -342,6 +344,44 @@ Read-only is a separate setting from the auth mode, and needs no auth mode:
   needs principals, grants and an issuer.
 - Read-only decides whether the state of the deployment can change. The answer
   is the same for each caller.
+
+### Demo mode
+
+`SQLIB_DEMO=true` is for a hosted demo. A visitor can act as one of a fixed
+list of people, with no sign-in, to see how grants and graph policies change
+what they see.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_DEMO` | `false` | Exactly `true` turns it on. The server refuses to start unless `SQLIB_READ_ONLY=true` and `SQLIB_AUTH_MODE=anonymous`. |
+| `SQLIB_DEMO_PEOPLE` | unset | A JSON file of demo people. Unset gives demo mode with no people. A file that cannot be read or parsed stops the start. |
+
+The people file:
+
+```json
+{ "people": [
+  { "id": "alice", "name": "Alice", "groups": ["analysts"] },
+  { "id": "dana", "name": "Dana", "groups": ["admins"], "admin": true }
+] }
+```
+
+- `id` is lower-case letters, digits and hyphens. `name` is what the web app
+  shows. `groups` are group names. `admin: true` makes the person an
+  administrator, as `SQLIB_AUTH_ADMIN_PRINCIPALS` does.
+- `/health` lists the people under `demo.people`. The account menu at the
+  foot of the rail lists them, and a pick sends `X-Sqlib-Demo-Person: <id>`
+  on each request.
+- A request with that header acts as the person: their user principal, their
+  group principals, `urn:sqlib:principal:anonymous` and
+  `urn:sqlib:principal:authenticated`. A person always holds what a guest
+  holds. A request without the header is a guest. An id that the file does not
+  list gets `401`.
+- Principal IRIs are made as for a token from the issuer `urn:sqlib:demo`,
+  so a grant or a graph policy names a demo person as it names anybody. In
+  `SQLIB_AUTH_ADMIN_PRINCIPALS` Alice is `urn:sqlib:demo|alice`, and her
+  group is `urn:sqlib:demo|group:analysts`.
+- `?authUser` and `?authGroup` in a saved query read the person, as they
+  read a signed-in caller.
 
 You can use both together. A public site runs `SQLIB_AUTH_MODE=disabled` with
 read-only. The full-access context of that auth mode still cannot write, because

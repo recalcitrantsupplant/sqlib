@@ -30,7 +30,7 @@
  * moves with the machine, and a pane that starts rebuilding itself is a
  * regression worth failing a build over.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '../fixtures/test';
 import { mockEntityApi, LIBRARY, QUERY } from '../fixtures/entities';
 
 const TEST_IDS = ['urn:sqlib:test:alpha', 'urn:sqlib:test:beta'] as const;

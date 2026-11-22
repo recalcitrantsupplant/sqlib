@@ -312,6 +312,24 @@ describe('rule sets', () => {
     expect(() => buildPublishedRequest(neighbours, { data: 'x', format: 'text/csv' })).toThrow(/not one of/);
   });
 
+  it('takes seed rows as tuples only when its version reads them', () => {
+    const rows = {
+      head: { vars: ['a', 'b'] },
+      results: { bindings: [{ a: { type: 'uri', value: 'a:x' }, b: { type: 'uri', value: 'a:y' } }] },
+    };
+    expect(() => buildPublishedRequest(neighbours, { tuples: rows })).toThrow(/takes no such argument/);
+
+    const seeded = { ...neighbours, ruleSet: { ...neighbours.ruleSet!, tuplesEnabled: true } };
+    expect(Object.keys(publishedInputSchema(seeded).properties as object)).toEqual(['data', 'format', 'tuples']);
+    expect(buildPublishedRequest(seeded, { tuples: rows }).payload).toEqual({
+      version: 2,
+      inferenceFormat: 'text/turtle',
+      dataGraphVersionId: 'urn:sqlib:data-graph-version:people-4',
+      tuples: { inline: rows },
+    });
+    expect(() => buildPublishedRequest(seeded, { tuples: 'a,b' })).toThrow(/SPARQL Results JSON object/);
+  });
+
   it('is POST over HTTP, though it only reads', () => {
     expect(publishedHttpMethod(neighbours)).toBe('POST');
     expect(publishedToolDefinition(neighbours).annotations).toEqual({ readOnlyHint: true });

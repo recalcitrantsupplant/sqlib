@@ -123,12 +123,12 @@ const JOB_TEMPLATE = `PREFIX ex: <http://ex/>
 CONSTRUCT { ?c ex:name ?name } WHERE { VALUES (?c ?name) { (UNDEF UNDEF) } }`;
 
 const COLUMNS = [
-  { columnName: 'id', targetVariable: 'c', termType: 'uri', iriTemplate: 'http://ex/c/{value}', nullPolicy: 'skipRow' },
-  { columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' },
+  { columnName: 'c', termType: 'uri' },
+  { columnName: 'name', termType: 'literal' },
 ];
 
 /** One ETL job and one rule set with a rule and a data block. */
-function seedJobsAndRuleSets(options: { template?: string } = {}) {
+function seedJobsAndRuleSets(options: { template?: string; columns?: unknown[] } = {}) {
   etlJob.list.mockReturnValue([
     { $id: 'j1', name: 'Customers', isPartOf: [LIBRARY], currentVersion: 'jv1' },
   ]);
@@ -147,7 +147,7 @@ function seedJobsAndRuleSets(options: { template?: string } = {}) {
       : null,
   );
   etlColumnMappingVersion.get.mockImplementation((id: string) =>
-    id === 'cmv1' ? { $id: 'cmv1', isPartOf: 'cm1', version: 1, columns: JSON.stringify(COLUMNS) } : null,
+    id === 'cmv1' ? { $id: 'cmv1', isPartOf: 'cm1', version: 1, columns: JSON.stringify(options.columns ?? COLUMNS) } : null,
   );
   ruleSet.list.mockReturnValue([
     { $id: 'rs1', name: 'Ancestors', isPartOf: [LIBRARY], currentVersion: 'rsv1', tags: ['urn:tag:public'] },
@@ -599,6 +599,17 @@ INSERT { ?person ex:livesIn ?city } WHERE { VALUES (?person ?city) { (UNDEF UNDE
       const { bundle, skipped } = (await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` })).json();
       expect(bundle.etlJobs).toBeUndefined();
       expect(skipped).toEqual([{ id: 'j1', name: 'Customers', reason: expect.stringContaining('not a CONSTRUCT') }]);
+    });
+
+    it('skips a job whose mapping uses a retired field, and says why', async () => {
+      seedLibrary([], {});
+      seedJobsAndRuleSets({
+        columns: [{ columnName: 'id', targetVariable: 'c', termType: 'uri', nullPolicy: 'undef' }, COLUMNS[1]],
+      });
+
+      const { bundle, skipped } = (await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` })).json();
+      expect(bundle.etlJobs).toBeUndefined();
+      expect(skipped).toEqual([{ id: 'j1', name: 'Customers', reason: expect.stringContaining('id AS c') }]);
     });
 
     it('skips a rule set whose data block has no DATA form', async () => {

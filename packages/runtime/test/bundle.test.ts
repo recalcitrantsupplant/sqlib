@@ -16,8 +16,13 @@ describe('assertValidBundle', () => {
   });
 
   it('rejects a future bundle version rather than guessing at it', async () => {
-    const bundle = { ...(await bundleOf({ people: SIMPLE() })), version: 2 };
-    expect(() => assertValidBundle(bundle)).toThrow(/version 2/);
+    const bundle = { ...(await bundleOf({ people: SIMPLE() })), version: 3 };
+    expect(() => assertValidBundle(bundle)).toThrow(/version 3/);
+  });
+
+  it('reads a version-1 bundle', async () => {
+    const bundle = { ...(await bundleOf({ people: SIMPLE() })), version: 1 };
+    expect(() => assertValidBundle(bundle)).not.toThrow();
   });
 
   it('rejects a slot that runs past the end of the text', async () => {
@@ -147,8 +152,8 @@ describe('ETL jobs and rule sets', () => {
         textHash: await hashTemplateText(jobTemplate.text),
         sql: 'SELECT 1 AS id',
         columns: [
-          { columnName: 'id', targetVariable: 'c', termType: 'uri', nullPolicy: 'skipRow' },
-          { columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' },
+          { columnName: 'c', termType: 'uri' },
+          { columnName: 'name', termType: 'literal' },
         ],
       },
     };
@@ -166,7 +171,13 @@ describe('ETL jobs and rule sets', () => {
 
   it('rejects a job column bound to a variable the slot does not declare', async () => {
     const bundle = await withJobAndRules();
-    bundle.etlJobs!.customers.columns[1].targetVariable = 'email';
+    bundle.etlJobs!.customers.columns[1].columnName = 'email';
+    expect(() => assertValidBundle(bundle)).toThrow(/\?email/);
+  });
+
+  it('checks a version-1 column against the variable it named', async () => {
+    const bundle = { ...(await withJobAndRules()), version: 1 };
+    Object.assign(bundle.etlJobs!.customers.columns[1], { targetVariable: 'email' });
     expect(() => assertValidBundle(bundle)).toThrow(/\?email/);
   });
 

@@ -1,7 +1,7 @@
 {
   "name": "@sparql-query-lib/runtime-duckdb",
   "version": "0.1.0",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/recalcitrantsupplant/sqlib.git",

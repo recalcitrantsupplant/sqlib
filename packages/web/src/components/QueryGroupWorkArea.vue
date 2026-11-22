@@ -56,17 +56,16 @@
       <!--
         The run, as one sentence (design 3b).
 
-        A group's "against" is a statement rather than a choice: every execution
-        node names its own backend, so there is nothing group-level to pick and
-        a dropdown here would claim otherwise. Same for the output format — a
-        node names the media type it wants back. What is left is genuinely the
-        group's own: what it runs *with*, and what the recipe can be kept as.
+        A group has no "against" clause: every execution node names its own
+        backend in the Editor tab, and a run that finds a node without one
+        names that node in its error. The output format is per node too. What
+        is left is the group's own: what it runs *with*, and what the recipe
+        can be kept as.
       -->
       <RunBar
         :running="isExecuting"
         :run-title="runTitle"
         :inputs="runInputs"
-        :backend="PER_NODE_BACKENDS"
         :create-targets="['benchmark', 'test']"
         :create-disabled-reason="createDisabledReason"
         :creating="creatingFromRecipe"
@@ -560,7 +559,7 @@ import QueryResultsViewer from './QueryResultsViewer.vue';
 import type { SparqlResults } from '@sparql-query-lib/types';
 import { toast } from 'vue-sonner';
 import { usePanelResize } from '../composables/usePanelResize';
-import { buildCanvasNodeData, LEFT_TO_RIGHT_HANDLES, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
+import { buildCanvasNodeData, canvasDirectionOf, handlesFor, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
 import { authoredNodeLabel, canvasNodeLabel } from '../composables/queryGroupNodeLabel';
 import { nodeResultSize, nodeResultView, SHOW_NODE_RESULT } from '../lib/nodeResult';
 import { useQueryGroupIO } from '../composables/useQueryGroupIO';
@@ -582,7 +581,7 @@ import { useArgumentSets } from '../composables/useArgumentSets';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { useTestsStore } from '../composables/useTestsStore';
 import RunBar from './shared/RunBar.vue';
-import type { CreateTarget, RunBarChoice, RunBarPick } from '../lib/runBar';
+import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { QueryGroupCreationRequest, ValidationIssue } from '../composables/queryGroupTypes';
 import {
@@ -1154,23 +1153,6 @@ const isExecuting = execution.isExecuting;
  * The run sentence (design 3b)
  * ------------------------------------------------------------------ */
 
-/**
- * "against", for a subject that does not get to choose.
- *
- * A group has no backend of its own: each execution node names one, and the
- * same is true of the media type each node asks for. Offering a group-level
- * dropdown would be claiming a knob that does not exist, so the sentence states
- * the fact and the Editor tab is where a node's backend is actually set.
- */
-const PER_NODE_BACKENDS: RunBarChoice = {
-  value: 'per-node',
-  options: [],
-  readonly: true,
-  label: 'node backends',
-  title: 'A query group has no backend of its own — every execution node names one. '
-    + 'Select a node and use the Editor tab to change it.',
-};
-
 const argumentsSummary = computed(() => {
   const selection = argumentSetsState.selection.value;
   if (selection.kind === 'none') return '';
@@ -1738,14 +1720,16 @@ watch(versions.loadCount, async () => {
 });
 
 /**
- * A version that opens with nodes on top of each other is laid out at once.
- * The new positions are how the canvas shows it, not an edit the author made,
- * so the baseline moves with them; the next save keeps them.
+ * A version that opens with nodes on top of each other, or with no saved
+ * canvas at all (a new group, or one a seed or an import wrote), is laid out at
+ * once. The new positions are how the canvas shows it, not an edit the author
+ * made, so the baseline moves with them; the next save keeps them.
  */
 async function untangleOpenedVersion() {
   const measured = await waitForMeasuredNodes();
   if (!measured) return;
-  if (!hasOverlaps(nodes.value as CanvasBox[])) {
+  const neverDrawn = !currentGraphState.value.version?.canvasData;
+  if (!neverDrawn && !hasOverlaps(nodes.value as CanvasBox[])) {
     clearToolbar();
     return;
   }
@@ -1757,7 +1741,9 @@ async function untangleOpenedVersion() {
    */
   const surface = canvasContainerRef.value?.getBoundingClientRect();
   const narrow = !!surface && surface.width < 720;
-  autoLayoutCanvas(narrow ? 'compact' : layoutPresetId.value, { quiet: true, remember: false });
+  // A canvas never drawn before has no handle sides to keep, so it takes the
+  // author's layout whatever the width.
+  autoLayoutCanvas(narrow && !neverDrawn ? 'compact' : layoutPresetId.value, { quiet: true, remember: false });
   await nextTick();
   if (versions.legacyStartPortsConverted.value.length === 0) savedFingerprint.value = canvasFingerprint.value;
 }
@@ -1966,7 +1952,9 @@ const detailsProps = computed(() => ({
   draftSelected: unsavedEditCount.value > 0,
   createdAt: isScratch.value
     ? null
-    : (queryGroupsStore.queryGroups.value.find((group) => group.id === queryGroupId.value)?.dateCreated ?? null),
+    : (queryGroupsStore.queryGroups.value.find((group) => group.id === queryGroupId.value)?.dateCreated
+      ?? queryGroupStamps.value.createdAt
+      ?? null),
   canDelete: !isScratch.value && !!queryGroupId.value,
   deleting: isSaving.value,
 }));
@@ -2582,7 +2570,8 @@ const drawAddedNode = (graphNode: GraphNodeState, position?: { x: number; y: num
     // here used to come back as a plain default box with top and bottom handles,
     // which is one canvas drawn to two conventions.
     type: 'query-group-node',
-    ...LEFT_TO_RIGHT_HANDLES,
+    // The way the rest of the canvas runs, so every node joins the same way.
+    ...handlesFor(canvasDirectionOf(nodes.value)),
     position: position ?? { x: 300, y: 80 + (executionNodeCount - 1) * 180 },
     label: data.label,
     deletable: true,
@@ -3042,15 +3031,21 @@ type LayoutPresetId = (typeof layoutPresets)[number]['id'];
 
 const LAYOUT_PRESET_STORAGE_KEY = 'sqlib:queryGroupLayoutPreset';
 
+/*
+ * Top to bottom until the author picks another. Most groups are short chains,
+ * and a chain stacked in a column fits the canvas beside the inspector.
+ */
+const DEFAULT_LAYOUT_PRESET: LayoutPresetId = 'flow-tb';
+
 const readStoredLayoutPreset = (): LayoutPresetId => {
-  if (typeof window === 'undefined') return 'flow-lr';
+  if (typeof window === 'undefined') return DEFAULT_LAYOUT_PRESET;
   try {
     const stored = window.localStorage.getItem(LAYOUT_PRESET_STORAGE_KEY);
     const match = layoutPresets.find((preset) => preset.id === stored);
-    return match?.id ?? 'flow-lr';
+    return match?.id ?? DEFAULT_LAYOUT_PRESET;
   } catch {
     // A blocked localStorage costs a remembered preference, nothing more.
-    return 'flow-lr';
+    return DEFAULT_LAYOUT_PRESET;
   }
 };
 

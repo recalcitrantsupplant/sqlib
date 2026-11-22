@@ -52,6 +52,7 @@ import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
 import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import { sendListPage, withListPage } from '../lib/listPage.js';
 
 const systemQueryRunner = new SystemQueryRunner();
 // Resolves a test case's stored argument set into the runtime's own payload
@@ -591,7 +592,7 @@ export default async function (fastify: FastifyInstance) {
   // GET /libraries - Lightning fast cache read
   fastify.get<{ Reply: LibraryRestApi[] }>(
     '/',
-    ...reposRoute(getLibrarysSchema, async ({ repos, reply, request }) => {
+    ...reposRoute(withListPage(getLibrarysSchema), async ({ repos, reply, request }) => {
       const rdfType = negotiateRdfMediaType(request.headers.accept);
       if (rdfType) {
         const execution = await readableLibraryCollection(request, repos, rdfType);
@@ -600,7 +601,7 @@ export default async function (fastify: FastifyInstance) {
 
       const persistedLibraries = repos.Library.list() as PersistedLibrary[];
       const visible = filterReadable(request, persistedLibraries);
-      return reply.send(visible.map(lib => toRestApi<any>(lib)));
+      return sendListPage(request, reply, visible, lib => toRestApi<any>(lib));
     })
   );
 

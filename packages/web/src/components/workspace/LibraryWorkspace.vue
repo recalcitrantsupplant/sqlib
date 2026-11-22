@@ -33,6 +33,7 @@
     -->
     <EntityListSidebar
       v-else-if="flatSidebar"
+      ref="entitySidebar"
       :key="flatSidebar.section"
       :section="flatSidebar.section"
       :saved="flatSidebar.saved"
@@ -48,6 +49,14 @@
       :tags="libraryTags"
       :supports-tags="flatSidebar.supportsTags"
       :supports-origin="flatSidebar.supportsOrigin"
+      :saved-total="railKind ? rail.total.value : undefined"
+      :saved-remaining="railKind ? railRemaining : undefined"
+      :tag-totals="railKind ? rail.tagTotals.value : undefined"
+      :tag-row-ids="railKind ? rail.tagRowIds.value : undefined"
+      :tag-counts="railKind ? rail.tagCounts.value : undefined"
+      :unfiltered-total="railKind ? rail.unfilteredTotal.value ?? undefined : undefined"
+      @search="rail.setSearch"
+      @load-more="(tagId) => rail.loadMore(tagId)"
       @select-saved="handleSelectSaved"
       @select-scratch="handleSelectScratch"
       @create-scratch="handleCreateFromSidebar"
@@ -86,28 +95,22 @@
           @export="exportScope"
         />
       </template>
-      <template v-if="flatSidebar.section === 'tests'" #section-actions="{ items }">
+      <template v-if="flatSidebar.section === 'tests'" #section-actions="{ items, tagFilter, filterText }">
         <!--
-          Run all is the whole list; the tag menu beside it is the subset worth
-          running on its own. Two controls rather than one with a mode, because
-          "everything" is the common case and must stay one click.
+          Run runs the list as it is filtered. A tag filter alone goes to the
+          server as tags, which can also export the run as a report.
         -->
-        <RunByTagMenu
-          :tags="runnableTags(items)"
+        <TestsRunButton
+          :label="runListLabel(items, tagFilter, filterText)"
+          :count="items.length"
+          :total-count="flatSidebar.saved.length"
+          :filtered="tagFilter.tags.length > 0 || !!filterText"
+          :can-export="tagFilter.tags.length > 0 && !filterText"
           :busy="runningAll"
-          :disabled="runningAll"
-          @run="runTaggedTests"
-          @export="exportTaggedTests"
+          @run="runListedTests(items, tagFilter, filterText)"
+          @run-all="runAllTests(flatSidebar.saved)"
+          @export="(format) => exportTaggedTests(tagFilter.tags, tagFilter.match, format)"
         />
-        <button
-          class="run-all-button"
-          data-testid="tests-run-all"
-          :disabled="runningAll || items.length === 0"
-          :title="`Run all ${items.length} tests`"
-          @click="runAllTests(items)"
-        >
-          <Play :size="12" />{{ runAllLabel }}
-        </button>
       </template>
       <template v-if="flatSidebar.section === 'tests'" #group-actions="{ items, label, tagId }">
         <button
@@ -161,12 +164,25 @@
         sidebar reading "No groups yet". With nothing from this section open,
         the pane says what the section holds and where to read more.
       -->
+      <!--
+        After a library switch, until the new list answers: blank, so neither
+        the old library's record nor the empty state shows for a moment.
+      -->
+      <div v-else-if="libraryLanding && activeListSection" class="content-placeholder" data-testid="library-landing" />
       <div v-else-if="sectionOverview" class="content-placeholder" data-testid="section-overview">
         <EmptyState
           :title="`No ${sectionOverview.noun} open`"
           :description="sectionOverview.blurb"
         >
           <template #actions>
+            <Button
+              v-if="sectionOverview.canCreate"
+              data-testid="section-overview-new"
+              @click="handleCreateFromSidebar"
+            >
+              <Plus :size="16" aria-hidden="true" />
+              New {{ sectionOverview.noun }}
+            </Button>
             <a
               class="section-docs-link"
               :href="sectionOverview.docsUrl"
@@ -260,15 +276,18 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from '#imports';
-import { CircleCheck, ListChecks, Play } from '@lucide/vue';
+import { CircleCheck, ListChecks, Play, Plus } from '@lucide/vue';
 import AppNavRail from '../AppNavRail.vue';
 import AppSplash from '../AppSplash.vue';
 import EntityListSidebar, { type SidebarSelection, type SidebarEntity } from '../EntityListSidebar.vue';
 import BackendListSidebar from '../BackendListSidebar.vue';
 import BackendWorkArea from '../BackendWorkArea.vue';
-import RunByTagMenu, { type RunByTagOption } from '../tests/RunByTagMenu.vue';
+import TestsRunButton from '../tests/TestsRunButton.vue';
+import type { TagFilter } from '../../lib/tagFilter';
 import TabStrip, { type Tab } from '../shared/TabStrip.vue';
 import EmptyState from '../shared/EmptyState.vue';
+import { useLibrarySwitchLanding } from '../../composables/useLibrarySwitchLanding';
+import { Button } from '../ui/button';
 import RulesSuiteOverview from './RulesSuiteOverview.vue';
 import TestRunsPanel from '../tests/TestRunsPanel.vue';
 import TestRunResults from '../tests/TestRunResults.vue';
@@ -293,7 +312,7 @@ import { useBackendsStore } from '../../composables/useBackendsStore';
 import { isBrowserBackendId, useBrowserBackends } from '../../composables/useBrowserBackends';
 import { useBackendProbes } from '../../composables/useBackendProbes';
 import { useQueriesStore } from '../../composables/useQueriesStore';
-import { useEntityKinds, isInLibrary } from '../../composables/useEntityKinds';
+import { useEntityKinds, isInLibrary, type KindEntity } from '../../composables/useEntityKinds';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
 import { useLibraryEvents } from '../../composables/useLibraryEvents';
@@ -344,6 +363,7 @@ import {
   type ShareRequest,
 } from '../../lib/shareLink';
 import { setLastBackend } from '../../lib/backendDefaults';
+import { isRailPaged, useRailPaging } from '../../composables/useRailPaging';
 import type { ArgumentScalarBinding, ArgumentTupleBinding } from '../../types/argument-sets';
 
 interface QueryCreationRequest {
@@ -646,21 +666,30 @@ const runAllLabel = computed(() =>
   runningAll.value ? `${runAllDone.value}/${runAllTotal.value}` : 'Run all',
 );
 
+/** "Run all" without a filter, "Run 16" with one, and the progress while a run goes. */
+function runListLabel(items: SidebarEntity[], tagFilter: TagFilter, filterText: string): string {
+  if (runningAll.value) return runAllLabel.value;
+  return tagFilter.tags.length > 0 || filterText ? `Run ${items.length}` : 'Run all';
+}
+
 /**
- * The tags the tests in view carry, with how many carry each.
- *
- * Built from the rows rather than from the library's tag list so the menu
- * never offers a tag that would run nothing here — a library's tags span every
- * section, and Queries' tags are not a test suite.
+ * Run the tests the list shows. A tag filter alone is sent as tags, so the
+ * server selects what the tags hold now. A text filter runs the rows shown.
  */
-function runnableTags(items: SidebarEntity[]): RunByTagOption[] {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    for (const tag of item.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+async function runListedTests(items: SidebarEntity[], tagFilter: TagFilter, filterText: string) {
+  if (tagFilter.tags.length > 0 && !filterText) return runTaggedTests(tagFilter.tags, tagFilter.match);
+  if (tagFilter.tags.length > 0 || filterText) {
+    return runTestIds(items.map((item) => item.id), 'group', listScopeLabel(tagFilter, filterText));
   }
-  return libraryTags.value
-    .filter((tag) => counts.has(tag.id))
-    .map((tag) => ({ ...tag, count: counts.get(tag.id) ?? 0 }));
+  return runAllTests(items);
+}
+
+/** The run's scope label for a filtered list: `tag: negation · "scope"`. */
+function listScopeLabel(tagFilter: TagFilter, filterText: string): string {
+  const parts: string[] = [];
+  if (tagFilter.tags.length > 0) parts.push(tagScopeLabel(tagFilter.tags, tagFilter.match));
+  if (filterText) parts.push(`“${filterText}”`);
+  return parts.join(' · ');
 }
 
 /**
@@ -859,6 +888,47 @@ const activeListSection = computed<ListSection | null>(() => {
   return isFeatureEnabled(SECTION_DEFINITIONS[section].feature) ? section : null;
 });
 
+/*
+ * The rail's saved rows, from the server a page at a time (#197). Each section
+ * lists one kind; the kinds `useRailPaging` pages read from it, and the others
+ * (tests, ETL) still read the whole list from their store.
+ */
+const railKind = computed(() => {
+  const section = activeListSection.value;
+  const kind = section ? SECTION_DEFINITIONS[section].savedKinds[0]?.type ?? null : null;
+  return isRailPaged(kind) ? kind : null;
+});
+const railLibrary = computed(() => {
+  const section = activeListSection.value;
+  return section && SECTION_DEFINITIONS[section].libraryScoped ? activeLibraryId.value : null;
+});
+const rail = useRailPaging({
+  section: activeListSection,
+  kind: railKind,
+  library: railLibrary,
+  tags: libraryTags,
+});
+
+/** How many of the main list's matches are not loaded yet. */
+const railRemaining = computed(() => Math.max(0, rail.total.value - rail.mainCount.value));
+
+/** Load a kind for the rail: a page when the rail pages it, else the whole store. */
+async function loadRailKind(type: SectionItemType): Promise<unknown> {
+  if (railKind.value === type) return rail.ensureLoaded();
+  return loadKind(type);
+}
+
+/**
+ * After a save or a delete. The rail reloads its page. The store reloads too
+ * when something already loaded it, so the screens that read it stay current.
+ */
+async function refreshKind(type: SectionItemType): Promise<unknown> {
+  const reloads: Promise<unknown>[] = [];
+  if (railKind.value === type) reloads.push(rail.refresh());
+  if (railKind.value !== type || entitiesOfKind(type).length > 0) reloads.push(loadKind(type));
+  return Promise.all(reloads);
+}
+
 /** The section a scratch selection belongs to — the record's own answer. */
 const scratchSection = computed<DraftSection | null>(() => {
   if (selectedItemType.value !== 'scratch') return null;
@@ -895,6 +965,7 @@ const sectionOverview = computed(() => {
   return {
     noun: definition.noun,
     blurb: definition.blurb,
+    canCreate: scratchAllowed(definition.draftSection),
     docsUrl: conceptsDocUrl(definition.docsAnchor),
     docsLabel: `What ${definition.nounPlural} are, in the documentation`,
   };
@@ -951,8 +1022,11 @@ function savedFor(section: ListSection): SidebarEntity[] {
   if (definition.libraryScoped && !libraryId) return [];
   const rows: SidebarEntity[] = [];
   for (const kind of definition.savedKinds) {
-    const matching = entitiesOfKind(kind.type)
-      .filter((entity) => !definition.libraryScoped || isInLibrary(entity, libraryId!))
+    // The rail's rows come from the server already scoped to the library.
+    const paged = railKind.value === kind.type;
+    const source = paged ? (rail.rows.value as unknown as KindEntity[]) : entitiesOfKind(kind.type);
+    const matching = source
+      .filter((entity) => paged || !definition.libraryScoped || isInLibrary(entity, libraryId!))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
     for (const entity of matching) {
@@ -1087,7 +1161,8 @@ const selectedRecordLibrary = computed<string | null>(() => {
   const type = selectedItemType.value;
   const id = savedSelectionId.value;
   if (!type || type === 'scratch' || !id) return null;
-  const entity = entitiesOfKind(type).find((candidate) => candidate.id === id);
+  const entity = entitiesOfKind(type).find((candidate) => candidate.id === id)
+    ?? (rail.lookup(id) as unknown as KindEntity | undefined);
   const known = new Set(switchableLibraries.value.map((library) => library.id));
   return owningLibrary(entity, {
     isLibrary: (ref) => known.has(ref),
@@ -1095,6 +1170,16 @@ const selectedRecordLibrary = computed<string | null>(() => {
     entityById: (ref) => entitiesOfKind('queryGroup').find((group) => group.id === ref),
   });
 });
+
+/*
+ * A link can name a record on no loaded page, or in another library. Load it
+ * by id, so the library below can be read off it.
+ */
+watch([selectedItemType, savedSelectionId], ([type, id]) => {
+  if (!id || !type || type === 'scratch' || !isRailPaged(type)) return;
+  if (entitiesOfKind(type).some((entity) => entity.id === id) || rail.lookup(id)) return;
+  void rail.loadRecord(type, id).catch((err) => console.error('[LibraryWorkspace] Record lookup failed:', err));
+}, { immediate: true });
 
 /*
  * Opening a record points the active library at it. Watched on the record's
@@ -1205,7 +1290,7 @@ function handleCreateFromSidebar() {
  * still the thing you were writing — only now it is in the library.
  */
 async function handleSaved(kind: SectionItemType, id: string) {
-  await loadKind(kind);
+  await refreshKind(kind);
   selectSavedItem(kind, id);
   sidebarRefreshKey.value += 1;
 }
@@ -1226,7 +1311,7 @@ function closeRecord() {
  */
 async function handleDeleted(kind: SectionItemType, id: string | null) {
   if (!id || savedSelectionId.value === id) closeRecord();
-  await loadKind(kind);
+  await refreshKind(kind);
   sidebarRefreshKey.value += 1;
 }
 
@@ -1533,7 +1618,7 @@ function openTest(testId: string) {
  * triggers a load, so this was "stale until you navigate" rather than "lost".
  */
 async function handleArgumentSetSavedElsewhere() {
-  await loadKind('argumentSet');
+  await refreshKind('argumentSet');
   sidebarRefreshKey.value += 1;
 }
 
@@ -1600,6 +1685,51 @@ function selectMostRecent(section: ListSection) {
   }
 }
 
+/*
+ * A library switch lands the section on the new library's first row, or on
+ * its empty state when it has none. The rule and its ordering are shared with
+ * every entity screen (`useLibrarySwitchLanding`). The first row is the first
+ * one the sidebar draws, after its sort, pins, grouping and filter.
+ */
+const entitySidebar = ref<{ savedRowsInOrder: SidebarEntity[] } | null>(null);
+
+const { landing: libraryLanding } = useLibrarySwitchLanding<SidebarEntity>({
+  scoped: () => {
+    const section = activeListSection.value;
+    return section !== null && SECTION_DEFINITIONS[section].libraryScoped;
+  },
+  close: () => {
+    clearEntitySelection();
+    selectedItemType.value = null;
+  },
+  rows: async (libraryId) => {
+    const section = activeListSection.value;
+    if (!section) return [];
+    const definition = SECTION_DEFINITIONS[section];
+    /*
+     * Under tag grouping the first row is under the first tag heading, so the
+     * order needs the new library's tags and each heading's rows. They load
+     * after the rows themselves: the tags on the library watcher, the
+     * headings when the tags arrive. Wait for the tags, let the rail see
+     * them, then wait for rows and headings together.
+     */
+    await tagsStore.loadTags(libraryId);
+    await nextTick();
+    await Promise.all(definition.savedKinds.map((kind) =>
+      railKind.value === kind.type ? rail.settled() : loadKind(kind.type)));
+    // The sidebar's order is computed from the rows just loaded.
+    await nextTick();
+    // The user moved to another section meanwhile. That section's own watcher lands it.
+    if (activeListSection.value !== section) return [];
+    return entitySidebar.value?.savedRowsInOrder ?? savedFor(section);
+  },
+  open: (row) => {
+    const section = activeListSection.value;
+    const kind = row.kind ?? (section ? SECTION_DEFINITIONS[section].savedKinds[0]?.type : undefined);
+    if (kind) selectSavedItem(kind as SectionItemType, row.id);
+  },
+});
+
 /** Whether what is already selected is something this section's list holds. */
 function selectionBelongsTo(section: ListSection): boolean {
   const definition = SECTION_DEFINITIONS[section];
@@ -1656,17 +1786,18 @@ watch(
     // section would start an untitled query first.
     if (sharedQueryImport) await sharedQueryImport;
     const definition = SECTION_DEFINITIONS[section];
-    await Promise.all([
-      ensureLibrariesLoaded(),
-      ...definition.savedKinds.map((kind) => loadKind(kind.type)),
-    ]);
+    // The rail's page is scoped to the active library, which needs the libraries first.
+    await ensureLibrariesLoaded();
+    await Promise.all(definition.savedKinds.map((kind) => loadRailKind(kind.type)));
+    // The user moved on while the list loaded. Landing now would open this
+    // section's record under the next section's sidebar.
+    if (activeListSection.value !== section) return;
     if (selectionBelongsTo(section)) return;
-    selectMostRecent(section);
-    // Nothing to land on at all — an empty library and no unsaved work. Start
-    // one, because an empty editor is a better first screen than an empty list.
-    if (!selectedItemType.value && definition.draftSection) {
-      handleCreateFromSidebar();
-    }
+    // The click restored from what was loaded then, which for a paged section
+    // is nothing until its page answers. Restore again now that it has. With no
+    // saved item and no scratch item, nothing opens: the pane shows the
+    // section's empty state and its New button.
+    restoreSection(section);
   },
   { immediate: true }
 );
@@ -2233,7 +2364,6 @@ async function confirmDeleteLibrary() {
  * Run all, in the section bar beside New, and its narrow twin on each group
  * heading. Both borrow the New button's weight so the bar keeps one voice.
  */
-.run-all-button,
 .run-group-button {
   display: inline-flex;
   align-items: center;
@@ -2246,21 +2376,15 @@ async function confirmDeleteLibrary() {
   cursor: pointer;
 }
 
-.run-all-button {
-  padding: var(--space-1) var(--space-3);
-}
-
 .run-group-button {
   padding: var(--space-1) var(--space-2);
 }
 
-.run-all-button:hover:not(:disabled),
 .run-group-button:hover:not(:disabled) {
   color: var(--ink);
   border-color: var(--border-strong);
 }
 
-.run-all-button:disabled,
 .run-group-button:disabled {
   opacity: 0.5;
   cursor: default;

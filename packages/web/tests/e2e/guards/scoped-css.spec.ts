@@ -24,7 +24,7 @@
  * exactly the kind of thing worth catching before a release rather than when
  * someone opens the menu.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/test';
 import { mockEntityApi } from '../fixtures/entities';
 
 /** Elements carrying a class that only a scoped rule styles, without the scope attribute. */
@@ -87,7 +87,8 @@ test('no scoped rule names an element that cannot wear its scope', async ({ page
   await page.waitForTimeout(800);
   found['queries'] = await audit(page);
 
-  await page.goto('/?section=tests&new=test', { waitUntil: 'domcontentloaded' });
+  await page.goto('/?section=tests', { waitUntil: 'domcontentloaded' });
+  await page.getByTestId('section-overview-new').click();
   await page.waitForTimeout(800);
   await page.locator('[data-testid="test-subject"]').click().catch(() => {});
   await page.waitForTimeout(500);

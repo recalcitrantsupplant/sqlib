@@ -3,6 +3,24 @@
 The suite's `GROUP` tests are in the vendored snapshot in [`../w3c/`](../w3c/SOURCE),
 and sqlib's own `GROUP` cases are in [`../group-cases/`](../group-cases/README.md).
 
+## Status: answered upstream by `inUse`
+
+The specification now has the `inUse` well-formedness condition
+(w3c/data-shapes#690), and w3c/data-shapes#1455 adds its tests to the
+vendored suite. A variable of a `NOT` that is not bound before the `NOT` is
+local to it, and no later element may use the name. This is the second option
+under "Points to raise" below, and it makes `stratification-04` change as
+predicted.
+
+So every evaluation case below whose `NOT` comes before a binder of its
+variables (02, 03, 04, 05, 06, 09 and 10) is ill-formed, and
+`checkWellFormed` reports `in-use` for it. Only the controls 01 and 07 are
+well-formed. The cases stay here as a record of what the executor does with
+such a rule when it runs anyway. They are no longer proposed upstream.
+`RuleSetExecutor.negationOrder.test.ts` checks both facts.
+
+## The original proposal
+
 Tests we'd like to contribute to the W3C suite
 (`w3c/data-shapes`, `shacl12-test-suite/tests/sparql-rl/`). They use the suite's
 own layout and vocabulary, so `eval/` and `wellformed/` can be copied into the
@@ -39,7 +57,6 @@ Data files:
 | File | Triples |
 | --- | --- |
 | `data-neg-order-1.ttl` | `:a :p 1 . :b :p 2 . :a :q 1 .` |
-| `data-neg-order-2.ttl` | `:a :p 1 . :b :p 2 . :a :owner :o1 . :b :owner :o2 . :o1 :banned true .` |
 | `data-neg-order-3.ttl` | `:other :p "XYZ" .` |
 | `data-empty.ttl` | nothing |
 
@@ -57,7 +74,6 @@ can't pass the other tests just by treating an early `NOT` as always failing.
 | 05 (control) | `stratification-04.srl` as is | empty | `:sz :p "abc"` | same |
 | 06 | `stratification-04.srl` as is | 3 | nothing | `:sz :p "abc"` |
 | 07 (control) | `?x :p ?v SET (?y := ?v) NOT { ?x :q ?y }` | 1 | `:b :r 2` | same |
-| 08 | `?x :p ?y NOT { NOT { ?o :banned true } ?x :owner ?o }` | 2 | `:a :r 1`, `:b :r 2` | `:a :r 1` |
 | 09 | `NOT DATA { ?x :q ?y } ?x :p ?y` | 1 | nothing | `:b :r 2` |
 | 10 | `WHERE DATA { NOT { ?x :q ?y } ?x :p ?y }` | 1 | nothing | `:b :r 2` |
 
@@ -69,8 +85,6 @@ unchanged.
   rule. In SPARQL only `:sz :p "XYZ"` would.
 - **04** has one shared variable bound before the `NOT` and one bound after it.
   This catches an implementation that only handles a `NOT` placed first.
-- **08** puts the misplaced `NOT` inside another `NOT`, where the bindings made
-  before the outer `NOT` are already in scope.
 - **09** and **10** cover the ground-graph forms, which implementations often
   compile down a separate path.
 
@@ -80,11 +94,16 @@ unchanged.
 | --- | --- | --- |
 | `wellformed-neg-order-01` | `?x :p ?y NOT { ?x :q ?z FILTER ( ?z != ?y ) }` | accepted |
 | `wellformed-neg-order-bad-01` | `NOT { ?x :q ?z FILTER ( ?z != ?y ) } ?x :p ?y` | rejected |
-| `wellformed-neg-order-bad-02` | `NOT { ?x :q ?z SET ( ?w := ?y ) } ?x :p ?y` | rejected |
 
 These rely on our reading of the negation condition: the inner pattern must be
-well-formed given the variables bound before the `NOT`, so a `FILTER` or `SET`
-inside it can't use a variable that is bound only later in the outer body.
+well-formed given the variables bound before the `NOT`, so a `FILTER` inside it
+can't use a variable that is bound only later in the outer body.
+
+Grammar rule [20] (w3c/data-shapes@26cb8ec) allows only `FILTER` beside the
+triples of a `NOT`. A nested `NOT` or a `SET` inside a `NOT` is a syntax error,
+so the former evaluation case 08 (a `NOT` inside a `NOT`) and the
+well-formedness case `wellformed-neg-order-bad-02` (a `SET` inside a `NOT`) are
+removed. `test/parse.test.ts` checks the syntax errors.
 
 ## Points to raise with the spec alongside the tests
 

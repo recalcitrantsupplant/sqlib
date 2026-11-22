@@ -213,7 +213,7 @@ export async function buildExportBundle(options: BuildExportBundleOptions): Prom
   ]);
 
   return {
-    version: 1,
+    version: 2,
     library: options.library,
     queries: Object.fromEntries(queryEntries),
     ...(updateEntries.length > 0 ? { updates: Object.fromEntries(updateEntries) } : {}),

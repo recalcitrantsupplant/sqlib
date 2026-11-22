@@ -190,6 +190,7 @@ type ExecutionResult = SparqlSelectResults | SparqlAskResults | RdfPayload;
 ```ts
 interface Executor {
     execute(request: ExecutionRequest): Promise<ExecutionResult>;
+    executeRaw?(request: ExecutionRequest): Promise<Response>;
     update?(request: UpdateRequest): Promise<void>;
 }
 ```
@@ -198,7 +199,7 @@ interface Executor {
 
 ```ts
 interface ExportBundle {
-    version: 1;
+    version: 2;
     library: {
         id: string;
         name?: string;
@@ -218,12 +219,9 @@ interface ExportBundle {
 ```ts
 interface ExportedEtlColumn {
     columnName: string;
-    targetVariable: string;
     termType: 'uri' | 'literal';
     datatypeIri?: string;
     lang?: string;
-    iriTemplate?: string;
-    nullPolicy: 'undef' | 'skipRow';
 }
 ```
 
@@ -611,6 +609,7 @@ declare class QueryHandle {
     text(payload?: CallPayload): string;
     run(payload?: CallPayload): Promise<ExecutionResult>;
     runText(queryText: string, signal?: AbortSignal): Promise<ExecutionResult>;
+    stream(payload?: CallPayload): Promise<Response>;
     select(payload?: CallPayload): Promise<SparqlSelectResults>;
     ask(payload?: CallPayload): Promise<boolean>;
     construct(payload?: CallPayload): Promise<RdfPayload>;

@@ -43,7 +43,7 @@ export type {
   RuleSetExecutionResult,
 } from '@sparql-query-lib/runtime-srl';
 
-const DEFAULT_MAX_ITERATIONS = 5;
+const DEFAULT_MAX_ITERATIONS = 25;
 const DEFAULT_RULE_TIMEOUT_MS = Number.parseInt(process.env.RULE_EXECUTION_TIMEOUT_MS ?? '30000', 10) || 30000;
 const DEFAULT_RULE_SAMPLE_LIMIT = Number.parseInt(process.env.RULE_EXECUTION_SAMPLE_LIMIT ?? '10', 10) || 10;
 
@@ -89,13 +89,25 @@ export interface RuleSetExecutionOptions {
    * Absent, the run starts with no rows. See `lib/tupleSeedInput.ts`.
    */
   tupleSeeds?: string | null;
+  /**
+   * The rule and DATA block versions, by id, to read before the entity cache.
+   * A worker thread has no cache, so `lib/ruleSetWorker.ts` passes the
+   * versions it was sent here.
+   */
+  entities?: ReadonlyMap<string, { '@type'?: unknown }>;
 }
 
 export class RuleSetExecutor {
   private ruleValidator = new RuleGrammarValidator();
+  private entities: ReadonlyMap<string, { '@type'?: unknown }> | undefined;
+
+  private lookup(id: string): { '@type'?: unknown } | null | undefined {
+    return this.entities?.get(id) ?? getCacheCoordinator().get(id);
+  }
 
   async execute(ruleSetVersion: PersistedRuleSetVersion, options: RuleSetExecutionOptions = {}): Promise<RuleSetExecutionResult> {
     // Whatever a caller asks for, never past the deployment's cap.
+    this.entities = options.entities;
     const maxIterations = Math.min(options.maxIterations ?? DEFAULT_MAX_ITERATIONS, maxRuleIterations());
     const stop = executionSignal(options.signal, options.deadlineMs ?? executionDeadlineMs());
     const storeId = `${mintId('ruleset')}:exec`;
@@ -185,7 +197,7 @@ export class RuleSetExecutor {
   private loadDataBlockVersions(ids: string[]): PersistedDataBlockVersion[] {
     const versions: PersistedDataBlockVersion[] = [];
     for (const id of ids) {
-      const entity = getCacheCoordinator().get(id);
+      const entity = this.lookup(id);
       if (!entity) {
         log.warn({ dataBlockVersionId: id }, 'RuleSetExecutor: DataBlockVersion not found in cache; skipping');
         continue;
@@ -263,7 +275,7 @@ export class RuleSetExecutor {
     const prepared: PreparedRule[] = [];
     const ruleVersions: PersistedRuleVersion[] = [];
     for (const id of ids) {
-      const entity = getCacheCoordinator().get(id);
+      const entity = this.lookup(id);
       if (!entity) {
         log.warn({ ruleVersionId: id }, 'RuleSetExecutor: RuleVersion not found in cache; skipping');
         continue;

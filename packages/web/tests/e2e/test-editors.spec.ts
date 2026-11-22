@@ -13,7 +13,7 @@
  * view then drags the whole column sideways and cuts the section labels off the
  * left. That is what "renders funny" was.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN } from './api-origin';
 
@@ -80,7 +80,8 @@ async function chooseFirstSubject(page: Page) {
 test.describe('Tests screen editors', () => {
   test('peeks past the prologue, and expands to the whole document', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
     await chooseFirstSubject(page);
 
     const peek = page.getByTestId('test-subject-preview');
@@ -114,6 +115,7 @@ test.describe('Tests screen editors', () => {
   test('the SQL fixture pop-out opens from Expand only, and Close closes it', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
     await page.goto('/?section=tests', { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('section-overview-new').click();
     await page.getByTestId('test-kind-etlJob').click();
 
     const region = page.getByTestId('test-sql-fixture-expand');
@@ -139,7 +141,8 @@ test.describe('Tests screen editors', () => {
 
   test('offers named tuples only to a rule set that uses them', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
     await chooseFirstSubject(page);
 
     // Absent rather than disabled, with nothing standing in its place: the
@@ -149,7 +152,8 @@ test.describe('Tests screen editors', () => {
 
   test('offers named tuples when the rule set does use them', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: true });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
     await chooseFirstSubject(page);
 
     await expect(page.getByTestId('test-tuple-seeds')).toBeVisible();
@@ -157,7 +161,8 @@ test.describe('Tests screen editors', () => {
 
   test('puts the inputs above the subject document', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: true });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
     await chooseFirstSubject(page);
 
     // What goes in, then the thing it goes into, then what should come out.
@@ -170,7 +175,8 @@ test.describe('Tests screen editors', () => {
 
   test('opens the subject menu under its field, without moving the panel', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
 
     const field = page.getByTestId('test-subject');
     await expect(field).toBeVisible();
@@ -210,7 +216,8 @@ test.describe('Tests screen editors', () => {
     // cap allows and the rows that do not fit have to be reachable.
     await page.setViewportSize({ width: 1280, height: 480 });
     await mockTestsScreen(page, { tuplesEnabled: false });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
 
     await page.getByTestId('test-subject').click();
     await expect(page.getByTestId('test-subject-option').first()).toBeVisible();
@@ -240,7 +247,8 @@ test.describe('Tests screen editors', () => {
    */
   test('leaves Home and End to the text box, so Shift+Home selects what you typed', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
 
     const field = page.getByTestId('test-subject');
     await field.click();
@@ -260,7 +268,8 @@ test.describe('Tests screen editors', () => {
 
   test('gives the subject field the same box as the fields beside it', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
-    await page.goto('/?section=tests&new=test');
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
     await chooseFirstSubject(page);
 
     // It used to carry a `control` class defined only in the caller's scoped

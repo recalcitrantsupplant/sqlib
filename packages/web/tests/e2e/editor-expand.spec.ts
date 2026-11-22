@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_HOST } from './api-origin';
 
@@ -43,6 +43,7 @@ test.describe('Expanding an editor', () => {
     });
     await page.goto('/?section=queries', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="entity-list-sidebar"]');
+    await page.getByTestId('section-overview-new').click();
     await typeQuery(page, QUERY_TEXT);
   });
 
@@ -116,4 +117,44 @@ test.describe('Expanding an editor', () => {
     await expect(region(page)).not.toHaveClass(/expanded/);
     await expect(page.locator('[data-testid="arguments-tab"]')).toHaveClass(/active/);
   });
+});
+
+test.describe('Expanding an editor with no background of its own', () => {
+  /*
+   * The ETL template editor paints no background. The pop-out's dim is a
+   * child of the region at `z-index: -1`, so before the fix it showed through
+   * the editor, and the template read as dark grey with the syntax colours on
+   * top of it.
+   */
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`shows the ETL template on the page surface (${scheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mockSidebarCollections(page, { libraries: [LIBRARY] });
+      await page.goto('/?section=etl', { waitUntil: 'domcontentloaded' });
+      await page.getByRole('button', { name: 'New' }).first().click();
+      await page.getByTestId('etl-template-expand-button').click();
+      const etlRegion = page.getByTestId('etl-template-expand');
+      await expect(etlRegion).toHaveClass(/expanded/);
+
+      // A pixel of the editor's empty area, as drawn, against the surface colour.
+      const box = (await page.locator('.sparql-section .cm-content').boundingBox())!;
+      const shot = await page.screenshot({
+        clip: { x: box.x + box.width - 40, y: box.y + 2, width: 1, height: 1 },
+      });
+      const drawn = await page.evaluate(async (b64) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${b64}`;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        return `rgb(${r}, ${g}, ${b})`;
+      }, shot.toString('base64'));
+      const surface = await etlRegion.evaluate((el) => getComputedStyle(el).backgroundColor);
+      expect(drawn).toBe(surface);
+    });
+  }
 });

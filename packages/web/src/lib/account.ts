@@ -11,9 +11,11 @@
  * - `expired`: we had a token and it lapsed; the button offers to sign in again.
  * - `guest`: an `anonymous` deployment, where nobody signs in and the anonymous
  *   principal's grants are what a visitor holds.
+ * - `demo`: an `anonymous` deployment in demo mode, where the visitor acts as
+ *   one of the server's demo people (`lib/demoPerson.ts`).
  * - `none`: auth is off, or sign-in has not happened; there is no account to show.
  */
-export type AccountState = 'signed-in' | 'expired' | 'guest' | 'none';
+export type AccountState = 'signed-in' | 'expired' | 'guest' | 'demo' | 'none';
 
 export interface AccountIdentity {
   name: string | null;
@@ -57,8 +59,10 @@ export function accountStateOf(input: {
   mode: string;
   signedIn: boolean;
   lapsed: boolean;
+  /** True when the visitor acts as a demo person. */
+  demoPerson?: boolean;
 }): AccountState {
-  if (input.mode === 'anonymous') return 'guest';
+  if (input.mode === 'anonymous') return input.demoPerson ? 'demo' : 'guest';
   if (input.signedIn) return 'signed-in';
   if (input.lapsed) return 'expired';
   return 'none';

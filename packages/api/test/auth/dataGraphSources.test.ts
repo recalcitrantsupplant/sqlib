@@ -100,6 +100,9 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
  * rules get to match against. Asserting on that is stronger than asserting on
  * a status code, and does not depend on what any particular rule derives.
  */
+vi.mock('../../src/lib/isolatedRuleSet.js', async () =>
+  (await import('../support/inThreadRuleSetRunner.js')).inThreadRuleSetRunner());
+
 vi.mock('../../src/lib/RuleSetExecutor.js', () => ({
   RuleSetExecutor: vi.fn(function () {
     return { execute: hoisted.execute };

@@ -95,7 +95,40 @@
         </div>
       </template>
 
-      <template v-if="state !== 'guest'">
+      <template v-if="demoPeople.length">
+        <DropdownMenuSeparator />
+        <div class="account-switch" data-testid="account-switch">
+          <span class="access-heading">Switch user</span>
+          <DropdownMenuItem
+            class="switch-row"
+            data-testid="account-switch-guest"
+            :data-current="demoPersonId === null ? 'true' : undefined"
+            @select="switchTo(null)"
+          >
+            <Check v-if="demoPersonId === null" :size="14" class="switch-check" aria-hidden="true" />
+            <span v-else class="switch-check" />
+            <span class="switch-name">Guest user</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            v-for="person in demoPeople"
+            :key="person.id"
+            class="switch-row"
+            data-testid="account-switch-person"
+            :data-current="demoPersonId === person.id ? 'true' : undefined"
+            @select="switchTo(person.id)"
+          >
+            <Check v-if="demoPersonId === person.id" :size="14" class="switch-check" aria-hidden="true" />
+            <span v-else class="switch-check" />
+            <span class="switch-name">{{ person.name }}</span>
+            <span class="switch-groups">
+              <span v-for="group in person.groups" :key="group" class="account-chip">{{ group }}</span>
+              <span v-if="person.admin" class="grant-chip grant-chip--manage">Admin</span>
+            </span>
+          </DropdownMenuItem>
+        </div>
+      </template>
+
+      <template v-if="state !== 'guest' && state !== 'demo'">
         <DropdownMenuSeparator />
         <DropdownMenuItem
           v-if="tokenAvailable"
@@ -119,7 +152,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { KeyRound, LogIn, LogOut, Users } from '@lucide/vue';
+import { Check, KeyRound, LogIn, LogOut, Users } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -139,7 +172,7 @@ import { backendLevelChip, libraryGrantChips } from '../../lib/accessModel';
 import { sectionPath } from '../../lib/sectionRoutes';
 import { useRouter } from '#imports';
 
-const { account, me, login, logout } = useAuth();
+const { account, me, login, logout, demoPeople, demoPersonId, switchDemoPerson } = useAuth();
 const { available: tokenAvailable, expiresLabel, copyToken } = useApiTokenCopy();
 const { libraries } = useActiveLibrary();
 const { backends } = useBackendsStore();
@@ -160,7 +193,14 @@ const buttonLabel = computed(() => {
   return `Account — ${displayName.value}`;
 });
 
-const host = computed(() => (state.value === 'guest' ? null : issuerHost(me.value?.issuer)));
+const host = computed(() =>
+  state.value === 'guest' || state.value === 'demo' ? null : issuerHost(me.value?.issuer));
+
+/** Acts as another demo person; the page reloads as them. */
+function switchTo(id: string | null) {
+  if (id === demoPersonId.value) return;
+  switchDemoPerson(id);
+}
 
 const groups = computed(() =>
   (me.value?.groups ?? []).map((group) => group.name).filter((name): name is string => Boolean(name)));
@@ -342,6 +382,40 @@ function openBackend(iri: string) {
 .grant-chip--adhoc { background: var(--grant-adhoc-surface); color: var(--grant-adhoc-ink); }
 .grant-chip--saved { background: var(--grant-saved-surface); color: var(--grant-saved-ink); }
 .grant-chip--none { color: var(--grant-none-ink); font-weight: var(--weight-normal); }
+
+.account-switch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-1);
+}
+
+.account-switch .access-heading {
+  padding-bottom: var(--space-2);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.switch-check {
+  flex: none;
+  width: 14px;
+}
+
+.switch-name {
+  flex: none;
+}
+
+.switch-groups {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+  padding-left: var(--space-4);
+}
 
 .token-expiry {
   margin-left: auto;

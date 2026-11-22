@@ -16,7 +16,7 @@ import { GROUND_GRAPH_IRI, groundTupleSeedRows, parseTupleSeeds, type Monotonici
 import { TupleStore, injectTupleReads, renderBindingValue, type SparqlJsonValue } from './TupleStore.js';
 import { quadToNQuad, type RenderableQuad } from './nquads.js';
 
-const DEFAULT_MAX_ITERATIONS = 5;
+const DEFAULT_MAX_ITERATIONS = 25;
 const DEFAULT_RULE_TIMEOUT_MS = 30000;
 const DEFAULT_RULE_SAMPLE_LIMIT = 10;
 
@@ -254,7 +254,7 @@ export interface RuleStore {
 }
 
 export interface RuleSetRunOptions {
-  /** Passes per stratum before the run stops as `maxIterations`. Default 5. */
+  /** Passes per stratum before the run stops as `maxIterations`. Default 25. */
   maxIterations?: number;
   /** A rule that takes longer than this is recorded as timed out. Default 30s. */
   timeoutMs?: number;

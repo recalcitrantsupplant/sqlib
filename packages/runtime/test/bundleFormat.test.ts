@@ -6,10 +6,13 @@
  * useless as a statement about the format, because it moves whenever someone
  * changes it. So the two fixtures here are frozen instead:
  *
- * - `fixtures/bundle-v1.json` is a **real** bundle, written by the API's export
+ * - `fixtures/bundle-v2.json` is a **real** bundle, written by the API's export
  *   route over a fixture library and committed. `packages/api`'s
  *   `bundleFormat.test.ts` rebuilds it and compares, so it cannot drift from
  *   what the writer emits without a reviewed diff.
+ * - `fixtures/bundle-v1.json` is the same library as the version-1 exporter
+ *   wrote it, frozen. Version 2 removed three ETL column fields; everything
+ *   else in it must still load and run.
  * - `fixtures/bundle-v1-minimal.json` carries only the fields the format
  *   requires — no `generatedAt`, no groups, no examples, no provenance. Today's
  *   exporter cannot produce it, which is the point: it stands in for a producer
@@ -58,7 +61,8 @@ const FIXTURES = resolve(import.meta.dirname, 'fixtures');
 const load = (name: string): ExportBundle =>
   JSON.parse(readFileSync(resolve(FIXTURES, name), 'utf8')) as ExportBundle;
 
-const GOLDEN = load('bundle-v1.json');
+const GOLDEN = load('bundle-v2.json');
+const GOLDEN_V1 = load('bundle-v1.json');
 const MINIMAL = load('bundle-v1-minimal.json');
 
 /** Answers by what the query text contains, and keeps what it was handed. */
@@ -83,16 +87,25 @@ const CITY_ROWS: ExecutionResult = {
   },
 };
 
-describe('a committed version-1 bundle', () => {
+describe('the committed bundles', () => {
   it('passes the structural check as written', () => {
     expect(() => assertValidBundle(GOLDEN)).not.toThrow();
+    expect(() => assertValidBundle(GOLDEN_V1)).not.toThrow();
     expect(() => assertValidBundle(MINIMAL)).not.toThrow();
+  });
+
+  it('runs the queries of a version-1 bundle', () => {
+    const text = fromBundle(GOLDEN_V1)
+      .query('people-by-city')
+      .text({ arguments: [{ bindings: [{ city: iri('http://example.org/perth') }] }] });
+    expect(text).toContain('ex:perth');
   });
 
   it('still matches the template hashes recorded when it was exported', async () => {
     // Not a re-test of the hashing: the fixture is committed text, so this is
     // the one place that says the bytes on disk are the bytes that were hashed.
     await expect(verifyBundleIntegrity(GOLDEN)).resolves.toBeUndefined();
+    await expect(verifyBundleIntegrity(GOLDEN_V1)).resolves.toBeUndefined();
     await expect(verifyBundleIntegrity(MINIMAL)).resolves.toBeUndefined();
   });
 
@@ -316,7 +329,7 @@ describe('the fixture covers the format it is meant to freeze', () => {
 
     expect(
       declared.filter((field) => !covered.has(field)),
-      'declared in bundle.ts but absent from bundle-v1.json, so nothing tests that a reader still ' +
+      'declared in bundle.ts but absent from bundle-v2.json, so nothing tests that a reader still ' +
         'tolerates it. Teach packages/api/test/lib/export/fixtures/goldenBundleV1.ts to emit it, ' +
         'then re-run with UPDATE_BUNDLE_FIXTURE=1.',
     ).toEqual([]);

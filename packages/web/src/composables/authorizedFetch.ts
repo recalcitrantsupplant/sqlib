@@ -8,11 +8,14 @@
  */
 import { useAuth } from './useAuth';
 import { clientId } from '../lib/clientId';
+import { DEMO_PERSON_HEADER, currentDemoPersonId } from '../lib/demoPerson';
 
 export async function authorizedFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const token = await useAuth().accessToken();
   const headers = new Headers(init.headers);
   if (!headers.has('x-sqlib-client-id')) headers.set('x-sqlib-client-id', clientId());
   if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`);
+  const demoPerson = currentDemoPersonId();
+  if (demoPerson && !headers.has(DEMO_PERSON_HEADER)) headers.set(DEMO_PERSON_HEADER, demoPerson);
   return fetch(input, { ...init, headers });
 }

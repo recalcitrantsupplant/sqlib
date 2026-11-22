@@ -93,7 +93,7 @@
               class="library-open"
               :title="`Make ${library.name} the active library`"
               :data-testid="`splash-library-${library.id}`"
-              @click="setActiveLibrary(library.id)"
+              @click="switchLibrary(library.id)"
             >
               <span class="library-name">
                 {{ library.name }}
@@ -254,6 +254,7 @@ import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useCommandPalette } from '../composables/useCommandPalette';
 import { useLibraryInventory, type ActivityEntry } from '../composables/useLibraryInventory';
 import { useBackendsStore } from '../composables/useBackendsStore';
+import { backendDisplayName } from '@/lib/backendLabels';
 import { isBrowserBackendId } from '../composables/useBrowserBackends';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useBackendProbes, type BackendHealth } from '../composables/useBackendProbes';
@@ -277,7 +278,7 @@ function manageLibrary(id: string) {
 }
 
 const { isEnabled } = useFeatureFlags();
-const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } = useActiveLibrary();
+const { libraries, activeLibraryId, activeLibraryName, switchLibrary, ensureLoaded } = useActiveLibrary();
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 const { openPalette } = useCommandPalette();
 const { counts, totalItems, activity, load: loadInventory } = useLibraryInventory(activeLibraryId);
@@ -397,14 +398,14 @@ const libraryBackendOptions = computed(() => {
     .map((backend) => ({ value: backend.id, label: backend.name }));
   const current = currentBackendId.value;
   if (current && !options.some((option) => option.value === current)) {
-    options.push({ value: current, label: current });
+    options.push({ value: current, label: backendDisplayName(current, backendsStore.backends.value, backendsStore.loaded?.value ?? false) });
   }
   return options;
 });
 
 function backendLabel(id: string | null): string {
   if (!id) return 'None';
-  return backendsStore.backends.value.find((backend) => backend.id === id)?.name ?? id;
+  return backendDisplayName(id, backendsStore.backends.value, backendsStore.loaded?.value ?? false);
 }
 
 const pendingBackend = ref<string | null>(null);

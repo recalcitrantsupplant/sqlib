@@ -31,7 +31,7 @@ import {
  * Media type options for UI dropdowns
  */
 export type MediaTypeOption = {
-  value: OutputMediaType;
+  value: OutputMediaType | typeof UPDATE_RESULT_MEDIA_TYPE;
   label: string;
 };
 
@@ -39,10 +39,18 @@ export type MediaTypeOption = {
  * The shapes a SPARQL result can come back in. Every output media type belongs
  * to exactly one of them, whatever the query happens to be.
  *
- * `PATCH` is the update forms' one output (#290): not a result at all, but the
- * change the update would make, which is the only thing an update has to show.
+ * `RESULT` is a plain run of an update: it writes, and the server answers
+ * with a status and no body. `PATCH` is the other thing an update can be asked
+ * for (#290): the change it would make, derived without writing.
  */
-export type MediaTypeCategory = 'TABULAR' | 'GRAPH' | 'PATCH';
+export type MediaTypeCategory = 'TABULAR' | 'GRAPH' | 'RESULT' | 'PATCH';
+
+/**
+ * The `Accept` value for a plain run of an update. The API runs the update for
+ * any type except RDF Patch, and answers 204, so this asks for whatever comes.
+ */
+export const UPDATE_RESULT_MEDIA_TYPE = '*/*' as const;
+const UPDATE_RESULT_LABEL = 'Result';
 
 /** SPARQL Results formats, in the order dropdowns show them. */
 const TABULAR_FORMATS: readonly OutputMediaType[] = [
@@ -73,7 +81,12 @@ const toOptions = (values: readonly OutputMediaType[]): MediaTypeOption[] =>
  * Get all media type options for dropdowns
  */
 export function getAllMediaTypeOptions(): MediaTypeOption[] {
-  return [...toOptions(TABULAR_FORMATS), ...toOptions(GRAPH_FORMATS), ...toOptions(PATCH_FORMATS)];
+  return [
+    ...toOptions(TABULAR_FORMATS),
+    ...toOptions(GRAPH_FORMATS),
+    { value: UPDATE_RESULT_MEDIA_TYPE, label: UPDATE_RESULT_LABEL },
+    ...toOptions(PATCH_FORMATS),
+  ];
 }
 
 /**
@@ -122,7 +135,7 @@ export type GroupedMediaTypeOption = {
  *
  * CSV and TSV are defined for SELECT only, so an ASK narrows to JSON and XML.
  */
-function getSuggestedMediaTypes(queryType: QueryType): Set<OutputMediaType> | null {
+function getSuggestedMediaTypes(queryType: QueryType): Set<MediaTypeOption['value']> | null {
   if (!queryType) return null;
 
   if (isBooleanQueryType(queryType)) {
@@ -138,9 +151,8 @@ function getSuggestedMediaTypes(queryType: QueryType): Set<OutputMediaType> | nu
   }
 
   if (isUpdateQueryType(queryType)) {
-    // An update has one output and it is the diff. Asking for it is what makes
-    // the run a derivation rather than a write, so nothing else is suggested.
-    return new Set(PATCH_FORMATS);
+    // A plain run writes; the patch derives the change without writing.
+    return new Set([UPDATE_RESULT_MEDIA_TYPE, ...PATCH_FORMATS]);
   }
 
   // The graph-management verbs (LOAD, CLEAR, DROP, …) produce neither a result
@@ -189,14 +201,16 @@ export function getGroupedMediaTypeOptions(queryType: QueryType): GroupedMediaTy
       options: prioritize(GRAPH_FORMATS),
     },
     /*
-     * Only where it means something. Every other format is offered for every
-     * query type, muted when it is a poor fit — but a patch is not a format the
-     * result could come back in, it is a different thing to ask for, and only
-     * an update has one. A SELECT that offered it would be promising an output
-     * nothing can produce.
+     * Only for an update. Every other format is offered for every query type,
+     * muted when it is a poor fit. A plain run and a patch are things only an
+     * update can be asked for, so a SELECT does not offer them.
      */
     ...(isUpdateQueryType(queryType)
       ? [{
+          category: 'RESULT' as const,
+          label: 'UPDATE',
+          options: [{ value: UPDATE_RESULT_MEDIA_TYPE, label: UPDATE_RESULT_LABEL, isPrimary: true }],
+        }, {
           category: 'PATCH' as const,
           label: 'PATCH',
           options: prioritize(PATCH_FORMATS),
@@ -217,7 +231,7 @@ export function getMediaTypeHint(
   if (isBooleanQueryType(queryType)) return `${option.label} is not a usual format for an ASK result`;
   if (isResultSetQueryType(queryType)) return `${option.label} is not a usual format for a result set`;
   if (isGraphQueryType(queryType)) return `${option.label} is not a usual format for a graph result`;
-  if (isUpdateQueryType(queryType)) return `An update has no ${option.label} output; its result is the patch it would make`;
+  if (isUpdateQueryType(queryType)) return `An update has no ${option.label} output`;
   return null;
 }
 

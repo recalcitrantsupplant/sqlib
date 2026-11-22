@@ -37,6 +37,9 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   }),
 }));
 
+vi.mock('../../src/lib/isolatedRuleSet.js', async () =>
+  (await import('../support/inThreadRuleSetRunner.js')).inThreadRuleSetRunner());
+
 vi.mock('../../src/lib/RuleSetExecutor.js', () => ({
   RuleSetExecutor: vi.fn(function () {
     return {
@@ -64,6 +67,12 @@ vi.mock('../../src/lib/RuleStratifier.js', () => ({
 vi.mock('../../src/config/featureFlags.js', () => ({
   getFeatureFlags: hoisted.mockFeatureFlags,
 }));
+
+/** The versions the route handed the last run, by id. */
+function entitiesOfLastRun(): Map<string, any> {
+  const call = hoisted.mockExecute.mock.calls.at(-1);
+  return (call?.[1]?.entities as Map<string, any>) ?? new Map();
+}
 
 describe('Playground Rules Routes (/playground/rules)', () => {
   let app: FastifyInstance;
@@ -136,13 +145,7 @@ describe('Playground Rules Routes (/playground/rules)', () => {
 
     it('splits a document into rule and data block entities', async () => {
       validate();
-      // Ephemerals are torn down in a `finally`, so they are read during the
-      // run rather than after it.
-      let live: string[] = [];
-      hoisted.mockExecute.mockImplementation(async () => {
-        live = [...hoisted.ephemeralEntities.values()].map((e) => e.type);
-        return { status: 'converged', iterations: [], dataBlocks: [], finalGraphNQuads: '' };
-      });
+      hoisted.mockExecute.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [], finalGraphNQuads: '' });
 
       const res = await app.inject({
         method: 'POST',
@@ -151,8 +154,9 @@ describe('Playground Rules Routes (/playground/rules)', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(live.filter((t) => t === 'RuleVersion')).toHaveLength(1);
-      expect(live.filter((t) => t === 'DataBlockVersion')).toHaveLength(1);
+      const types = [...entitiesOfLastRun().values()].map((e) => e['@type']);
+      expect(types.filter((t) => t === 'RuleVersion')).toHaveLength(1);
+      expect(types.filter((t) => t === 'DataBlockVersion')).toHaveLength(1);
     });
 
     it('reports why a failed run failed', async () => {
@@ -248,7 +252,7 @@ describe('Playground Rules Routes (/playground/rules)', () => {
 
   // GROUP 1: Ephemeral Entity Lifecycle
   describe('Ephemeral Entity Lifecycle', () => {
-    it('creates ephemeral entities for data blocks and rules', async () => {
+    it('hands the run its data blocks and rules', async () => {
       hoisted.mockValidateWithAllGrammars.mockReturnValue({
         valid: true,
         normalized: 'NORMALIZED SPARQL',
@@ -272,65 +276,17 @@ describe('Playground Rules Routes (/playground/rules)', () => {
       });
 
       expect(res.statusCode).toBe(200);
-
-      // Verify 4 ephemeral entities were created (2 data blocks + 2 rules)
-      expect(hoisted.mockAddEphemeral).toHaveBeenCalledTimes(4);
-
-      // Verify types
-      const calls = hoisted.mockAddEphemeral.mock.calls;
-      expect(calls[0][1]).toBe('DataBlockVersion');
-      expect(calls[1][1]).toBe('DataBlockVersion');
-      expect(calls[2][1]).toBe('RuleVersion');
-      expect(calls[3][1]).toBe('RuleVersion');
-
-      // Verify IDs follow pattern
-      const entity0 = calls[0][0];
-      const entity1 = calls[1][0];
-      const entity2 = calls[2][0];
-      const entity3 = calls[3][0];
-
-      expect(entity0.$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:data-1$/);
-      expect(entity1.$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:data-2$/);
-      expect(entity2.$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:rule-1$/);
-      expect(entity3.$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:rule-2$/);
+      const entities = [...entitiesOfLastRun().values()];
+      expect(entities.map((e) => e['@type'])).toEqual(['DataBlockVersion', 'DataBlockVersion', 'RuleVersion', 'RuleVersion']);
+      expect(entities[0].$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:data-1$/);
+      expect(entities[1].$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:data-2$/);
+      expect(entities[2].$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:rule-1$/);
+      expect(entities[3].$id).toMatch(/^urn:sqlib:ruleset:[0-9a-f]+:rule-2$/);
+      // The run is self-contained: nothing goes into the shared entity cache.
+      expect(hoisted.mockAddEphemeral).not.toHaveBeenCalled();
     });
 
-    it('removes ephemeral entities after successful execution', async () => {
-      hoisted.mockValidateWithAllGrammars.mockReturnValue({
-        valid: true,
-        normalized: 'NORMALIZED SPARQL',
-        primaryGrammar: 'SHACL',
-        validations: [],
-      });
-
-      hoisted.mockExecute.mockResolvedValue({
-        status: 'converged',
-        iterations: [],
-        dataBlocks: [],
-      });
-
-      const res = await app.inject({
-        method: 'POST',
-        url: '/playground/rules/execute',
-        payload: {
-          dataBlocks: ['<s> <p> <o> .'],
-          rules: ['INSERT { ?s <new> <val> } WHERE { ?s <p> <o> }'],
-        },
-      });
-
-      expect(res.statusCode).toBe(200);
-
-      // Verify cleanup called for each ephemeral entity
-      expect(hoisted.mockRemoveEphemeral).toHaveBeenCalledTimes(2); // 1 dataBlock + 1 rule
-
-      // Verify the IDs that were added are the same ones removed
-      const addedIds = hoisted.mockAddEphemeral.mock.calls.map(call => call[0].$id);
-      const removedIds = hoisted.mockRemoveEphemeral.mock.calls.map(call => call[0]);
-
-      expect(removedIds.sort()).toEqual(addedIds.sort());
-    });
-
-    it('removes ephemeral entities after execution error', async () => {
+    it('answers 500 with the message when the run throws', async () => {
       hoisted.mockValidateWithAllGrammars.mockReturnValue({
         valid: true,
         normalized: 'NORMALIZED SPARQL',
@@ -350,12 +306,10 @@ describe('Playground Rules Routes (/playground/rules)', () => {
       });
 
       expect(res.statusCode).toBe(500);
-
-      // Verify cleanup still called even on error
-      expect(hoisted.mockRemoveEphemeral).toHaveBeenCalledTimes(2);
+      expect(res.json().error).toBe('Execution failed');
     });
 
-    it('does not create ephemeral entities on validation error', async () => {
+    it('runs nothing on a validation error', async () => {
       hoisted.mockValidateWithAllGrammars.mockReturnValue({
         valid: false,
         normalized: null,
@@ -375,9 +329,8 @@ describe('Playground Rules Routes (/playground/rules)', () => {
 
       expect(res.statusCode).toBe(400);
 
-      // Verification validation happens before entity creation
-      expect(hoisted.mockAddEphemeral).not.toHaveBeenCalled();
-      expect(hoisted.mockRemoveEphemeral).not.toHaveBeenCalled();
+      // Validation happens before anything runs.
+      expect(hoisted.mockExecute).not.toHaveBeenCalled();
     });
   });
 

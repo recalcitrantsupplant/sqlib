@@ -13,7 +13,7 @@
  * that a scratch item has no tab at all — a test points at a saved subject, so
  * an unsaved one has no tests and can acquire none.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from './fixtures/test';
 import {
   createMockState,
   setupMockApi,

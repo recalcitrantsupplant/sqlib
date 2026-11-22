@@ -44,49 +44,51 @@
                 'grid-cell--undef': isUndef(cell(row, name)),
               }"
             >
-              <input
-                :ref="(el) => registerCell(el, rowIndex, colIndex)"
-                type="text"
-                class="grid-input"
-                :data-testid="`${testids}-cell`"
-                :data-row="rowIndex"
-                :data-col="colIndex"
-                :value="cell(row, name).value"
-                :placeholder="focused?.row === rowIndex && focused?.col === colIndex ? termPlaceholder(cell(row, name)) : 'UNDEF'"
-                :disabled="disabled"
-                @focus="focused = { row: rowIndex, col: colIndex }"
-                @blur="onBlur(rowIndex, name)"
-                @input="setLexical(rowIndex, name, ($event.target as HTMLInputElement).value)"
-                @keydown="onKeydown($event, rowIndex, colIndex)"
-                @paste="onPaste($event, rowIndex, colIndex)"
-              />
+              <div class="grid-cell-body">
+                <input
+                  :ref="(el) => registerCell(el, rowIndex, colIndex)"
+                  type="text"
+                  class="grid-input"
+                  :data-testid="`${testids}-cell`"
+                  :data-row="rowIndex"
+                  :data-col="colIndex"
+                  :value="cell(row, name).value"
+                  :placeholder="focused?.row === rowIndex && focused?.col === colIndex ? termPlaceholder(cell(row, name)) : 'UNDEF'"
+                  :disabled="disabled"
+                  @focus="focused = { row: rowIndex, col: colIndex }"
+                  @blur="onBlur(rowIndex, name)"
+                  @input="setLexical(rowIndex, name, ($event.target as HTMLInputElement).value)"
+                  @keydown="onKeydown($event, rowIndex, colIndex)"
+                  @paste="onPaste($event, rowIndex, colIndex)"
+                />
 
-              <!--
-                The type badge is the menu's trigger and the cell's only other
-                control. It reads `IRI` / `xsd:integer` / `@en`, so a grid of
-                bare text never hides what a term actually is.
-              -->
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <button
-                    type="button"
-                    class="grid-type"
-                    :class="{ 'grid-type--literal': cell(row, name).type === 'literal' }"
-                    :disabled="disabled"
-                    :title="`Term type · ?${name}`"
-                    :data-testid="`${testids}-type`"
-                  >
-                    {{ termTypeLabel(cell(row, name)) }}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="grid-type-menu">
-                  <TermTypeMenuItems
-                    :value="cell(row, name)"
-                    :variable="name"
-                    @update="setTerm(rowIndex, name, $event)"
-                  />
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <!--
+                  The type badge is the menu's trigger and the cell's only other
+                  control. It reads `IRI` / `xsd:integer` / `@en`, so a grid of
+                  bare text never hides what a term actually is.
+                -->
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <button
+                      type="button"
+                      class="grid-type"
+                      :class="{ 'grid-type--literal': cell(row, name).type === 'literal' }"
+                      :disabled="disabled"
+                      :title="`Term type · ?${name}`"
+                      :data-testid="`${testids}-type`"
+                    >
+                      {{ termTypeLabel(cell(row, name)) }}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" class="grid-type-menu">
+                    <TermTypeMenuItems
+                      :value="cell(row, name)"
+                      :variable="name"
+                      @update="setTerm(rowIndex, name, $event)"
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </td>
             <td class="grid-actions">
               <button
@@ -396,10 +398,6 @@ function onPaste(event: ClipboardEvent, row: number, col: number) {
 }
 
 .grid-cell {
-  /* The room the type badge sits in, so a long value never runs under it. */
-  --grid-type-gutter: 34px;
-
-  position: relative;
   padding: 0;
   border-right: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
@@ -409,10 +407,24 @@ function onPaste(event: ClipboardEvent, row: number, col: number) {
   box-shadow: inset 0 0 0 2px var(--action);
 }
 
+/*
+  The value and its type badge share the cell as two flex items. The badge
+  keeps its own width; the value takes the rest and ends in an ellipsis, so a
+  long value never runs under a long type such as `xsd:integer`.
+*/
+.grid-cell-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-right: var(--space-1);
+}
+
 .grid-input {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 24px;
-  padding: 0 var(--grid-type-gutter) 0 var(--space-3);
+  padding: 0 0 0 var(--space-3);
+  text-overflow: ellipsis;
   border: none;
   background: transparent;
   color: var(--ink-secondary);
@@ -433,9 +445,11 @@ function onPaste(event: ClipboardEvent, row: number, col: number) {
 }
 
 .grid-type {
-  position: absolute;
-  top: 3px;
-  right: 3px;
+  flex: 0 0 auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   height: 18px;
   padding: 0 var(--space-2);
   border: none;

@@ -14,3 +14,14 @@ export const API_BASE_URL = process.env.NUXT_PUBLIC_API_BASE_URL ?? 'http://loca
 export const API_ORIGIN = new URL(API_BASE_URL).origin;
 /** `host:port`, for the glob route patterns specs write against the API. */
 export const API_HOST = new URL(API_BASE_URL).host;
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A list route with or without a query string. The rail pages its lists
+ * (`?sort=name&limit=50…`, #197), and a glob on the bare path does not match
+ * a URL with a query string.
+ */
+export function listRoute(path: string): RegExp {
+  return new RegExp(`^${escapeRegExp(`${API_ORIGIN}${path}`)}(\\?.*)?$`);
+}

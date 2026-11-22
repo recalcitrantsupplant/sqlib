@@ -8,7 +8,7 @@
  * Abbreviate IRIs writes — so it holds across tables and across reloads.
  *
  * The radix portal is stubbed so any menu renders inside the wrapper. See
- * RunByTagMenu.test.ts for the same treatment.
+ * TestsRunButton.test.ts for the same treatment.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { nextTick } from 'vue';

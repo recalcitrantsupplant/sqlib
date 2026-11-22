@@ -157,6 +157,40 @@ describe('withReposHandler', () => {
   });
 });
 
+describe('an error answered behind an async onSend hook', () => {
+  it('sends one reply, with no "Reply was already sent" warning', async () => {
+    const { default: Fastify } = await import('fastify');
+    const { RouteError } = await import('../../src/routes/route-helpers.js');
+    const warnings: string[] = [];
+    const app = Fastify({
+      logger: {
+        level: 'warn',
+        stream: { write: (line: string) => { warnings.push(line); } },
+      },
+    });
+    // The server's shape: an async onSend hook at the root, and the route in a
+    // prefixed plugin with one of its own (the change feed's).
+    app.addHook('onSend', async (_request, _reply, payload) => payload);
+    await app.register(async (scope) => {
+      scope.addHook('onSend', async (_request, _reply, payload) => payload);
+      scope.get('/thing', withReposHandler(async () => {
+        throw new RouteError(404, { error: 'Thing not found' });
+      }));
+    }, { prefix: '/things' });
+
+    // Over HTTP: `inject` does not show the second send.
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as { port: number };
+    const response = await fetch(`http://127.0.0.1:${port}/things/thing`);
+    const body = await response.json();
+    await app.close();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual({ error: 'Thing not found' });
+    expect(warnings.join('')).not.toMatch(/already sent|headers after they are sent/);
+  });
+});
+
 describe('findVersionByNumber', () => {
   /*
    * This replaced fifteen copies of the same six lines across five route files.

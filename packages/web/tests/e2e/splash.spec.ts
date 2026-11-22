@@ -12,7 +12,7 @@
  * place in the grid, and nothing in the markup spells out "enabled" for the ten
  * that are.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/test';
 import { mockEntityApi, LIBRARY, QUERY } from './fixtures/entities';
 import { openSplash, openSplashLibraries, splashLibraryRow, sectionUrl } from './navigate';
 
@@ -158,6 +158,30 @@ test.describe('Splash', () => {
   test('the rail mark comes back to the splash from the notebook', async ({ page }) => {
     await page.locator('.nav-rail .rail-button').filter({ hasText: 'Notebook' }).click();
     await expect(page).toHaveURL(/\/notebook(\?|$)/);
+
+    await page.locator('[data-testid="library-home"]').click();
+
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/(\?.*)?$/);
+    await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
+  });
+
+  /*
+   * MCP and Access are routes of their own, like the notebook. Each page
+   * handles the rail's `home` event itself, and these two once dropped it.
+   */
+  test('the rail mark comes back to the splash from MCP', async ({ page }) => {
+    await page.locator('.nav-rail .rail-button').filter({ hasText: 'MCP' }).click();
+    await expect(page).toHaveURL(/\/mcp-server(\?|$)/);
+
+    await page.locator('[data-testid="library-home"]').click();
+
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/(\?.*)?$/);
+    await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
+  });
+
+  test('the rail mark comes back to the splash from Access', async ({ page }) => {
+    await page.goto('/access', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.access-layout')).toBeVisible();
 
     await page.locator('[data-testid="library-home"]').click();
 

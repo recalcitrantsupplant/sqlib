@@ -17,16 +17,14 @@ import { computed, reactive } from 'vue';
 import { useRuntimeConfig } from '#imports';
 import { deriveIfMatchToken, sendGuarded } from './createVersionedEntityStore';
 import { authorizedFetch } from './authorizedFetch';
+import type { StoredEtlExecution } from '../lib/recordedRuns';
 
 /** A column of the SQL result, and the RDF term it becomes. */
 export interface EtlColumnMapping {
   columnName: string;
-  targetVariable: string;
   termType: 'uri' | 'literal';
   datatypeIri?: string;
   lang?: string;
-  iriTemplate?: string;
-  nullPolicy: 'undef' | 'skipRow';
 }
 
 export interface EtlJob {
@@ -295,6 +293,27 @@ export function useEtlJobsStore() {
     );
   }
 
+  /**
+   * The newest execution the server recorded for a job, with its RDF, or null.
+   *
+   * A server in demo mode shows the run recorded when its image was built,
+   * before the visitor runs the job. A missing output gives the counts alone.
+   */
+  async function latestRecordedExecution(
+    jobId: string,
+  ): Promise<{ execution: StoredEtlExecution; output: string } | null> {
+    const executions = await request<StoredEtlExecution[]>(
+      `${base()}/${encodeURIComponent(jobId)}/executions?limit=1`,
+    );
+    const execution = executions[0];
+    if (!execution) return null;
+    const response = await authorizedFetch(
+      `${base()}/executions/${encodeURIComponent(execution.id)}/output`,
+    );
+    const output = response.ok ? await response.text() : '';
+    return { execution, output };
+  }
+
   return {
     etlJobs: computed(() => state.items),
     loading: computed(() => state.loading),
@@ -310,5 +329,6 @@ export function useEtlJobsStore() {
     createEtlJobVersion,
     annotateEtlJobVersion,
     executeEtlJob,
+    latestRecordedExecution,
   };
 }

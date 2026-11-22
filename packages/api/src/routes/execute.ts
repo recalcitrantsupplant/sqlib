@@ -1,4 +1,5 @@
 import {FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest} from 'fastify';
+import { oxigraphExecutor } from '../lib/isolatedQuery.js';
 import { callerOfRequest, callerRefusal, declaredReservedSlots, groupReservedSlots } from '../auth/caller.js';
 import {backendTypeIriToKey, type PersistedBackend} from '../persistence/schemas/BackendSchema.js';
 import { toError } from '../lib/toError.js';
@@ -34,7 +35,6 @@ import {
     tableParameterKey,
 } from '@sparql-query-lib/types';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
-import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
 import { AuthorizationError, requireLibraryMode, requireVersionExecute, resolveOwningLibrary } from '../auth/enforce.js';
 import { environmentsPointingTo, findEnvironment, isEnvironmentVersionType, LATEST_ENVIRONMENT, isPromotableType, requestedEnvironment, resolveVersionIn } from '../lib/environments.js';
@@ -1073,7 +1073,7 @@ export default async function (
                         return reply.code(400).send({error: toError(loadError__u).message});
                     }
                 }
-                targetExecutor = new OxigraphSparqlExecutor(ephemeralStore);
+                targetExecutor = oxigraphExecutor(ephemeralStore);
                 backendTypeAttr = 'oxigraphEphemeral'; // For metrics
                 request.log.info(`Created ephemeral store ${ephemeralStoreId} for target ${targetId}`);
             } else if (isLibraryStorageBackend) {

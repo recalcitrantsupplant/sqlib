@@ -15,7 +15,7 @@ const SAVED_SQL = `SELECT * FROM read_csv('data/examples/people.csv')`;
 const SAVED_TEMPLATE = 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?s ?p ?o) {} }';
 const MAPPING_VERSION = 'urn:sqlib:etl-column-mapping-version:m1';
 const SAVED_MAPPINGS = [
-  { columnName: 'name', targetVariable: 'name', termType: 'literal' as const, nullPolicy: 'undef' as const },
+  { columnName: 'name', termType: 'literal' as const },
 ];
 
 const store = vi.hoisted(() => ({
@@ -43,8 +43,9 @@ const backendList = ref([
   { id: BACKEND_A, name: 'Backend A' },
   { id: BACKEND_B, name: 'Backend B' },
 ]);
+const backendsLoaded = ref(false);
 vi.mock('@/composables/useBackendsStore', () => ({
-  useBackendsStore: () => ({ backends: backendList, loading: ref(false), loadBackends: vi.fn() }),
+  useBackendsStore: () => ({ backends: backendList, loading: ref(false), loaded: backendsLoaded, loadBackends: vi.fn() }),
 }));
 vi.mock('@/composables/useScratchRecord', () => ({
   useScratchRecord: () => ({
@@ -119,6 +120,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   drafts.records.clear();
   draftsVersion.value = 0;
+  backendsLoaded.value = false;
 
   // The screen previews the SQL on mount; nothing here is about that.
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -182,6 +184,21 @@ describe('EtlPlayground — backend', () => {
     setLastBackend('etlJob', JOB_ID, 'urn:sqlib:backend:gone');
     const area = await mountSaved();
     expect(editors(area).selectedBackendId).toBe(BACKEND_A);
+  });
+
+  it('does not show the id of a default backend the loaded list lacks', async () => {
+    backendsLoaded.value = true;
+    withJobDefault('urn:sqlib:backend:hidden');
+    const area = await mountSaved();
+    const vm = area.vm as unknown as {
+      backendOptions: Array<{ value: string; label: string }>;
+      detailsBackendOptions: Array<{ value: string; label: string }>;
+    };
+    expect(editors(area).selectedBackendId).toBe(EPHEMERAL_BACKEND_ID);
+    expect(vm.backendOptions.map((option) => option.value)).not.toContain('urn:sqlib:backend:hidden');
+    const details = vm.detailsBackendOptions.find((option) => option.value === 'urn:sqlib:backend:hidden');
+    expect(details?.label).toBe('Unavailable backend');
+    expect(area.html()).not.toContain('urn:sqlib:backend:hidden');
   });
 
   it('remembers a run bar pick, and that pick is not an edit', async () => {

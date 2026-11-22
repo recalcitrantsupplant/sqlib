@@ -5,6 +5,20 @@
 Write documentation, READMEs, commit messages, pull requests and code comments
 to [docs/writing-style.md](docs/writing-style.md).
 
+## Where the hosted demos run
+
+The hosted demo instances are deployed from the `sqlib-demo` repository, not
+from this one.
+
+| Instance | Host |
+| --- | --- |
+| SRL | AWS: the API on ECS Fargate in `ap-southeast-2`, the web app on S3 and CloudFront |
+| main | Cloudflare: the API as a Worker container, the web app as a static Worker |
+
+No demo instance runs on Azure. The Bicep files in `infrastructure/` and the
+Azure sections of `docs/guides/deploying.md` are an example for operators.
+They do not describe a hosted demo.
+
 ## On-screen text in the web app and in mocks
 
 These rules apply to every screen in `packages/web` and to every mock or
@@ -44,3 +58,22 @@ Text that is allowed on the screen:
 
 Put explanation and rationale in the design document or the pull request,
 next to the mock. Never put it inside the mocked screen.
+
+## Comments in query and rule text
+
+These rules apply to the text of every seeded or example query, rule set,
+ETL template and notebook cell that a user can open.
+
+Do not write comments in the query or rule text. A comment that restates the
+name or description, or explains what the text plainly does, adds reading
+load.
+
+- Put what the item does, and why, in its name and description.
+- When a comment carries a fact that the description lacks, merge that fact
+  into the description and delete the comment. Do not append the comment
+  as is: keep one statement of each fact.
+- Keep a comment only when the text cannot be read without it, such as a
+  label on the positional arguments of a property function.
+
+Conformance files copied from upstream (the W3C and SRL test suites) keep
+their comments.

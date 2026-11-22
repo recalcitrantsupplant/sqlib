@@ -38,7 +38,7 @@ import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 import { AUTH_GROUP_VARIABLE, AUTH_USER_VARIABLE } from '@sparql-query-lib/runtime';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { applyExecutionArguments } from '../lib/executionArguments.js';
-import { SparqlQueryParser } from '../lib/parser.js';
+import { sharedSparqlQueryParser } from '../lib/parser.js';
 import { detectSparqlOperation } from '../lib/queryTypeDetector.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import type { SparqlDataset } from '../server/ISparqlExecutor.js';
@@ -134,7 +134,7 @@ export function isAuthBackend(backendId: string | null | undefined): boolean {
  * Checked when an administrator sets the policy, so a bad policy is refused
  * once rather than failing on every request.
  */
-export function graphPolicyQueryProblem(queryString: string, parser = new SparqlQueryParser()): string | null {
+export function graphPolicyQueryProblem(queryString: string, parser = sharedSparqlQueryParser()): string | null {
   let operation;
   try {
     operation = detectSparqlOperation(queryString);
@@ -175,7 +175,7 @@ export function graphPolicyQueryProblem(queryString: string, parser = new Sparql
 export function bindPolicySubject(
   queryString: string,
   subject: PolicySubject,
-  parser = new SparqlQueryParser(),
+  parser = sharedSparqlQueryParser(),
 ): string {
   return applyExecutionArguments(queryString, { caller: { user: subject.user, groups: subject.groups } }, parser);
 }

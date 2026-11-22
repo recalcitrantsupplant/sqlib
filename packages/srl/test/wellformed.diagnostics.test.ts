@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { checkWellFormed, parseRuleSet, wellFormednessErrors } from '../src/index.js';
+import { checkWellFormed, parseRuleSet } from '../src/index.js';
 
 /*
- * Positions, severities, and the two warnings about a name that is a separate
- * variable: `group-shadowing` and `not-before-binding`. The table of GROUP
- * cases is the one in docs/proposals/srl-diagnostics-with-positions.md.
+ * Positions and severities of the diagnostics about a name that is reused:
+ * the `in-use` error (the spec's inUse condition, w3c/data-shapes#690 and
+ * #1455) and the `group-shadowing` warning for a blank node label. The table
+ * of GROUP cases is the one in docs/proposals/srl-diagnostics-with-positions.md;
+ * every variable that table marked is an `in-use` error since #690.
  */
 
 const PREFIX = 'PREFIX : <http://example/>';
@@ -28,11 +30,11 @@ function markedAt(body: string, category: string, head?: string): number[] {
   return issues.filter((i) => i.category === category).map((i) => i.from - bodyStart);
 }
 
-describe('group-shadowing', () => {
+describe('in-use', () => {
   const cases: Array<[body: string, expected: string[], head?: string]> = [
     ['?s :knows ?o GROUP BY ?s { ?o :p ?v } [ ?n := COUNT(*) ]', ['?o']],
     ['?s :knows ?o GROUP BY ?s ?o { ?o :p ?v } [ ?n := COUNT(*) ]', []],
-    // eval-group-09
+    // The old eval-group-09, before w3c/data-shapes#1455 renamed ?o.
     ['?x :p ?o GROUP BY ?x { ?x :q ?o } [ ?n := COUNT(*) ]', ['?o'], '?x :n ?n'],
     ['?s :p ?o GROUP BY ?s { ?o :q ?v . ?v :r ?o } [ ?n := COUNT(*) ]', ['?o', '?o']],
     ['?s :p ?o GROUP BY ?s { $o :q ?v } [ ?n := COUNT(*) ]', ['$o']],
@@ -44,60 +46,49 @@ describe('group-shadowing', () => {
       '?s :n ?m',
     ],
     ['TUPLE(?s, ?o) GROUP BY ?s { ?o :q ?v } [ ?n := COUNT(*) ]', ['?o']],
-    ['?s a :T GROUP BY ?s { ?s :q ?o } [ ?n := COUNT(*) ] ?s :p ?o', []],
+    ['?s a :T GROUP BY ?s { ?s :q ?o } [ ?n := COUNT(*) ] ?s :p ?o', ['?o']],
     [
       '?p a :T GROUP BY ?p { ?p :child ?y } [ ?a := COUNT(*) ] GROUP BY ?p { ?p :child ?y . ?y a :Adult } [ ?b := COUNT(*) ]',
-      [],
+      ['?y', '?y'],
       '?p :n ?b',
     ],
-    ['?s a :T NOT { ?s :p ?o } FILTER(?s != :x) GROUP BY ?s { ?s :q ?o } [ ?n := COUNT(*) ]', []],
+    ['?s a :T NOT { ?s :p ?o } FILTER(?s != :x) GROUP BY ?s { ?s :q ?o } [ ?n := COUNT(*) ]', ['?o']],
     ['GROUP { ?s :p ?o } [ ?n := COUNT(*) ]', [], ':all :n ?n'],
     ['?s a :T GROUP { ?s :p ?o } [ ?n := COUNT(*) ]', ['?s'], ':all :n ?n'],
+    ['?x :likes ?any NOT { ?x :knows ?y } ?x :likes ?y', ['?y'], '?x :before ?y'],
+    ['?x :likes ?y NOT { ?x :knows ?y }', [], '?x :before ?y'],
+    ['?x a :P NOT { ?x :knows ?y }', [], '?x a :Loner'],
   ];
 
   it.each(cases)('%s', (body, expected, head) => {
-    expect(marked(body, 'group-shadowing', head)).toEqual(expected);
+    expect(marked(body, 'in-use', head)).toEqual(expected);
   });
 
   it('marks the variable inside the pattern, not the one before it', () => {
     const body = '?s :knows ?o GROUP BY ?s { ?o :p ?v } [ ?n := COUNT(*) ]';
-    expect(markedAt(body, 'group-shadowing')).toEqual([body.indexOf('{ ?o') + 2]);
+    expect(markedAt(body, 'in-use')).toEqual([body.indexOf('{ ?o') + 2]);
   });
 
-  it('is a warning, so the rule stays well-formed', () => {
+  it('is an error', () => {
     const { issues } = analyse('?s :knows ?o GROUP BY ?s { ?o :p ?v } [ ?n := COUNT(*) ]');
-    expect(issues.map((i) => i.severity)).toEqual(['warning']);
-    expect(wellFormednessErrors(issues)).toEqual([]);
+    expect(issues.map((i) => i.severity)).toEqual(['error']);
     expect(issues[0].message).toBe(
-      '?o here is a separate variable from the ?o bound before this GROUP. List it after BY to use the same value.',
+      '?o is bound before this GROUP and is not a key. List it after BY to use the same value, or rename it here.',
     );
   });
 
-  it('warns on a blank node label used before the GROUP and in its pattern', () => {
-    const { text, issues } = analyse('_:b :knows ?s GROUP BY ?s { _:b :p ?v } [ ?n := COUNT(*) ]');
-    const warning = issues.find((i) => i.category === 'group-shadowing');
-    expect(warning && text.slice(warning.from, warning.to)).toBe('_:b');
-    expect(warning?.message).toContain('Replace the label by a variable');
+  it('names the NOT that the variable is local to', () => {
+    const { issues } = analyse('?x :likes ?any NOT { ?x :knows ?y } ?x :likes ?y', '?x :before ?y');
+    expect(issues.map((i) => i.message)).toEqual(['?y is local to a NOT earlier in the rule. Rename one of the two.']);
   });
 });
 
-describe('not-before-binding', () => {
-  it('marks a NOT variable that only a later element binds', () => {
-    expect(marked('?x :likes ?any NOT { ?x :knows ?y } ?x :likes ?y', 'not-before-binding', '?x :before ?y'))
-      .toEqual(['?y']);
-  });
-
-  it('is info, so the rule stays well-formed', () => {
-    const { issues } = analyse('?x :likes ?any NOT { ?x :knows ?y } ?x :likes ?y', '?x :before ?y');
-    expect(issues.map((i) => [i.category, i.severity])).toEqual([['not-before-binding', 'info']]);
-  });
-
-  it('says nothing when the NOT comes after the binding', () => {
-    expect(marked('?x :likes ?y NOT { ?x :knows ?y }', 'not-before-binding', '?x :before ?y')).toEqual([]);
-  });
-
-  it('says nothing about a NOT variable nothing else binds', () => {
-    expect(marked('?x a :P NOT { ?x :knows ?y }', 'not-before-binding', '?x a :Loner')).toEqual([]);
+describe('group-shadowing', () => {
+  it('warns on a blank node label used before the GROUP and in its pattern', () => {
+    const { text, issues } = analyse('_:b :knows ?s GROUP BY ?s { _:b :p ?v } [ ?n := COUNT(*) ]');
+    expect(issues.map((i) => [i.category, i.severity])).toEqual([['group-shadowing', 'warning']]);
+    expect(text.slice(issues[0].from, issues[0].to)).toBe('_:b');
+    expect(issues[0].message).toContain('Replace the label by a variable');
   });
 });
 
@@ -128,11 +119,11 @@ describe('positions of the existing errors', () => {
   });
 });
 
-describe('the warnings without source locations', () => {
+describe('the reuse diagnostics without source locations', () => {
   it('still reports them, against the whole rule', () => {
     const text = `${PREFIX}\nRULE { ?s :n ?n } WHERE { ?s :knows ?o GROUP BY ?s { ?o :p ?v } [ ?n := COUNT(*) ] }`;
     const issues = checkWellFormed(parseRuleSet(text, { aggregates: true }));
-    expect(issues.map((i) => i.category)).toEqual(['group-shadowing']);
+    expect(issues.map((i) => i.category)).toEqual(['in-use']);
     expect(issues[0].from).toBe(text.indexOf('RULE'));
   });
 });

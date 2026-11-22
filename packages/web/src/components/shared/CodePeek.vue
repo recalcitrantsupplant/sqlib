@@ -1,21 +1,36 @@
 <template>
   <section v-if="hasContent || hasFull" class="code-peek" :data-testid="testId">
-    <button
-      type="button"
-      class="peek-head"
-      :aria-expanded="isExpanded"
-      :data-testid="testId ? `${testId}-toggle` : undefined"
-      :title="isExpanded ? 'Collapse' : 'Expand to the whole document'"
-      :disabled="forcedOpen"
-      @click="expanded = !isExpanded"
-    >
-      <ChevronDown v-if="isExpanded" :size="13" class="peek-chevron" />
-      <ChevronRight v-else :size="13" class="peek-chevron" />
-      <span class="peek-label">{{ label }}</span>
-      <span v-if="meta" class="peek-meta">· {{ meta }}</span>
-      <span class="peek-spacer" />
-      <span class="peek-meta" :data-testid="testId ? `${testId}-state` : undefined">{{ stateNote }}</span>
-    </button>
+    <!--
+      The toggle and Copy are siblings in one bar: a button cannot hold
+      another button. Copy takes `content`, the whole document, prologue
+      included, whatever the peek shows.
+    -->
+    <div class="peek-bar">
+      <button
+        type="button"
+        class="peek-head"
+        :aria-expanded="isExpanded"
+        :data-testid="testId ? `${testId}-toggle` : undefined"
+        :title="isExpanded ? 'Collapse' : 'Expand to the whole document'"
+        :disabled="forcedOpen"
+        @click="expanded = !isExpanded"
+      >
+        <ChevronDown v-if="isExpanded" :size="13" class="peek-chevron" />
+        <ChevronRight v-else :size="13" class="peek-chevron" />
+        <span class="peek-label">{{ label }}</span>
+        <span v-if="meta" class="peek-meta">· {{ meta }}</span>
+        <span class="peek-spacer" />
+        <span class="peek-meta" :data-testid="testId ? `${testId}-state` : undefined">{{ stateNote }}</span>
+      </button>
+      <CopyButton
+        v-if="hasContent"
+        class="peek-copy"
+        size="sm"
+        :text="content"
+        :subject="label.toLowerCase()"
+        :testid="testId ? `${testId}-copy` : undefined"
+      />
+    </div>
 
     <!--
       Collapsed and expanded are two editors rather than one that changes
@@ -115,6 +130,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
 import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
 import { languageExtensionsFor } from '@/lib/codeLanguage';
+import CopyButton from './CopyButton.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -340,15 +356,26 @@ const fullExtensions = computed<Extension[]>(() => [
   overflow: hidden;
 }
 
-.peek-head {
+.peek-bar {
   display: flex;
-  gap: var(--space-2);
   align-items: center;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 0;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-subtle);
+}
+
+.peek-copy {
+  margin: 0 var(--space-2);
+}
+
+.peek-head {
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
   color: var(--ink-secondary);
   font-family: inherit;
   font-size: var(--text-micro);

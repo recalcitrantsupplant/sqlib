@@ -12,7 +12,7 @@
  * category error: only Cases had an Add button, because only Cases felt like a
  * list.
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   Braces,
   ChevronRight,
@@ -36,6 +36,8 @@ import type {
   SettingKey,
 } from '../../lib/benchmarkViews';
 import InfoHint from '../shared/InfoHint.vue';
+import SidebarResizer from '../shared/SidebarResizer.vue';
+import { useSidebarWidth } from '../../composables/useSidebarWidth';
 import InlineNote from '../shared/InlineNote.vue';
 
 const props = defineProps<{
@@ -50,6 +52,9 @@ const props = defineProps<{
   runs: RunListItem[];
   selectedRunId: string | null;
 }>();
+
+const sidebarEl = ref<HTMLElement | null>(null);
+const { widthPx, isResizing, startResize, resetWidth } = useSidebarWidth('benchmarkPlan', sidebarEl);
 
 const emit = defineEmits<{
   (e: 'update:tab', tab: 'plan' | 'runs'): void;
@@ -84,7 +89,12 @@ function isSelected(kind: AxisKey, id: string) {
 </script>
 
 <template>
-  <aside class="plan-sidebar" data-testid="benchmark-plan-sidebar">
+  <aside
+    ref="sidebarEl"
+    class="plan-sidebar"
+    data-testid="benchmark-plan-sidebar"
+    :style="widthPx !== null ? { width: `${widthPx}px` } : undefined"
+  >
     <div class="tab-row">
       <button
         class="tab"
@@ -198,6 +208,8 @@ function isSelected(kind: AxisKey, id: string) {
       </div>
       <span class="expansion-formula">{{ expansion.formula }}</span>
     </div>
+    <!-- The same drag edge as the section list's (`useSidebarWidth`). -->
+    <SidebarResizer :active="isResizing" @start="startResize" @reset="resetWidth" />
   </aside>
 </template>
 
@@ -212,10 +224,14 @@ function isSelected(kind: AxisKey, id: string) {
    */
   --axis-hint-indent: 19px;
 
+  position: relative;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  /* The plan list gives up width before the case editor beside it does. */
+  flex-shrink: 1;
   width: 268px;
+  min-width: 200px;
+  max-width: 420px;
   min-height: 0;
   background: var(--surface-subtle);
   border-right: 1px solid var(--border-default);

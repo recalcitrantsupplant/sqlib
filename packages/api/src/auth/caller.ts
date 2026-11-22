@@ -22,7 +22,7 @@ import type { FastifyRequest } from 'fastify';
 import { isReservedSlotVariable, mayDeclareReservedSlot, type CallerIdentity } from '@sparql-query-lib/runtime';
 import { authOf } from './enforce.js';
 import { isGroupPrincipal } from './principals.js';
-import type { AuthContext } from './types.js';
+import { PRINCIPAL_ANONYMOUS, type AuthContext } from './types.js';
 import { isInternalExecution, type ExecutionAuthScope, type InternalExecution } from './executionScope.js';
 import { SparqlQueryParser } from '../lib/parser.js';
 
@@ -31,7 +31,9 @@ export type { CallerIdentity };
 /** The caller a context names, or null when it names no one. */
 export function callerIdentityOf(context: AuthContext): CallerIdentity | null {
   if (context.fullAccess) return null;
-  if (context.mode === 'anonymous') return null;
+  // A guest has no identity. A demo person (`config/demoMode.ts`) has one,
+  // though the mode stays `anonymous`, so `?authUser` reads their own rows.
+  if (context.mode === 'anonymous' && context.subject === PRINCIPAL_ANONYMOUS) return null;
   if (context.tokenType === 'system') return null;
   return {
     user: context.subject,

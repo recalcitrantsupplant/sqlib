@@ -13,7 +13,7 @@ running API. You deploy the export.
 
 ## What the export produces
 
-`sqlib export` writes an **export bundle**. This is JSON with `version: 1`, the
+`sqlib export` writes an **export bundle**. This is JSON with `version: 2`, the
 id and name of the library, and a `queries` map keyed by a stable slug. Each
 entry has:
 
@@ -54,7 +54,7 @@ and the result can look correct. `fromBundle` checks the structure when it
 loads. `verifyBundleIntegrity(bundle)` calculates the hash of the text again,
 and finds any edit. Call it for a bundle from a source that you do not control.
 
-### Version 1 and what it promises
+### Versions and what they promise
 
 `version` changes only for a change that an existing reader cannot read. A new
 optional field does not change it. This works because the reader ignores fields
@@ -67,9 +67,17 @@ runtime then refuses the bundle. It does not read the part that it knows. The
 fields are offsets, so a bundle read in part would put a `VALUES` block over the
 wrong span, and give wrong results with no error.
 
-`packages/runtime/test/fixtures/bundle-v1.json` is a committed bundle. CI loads
-and runs it on each build. CI also runs a minimal bundle with only the required
-fields. Tests therefore check both parts of the rule.
+Version 2 removed three fields from an ETL column: `targetVariable`,
+`iriTemplate` and `nullPolicy`. A column now binds the variable of its own
+name, and its value is used as it is. The runtime still reads version 1. A
+version-1 ETL job that used one of the removed fields is refused when it runs,
+with a message that names the column. Export the library again after you
+rewrite the job.
+
+`packages/runtime/test/fixtures/bundle-v2.json` is a committed bundle. CI loads
+and runs it on each build, and also loads `bundle-v1.json`. CI also runs a
+minimal bundle with only the required fields. Tests therefore check both parts
+of the rule.
 
 ## Producing a bundle
 

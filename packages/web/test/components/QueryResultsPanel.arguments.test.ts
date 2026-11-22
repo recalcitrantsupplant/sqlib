@@ -27,6 +27,9 @@ vi.mock('@/composables/useTestsSurface', () => ({
 function argumentSetsStub() {
   return {
     argumentSets: ref([]),
+    savedTotal: ref(0),
+    searchArgumentSets: vi.fn(),
+    loadMoreArgumentSets: vi.fn(),
     selection: ref({ kind: 'none' }),
     selectedSetId: ref(null),
     versions: ref([]),

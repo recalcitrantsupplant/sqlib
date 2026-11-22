@@ -31,6 +31,7 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { resolveQueryDefaultBackend } from './defaultBackend.js';
 import { SparqlQueryParser } from './parser.js';
 import { groupInputs } from './toolObject.js';
+import { ruleTuplesAllowed } from './ruleTuples.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import type { PersistedLibrary } from '../persistence/schemas/LibrarySchema.js';
 import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
@@ -250,7 +251,13 @@ export function collectPublishedTools(): PublishedCatalogue {
           continue;
         }
       }
-      ruleSet = { id: entity.$id, version: version.version, ...(dataGraphVersionId ? { dataGraphVersionId } : {}) };
+      const tuplesEnabled = (version as PersistedRuleSetVersion).tuplesEnabled === true && ruleTuplesAllowed();
+      ruleSet = {
+        id: entity.$id,
+        version: version.version,
+        ...(dataGraphVersionId ? { dataGraphVersionId } : {}),
+        ...(tuplesEnabled ? { tuplesEnabled } : {}),
+      };
     }
 
     const readOnly = kind === 'query'

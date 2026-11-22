@@ -11,16 +11,15 @@ import type { ColumnDefinition } from '../../src/persistence/schemas/EtlColumnMa
  * An ETL job is the same job run directly or as a group node (WP17).
  *
  * The engine kept its own copy of the row-to-binding conversion, and the two
- * had drifted: the node did not percent-encode a value spliced into an IRI
- * template and did not skip a value that made no IRI, so a job's triples
- * depended on which way it was run. The node now runs `EtlService.runPipeline`
- * itself, and this pins that with real DuckDB rows that exercise both rules.
+ * had drifted, so a job's triples depended on which way it was run. The node
+ * now runs `EtlService.runPipeline` itself, and this pins that with real
+ * DuckDB rows: a value the template encodes into an IRI, and a row the SQL drops.
  */
 
 const MAPPING_VERSION = 'urn:sqlib:etl-column-mapping-version:1';
 const COLUMNS: ColumnDefinition[] = [
-  { columnName: 'name', targetVariable: 'person', termType: 'uri', iriTemplate: 'http://example.org/person/{value}', nullPolicy: 'skipRow' },
-  { columnName: 'label', targetVariable: 'label', termType: 'literal', nullPolicy: 'undef' },
+  { columnName: 'name', termType: 'literal' },
+  { columnName: 'label', termType: 'literal' },
 ];
 
 const entities: Record<string, Record<string, unknown>> = {
@@ -32,10 +31,14 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getCacheCoordinator: () => ({ get: (id: string) => entities[id] ?? null }),
 }));
 
-// A name with a space and a slash, which only an encoded template turns into
-// a usable IRI, and a row with no name, which the mapping skips.
-const SQL = `SELECT * FROM (VALUES ('Ada Lovelace', 'first'), ('a/b', 'second'), (NULL, 'third')) AS t(name, label)`;
-const TEMPLATE = `CONSTRUCT { ?person <http://example.org/label> ?label } WHERE { VALUES (?person ?label) { (UNDEF UNDEF) } }`;
+// A name with a space and a slash, which only an encoded IRI makes usable, and
+// a row with no name, which the SQL drops.
+const SQL = `SELECT * FROM (VALUES ('Ada Lovelace', 'first'), ('a/b', 'second'), (NULL, 'third')) AS t(name, label)
+  WHERE name IS NOT NULL`;
+const TEMPLATE = `CONSTRUCT { ?person <http://example.org/label> ?label } WHERE {
+  VALUES (?name ?label) { (UNDEF UNDEF) }
+  BIND(IRI(CONCAT("http://example.org/person/", ENCODE_FOR_URI(?name))) AS ?person)
+}`;
 
 const etlJobVersion = {
   $id: 'urn:sqlib:etl-job-version:1',

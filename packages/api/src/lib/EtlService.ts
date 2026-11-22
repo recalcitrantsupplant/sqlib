@@ -29,7 +29,7 @@ import { SparqlQueryParser } from './parser.js';
 import { abortReason } from './cancellation.js';
 import { executionDeadlineMs, readOnlyEtlMaxRows } from '../config/executionLimits.js';
 import { toRuntimeExecutor } from '../server/runtimeExecutor.js';
-import { rowsToBindings, runEtl, toLexicalForm, valuesLookLikeIris } from '@sparql-query-lib/runtime-etl';
+import { rowsToBindings, runEtl, toColumnDefinitions, valuesLookLikeIris } from '@sparql-query-lib/runtime-etl';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { ArgumentSet } from './orchestration/types.js';
@@ -46,18 +46,12 @@ import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { EtlTemplateError, resolveEtlTemplate, resolveTemplateQuery, type EntityLookup, type ResolvedEtlTemplate } from './etlTemplate.js';
 
 // The row mapping and the chunk loop live in @sparql-query-lib/runtime-etl, so
-// the API and the CLI run one implementation. `toLexicalForm` is re-exported
-// for the callers that imported it from here.
-export { toLexicalForm };
+// the API and the CLI run one implementation.
 
 /** Reads entities from the cache, for `resolveEtlTemplate`. */
 function storeLookup(): EntityLookup {
   const cache = getCacheCoordinator();
   return (id) => cache.get(id) as ReturnType<EntityLookup>;
-}
-
-function warnAboutRow(message: string, context: Record<string, unknown>): void {
-  log.warn(context, message);
 }
 
 // Input/Output types
@@ -682,14 +676,12 @@ export class EtlService {
       const isText = /VARCHAR|TEXT|STRING/i.test(col.duckdbType);
       const sample = previewResult.rows.map((row) => (row as Record<string, unknown>)[col.columnName]);
       if (isText && valuesLookLikeIris(sample)) {
-        return { columnName: col.columnName, targetVariable: col.columnName, termType: 'uri', nullPolicy: 'undef' };
+        return { columnName: col.columnName, termType: 'uri' };
       }
       return {
         columnName: col.columnName,
-        targetVariable: col.columnName, // Use column name as variable name by default
         termType: 'literal',
         datatypeIri: mapDuckDbTypeToXsd(col.duckdbType),
-        nullPolicy: 'undef',
       };
     });
 
@@ -864,7 +856,7 @@ export class EtlService {
    * Convert DuckDB rows to SPARQL bindings using column mappings
    */
   convertRowsToBindings(rows: Record<string, unknown>[], columnDefs: ColumnDefinition[]): SparqlBinding[] {
-    return rowsToBindings(rows, columnDefs, warnAboutRow) as SparqlBinding[];
+    return rowsToBindings(rows, columnDefs) as SparqlBinding[];
   }
 
   /**
@@ -967,7 +959,7 @@ export class EtlService {
       }
     }
 
-    return { versionUrn: mappingVersionUrn, columns: JSON.parse(mappingVersion.columns) as ColumnDefinition[] };
+    return { versionUrn: mappingVersionUrn, columns: toColumnDefinitions(JSON.parse(mappingVersion.columns) as unknown[]) };
   }
 
   /**
@@ -1003,7 +995,6 @@ export class EtlService {
       dryRun: run.dryRun,
       signal: run.signal,
       abortError: abortReason,
-      warn: warnAboutRow,
     });
   }
 
