@@ -4,7 +4,7 @@
  * Registered before any route, as an `onRequest` hook. In `disabled` mode it
  * decorates a full-access context and does nothing else, and in `anonymous`
  * mode a context for the one anonymous principal, so the request path is
- * identical in shape across all four modes.
+ * identical in shape in every mode.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { normalizeRouteUrl } from '../config/readOnly.js';
@@ -21,6 +21,7 @@ import {
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
 import {
   PRINCIPAL_ANONYMOUS,
+  readsBearerTokens,
   createAnonymousContext,
   createDemoPersonContext,
   createFullAccessContext,
@@ -114,12 +115,17 @@ async function buildContext(
       request.log.debug({ err: error, principal: derived.subject }, 'Failed to record groups');
     });
 
+  // In `optional` mode a signed-in caller also holds what a guest holds, so
+  // signing in never shows less than the public view.
+  const principals =
+    config.mode === 'optional' ? [...derived.principals, PRINCIPAL_ANONYMOUS] : derived.principals;
+
   return {
     subject: derived.subject,
-    principals: derived.principals,
+    principals,
     issuer: verified.issuerConfig.issuer,
     tokenType: derived.tokenType,
-    grants: resolveEffectiveGrants(derived.principals, store),
+    grants: resolveEffectiveGrants(principals, store),
     claims: verified.claims,
     fullAccess: false,
     mode: config.mode,
@@ -191,6 +197,15 @@ export async function registerAuthPlugin(
 
     const token = TokenVerifier.extractBearer(request.headers.authorization);
 
+    // `optional`: a caller with no token is a guest, as in `anonymous`.
+    if (!token && config.mode === 'optional') {
+      request.authContext = createAnonymousContext(
+        resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore()),
+        'optional'
+      );
+      return;
+    }
+
     if (!token) {
       if (config.mode === 'required' && !isPublicRoute(request.routeOptions?.url, config, basePath)) {
         reply
@@ -216,7 +231,10 @@ export async function registerAuthPlugin(
         'Bearer token rejected'
       );
 
-      if (config.mode === 'required') {
+      // `optional` refuses a bad token as `required` does. Serving it as a
+      // guest would hide the expiry from the client, and show a signed-in
+      // person the public view without saying why.
+      if (config.mode === 'required' || config.mode === 'optional') {
         const status = tokenError.statusCode;
         if (status === 401) {
           reply.header(
@@ -234,7 +252,7 @@ export async function registerAuthPlugin(
     }
   });
 
-  const readsTokens = config.mode === 'dry-run' || config.mode === 'required';
+  const readsTokens = readsBearerTokens(config.mode);
 
   if (readsTokens && config.audienceUnchecked) {
     const unscoped = config.issuers.filter(entry => !entry.audience).map(entry => entry.issuer);

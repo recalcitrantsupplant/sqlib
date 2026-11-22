@@ -26,7 +26,7 @@ import {
   type DemoPersonEntry,
 } from '../lib/demoPerson';
 
-export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
+export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous' | 'optional';
 
 export interface AuthMe {
   authMode: AuthMode;
@@ -94,9 +94,15 @@ function requireLogin(): boolean {
  *
  * `anonymous` is a public deployment that reads no token, so there is nothing
  * to sign in to; what the visitor may do comes from `/auth/me` instead.
+ * `optional` reads a token when one is sent, and serves a guest otherwise.
  */
 function signsIn(): boolean {
-  return mode.value === 'dry-run' || mode.value === 'required' || requireLogin();
+  return mode.value === 'dry-run' || mode.value === 'required' || mode.value === 'optional' || requireLogin();
+}
+
+/** Whether the API answers a caller with no token as a guest. */
+function servesGuests(): boolean {
+  return mode.value === 'anonymous' || mode.value === 'optional';
 }
 
 /**
@@ -200,9 +206,9 @@ async function fetchMode(): Promise<AuthMode> {
 
 async function refreshMe(): Promise<void> {
   const token = user.value?.access_token;
-  // An anonymous deployment answers `/auth/me` for everyone, and that answer
-  // is the only thing that says which libraries and backends a visitor holds.
-  if (!token && mode.value !== 'anonymous') {
+  // A deployment that serves guests answers `/auth/me` for everyone, and that
+  // answer is the only thing that says which libraries and backends a guest holds.
+  if (!token && !servesGuests()) {
     me.value = null;
     return;
   }

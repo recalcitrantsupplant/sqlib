@@ -128,6 +128,13 @@
         </div>
       </template>
 
+      <template v-if="state === 'guest' && canSignIn">
+        <DropdownMenuSeparator />
+        <DropdownMenuItem data-testid="account-sign-in" @select="login()">
+          <LogIn :size="14" aria-hidden="true" />Sign in
+        </DropdownMenuItem>
+      </template>
+
       <template v-if="state !== 'guest' && state !== 'demo'">
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -172,7 +179,8 @@ import { backendLevelChip, libraryGrantChips } from '../../lib/accessModel';
 import { sectionPath } from '../../lib/sectionRoutes';
 import { useRouter } from '#imports';
 
-const { account, me, login, logout, demoPeople, demoPersonId, switchDemoPerson } = useAuth();
+const { account, me, mode, login, logout, demoPeople, demoPersonId, switchDemoPerson } = useAuth();
+const canSignIn = computed(() => mode.value === 'optional');
 const { available: tokenAvailable, expiresLabel, copyToken } = useApiTokenCopy();
 const { libraries } = useActiveLibrary();
 const { backends } = useBackendsStore();

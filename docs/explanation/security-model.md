@@ -23,7 +23,7 @@ designed but not built.
 
 ## What `SQLIB_AUTH_MODE` does
 
-There are four values. **The default is `disabled`.**
+There are five values. **The default is `disabled`.**
 
 | Mode | Token required | Effect |
 | --- | --- | --- |
@@ -31,6 +31,7 @@ There are four values. **The default is `disabled`.**
 | `dry-run` | no | If a token is sent, sqlib verifies it and resolves the grants. sqlib logs a request that would be denied as `would-deny`, and serves it. |
 | `required` | yes | A request without a valid token gets `401`. If sqlib cannot fetch the JWKS endpoint, the request gets `503`, because the failure is on the server side. A token whose `kid` is not in the published key set gets `401`. For an unknown `kid`, sqlib fetches the key set again at most once in each 30-second period. |
 | `anonymous` | no, and sqlib reads none | Each request is the one principal `urn:sqlib:principal:anonymous`, with the grants of that principal only. Enforcement is the same as in `required`: a failed check is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
+| `optional` | no | A request without a token is the anonymous principal, as in `anonymous`. A request with a token is verified as in `required`. A valid token gives the caller's own principals, the authenticated sentinel and the anonymous principal, so a signed-in caller holds at least what a guest holds. An invalid or expired token gets `401` with a bearer challenge. Enforcement is the same as in `required`. |
 
 `anonymous` is the mode for a public deployment. Use it with
 `SQLIB_READ_ONLY=true`, and grant `execute` on a library and `query:saved` on
@@ -45,7 +46,12 @@ create a library on a writable deployment. Set it to `admin` unless you want
 that. The anonymous principal is a different principal from the authenticated
 sentinel, so a grant to "everyone signed in" does not reach a visitor.
 
-`dry-run` or `required` without an issuer stops the server at start. An issuer
+`optional` is the mode for a public deployment where some people sign in to
+write. Grant reads to the anonymous principal and writes to users or groups.
+sqlib gates writes by grants alone, as in `required`. It needs an issuer and an
+audience, as `required` does.
+
+`dry-run`, `required` or `optional` without an issuer stops the server at start. An issuer
 without an audience also stops the server, unless
 `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` is set. With no audience, sqlib does not
 check the `aud` claim, and it accepts a token that the issuer made for any other
@@ -322,8 +328,8 @@ fails. The wrappers of the API (`applyExecutionArguments`, `invokeCallable`)
 take the caller as a required field, so the compiler lists each call site.
 
 No caller is signed in for a full-access context (`disabled` mode, or `dry-run`
-without a valid token), for a guest in `anonymous` mode (its one principal
-identifies nobody), and for the internal work of sqlib. A demo person in demo
+without a valid token), for a guest in `anonymous` or `optional` mode (its
+one principal identifies nobody), and for the internal work of sqlib. A demo person in demo
 mode is a caller. A route refuses such a run with
 `401` or `403` before it starts. The zero rows are a second protection behind
 that refusal.
