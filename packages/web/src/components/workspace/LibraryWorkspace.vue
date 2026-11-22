@@ -1702,11 +1702,21 @@ const { landing: libraryLanding } = useLibrarySwitchLanding<SidebarEntity>({
     clearEntitySelection();
     selectedItemType.value = null;
   },
-  rows: async () => {
+  rows: async (libraryId) => {
     const section = activeListSection.value;
     if (!section) return [];
     const definition = SECTION_DEFINITIONS[section];
-    await Promise.all(definition.savedKinds.map((kind) => loadRailKind(kind.type)));
+    /*
+     * Under tag grouping the first row is under the first tag heading, so the
+     * order needs the new library's tags and each heading's rows. They load
+     * after the rows themselves: the tags on the library watcher, the
+     * headings when the tags arrive. Wait for the tags, let the rail see
+     * them, then wait for rows and headings together.
+     */
+    await tagsStore.loadTags(libraryId);
+    await nextTick();
+    await Promise.all(definition.savedKinds.map((kind) =>
+      railKind.value === kind.type ? rail.settled() : loadKind(kind.type)));
     // The sidebar's order is computed from the rows just loaded.
     await nextTick();
     // The user moved to another section meanwhile. That section's own watcher lands it.
