@@ -12,7 +12,7 @@
  * until the save moment, so switching libraries changes the saved list and
  * leaves the scratch cluster alone.
  */
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, getCurrentScope, onScopeDispose } from 'vue';
 import { useLibrariesStore } from './useLibrariesStore';
 
 const STORAGE_KEY = 'sparql-query-lib-active-library';
@@ -25,6 +25,10 @@ function readStored(): string | null {
 // Module-level: the strip, the saved list and Save are one selection.
 const activeLibraryId = ref<string | null>(readStored());
 let watching = false;
+
+/** What each open screen does when the user picks another library. */
+type SwitchHandler = (libraryId: string) => void;
+const switchHandlers = new Set<SwitchHandler>();
 
 export function useActiveLibrary() {
   const librariesStore = useLibrariesStore();
@@ -60,8 +64,32 @@ export function useActiveLibrary() {
 
   const activeLibraryName = computed(() => activeLibrary.value?.name ?? 'No library');
 
+  /**
+   * Point the workspace at a library without changing what is open. For a
+   * record that names its own library, and for a link that names one.
+   */
   function setActiveLibrary(id: string | null) {
     activeLibraryId.value = id;
+  }
+
+  /**
+   * The user picked a library. The active library changes, and each open
+   * screen then lands on its new list (see `useLibrarySwitchLanding`).
+   *
+   * This is separate from `setActiveLibrary` because the app also sets the
+   * library itself: opening a record from another library follows the record,
+   * and must not then close it to land on the first row.
+   */
+  function switchLibrary(id: string) {
+    if (id === activeLibrary.value?.id) return;
+    activeLibraryId.value = id;
+    for (const handler of [...switchHandlers]) handler(id);
+  }
+
+  /** Run `handler` after each `switchLibrary`, until the calling component unmounts. */
+  function onLibrarySwitch(handler: SwitchHandler) {
+    switchHandlers.add(handler);
+    if (getCurrentScope()) onScopeDispose(() => switchHandlers.delete(handler));
   }
 
   async function ensureLoaded() {
@@ -76,6 +104,8 @@ export function useActiveLibrary() {
     activeLibrary,
     activeLibraryName,
     setActiveLibrary,
+    switchLibrary,
+    onLibrarySwitch,
     ensureLoaded,
   };
 }

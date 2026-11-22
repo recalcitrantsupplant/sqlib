@@ -256,9 +256,72 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
       expect(both.status).toBe(400);
       expect(both.body.error).toContain('names no backend');
 
-      // An update takes no data: it would write into a store that is then dropped.
-      const update = await send(server, 'POST', '/tools/people/settle', { item: ['http://example.org/req2'], verdict: 'agree', data });
-      expect(update.status).toBe(400);
+    });
+
+    it('runs an update over RDF the caller posts and answers with the graph it leaves', async () => {
+      const ex = 'http://example.org/';
+      const data = `<${ex}req2> <${ex}state> "proposed" .\n<${ex}req9> <${ex}state> "proposed" .\n`;
+      const call = (headers: Record<string, string> = {}) =>
+        server.inject({
+          method: 'POST',
+          url: '/tools/people/settle',
+          headers,
+          payload: { item: [`${ex}req2`], verdict: 'agree', data, format: 'application/n-triples' },
+        });
+
+      // In the format the data came in, when the call names none.
+      const plain = await call();
+      expect(plain.statusCode).toBe(200);
+      expect(plain.headers['content-type']).toMatch(/^application\/n-triples/);
+      expect(plain.body.trim().split('\n').sort()).toEqual([
+        `<${ex}req2> <${ex}state> "agree" .`,
+        `<${ex}req9> <${ex}state> "proposed" .`,
+      ]);
+
+      // In the format the Accept header names.
+      const quads = await call({ accept: 'application/n-quads' });
+      expect(quads.statusCode).toBe(200);
+      expect(quads.headers['content-type']).toMatch(/^application\/n-quads/);
+
+      // The refusal query reads the posted data too.
+      const refused = await server.inject({
+        method: 'POST',
+        url: '/tools/people/settle',
+        payload: { item: [`${ex}req3`], verdict: 'agree', data },
+      });
+      expect(refused.statusCode).toBe(409);
+
+      // The backend was not touched: req2 is still proposed there, so only the
+      // verdict flag fails.
+      const backend = await send(server, 'POST', '/tools/people/settle', { item: [`${ex}req2`], verdict: 'maybe' });
+      expect(backend.status).toBe(409);
+      expect(backend.body.refused.map((entry: Json) => entry.flag)).toEqual(['verdictKnown']);
+    });
+
+    it('answers an MCP call of an update with data with the changed graph', async () => {
+      const { createToolRegistry, publishedToolDefinition } = await import('@sparql-query-lib/tools');
+      const { createValidatorAjv } = await import('../../src/lib/validator-setup.js');
+      const published = (server as unknown as { sqlibPublished: { catalogue: { specs: Json[] } } }).sqlibPublished;
+      const spec = published.catalogue.specs.find((entry: Json) => entry.name === 'settle');
+      const registry = createToolRegistry({
+        compiler: createValidatorAjv(),
+        definitions: [publishedToolDefinition(spec)],
+        callApi: async (request) => {
+          const response = await server.inject(request as never);
+          return { statusCode: response.statusCode, headers: response.headers, payload: response.payload };
+        },
+      });
+
+      const ex = 'http://example.org/';
+      const turtle = `@prefix ex: <${ex}> . ex:req7 ex:state "proposed" .`;
+      const first = await registry.callTool('settle', { item: [`${ex}req7`], verdict: 'decline', data: turtle });
+      expect(first.statusCode).toBe(200);
+      expect(first.text).toContain('"decline"');
+      expect(first.text).not.toContain('"proposed"');
+
+      // A stateless client sends the graph it got back with its next call.
+      const second = await registry.callTool('settle', { item: [`${ex}req7`], verdict: 'agree', data: first.text });
+      expect(second.statusCode).toBe(409);
     });
 
     it('picks the response format from f, in place of Accept', async () => {
@@ -328,7 +391,7 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
           acceptsData: true,
         }),
       ]);
-      expect(published.catalogue.specs.find((spec: Json) => spec.name === 'settle').acceptsData).toBeUndefined();
+      expect(published.catalogue.specs.find((spec: Json) => spec.name === 'settle').acceptsData).toBe(true);
     });
 
     it('runs a rule set on its pinned data graph, or on the caller\'s RDF', async () => {
@@ -461,6 +524,11 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
       const version = Number(ids.ruleSetVersionNumber);
       expect((await send(server, 'POST', url, { version: version - 1 })).status).toBe(403);
       expect((await send(server, 'POST', url, { version, dataGraphId: ids.dataGraph })).status).toBe(403);
+      // Seed rows only inline: a stored tuple set is refused, inline rows pass the gate.
+      expect((await send(server, 'POST', url, { version, tuples: { tupleSetId: 'urn:sqlib:tuple-set:x' } })).status).toBe(403);
+      expect((await send(server, 'POST', url, { version, tuples: { tupleSetVersionId: 'urn:sqlib:tuple-set-version:x' } })).status).toBe(403);
+      const inline = { head: { vars: ['a'] }, results: { bindings: [] } };
+      expect((await send(server, 'POST', url, { version, tuples: { inline } })).status).not.toBe(403);
 
       const tool = await send(server, 'POST', '/tools/people/neighbours', {});
       expect(tool.status).toBe(200);

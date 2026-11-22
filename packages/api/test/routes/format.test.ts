@@ -47,19 +47,6 @@ describe('POST /format', () => {
     expect(body.formatted.length).toBeGreaterThan(0);
   });
 
-  it('formats SPARQL through the query generator rather than the SRL formatter', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/format',
-      payload: { code: 'construct \n\n\nwhere {?s ?p ?o} limit 10' },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(JSON.parse(response.body)).toEqual({
-      formatted: 'CONSTRUCT {\n  ?s ?p ?o .\n}\nWHERE {\n  ?s ?p ?o .\n}\nLIMIT 10',
-    });
-  });
-
   it('keeps LIMIT/OFFSET parameter placeholders (leading 000) through formatting', async () => {
     const response = await app.inject({
       method: 'POST',
@@ -83,6 +70,37 @@ LIMIT 0002`,
     expect(formatted).toMatch(/\nLIMIT 0002$/);
   });
 
+  it('changes only whitespace in SPARQL, and keeps one blank line', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/format',
+      payload: { code: 'construct \n\n\nwhere {?s ?p ?o} limit 10' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      formatted: 'construct\n\nwhere {\n  ?s ?p ?o\n}\nlimit 10',
+    });
+  });
+
+  it('keeps comments, `a`, literals and parentheses as written', async () => {
+    const code = `# Cities by population
+PREFIX ex: <http://example.org/>
+SELECT ?city WHERE { ?city a ex:City ; ex:pop ?n . # big ones
+FILTER(?n > 10 && lang(?l) = "en") }`;
+    const response = await app.inject({ method: 'POST', url: '/format', payload: { code } });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).formatted).toBe(`# Cities by population
+PREFIX ex: <http://example.org/>
+SELECT ?city
+WHERE {
+  ?city a ex:City ;
+    ex:pop ?n . # big ones
+  FILTER(?n > 10 && lang(?l) = "en")
+}`);
+  });
+
   it('keeps placeholders in subqueries and leaves literal LIMIT/OFFSET values alone', async () => {
     const response = await app.inject({
       method: 'POST',
@@ -94,11 +112,63 @@ LIMIT 0002`,
 
     expect(response.statusCode).toBe(200);
     const { formatted } = JSON.parse(response.body);
-    expect(formatted).toContain('LIMIT 10');
-    expect(formatted).toContain('OFFSET 0003');
-    expect(formatted).toContain('LIMIT 0001');
-    expect(formatted).toContain('OFFSET 5');
-    expect(formatted).not.toMatch(/730100/);
+    expect(formatted).toContain('limit 10');
+    expect(formatted).toContain('offset 0003');
+    expect(formatted).toContain('limit 0001');
+    expect(formatted).toContain('offset 5');
+  });
+
+  it('accepts LATERAL, as the query parser does', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/format',
+      payload: { code: 'SELECT * WHERE { ?s ?p ?o LATERAL { ?s ?q ?r } }' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).formatted).toContain('LATERAL {');
+  });
+
+  it('formats an SRL rule with the SRL entry point', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/format',
+      payload: {
+        code: 'PREFIX : <http://example/>  RULE :r { ?x :grandparent ?z } WHERE { ?x :parent ?y . ?y :parent ?z }',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      formatted:
+        'PREFIX : <http://example/>\nRULE :r {\n  ?x :grandparent ?z\n}\nWHERE {\n  ?x :parent ?y .\n  ?y :parent ?z\n}',
+    });
+  });
+
+  it('keeps SRL comments and block order, and is idempotent over SRL', async () => {
+    const code = `PREFIX : <http://example/>
+# blocked pairs
+RULE { ?x :p ?y } WHERE DATA { ?x :q ?y . NOT DATA { ?x :blocked ?y } }
+DATA { :a :q :b . }`;
+
+    const first = await app.inject({ method: 'POST', url: '/format', payload: { code } });
+    expect(first.statusCode).toBe(200);
+    const formatted = JSON.parse(first.body).formatted as string;
+    expect(formatted).toContain('# blocked pairs');
+    expect(formatted).toContain('WHERE DATA {');
+    expect(formatted).toContain('  NOT DATA {\n    ?x :blocked ?y\n  }');
+    expect(formatted.indexOf('RULE')).toBeLessThan(formatted.indexOf('DATA {\n  :a'));
+
+    const second = await app.inject({ method: 'POST', url: '/format', payload: { code: formatted } });
+    expect(second.statusCode).toBe(200);
+    expect(JSON.parse(second.body).formatted).toBe(formatted);
+  });
+
+  it('should return 400 for whitespace-only code', async () => {
+    const response = await app.inject({ method: 'POST', url: '/format', payload: { code: '   ' } });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body)).toEqual({ error: 'No code to format' });
   });
 
   it('should format a query with prefixes', async () => {
@@ -141,8 +211,7 @@ SELECT ?name WHERE {
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
     expect(body.formatted).toContain('PREFIX foaf:');
-    // Behaviour change vs sparqljs: the Traqula generator preserves all declared
-    // prefixes (it does not prune unused ones during formatting).
+    // The formatter changes only whitespace, so an unused prefix stays.
     expect(body.formatted).toContain('PREFIX rdf:');
   });
 
@@ -165,37 +234,6 @@ RULE {
     expect(body.formatted).toContain('RULE');
     expect(body.formatted).toContain('WHERE');
     expect(body.formatted).not.toContain('INSERT'); // Formatting does not translate RULE → SPARQL UPDATE
-  });
-
-  it('re-indents an SRL rule through the SRL generator, not a passthrough', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/format',
-      payload: {
-        code: 'PREFIX : <http://example/>  RULE :r { ?x :grandparent ?z } WHERE { ?x :parent ?y . ?y :parent ?z }',
-      },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(JSON.parse(response.body)).toEqual({
-      formatted:
-        'PREFIX : <http://example/>\n\nRULE :r {\n  ?x :grandparent ?z .\n} WHERE {\n  ?x :parent ?y .\n  ?y :parent ?z .\n}',
-    });
-  });
-
-  it('indents a nested NOT and is idempotent over SRL', async () => {
-    const code = `PREFIX : <http://example/>
-RULE { ?x :p ?y } WHERE DATA { ?x :q ?y . NOT DATA { ?x :blocked ?y } }`;
-
-    const first = await app.inject({ method: 'POST', url: '/format', payload: { code } });
-    expect(first.statusCode).toBe(200);
-    const formatted = JSON.parse(first.body).formatted as string;
-    expect(formatted).toContain('} WHERE DATA {');
-    expect(formatted).toContain('  NOT DATA {\n    ?x :blocked ?y .\n  }');
-
-    const second = await app.inject({ method: 'POST', url: '/format', payload: { code: formatted } });
-    expect(second.statusCode).toBe(200);
-    expect(JSON.parse(second.body).formatted).toBe(formatted);
   });
 
   it('should format DATA syntax (no translation)', async () => {

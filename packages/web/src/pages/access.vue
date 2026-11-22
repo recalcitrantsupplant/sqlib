@@ -1,6 +1,6 @@
 <template>
   <div class="access-layout">
-    <AppNavRail active-section="access" @select="handleRailSelect" />
+    <AppNavRail active-section="access" @select="handleRailSelect" @home="router.push('/')" />
 
     <p v-if="!auth.isAdmin.value" class="notice">Only administrators can manage access.</p>
     <template v-else>

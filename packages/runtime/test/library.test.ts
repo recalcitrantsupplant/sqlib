@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryCallError, fromBundle, iri, literal } from '../src/library.js';
-import type { Executor } from '../src/executor.js';
+import { httpExecutor, type Executor } from '../src/executor.js';
 import { bundleOf, exportedQuery, template } from './helpers.js';
 
 const PEOPLE = () =>
@@ -269,5 +269,72 @@ describe('running queries', () => {
       limitParameters: [],
       offsetParameters: [],
     });
+  });
+});
+
+describe('running updates', () => {
+  async function withUpdate(executor?: Executor) {
+    const { queryType: _queryType, ...insert } = await exportedQuery(
+      template('INSERT { ?p :livesIn ?city } WHERE { «VALUES (?city ?p) { (UNDEF UNDEF) }» }'),
+    );
+    return fromBundle({ ...(await bundleOf({ people: PEOPLE() })), updates: { move: insert } }, { executor });
+  }
+
+  it('substitutes as a query does, and hands the text to executor.update', async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    const lib = await withUpdate({ execute: vi.fn(), update });
+
+    await lib.update('move').run({ arguments: [{ bindings: [{ city: iri('http://e/Perth'), p: iri('http://e/a') }] }] });
+
+    expect(update).toHaveBeenCalledWith({
+      updateText: 'INSERT { ?p :livesIn ?city } WHERE { VALUES( ?city ?p ){ ( <http://e/Perth> <http://e/a> ) } }',
+      signal: undefined,
+    });
+  });
+
+  it('refuses an executor that cannot write', async () => {
+    const lib = await withUpdate({ execute: vi.fn() });
+    await expect(lib.update('move').run()).rejects.toThrow(/cannot run updates/);
+  });
+
+  it('keeps updates apart from queries', async () => {
+    const lib = await withUpdate();
+    expect(lib.updateNames()).toEqual(['move']);
+    expect(() => lib.query('move')).toThrow(/no query named 'move'/);
+    const readOnly = await library();
+    expect(() => readOnly.update('move')).toThrow(/no update named 'move'. Available: \(none\)/);
+  });
+});
+
+describe('stream', () => {
+  it('sends the substituted query and returns the response unread', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{"head":{"vars":["name"]},"results":{"bindings":[]}}', {
+        status: 200,
+        headers: { 'content-type': 'application/sparql-results+json' },
+      }),
+    );
+    const lib = await library(httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'POST' }));
+
+    const response = await lib.query('people').stream({
+      arguments: [{ bindings: [{ city: iri('http://example.org/Perth') }] }],
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(lib.query('people').text({
+      arguments: [{ bindings: [{ city: iri('http://example.org/Perth') }] }],
+    }));
+    expect(init.headers.Accept).toBe('application/sparql-results+json');
+    expect(response.bodyUsed).toBe(false);
+  });
+
+  it('refuses an executor that only returns parsed results', async () => {
+    const lib = await library({ execute: vi.fn() });
+    await expect(lib.query('people').stream()).rejects.toBeInstanceOf(QueryCallError);
+  });
+
+  it('refuses when no executor is configured', async () => {
+    const lib = await library();
+    await expect(lib.query('people').stream()).rejects.toThrow(/No executor is configured/);
   });
 });

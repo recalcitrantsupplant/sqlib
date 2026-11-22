@@ -42,6 +42,13 @@ function byName(a: Tag, b: Tag): number {
   return a.name.localeCompare(b.name);
 }
 
+/**
+ * One load per library at a time. Two callers that ask for the same library
+ * while it loads share the request, so a caller can wait for the tags that
+ * a watcher started loading.
+ */
+let inflight: { libraryId: string; promise: Promise<Tag[]> } | null = null;
+
 export function useTagsStore() {
   const apiClient = useApiClient();
 
@@ -52,7 +59,18 @@ export function useTagsStore() {
   /** `id → tag`, which is what a row of dots needs and a list scan does not. */
   const tagsById = computed(() => new Map(state.tags.map((tag) => [tag.id, tag])));
 
-  async function loadTags(libraryId: string | null): Promise<Tag[]> {
+  function loadTags(libraryId: string | null): Promise<Tag[]> {
+    if (libraryId && inflight?.libraryId === libraryId) return inflight.promise;
+    const promise = fetchTags(libraryId);
+    if (libraryId) {
+      const entry = { libraryId, promise };
+      inflight = entry;
+      void promise.finally(() => { if (inflight === entry) inflight = null; });
+    }
+    return promise;
+  }
+
+  async function fetchTags(libraryId: string | null): Promise<Tag[]> {
     if (!libraryId) {
       state.tags = [];
       state.loadedLibrary = null;

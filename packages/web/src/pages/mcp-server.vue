@@ -1,6 +1,6 @@
 <template>
   <div class="mcp-layout">
-    <AppNavRail active-section="mcp" @select="handleRailSelect" />
+    <AppNavRail active-section="mcp" @select="handleRailSelect" @home="router.push('/')" />
 
     <main class="page">
       <div class="page-measure">

@@ -306,9 +306,9 @@ export default async function (fastify: FastifyInstance) {
    * that moves RDF, or runs a rule set or an ETL job, needs a store the static
    * runtime does not have and is reported in `skipped` instead.
    *
-   * Read-only and reads-only: an update query is refused rather than exported,
-   * because a bundle carries no authorization of its own. See
-   * `docs/guides/static-export.md`.
+   * An update query is refused unless `updates=true`, because a bundle carries
+   * no authorization of its own. With it, updates go in `bundle.updates`, for a
+   * store the caller owns. See `docs/guides/static-export.md`.
    */
   fastify.get(
     '/:id/activity',
@@ -426,6 +426,12 @@ export default async function (fastify: FastifyInstance) {
               default: true,
               description: "Carry the library's rule sets, as SRL documents.",
             },
+            updates: {
+              type: 'boolean',
+              default: false,
+              description:
+                "Carry the library's SPARQL UPDATEs in `updates`. Without it, an update query makes the export fail. A bundle has no authorization of its own, so use this only for a bundle that runs on a store its caller owns.",
+            },
             environment: {
               type: 'string',
               minLength: 1,
@@ -490,6 +496,7 @@ export default async function (fastify: FastifyInstance) {
             library: { id, name: library.name },
             queries,
             tags,
+            updates: request.query.updates === true,
           });
 
           // Examples come from the library's own tests, and a test that cannot

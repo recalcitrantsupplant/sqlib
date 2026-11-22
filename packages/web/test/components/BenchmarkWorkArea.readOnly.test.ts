@@ -10,6 +10,7 @@ import { ref, computed } from 'vue';
 import { NO_ARGUMENTS_IRI } from '@/lib/benchmarkPlan';
 
 const EXPERIMENT_ID = 'urn:sqlib:benchmark:e1';
+const OTHER_EXPERIMENT_ID = 'urn:sqlib:benchmark:e2';
 const QUERY_ID = 'urn:sqlib:query:q1';
 const BACKEND_ID = 'urn:sqlib:backend:b1';
 
@@ -153,6 +154,24 @@ describe('BenchmarkWorkArea on a read-only deployment', () => {
     // The run is read from the response, not reloaded from a server that kept none.
     expect(store.loadRunsForVersion.mock.calls.length).toBe(reloadsBefore);
     expect(store.getRunObservations).not.toHaveBeenCalledWith(RUN_RESPONSE.run.id);
+    expect(area.text()).toContain('not kept');
+  });
+
+  it('shows a run only under the benchmark that made it, when another is at the same version', async () => {
+    useVersion({ ...VERSION, immutable: true });
+    const area = await mountSaved();
+    await area.get('[data-testid="run-bar-run"]').trigger('click');
+    await flushPromises();
+    expect(area.text()).toContain('not kept');
+
+    store.selectedExperiment.value = { id: OTHER_EXPERIMENT_ID, name: 'Other', status: 'Active' };
+    await area.setProps({ experimentId: OTHER_EXPERIMENT_ID });
+    await flushPromises();
+    expect(area.text()).not.toContain('not kept');
+
+    store.selectedExperiment.value = { id: EXPERIMENT_ID, name: 'Reachability', status: 'Active' };
+    await area.setProps({ experimentId: EXPERIMENT_ID });
+    await flushPromises();
     expect(area.text()).toContain('not kept');
   });
 

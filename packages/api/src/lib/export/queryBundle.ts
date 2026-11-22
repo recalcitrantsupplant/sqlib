@@ -20,9 +20,16 @@ import {
   hashTemplateText,
   type ExportBundle,
   type ExportedQuery,
+  type ExportedUpdate,
   type SlotPolicy,
 } from '@sparql-query-lib/runtime';
-import { TemplateCompileError, compileQueryTemplate } from '@sparql-query-lib/compiler';
+import {
+  TemplateCompileError,
+  compileQueryTemplate,
+  compileUpdateTemplate,
+  detectSparqlOperation,
+  type CompiledUpdate,
+} from '@sparql-query-lib/compiler';
 import { SparqlQueryParser } from '../parser.js';
 
 /** A query to export, reduced to what the bundle actually needs. */
@@ -49,6 +56,13 @@ export interface BuildExportBundleOptions {
   /** Overrides the export timestamp; tests pass a fixed value. */
   generatedAt?: string;
   parser?: SparqlQueryParser;
+  /**
+   * Carry the library's SPARQL UPDATEs in `bundle.updates`. Off by default, and
+   * an update in the selection is then refused, as it always was. A bundle has
+   * no authorization of its own, so turn this on only for a bundle that runs
+   * against a store its caller owns, such as an in-browser Oxigraph store.
+   */
+  updates?: boolean;
 }
 
 /**
@@ -119,11 +133,31 @@ export async function compileExportQuery(
     throw error;
   }
 
+  // `queryType` second, where it has always been, so a re-export of an
+  // unchanged library stays byte-identical.
+  const { template, ...rest } = await exportedEntry(compiled, input);
+  return { template, queryType: compiled.queryType, ...rest };
+}
+
+/** Compile one update, or explain why it cannot be exported. */
+export async function compileExportUpdate(
+  input: ExportQueryInput,
+  parser: SparqlQueryParser,
+): Promise<ExportedUpdate> {
+  try {
+    return await exportedEntry(compileUpdateTemplate(input.queryString, { name: input.name, parser }), input);
+  } catch (error) {
+    if (error instanceof TemplateCompileError) throw new QueryExportError(error.message);
+    throw error;
+  }
+}
+
+/** The members a compiled query and a compiled update share. */
+async function exportedEntry(compiled: CompiledUpdate, input: ExportQueryInput): Promise<ExportedUpdate> {
   const { template, pageParameters } = compiled;
 
   return {
     template,
-    queryType: compiled.queryType,
     limitParameters: compiled.limitParameters,
     offsetParameters: compiled.offsetParameters,
     ...(pageParameters.length > 0 ? { pageParameters } : {}),
@@ -154,16 +188,35 @@ export async function compileExportQuery(
  */
 export async function buildExportBundle(options: BuildExportBundleOptions): Promise<ExportBundle> {
   const parser = options.parser ?? new SparqlQueryParser();
-  const entries = await Promise.all(
-    assignKeys(options.queries).map(
-      async ([key, input]) => [key, await compileExportQuery(input, parser)] as const,
+  const keyed = assignKeys(options.queries);
+  // With updates on, an update goes to `updates`. Text that does not parse
+  // stays with the queries, whose compile reports it with the usual message.
+  const isUpdate = (input: ExportQueryInput): boolean => {
+    if (!options.updates) return false;
+    try {
+      return detectSparqlOperation(input.queryString) === 'UPDATE';
+    } catch {
+      return false;
+    }
+  };
+  const [queryEntries, updateEntries] = await Promise.all([
+    Promise.all(
+      keyed
+        .filter(([, input]) => !isUpdate(input))
+        .map(async ([key, input]) => [key, await compileExportQuery(input, parser)] as const),
     ),
-  );
+    Promise.all(
+      keyed
+        .filter(([, input]) => isUpdate(input))
+        .map(async ([key, input]) => [key, await compileExportUpdate(input, parser)] as const),
+    ),
+  ]);
 
   return {
     version: 2,
     library: options.library,
-    queries: Object.fromEntries(entries),
+    queries: Object.fromEntries(queryEntries),
+    ...(updateEntries.length > 0 ? { updates: Object.fromEntries(updateEntries) } : {}),
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     ...(options.tags && options.tags.length > 0 ? { tags: options.tags } : {}),
   };

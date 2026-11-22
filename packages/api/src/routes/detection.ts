@@ -23,6 +23,7 @@ import {
   applyPinnedHeaders,
 } from '../lib/pinnedCaching.js';
 import type { ExecutionParameter } from '../lib/executionArguments.js';
+import { formatText } from '../lib/formatText.js';
 
 function isSrlDocument(code: string): boolean {
   // Skip comments and SPARQL prologue declarations before checking the SRL directive.
@@ -167,16 +168,12 @@ export default async function (
     ...typedRoute(detectionRouteSchemas.formatPost, async (request, reply) => {
       const { code } = request.body;
 
-      try {
-        // SRL has its own generator (the rule/DATA structure is not SPARQL), so an
-        // SRL document is formatted by the SRL package. Do not send normal SPARQL
-        // down this branch: it would miss the query generator below.
-        if (isSrlDocument(code)) {
-          const { formatted } = ruleValidator.formatRuleOrData(code);
-          return reply.send({ formatted });
-        }
+      if (!code.trim()) return reply.status(400).send({ error: 'No code to format' });
 
-        const formatted = parser.formatQueryString(code);
+      // An SRL document and a SPARQL query parse from different entry points
+      // of the same grammar, so the route picks one before it formats.
+      try {
+        const formatted = formatText(code, isSrlDocument(code) ? 'srl' : 'sparql');
         return reply.send({ formatted });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid syntax';

@@ -36,9 +36,10 @@ import {
   rdfPatch,
   turtleLanguage,
   trigLanguage,
+  formatTurtle,
 } from '@kurrawongai/codemirror-lang-turtle12';
-import { sparql, sparqlLateralLanguage } from '@kurrawongai/codemirror-lang-sparql12';
-import { srl, srlLanguage } from '@kurrawongai/codemirror-lang-srl';
+import { sparql, sparqlLateralLanguage, formatSparql } from '@kurrawongai/codemirror-lang-sparql12';
+import { srl, srlLanguage, formatSrl } from '@kurrawongai/codemirror-lang-srl';
 import { patchRowColours } from '@/lib/rdfPatchView';
 
 /** `text/turtle; charset=utf-8` and `text/turtle` are the same language. */
@@ -219,6 +220,49 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
    */
 
   return null;
+}
+
+/** A formatted document, or the reason it was not formatted. */
+export type FormatOutcome = { text: string } | { error: string };
+
+/** The 1-based line and column of an offset in `text`. */
+function position(text: string, offset: number): { line: number; column: number } {
+  const before = text.slice(0, offset);
+  return { line: before.split('\n').length, column: offset - before.lastIndexOf('\n') };
+}
+
+/**
+ * Format a document with its grammar's formatter, or return null when the
+ * media type has none.
+ *
+ * The formatters change only the whitespace between tokens, so comments,
+ * prefixes, `a`, literals and the `LIMIT 000<n>` parameter form stay as
+ * written. The API formats with the same functions and options
+ * (`packages/api/src/lib/formatText.ts`), and both packages pin the same
+ * version, so `POST /format` and this function agree on every input.
+ */
+export function formatCode(text: string, contentType?: string | null): FormatOutcome | null {
+  const type = normalizeContentType(contentType);
+  if (!type) return null;
+
+  let result;
+  if (type === 'application/sparql-query' || type === 'application/sparql-update') {
+    result = formatSparql(text, { lateral: true });
+  } else if (type === 'application/srl' || type === 'text/srl') {
+    result = formatSrl(text);
+  } else if (type === 'text/turtle') {
+    result = formatTurtle(text, { dialect: 'turtle' });
+  } else if (type === 'application/trig') {
+    result = formatTurtle(text, { dialect: 'trig' });
+  } else {
+    return null;
+  }
+
+  if (result.error) {
+    const { line, column } = position(text, result.error.from);
+    return { error: `Parse error at line ${line}, column ${column}` };
+  }
+  return { text: result.text };
 }
 
 /*
