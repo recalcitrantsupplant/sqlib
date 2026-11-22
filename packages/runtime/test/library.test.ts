@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryCallError, fromBundle, iri, literal } from '../src/library.js';
-import type { Executor } from '../src/executor.js';
+import { httpExecutor, type Executor } from '../src/executor.js';
 import { bundleOf, exportedQuery, template } from './helpers.js';
 
 const PEOPLE = () =>
@@ -269,5 +269,38 @@ describe('running queries', () => {
       limitParameters: [],
       offsetParameters: [],
     });
+  });
+});
+
+describe('stream', () => {
+  it('sends the substituted query and returns the response unread', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{"head":{"vars":["name"]},"results":{"bindings":[]}}', {
+        status: 200,
+        headers: { 'content-type': 'application/sparql-results+json' },
+      }),
+    );
+    const lib = await library(httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'POST' }));
+
+    const response = await lib.query('people').stream({
+      arguments: [{ bindings: [{ city: iri('http://example.org/Perth') }] }],
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(lib.query('people').text({
+      arguments: [{ bindings: [{ city: iri('http://example.org/Perth') }] }],
+    }));
+    expect(init.headers.Accept).toBe('application/sparql-results+json');
+    expect(response.bodyUsed).toBe(false);
+  });
+
+  it('refuses an executor that only returns parsed results', async () => {
+    const lib = await library({ execute: vi.fn() });
+    await expect(lib.query('people').stream()).rejects.toBeInstanceOf(QueryCallError);
+  });
+
+  it('refuses when no executor is configured', async () => {
+    const lib = await library();
+    await expect(lib.query('people').stream()).rejects.toThrow(/No executor is configured/);
   });
 });
