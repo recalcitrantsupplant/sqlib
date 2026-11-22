@@ -671,6 +671,9 @@ importers:
       '@lezer/lr':
         specifier: ^1.4.12
         version: 1.4.12
+      '@lezer/markdown':
+        specifier: ^1.8.1
+        version: 1.8.1
       '@lucide/vue':
         specifier: ^1.72.0
         version: 1.72.0(vue@3.5.45(typescript@6.0.3))
@@ -3526,6 +3529,7 @@ packages:
   '@typespec/ts-http-runtime@0.3.10':
     resolution: {integrity: sha512-vddvvtZ7sejSlCv+OIkn2ztjB1O31Fc2JsxI/YK725r3elXXlF/J3o3lbXJFRhoeWRWK1tjdZ+GTi6Fdtrp+EA==}
     engines: {node: '>=22.0.0'}
+    deprecated: A newer version 0.3.11 has been published.
 
   '@unhead/bundler@3.4.3':
     resolution: {integrity: sha512-noUTzazRB4fMgO/nluoirrZJXngNbNb3sQzIslA805tKkwakRv2fib4Xe4EdiTuNB7V5XmpUFvfQkKRdBQ9qAA==}
