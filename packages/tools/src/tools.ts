@@ -499,7 +499,7 @@ export const tools: ToolDefinition[] = [
   }),
   defineTool({
     name: 'detection.format',
-    description: 'Format SPARQL or RULE/DATA code',
+    description: 'Format SPARQL or SRL code. Changes only the whitespace between tokens, so comments and token text stay as written.',
     readOnly: true,
     inputSchema: formatRequestArg,
     buildRequest: (body) => ({ method: 'POST', url: '/format', payload: body, headers: jsonHeaders }),

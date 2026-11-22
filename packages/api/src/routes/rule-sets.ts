@@ -63,6 +63,7 @@ import {
 } from '../lib/ruleSetDocument.js';
 import { ValidationError } from '../lib/validationError.js';
 import { getResultCache } from '../lib/resultCache.js';
+import { formatText } from '../lib/formatText.js';
 import { resolveGraphRef, resultOwner, ResultRefError } from '../lib/resultRefs.js';
 
 type AnyRecord = Record<string, unknown>;
@@ -914,6 +915,22 @@ export default async function (fastify: FastifyInstance) {
   }));
 
   /*
+   * Lay a compiled program out over lines with the editors' formatter.
+   * `compileRule` joins the program from strings, so its indentation is
+   * uneven. Formatting here, once, gives the web panel, its Copy and Export,
+   * and MCP `srl_compile` the same text. Only whitespace changes, so the
+   * program the engine runs (`compileRule`'s own text) is the same program.
+   * A program the formatter cannot parse is returned as compiled.
+   */
+  const layOutProgram = (program: string): string => {
+    try {
+      return formatText(program, 'sparql');
+    } catch {
+      return program;
+    }
+  };
+
+  /*
    * Not scoped to a rule set: compiling reads nothing but the text posted to
    * it, and an unsaved draft has no id to scope to. It was `/:id/srl/compile`
    * for a day, out of misplaced symmetry with the routes around it.
@@ -994,7 +1011,7 @@ export default async function (fastify: FastifyInstance) {
           name: rule.name ?? null,
           label: rule.name ? rule.name.split(/[/#:]/).pop() : `rule-${index + 1}`,
           srl: generateRule(rule),
-          sparql: compiled.program,
+          sparql: layOutProgram(compiled.program),
           producesTuples: compiled.producesTuples,
           tupleReads: compiled.tupleReads.length,
           caveats,
