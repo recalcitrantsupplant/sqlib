@@ -272,6 +272,40 @@ describe('running queries', () => {
   });
 });
 
+describe('running updates', () => {
+  async function withUpdate(executor?: Executor) {
+    const { queryType: _queryType, ...insert } = await exportedQuery(
+      template('INSERT { ?p :livesIn ?city } WHERE { «VALUES (?city ?p) { (UNDEF UNDEF) }» }'),
+    );
+    return fromBundle({ ...(await bundleOf({ people: PEOPLE() })), updates: { move: insert } }, { executor });
+  }
+
+  it('substitutes as a query does, and hands the text to executor.update', async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    const lib = await withUpdate({ execute: vi.fn(), update });
+
+    await lib.update('move').run({ arguments: [{ bindings: [{ city: iri('http://e/Perth'), p: iri('http://e/a') }] }] });
+
+    expect(update).toHaveBeenCalledWith({
+      updateText: 'INSERT { ?p :livesIn ?city } WHERE { VALUES( ?city ?p ){ ( <http://e/Perth> <http://e/a> ) } }',
+      signal: undefined,
+    });
+  });
+
+  it('refuses an executor that cannot write', async () => {
+    const lib = await withUpdate({ execute: vi.fn() });
+    await expect(lib.update('move').run()).rejects.toThrow(/cannot run updates/);
+  });
+
+  it('keeps updates apart from queries', async () => {
+    const lib = await withUpdate();
+    expect(lib.updateNames()).toEqual(['move']);
+    expect(() => lib.query('move')).toThrow(/no query named 'move'/);
+    const readOnly = await library();
+    expect(() => readOnly.update('move')).toThrow(/no update named 'move'. Available: \(none\)/);
+  });
+});
+
 describe('stream', () => {
   it('sends the substituted query and returns the response unread', async () => {
     const fetchMock = vi.fn().mockResolvedValue(

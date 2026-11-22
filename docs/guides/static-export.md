@@ -1,7 +1,9 @@
 # Exporting a library as a static bundle
 
 You can export the read queries of a library as one JSON file. A browser or a
-Node script can then run them without a sqlib server. The server compiles the
+Node script can then run them without a sqlib server. On request, the file also
+holds the parameterised updates of the library, for a store that the caller
+owns (see [Exporting updates](#exporting-updates)). The server compiles the
 queries once, with the full SPARQL parser. The exported file holds the compiled
 result. `@sparql-query-lib/runtime` applies arguments to it, and needs no
 parser.
@@ -36,6 +38,8 @@ Optional members:
   mapping, chunk size, CONSTRUCT `template`, `textHash` and provenance. sqlib
   compiles the template as it compiles a query, with exactly one slot for the
   rows. The bundle does not hold the backend of the job.
+- `updates`, only when the export is asked for them. See
+  [Exporting updates](#exporting-updates).
 - `ruleSets`, for the [`sqlib` CLI](cli.md). Each rule set has its SRL document
   (`srl`, with DATA blocks), a `textHash` of the document, and its rule and
   data block counts, and provenance. It has no seed rows: give them to
@@ -102,10 +106,11 @@ any other configuration, the command exits with an error.
 | `--no-groups` | flag | off | Omit the query groups of the library. |
 | `--no-etl` | flag | off | Omit the ETL jobs of the library. A tag filter also omits them, because jobs have no tags. |
 | `--no-rule-sets` | flag | off | Omit the rule sets of the library. |
+| `--updates` | flag | off | Also export the update queries of the library, in `updates`. Without it, an update query makes the export fail. |
 
 A running API gives the same export at `GET /libraries/:id/export-bundle`. The
 query string parameters are `tag`, `match`, `examples`, `expected`, `queries`,
-`groups`, `etl`, `ruleSets` and `format`. `format` is `json` (the default),
+`groups`, `etl`, `ruleSets`, `updates` and `format`. `format` is `json` (the default),
 `html` for the page described below, or `ipynb` for a Jupyter notebook of worked
 calls. `sqlib pull` calls this route. A request that turns off all four members
 gets a 400. The script refuses the same request.
@@ -385,9 +390,9 @@ WebAssembly build, so its results agree with the results of the server.
 
 ### Writing through an executor
 
-`Executor` has an optional `update(request)` for a SPARQL UPDATE. A bundle holds
-read queries only, so a page never needs it. It is for code that writes, for
-example a rule set that adds inferred triples.
+`Executor` has an optional `update(request)` for a SPARQL UPDATE. A page needs it
+only to run the [exported updates](#exporting-updates) of a bundle. Other code
+that writes uses it too, for example a rule set that adds inferred triples.
 
 - The Oxigraph executor has `update` when its store has it. The real `Store`
   always has it.
@@ -420,15 +425,83 @@ Ship the engine when, without it, the page can give no answer:
 Do not ship it when an endpoint that the page can reach already holds the data,
 and especially when that data is too large to ship.
 
+## Exporting updates
+
+An export holds read queries by default. Updates are left out because a bundle
+has no authorization of its own (see
+[What the runtime cannot do](#what-the-runtime-cannot-do)). An update in the
+selection then makes the export fail, as it always has.
+
+Export updates only for a bundle that runs against a store its caller owns. An
+example is a page that keeps a person's data in an in-browser Oxigraph store,
+and lets them download it and load it again. sqlib then holds none of that
+data, and the only store an update can change is the one in that person's
+browser.
+
+To export them, add `--updates` to the command, or `updates=true` to
+`GET /libraries/:id/export-bundle`. Each update goes in the `updates` member of
+the bundle, keyed by a slug that no query in the bundle uses:
+
+```json
+"updates": {
+  "move-person": {
+    "template": { "text": "…", "slots": [ … ], "prefixes": [ … ] },
+    "limitParameters": [],
+    "offsetParameters": [],
+    "inferredInputs": [["city", "person"]],
+    "textHash": "sha256-…"
+  }
+}
+```
+
+An update entry has the members of a query entry, except `queryType` and
+`examples`. sqlib compiles it as it compiles a query, so its `VALUES … { UNDEF }`
+slots and `LIMIT 000n` / `OFFSET 000n` placeholders are spans in the template.
+`verifyBundleIntegrity` checks its hash.
+
+Run an update with `lib.update(name)`:
+
+```ts
+import { fromBundle, iri } from '@sparql-query-lib/runtime';
+const { oxigraphExecutor } = await import('@sparql-query-lib/runtime-oxigraph');
+
+const executor = await oxigraphExecutor({ data: savedTurtle });
+const lib = fromBundle(bundle, { executor });
+
+await lib.update('move-person').run({
+  arguments: [{ bindings: [{ person: iri('http://example.org/alice'), city: iri('http://example.org/Perth') }] }],
+});
+
+// The default graph as Turtle, to save or download.
+const saved = await executor.execute({ queryText: 'CONSTRUCT WHERE { ?s ?p ?o }', queryType: 'CONSTRUCT' });
+```
+
+- `run(payload)` applies the arguments exactly as a query applies them. It then
+  sends the text to `executor.update`. The payload is the one a query takes.
+- `text(payload)` returns the update with the arguments applied, and does not
+  run it.
+- `run` refuses an executor that has no `update` method. The Oxigraph executor
+  has one. `httpExecutor` has one only when it has an `updateEndpoint`.
+- `lib.updateNames()` lists the updates. It is empty for a bundle exported
+  without them.
+
+A runtime that does not know `updates` ignores the member and still runs the
+read queries. Version 1 of the format therefore does not change. The exported
+page (`--html`) and the notebook (`format=ipynb`) do not show updates.
+
 ## What the runtime cannot do
 
 - **It cannot author queries.** It has no parser, so the browser cannot
-  validate or compile new query text. A bundle is read-only.
+  validate or compile new query text, or add a query to a bundle.
 - **It has no authorization.** An exported bundle grants what the endpoint
   grants its caller. Do not export queries that are safe only because of a scope
   on the server. Do not put anything in a template that must not be published.
-- **Updates are not exported.** The export holds read queries only: SELECT, ASK,
-  CONSTRUCT and DESCRIBE. The exporter refuses an update query.
+- **Updates are exported only on request.** By default the export holds read
+  queries only: SELECT, ASK, CONSTRUCT and DESCRIBE, and the exporter refuses an
+  update query. An exported update writes wherever its executor can write, and
+  sqlib cannot check who runs it. Export updates only for a store that the
+  caller owns, such as an in-browser store. Do not export them to run against a
+  shared endpoint. See [Exporting updates](#exporting-updates).
 - **Query groups must chain SELECT rows.** The exporter skips a group that moves
   RDF between nodes, or that runs a rule set or an ETL job, and gives the
   reason.

@@ -257,6 +257,60 @@
       "description": "Every city in the given regions."
     }
   },
+  "updates": {
+    "mark-seen": {
+      "template": {
+        "text": "PREFIX ex: <http://example.org/>\nINSERT {\n  ?s ex:seen \"true\"^^<http://www.w3.org/2001/XMLSchema#boolean> .\n}\nWHERE {\n  {\n    SELECT ?s WHERE {\n      VALUES ?type {\n        <urn:sqlib:template-slot:0:type>\n      }\n      ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?type .\n    }\n    LIMIT 0001\n  }\n}",
+        "slots": [
+          {
+            "start": 150,
+            "end": 213,
+            "vars": [
+              "type"
+            ]
+          }
+        ],
+        "prefixes": [
+          [
+            "ex",
+            "http://example.org/"
+          ]
+        ]
+      },
+      "limitParameters": [
+        "1"
+      ],
+      "offsetParameters": [],
+      "pageParameters": [
+        {
+          "name": "1",
+          "kind": "limit",
+          "start": 291,
+          "end": 301
+        }
+      ],
+      "inferredInputs": [
+        [
+          "type"
+        ]
+      ],
+      "inputPolicies": [
+        {
+          "vars": [
+            "type"
+          ],
+          "whenEmpty": "require"
+        }
+      ],
+      "textHash": "sha256-203230f2f68fc7e507b4d2ff8795a5212fb3fba6c1a663907bacf5874d5efbe0",
+      "tags": [
+        "urn:sqlib:tag:reference"
+      ],
+      "sourceQuery": "urn:sqlib:query:mark-seen",
+      "sourceVersion": "urn:sqlib:query-version:mark-seen-1",
+      "description": "Mark the first things of the given types as seen."
+    }
+  },
   "generatedAt": "2026-09-07T00:00:00.000Z",
   "tags": [
     "urn:sqlib:tag:reference"

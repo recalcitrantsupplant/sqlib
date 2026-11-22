@@ -177,6 +177,9 @@ function locatePageParameters(
   };
 }
 
+/** A SPARQL UPDATE compiled for a parser-free runtime. */
+export type CompiledUpdate = Omit<CompiledQuery, 'queryType'>;
+
 /**
  * Compile a read query, or explain why it cannot be compiled.
  *
@@ -184,23 +187,47 @@ function locatePageParameters(
  * update, or does not compile to a verified template.
  */
 export function compileQueryTemplate(queryString: string, options: CompileQueryOptions): CompiledQuery {
-  const { name } = options;
-  const parser = options.parser ?? new SparqlQueryParser();
+  const operation = detectOperation(queryString, options.name);
+  if (operation === 'UPDATE') {
+    throw new TemplateCompileError(
+      `Query '${options.name}' is an update operation, which the static export path does not carry. Export read queries only.`,
+    );
+  }
+  return { ...compileTemplateOf(queryString, options), queryType: operation };
+}
 
-  let operation;
+/**
+ * Compile a SPARQL UPDATE, or explain why it cannot be compiled.
+ *
+ * The template and its slots are built and verified as a read query's are:
+ * the API already applies arguments to an update through the same template on
+ * its request path. An export carries the result only when asked to
+ * (`docs/guides/static-export.md`, "Exporting updates").
+ *
+ * Throws {@link TemplateCompileError} when the text does not parse, is not an
+ * update, or does not compile to a verified template.
+ */
+export function compileUpdateTemplate(updateString: string, options: CompileQueryOptions): CompiledUpdate {
+  const operation = detectOperation(updateString, options.name);
+  if (operation !== 'UPDATE') {
+    throw new TemplateCompileError(`Query '${options.name}' is not an update. Its form is ${operation}.`);
+  }
+  return compileTemplateOf(updateString, options);
+}
+
+function detectOperation(text: string, name: string): ReturnType<typeof detectSparqlOperation> {
   try {
-    operation = detectSparqlOperation(queryString);
+    return detectSparqlOperation(text);
   } catch (error) {
     throw new TemplateCompileError(
       `Query '${name}' could not be parsed, so it cannot be exported: ${(error as Error).message}`,
     );
   }
+}
 
-  if (operation === 'UPDATE') {
-    throw new TemplateCompileError(
-      `Query '${name}' is an update operation, which the static export path does not carry. Export read queries only.`,
-    );
-  }
+function compileTemplateOf(queryString: string, options: CompileQueryOptions): CompiledUpdate {
+  const { name } = options;
+  const parser = options.parser ?? new SparqlQueryParser();
 
   const detected = parser.detectInputs(queryString);
   if (detected.constantInputs.length > 0) {
@@ -227,7 +254,6 @@ export function compileQueryTemplate(queryString: string, options: CompileQueryO
 
   return {
     template: compiled.template,
-    queryType: operation,
     limitParameters: detected.limitParameters,
     offsetParameters: detected.offsetParameters,
     pageParameters: compiled.pageParameters,

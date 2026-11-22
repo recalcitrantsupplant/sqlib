@@ -300,15 +300,33 @@ default tool, with no data graph, to a rule set that has no `tool`.
 ### Running on RDF the caller sends
 
 Two more kinds of tool take `data` and `format`, as a rule set does: a published
-query that only reads, and a published group whose start node takes RDF.
+query, and a published group whose start node takes RDF.
 
 - **A query** with `data` runs only over that RDF, in a temporary store, and
   uses no backend. A call that sends both `data` and `backendId` gives a `400`.
   Without `data`, the query runs on its backend.
+- **An update** with `data` runs on that RDF in the same way, and answers
+  `200` with the graph that the update leaves. The temporary store is deleted
+  when the call ends, so sqlib keeps nothing. Without `data`, the update runs
+  on its backend and answers `204`, as before.
 - **A group** with `data` fills the first RDF input of its start node. Its nodes
   still run on their own backends.
-- **An update** takes no `data`. It would write into a store that sqlib then
-  deletes.
+
+An update with `data` lets a client hold its own state. The client keeps the
+graph that a call returns, and sends it as `data` with the next call. An MCP
+client with no backend of its own can therefore build up a graph, for example
+an index definition, over many calls. sqlib stores nothing about that client.
+
+The graph comes back in the format that the `Accept` header names, when it
+names an RDF syntax: Turtle, N-Triples, N-Quads, TriG, RDF/XML or JSON-LD.
+Otherwise it comes back in the `format` of `data`. An MCP call sends no
+`Accept` header, so it gets the format that it sent. A graph with named graphs
+cannot be written as Turtle or N-Triples. Such a call gives a `406` that names
+the graph; ask for N-Quads or TriG instead. The refusals of the tool, if it has
+any, read the posted `data` too.
+
+`POST /execute` behaves in the same way: an update with `dataGraphs` answers
+with the graph that it leaves.
 
 Keep `data` small. sqlib loads it for one call, and the limit on the request
 body applies. When a tool has its own parameters named `data` or `format`, it

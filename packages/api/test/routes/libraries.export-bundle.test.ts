@@ -387,7 +387,7 @@ describe('GET /libraries/:id/export-bundle', () => {
     ]);
   });
 
-  it('answers 400, not 500, when a query cannot be exported', async () => {
+  it('answers 400, not 500, when a query cannot be exported, and refuses an update without updates=true', async () => {
     seedLibrary([{ id: 'q1', name: 'Wipe', currentVersion: 'v1' }], {
       v1: 'DELETE WHERE { ?s ?p ?o }',
     });
@@ -395,6 +395,47 @@ describe('GET /libraries/:id/export-bundle', () => {
     const response = await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` });
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toMatch(/update operation/);
+  });
+
+  describe('updates', () => {
+    const PERSON_INTO_CITY = `PREFIX ex: <http://example.org/>
+INSERT { ?person ex:livesIn ?city } WHERE { VALUES (?person ?city) { (UNDEF UNDEF) } }`;
+
+    it('exports a parameterised INSERT that changes an in-browser store', async () => {
+      seedLibrary(
+        [
+          { id: 'q1', name: 'People by city', currentVersion: 'v1' },
+          { id: 'q2', name: 'Move person', currentVersion: 'v2' },
+        ],
+        { v1: PEOPLE_QUERY, v2: PERSON_INTO_CITY },
+      );
+
+      const response = await app.inject({ url: `/libraries/${LIBRARY}/export-bundle`, query: { updates: 'true' } });
+      expect(response.statusCode).toBe(200);
+      const { bundle } = response.json();
+      expect(Object.keys(bundle.queries)).toEqual(['people-by-city']);
+      expect(Object.keys(bundle.updates)).toEqual(['move-person']);
+      await verifyBundleIntegrity(bundle);
+
+      const { oxigraphExecutor } = await import('@sparql-query-lib/runtime-oxigraph');
+      const executor = await oxigraphExecutor({ data: '' });
+      const lib = fromBundle(bundle, { executor });
+      await lib.update('move-person').run({
+        arguments: [{ bindings: [{ person: iri('http://example.org/alice'), city: iri('http://example.org/Perth') }] }],
+      });
+
+      const quads = executor.store.match(null, null, null, null);
+      expect(quads.map((quad) => [quad.subject.value, quad.predicate.value, quad.object.value])).toEqual([
+        ['http://example.org/alice', 'http://example.org/livesIn', 'http://example.org/Perth'],
+      ]);
+    });
+
+    it('leaves the export unchanged without updates=true', async () => {
+      seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });
+
+      const { bundle } = (await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` })).json();
+      expect(bundle).not.toHaveProperty('updates');
+    });
   });
 
   describe('query groups', () => {

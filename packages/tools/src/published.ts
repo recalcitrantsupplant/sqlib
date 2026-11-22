@@ -159,10 +159,11 @@ export type PublishedToolSpec = {
   /** The `tool` object's refusal messages, by flag. Published updates only. */
   refusals?: Record<string, string>;
   /**
-   * Queries that only read, and groups whose start node takes RDF: the tool
-   * also takes `data` and `format`, RDF sent with the call. A query given
-   * `data` runs over it alone, in an ephemeral store, in place of a backend;
-   * a group's `data` fills its start node's first RDF input.
+   * Queries, and groups whose start node takes RDF: the tool also takes
+   * `data` and `format`, RDF sent with the call. A query given `data` runs
+   * over it alone, in an ephemeral store, in place of a backend; an update
+   * given `data` answers with the graph it leaves. A group's `data` fills its
+   * start node's first RDF input.
    */
   acceptsData?: boolean;
   /** Rule sets only: the rule set and the number of its pinned version. */
@@ -434,9 +435,11 @@ function dataSchemaProperties(spec: PublishedToolSpec): Record<string, unknown> 
     ? spec.ruleSet?.dataGraphVersionId
       ? 'RDF to run the rules on, in place of the data graph this tool runs on by default.'
       : 'RDF to run the rules on. Without it the rules run on their own data blocks only.'
-    : spec.targetKind === 'query'
-      ? 'RDF to run the query over, alone, in place of a backend. Keep it small: it is loaded for this call only.'
-      : 'RDF for the group\'s data input. Keep it small: it is loaded for this call only.';
+    : spec.targetKind === 'query' && !spec.readOnly
+      ? `RDF to run the update on, in place of a backend. The answer is the graph after the update, in the format of "${RULE_SET_DATA_ARGUMENT}". Keep it small: it is loaded for this call only.`
+      : spec.targetKind === 'query'
+        ? 'RDF to run the query over, alone, in place of a backend. Keep it small: it is loaded for this call only.'
+        : 'RDF for the group\'s data input. Keep it small: it is loaded for this call only.';
   return {
     [RULE_SET_DATA_ARGUMENT]: { type: 'string', description },
     [RULE_SET_FORMAT_ARGUMENT]: {
@@ -808,12 +811,16 @@ export function publishedOpenApiDocument(options: {
     const schema = publishedInputSchema(spec);
     const properties = schema.properties as Record<string, Record<string, unknown>>;
     const required = new Set((schema.required as string[] | undefined) ?? []);
+    const update = spec.targetKind === 'query' && !spec.readOnly;
     const responses = {
       200: {
         description: spec.targetKind === 'ruleSet'
           ? 'What `POST /rule-sets/{id}/execute` returns for the pinned version, the inferred triples as Turtle.'
-          : 'What `POST /execute` returns for the pinned version.',
+          : update && offersData(spec)
+            ? `The graph after the update, for a call that sends "${RULE_SET_DATA_ARGUMENT}".`
+            : 'What `POST /execute` returns for the pinned version.',
       },
+      ...(update ? { 204: { description: 'The update ran on its backend.' } } : {}),
       400: { description: 'An argument is missing, unknown or of the wrong kind.' },
       ...(spec.refusals
         ? {
