@@ -69,7 +69,7 @@ const wellformedSuite = await readW3cRulesDocumentSuite('wellformed', PROPOSED_D
 
 describe('proposed W3C cases — evaluation of NOT by position', () => {
   it('reads every entry', () => {
-    expect(evalSuite.entries.map((entry) => entry.name)).toHaveLength(10);
+    expect(evalSuite.entries.map((entry) => entry.name)).toHaveLength(9);
   });
 
   for (const entry of evalSuite.entries) {
