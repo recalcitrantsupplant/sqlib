@@ -13,6 +13,7 @@
     -->
     <div class="list-pane" :class="{ 'list-pane--open': phoneListOpen }" data-testid="notebook-list-pane">
     <EntityListSidebar
+      ref="notebookSidebar"
       section="notebooks"
       section-label="Notebooks"
       item-noun="notebook"
@@ -408,7 +409,7 @@ import { useRoute, useRouter } from '#imports';
 import { Download, FileText, GripVertical, PanelLeft, Scale, Search, Upload, Workflow } from '@lucide/vue';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import AppNavRail from '../components/AppNavRail.vue';
-import EntityListSidebar, { type SidebarSelection } from '../components/EntityListSidebar.vue';
+import EntityListSidebar, { type SidebarEntity, type SidebarSelection } from '../components/EntityListSidebar.vue';
 import SaveAsTestDialog from '../components/notebook/SaveAsTestDialog.vue';
 import NotebookRail from '../components/notebook/NotebookRail.vue';
 import NotebookValuesPanel from '../components/notebook/NotebookValuesPanel.vue';
@@ -433,6 +434,7 @@ import {
 } from '../components/ui/dialog';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
+import { useLibrarySwitchLanding } from '../composables/useLibrarySwitchLanding';
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
@@ -735,6 +737,26 @@ async function openSavedDocument(id: string) {
     notice.value = `That notebook could not be opened: ${cause instanceof Error ? cause.message : String(cause)}`;
   }
 }
+
+/*
+ * A library switch opens the new library's first saved notebook, in the order
+ * the list draws it. With none, the screen shows the empty notebook and its
+ * Add buttons. The library watchers in `useNotebook` and `useNotebookDocuments`
+ * close the open document and reset the editor; this only picks what opens.
+ */
+const notebookSidebar = ref<{ savedRowsInOrder: SidebarEntity[] } | null>(null);
+
+useLibrarySwitchLanding<SidebarEntity>({
+  close: () => { notice.value = null; },
+  rows: async () => {
+    // After the library watchers, so their close does not land after the open.
+    await nextTick();
+    await documents.loadSaved();
+    await nextTick();
+    return notebookSidebar.value?.savedRowsInOrder ?? documents.saved.value;
+  },
+  open: (row) => openSavedDocument(row.id),
+});
 
 const canSaveDocument = computed(() => {
   if (documents.saving.value || !libraryId.value) return false;
