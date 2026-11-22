@@ -70,7 +70,7 @@
         :key="library.id"
         class="library-menu-item"
         :data-testid="`library-option-${library.id}`"
-        @select="setActiveLibrary(library.id)"
+        @select="switchLibrary(library.id)"
       >
         <span class="option-mark" aria-hidden="true">{{ initialOf(library.name) }}</span>
         <span class="option-text">
@@ -173,7 +173,7 @@ const emit = defineEmits<{
   (e: 'home'): void;
 }>();
 
-const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } =
+const { libraries, activeLibraryId, activeLibraryName, switchLibrary, ensureLoaded } =
   useActiveLibrary();
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 const { environments, activeEnvironmentName, setActiveEnvironment } = useActiveEnvironment();

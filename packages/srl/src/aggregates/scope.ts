@@ -6,9 +6,9 @@ import { collectVars } from '../wellformed.js';
  *
  * `collectVars` finds variables by walking term nodes, and a `SET` names its
  * target as a plain string, so a pattern `{ ?s :p ?o SET (?z := ?o + 1) }`
- * would otherwise lose `?z`. The compiler renames these variables and the
- * well-formedness checks scope them, and the two have to agree on the set: a
- * variable one of them missed would be shared with the outer body unnoticed.
+ * would otherwise lose `?z`. The well-formedness checks scope these
+ * variables: a variable they missed could be reused before or after the
+ * `GROUP` without an `in-use` error.
  */
 export function aggregateInnerVars(item: SrlAggregate): Set<string> {
   const names = new Set<string>();

@@ -83,9 +83,10 @@ import type { MarkdownCell } from '../../lib/notebookFormat';
  * sequence of queries legible as work rather than as a catalogue.
  *
  * `v-html` is safe here for one reason, and it is worth stating where it is
- * used rather than only where it is implemented: `renderMarkdown` escapes the
- * whole source before it emits a single tag, so no cell source can produce an
- * element the renderer did not write (`lib/markdown.ts`).
+ * used rather than only where it is implemented: `renderMarkdown` writes every
+ * element itself from the parse tree and escapes all source text it copies, so
+ * no cell source can produce an element the renderer did not write
+ * (`lib/markdown.ts`).
  */
 const props = defineProps<{ cell: MarkdownCell; index: number }>();
 
@@ -261,6 +262,44 @@ onBeforeUnmount(() => {
   padding-left: var(--space-4);
   border-left: 2px solid var(--border-default);
   color: var(--ink-muted);
+}
+
+.prose :deep(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 var(--space-4);
+  border-collapse: collapse;
+  font-size: var(--text-body);
+}
+
+.prose :deep(th),
+.prose :deep(td) {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose :deep(th) {
+  background: var(--surface-subtle);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.prose :deep(del) {
+  color: var(--ink-muted);
+}
+
+.prose :deep(hr) {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.prose :deep(li > input[type='checkbox']) {
+  margin-right: var(--space-2);
+  vertical-align: middle;
 }
 
 .prose :deep(.empty) {

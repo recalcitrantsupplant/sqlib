@@ -6,7 +6,8 @@
  * - the first pages of the section's kind, filtered and sorted on the server;
  * - the pinned rows, loaded by id, whatever page they are on;
  * - under "Last opened", the rows this browser opened most recently, by id;
- * - under tag grouping, the pages loaded for each tag heading.
+ * - under tag grouping, the first rows of each tag heading, then the pages
+ *   the heading loads.
  *
  * The section's tag filter (`useSettings`) goes to the server as `tag` and
  * `tagMatch`, so every page, pinned row and heading is inside it. Tag counts
@@ -26,6 +27,12 @@ import { useEntityLastOpened, useEntityPins } from './useEntityPins';
 import { useSettings } from './useSettings';
 import type { EntityListSortKey } from '../lib/entityListSort';
 import { tagFilterParams, type TagFilter } from '../lib/tagFilter';
+
+/**
+ * How many rows each tag heading loads before its "Show more". Every heading
+ * starts with the same number of rows, whatever the main list's first page holds.
+ */
+export const HEADING_ROWS = 10;
 
 /** The kinds whose rail loads a page at a time. */
 export const RAIL_PAGED_KINDS: readonly PagedKind[] = [
@@ -161,10 +168,28 @@ export function useRailPaging(options: {
     const { q, tag, tagMatch } = listParams.value;
     const counts = await api.getTagCounts(type, { ...libraryParam(), q, tag, tagMatch });
     if (mine !== generation) return;
-    for (const tagEntry of options.tags.value) {
-      const total = counts[tagEntry.id] ?? 0;
-      if (total > 0) tagPages[tagEntry.id] = { total, items: [] };
-    }
+    const fetch = fetchPage();
+    if (!fetch) return;
+    const params = listParams.value;
+    const heads = await Promise.all(options.tags.value
+      .filter((tagEntry) => (counts[tagEntry.id] ?? 0) > 0)
+      .map(async (tagEntry) => {
+        const page = await fetch({ ...params, withTag: [tagEntry.id], limit: HEADING_ROWS, offset: 0 });
+        return [tagEntry.id, { total: counts[tagEntry.id] ?? 0, items: page.items }] as const;
+      }));
+    if (mine !== generation) return;
+    for (const [id, entry] of heads) tagPages[id] = entry;
+  }
+
+  /*
+   * The latest heading load. A change of tags starts one apart from the rows,
+   * so `settled` waits on it as well as on `ensureLoaded`.
+   */
+  let headingsLoad: Promise<void> = Promise.resolve();
+
+  function reloadHeadings(mine: number): Promise<void> {
+    headingsLoad = loadTagTotals(mine).catch((err) => console.error('[useRailPaging] Tag counts failed:', err));
+    return headingsLoad;
   }
 
   /** The tag menu's counts: every row of the kind in the library, without filters. */
@@ -216,6 +241,20 @@ export function useRailPaging(options: {
     } while (loaded!.promise !== current);
   }
 
+  /**
+   * Resolves once the rows and the tag headings both answer for the current
+   * section, library and tags. For a caller that reads the list's order, such
+   * as the landing after a library switch (`useLibrarySwitchLanding`).
+   */
+  async function settled(): Promise<void> {
+    for (;;) {
+      await ensureLoaded();
+      const heads = headingsLoad;
+      await heads;
+      if (heads === headingsLoad && loaded?.key === loadKey.value) return;
+    }
+  }
+
   /** Load the first page and the rows by id, for the current section, library, sort and search. */
   function refresh(): Promise<void> {
     const promise = load();
@@ -238,7 +277,7 @@ export function useRailPaging(options: {
     await Promise.all([
       main.reload(listParams.value),
       loadExtras(mine).catch((err) => console.error('[useRailPaging] Rows by id failed:', err)),
-      loadTagTotals(mine).catch((err) => console.error('[useRailPaging] Tag counts failed:', err)),
+      reloadHeadings(mine),
       loadUnfilteredTotal(mine).catch((err) => console.error('[useRailPaging] Unfiltered count failed:', err)),
       loadTagCounts().catch((err) => console.error('[useRailPaging] Tag menu counts failed:', err)),
     ]);
@@ -251,7 +290,7 @@ export function useRailPaging(options: {
     const fetch = fetchPage();
     const entry = tagPages[tagId];
     if (!fetch || !entry) return;
-    // The heading's own pages, in order. `rows` drops a row the main list also holds.
+    // The heading's own pages, in order, after its first rows. `rows` drops a row the main list also holds.
     const page = await fetch({ ...listParams.value, withTag: [tagId], limit: PAGE_SIZE, offset: entry.items.length });
     entry.total = page.total;
     entry.items = [...entry.items, ...page.items];
@@ -274,6 +313,10 @@ export function useRailPaging(options: {
 
   const tagTotals = computed<Record<string, number>>(() =>
     Object.fromEntries(Object.entries(tagPages).map(([id, entry]) => [id, entry.total])));
+
+  /** Per tag id, the rows its heading has loaded, in server order. */
+  const tagRowIds = computed<Record<string, string[]>>(() =>
+    Object.fromEntries(Object.entries(tagPages).map(([id, entry]) => [id, entry.items.map((row) => row.id)])));
 
   /*
    * The open record, which a link can name in any library and on any page.
@@ -304,7 +347,7 @@ export function useRailPaging(options: {
   watch(
     () => [groupingByTag.value, options.tags.value.map((tag) => tag.id).join('|')] as const,
     () => {
-      void loadTagTotals(generation).catch((err) => console.error('[useRailPaging] Tag counts failed:', err));
+      void reloadHeadings(generation);
       void loadTagCounts().catch((err) => console.error('[useRailPaging] Tag menu counts failed:', err));
     },
   );
@@ -323,6 +366,7 @@ export function useRailPaging(options: {
     loading: main.loading,
     error: main.error,
     tagTotals,
+    tagRowIds,
     /** Per tag id, how many rows of the kind carry it in the library. For the tag menu. */
     tagCounts,
     /** The section's count without the tag filter; null when no filter is set. */
@@ -331,6 +375,7 @@ export function useRailPaging(options: {
     setSearch,
     refresh,
     ensureLoaded,
+    settled,
     loadMore,
     lookup,
     loadRecord,

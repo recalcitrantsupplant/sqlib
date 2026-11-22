@@ -28,7 +28,7 @@ A notebook starts empty. **Add** offers four kinds:
 
 | Kind | Holds | Runs through |
 | --- | --- | --- |
-| Markdown | prose, headings, links, lists | nothing |
+| Markdown | prose, headings, links, lists, tables (CommonMark with GitHub tables, task lists and strikethrough) | nothing |
 | Query | a query reference, plus its arguments | `POST /execute` |
 | Query group | a group reference | `POST /execute` |
 | Rule set | a rule set reference, plus a base graph | `POST /rule-sets/:id/execute` |

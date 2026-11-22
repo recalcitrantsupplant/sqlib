@@ -382,6 +382,22 @@ test.describe('Notebook', () => {
     expect(linkColour).not.toBe(proseColour);
   });
 
+  test('renders a table, and names the cell by its columns in the outline', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('| Person | Groups |\n| --- | --- |\n| Guest | |\n| Alice | analysts |');
+    await page.getByText('Done', { exact: true }).first().click();
+
+    const prose = page.locator('[data-testid^="notebook-md-rendered-"]').first();
+    await expect(prose.locator('th')).toHaveText(['Person', 'Groups']);
+    await expect(prose.locator('tbody tr')).toHaveCount(2);
+    await expect(page.getByTestId('notebook-rail')).toContainText('Person · Groups');
+    await expect(page.getByTestId('notebook-rail')).not.toContainText('|');
+  });
+
   test('starts from the library when someone wants every query as a draft', async ({ page }) => {
     await openNotebook(page);
     await page.getByTestId('notebook-start-from-library').click();

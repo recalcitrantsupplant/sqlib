@@ -623,9 +623,10 @@ cycle and is refused.
 ### Compilation
 
 A `GROUP` compiles to a subquery that groups the pattern by the `BY`
-variables, joined to the elements before it. The pattern's own variables are
-renamed (`?_agg0_y`), so the subquery shares only the keys with the rest of the
-body. The join drops a row whose key has no group. For
+variables, joined to the elements before it. The subquery projects only the
+keys and the results, so SPARQL hides the other pattern variables from the rest
+of the body. The pattern keeps its variable names, and each result is projected
+under its own name. The join drops a row whose key has no group. For
 `RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }`,
 `compileRule` returns:
 
@@ -637,23 +638,22 @@ INSERT {
   {
   ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Person> .
   {
-  SELECT ?x (COUNT( * ) AS ?_agg0_v0) WHERE {
-  ?_agg0_y <http://example.org/childOf> ?x .
+  SELECT ?x (COUNT( * ) AS ?n) WHERE {
+  ?y <http://example.org/childOf> ?x .
 }
 GROUP BY ?x
 }
-  BIND(?_agg0_v0 AS ?n)
   FILTER(BOUND(?n))
 }
 }
 ```
 
-A failed aggregate leaves its subquery variable unbound, and `FILTER(BOUND(?n))`
+A failed aggregate leaves its result unbound, and `FILTER(BOUND(?n))`
 drops the row. The `BOUND` test covers every result at once, so one failed
 aggregate drops the group. A `GROUP` with no `BY` keeps its subquery's one row
 even when the pattern has no solutions, as SPARQL does for an aggregate query
-without `GROUP BY`. It also projects a hidden `COUNT(*)`, so that the subquery
-projects a variable when the block is empty. When a `BY` variable bound before the `GROUP` is
+without `GROUP BY`. An empty block with no `BY` has no aggregate to form that
+row, so the subquery projects a hidden `COUNT(*)` for it. When a `BY` variable bound before the `GROUP` is
 not bound by the pattern, as `?score` is in the rank example, the subquery
 cannot compute it, since SPARQL evaluates a subquery without the outer
 bindings. The subquery is then seeded with the distinct key values from the

@@ -93,7 +93,7 @@
               class="library-open"
               :title="`Make ${library.name} the active library`"
               :data-testid="`splash-library-${library.id}`"
-              @click="setActiveLibrary(library.id)"
+              @click="switchLibrary(library.id)"
             >
               <span class="library-name">
                 {{ library.name }}
@@ -278,7 +278,7 @@ function manageLibrary(id: string) {
 }
 
 const { isEnabled } = useFeatureFlags();
-const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } = useActiveLibrary();
+const { libraries, activeLibraryId, activeLibraryName, switchLibrary, ensureLoaded } = useActiveLibrary();
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 const { openPalette } = useCommandPalette();
 const { counts, totalItems, activity, load: loadInventory } = useLibraryInventory(activeLibraryId);

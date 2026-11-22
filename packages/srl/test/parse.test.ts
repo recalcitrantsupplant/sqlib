@@ -60,6 +60,48 @@ describe('SRL base grammar — parse + compile', () => {
    * operation, compiled to SPARQL, and ran — while the editor's own grammar
    * underlined it as invalid.
    */
+  /**
+   * Grammar rule [20] (w3c/data-shapes@26cb8ec) allows only FILTER beside the
+   * triples of a NOT pattern. The body rule parses a NOT's pattern as a whole
+   * body, so the parser narrows it afterwards.
+   */
+  describe('only FILTER can appear inside NOT', () => {
+    const rule = (where: string) => `${PREFIX}\nRULE { ?x :r ?y } WHERE { ${where} }`;
+
+    it('accepts triples and FILTER inside NOT', () => {
+      expect(() => parseRuleSet(rule('?x :p ?y NOT { ?x :q ?z FILTER ( ?z != ?y ) }'))).not.toThrow();
+    });
+
+    it('rejects a NOT inside a NOT', () => {
+      expect(() => parseRuleSet(rule('?x :p ?y NOT { ?x :q ?y NOT { ?y :z 1 } }')))
+        .toThrow(/SRL syntax error: NOT cannot appear inside NOT; only FILTER can appear inside NOT/);
+    });
+
+    it('rejects a NOT DATA inside a NOT', () => {
+      expect(() => parseRuleSet(rule('?x :p ?y NOT { ?x :q ?y NOT DATA { ?y :z 1 } }')))
+        .toThrow(/NOT cannot appear inside NOT/);
+    });
+
+    it('rejects a SET inside a NOT', () => {
+      expect(() => parseRuleSet(rule('?x :p ?y NOT { ?x :q ?w SET (?k := 1) }')))
+        .toThrow(/SRL syntax error: SET cannot appear inside NOT; only FILTER can appear inside NOT/);
+    });
+
+    it('rejects a GROUP inside a NOT', () => {
+      expect(() => parseRuleSet(
+        rule('?x :p ?y NOT { GROUP BY ?x { ?x :q ?o } [ ?n := COUNT(*) ] }'),
+        { aggregates: true },
+      )).toThrow(/GROUP cannot appear inside NOT/);
+    });
+
+    it('still accepts a SET inside a GROUP pattern', () => {
+      expect(() => parseRuleSet(
+        `${PREFIX}\nRULE { ?x :r ?n } WHERE { ?x :p ?y GROUP BY ?x { ?x :q ?o SET (?k := 1) } [ ?n := COUNT(*) ] }`,
+        { aggregates: true },
+      )).not.toThrow();
+    });
+  });
+
   describe('EXISTS and NOT EXISTS are not SRL', () => {
     const body = (text: string) => `${PREFIX}\nRULE { :x :q ?o } WHERE { :s :p ?o ${text} }`;
 
