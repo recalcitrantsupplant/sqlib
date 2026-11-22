@@ -2,7 +2,6 @@ import { Parser as SparqlParser } from '@traqula/parser-sparql-1-2';
 import { sparql12GeneratorBuilder } from '@traqula/generator-sparql-1-2';
 import { completeGeneratorContext } from '@traqula/rules-sparql-1-2';
 import type { SrlAggregate, SrlBodyItem, SrlRule } from './ast.js';
-import { aggregateInnerVars } from './aggregates/scope.js';
 import {
   collectTupleReads,
   resolveSlotVars,
@@ -211,11 +210,10 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  *     {
  *       P
  *       {
- *         SELECT ?x (COUNT(*) AS ?_agg0_v0)
- *         WHERE { ?_agg0_y :childOf ?x }
+ *         SELECT ?x (COUNT(*) AS ?n)
+ *         WHERE { ?y :childOf ?x }
  *         GROUP BY ?x
  *       }
- *       BIND(?_agg0_v0 AS ?n)
  *       FILTER(BOUND(?n))
  *     }
  *
@@ -223,17 +221,22 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  *
  * - **Every variable of `P` survives**, and the keys and results are added to
  *   each row of `P`.
- * - **The pattern's variables are renamed** apart from `K`, `SET` targets
- *   included, so the only variables the subquery shares with `P` are the keys.
- *   A pattern variable is local to the `GROUP`: one of the same name before
- *   or after it is a different variable.
+ * - **The subquery shares only the keys with `P`.** It projects the keys and
+ *   the results, so SPARQL hides every other pattern variable from the rest
+ *   of the body. A pattern variable is local to the `GROUP`: one of the same
+ *   name before or after it is a different variable. The pattern keeps its
+ *   variable names. The `in-use` check rejects a rule that reuses one, and a
+ *   reused name still compiles to the same result.
+ * - **The results are projected under their own names.** The well-formedness
+ *   checks reject a result that is bound before the `GROUP` or that is a
+ *   pattern variable, so the name is free in the subquery and in `P`.
  * - **Group existence.** With keys, a key with no solutions forms no group,
  *   so its row of `P` is dropped: the subquery is joined, not made `OPTIONAL`.
  *   With no keys there is always one implicit group, even when the pattern
  *   has no solutions. SPARQL does the same: an aggregate query without
- *   `GROUP BY` returns one row, so `COUNT` and `SUM` give 0. A hidden
- *   `COUNT(*)` is projected for this group, so that the subquery still
- *   projects a variable when the block is empty (`[]`).
+ *   `GROUP BY` returns one row, so `COUNT` and `SUM` give 0. An empty block
+ *   (`[]`) without keys has no aggregate to make that group, and a `SELECT`
+ *   must project something, so a hidden `COUNT(*)` is projected for it.
  * - **Aggregate success.** Every assignment must succeed, or the group is
  *   dropped. SPARQL leaves a failed result unbound, such as `MIN` over no
  *   solutions, and the `BOUND` test over all the results removes the row, as
@@ -256,80 +259,42 @@ function compileAggregate(
   const keys = item.keys;
   const index = context.aggregateIndex.n;
   context.aggregateIndex.n += 1;
-  const fresh = (base: string): string => {
-    let name = `_agg${index}_${base}`;
-    while (context.used.has(name)) name = `_${name}`;
-    context.used.add(name);
-    return name;
-  };
 
-  // Rename every pattern variable that is not a key.
-  const renames = new Map<string, string>();
-  for (const name of aggregateInnerVars(item)) if (!keys.includes(name)) renames.set(name, fresh(name));
-  const body = renameVars(structuredClone(item.body), renames);
-  const assignments = item.assignments.map((a) => ({
-    variable: a.variable,
-    aggregate: renameVars(structuredClone(a.aggregate), renames),
-  }));
-
-  // A GROUP without keys always has its one implicit group. The hidden count
-  // keeps the projection non-empty for an empty block.
-  const count = keys.length === 0 ? fresh('count') : undefined;
-  const values = assignments.map((_, j) => fresh(`v${j}`));
+  // A GROUP without keys always has its one implicit group. An empty block
+  // has no aggregate to form it, so project a hidden count.
+  let count: string | undefined;
+  if (keys.length === 0 && item.assignments.length === 0) {
+    count = `_agg${index}_count`;
+    while (context.used.has(count)) count = `_${count}`;
+    context.used.add(count);
+  }
   const keyList = keys.map((k) => `?${k}`).join(' ');
 
   // Keys the pattern binds itself; any other key comes from `P` and needs
   // seeding.
-  const patternBound = new Set(body.flatMap((inner) => boundBy(inner)));
+  const patternBound = new Set(item.body.flatMap((inner) => boundBy(inner)));
   const outerKeys = keys.filter((k) => boundBefore.has(k));
   const seed = outerKeys.length > 0 && keys.some((k) => !patternBound.has(k))
     ? `{\n  SELECT DISTINCT ${outerKeys.map((k) => `?${k}`).join(' ')} WHERE {\n  ${prefix.join('\n  ')}\n}\n}\n  `
     : '';
 
-  const inner = compileBody(body, context, new Set(outerKeys));
+  const inner = compileBody(item.body, context, new Set(outerKeys));
   const projection = [
     keyList,
     count ? `(COUNT(*) AS ?${count})` : '',
-    ...assignments.map((a, j) => `(${serialize('expression', a.aggregate)} AS ?${values[j]})`),
+    ...item.assignments.map((a) => `(${serialize('expression', a.aggregate)} AS ?${a.variable})`),
   ].filter(Boolean).join(' ');
   const groupBy = keys.length > 0 ? `\nGROUP BY ${keyList}` : '';
   const subquery = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
 
   const after: string[] = [];
-  assignments.forEach((a, j) => after.push(`BIND(?${values[j]} AS ?${a.variable})`));
-  if (assignments.length > 0) {
-    after.push(`FILTER(${assignments.map((a) => `BOUND(?${a.variable})`).join(' && ')})`);
+  if (item.assignments.length > 0) {
+    after.push(`FILTER(${item.assignments.map((a) => `BOUND(?${a.variable})`).join(' && ')})`);
   }
 
   // Close the group, as after a SET, so the BOUND test cannot be satisfied by
   // a pattern that comes after the GROUP.
   return `{\n  ${[...prefix, subquery, ...after].join('\n  ')}\n}`;
-}
-
-/** Rename variables throughout an AST node, in place. Returns the node. */
-function renameVars<T>(node: T, renames: ReadonlyMap<string, string>): T {
-  if (renames.size === 0) return node;
-  const visit = (value: unknown): void => {
-    if (!value || typeof value !== 'object') return;
-    const n = value as Record<string, unknown>;
-    if (n.type === 'term' && n.subType === 'variable') {
-      const renamed = renames.get(String(n.value ?? ''));
-      if (renamed) n.value = renamed;
-      return;
-    }
-    // A `SET` names its target as a plain string, not a term node.
-    if (n.kind === 'set' && typeof n.variable === 'string') {
-      const renamed = renames.get(n.variable);
-      if (renamed) n.variable = renamed;
-    }
-    for (const [key, child] of Object.entries(n)) {
-      if (key === 'loc') continue;
-      if (Array.isArray(child)) child.forEach(visit);
-      else visit(child);
-    }
-  };
-  visit(node);
-  return node;
 }
 
 /**
