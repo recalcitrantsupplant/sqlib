@@ -159,3 +159,65 @@ test('notebooks: a switch to an empty library shows the empty notebook', async (
   await page.waitForTimeout(300);
   expect(openNotebook(page)).toBeNull();
 });
+
+/*
+ * Grouped by tag, which is the default, the first row the list draws is the
+ * first row under the first tag heading, not the first by name. The new
+ * library's tags and its heading rows load after the main list, so the
+ * landing must wait for them. Slow answers here make that race certain.
+ */
+const TAG = { id: 'urn:sqlib:tag:other-core', name: 'Core', color: '#2f6feb', isPartOf: OTHER.id };
+const TAGGED_QUERY = { ...QUERY, id: 'urn:sqlib:query:other-zeta', name: 'Zeta query', isPartOf: [OTHER.id], tags: [TAG.id] };
+const UNTAGGED_QUERY = { ...QUERY, id: 'urn:sqlib:query:other-alpha', name: 'Alpha query', isPartOf: [OTHER.id], tags: [] };
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function setUpTagged(page: Page, slowMs: number) {
+  const queries = [{ ...QUERY, tags: [] }, TAGGED_QUERY, UNTAGGED_QUERY];
+  await mockEntityApi(page, {
+    extraRoutes: [
+      [/\/libraries$/, (route) => json(route, [LIBRARY, OTHER, EMPTY])],
+      [/\/tags\/counts$/, async (route) => {
+        await delay(slowMs);
+        const library = new URL(route.request().url()).searchParams.get('library');
+        return json(route, library === OTHER.id ? { [TAG.id]: 1 } : {});
+      }],
+      [/\/tags$/, async (route) => {
+        await delay(slowMs);
+        const library = new URL(route.request().url()).searchParams.get('library');
+        return json(route, library === OTHER.id ? [TAG] : []);
+      }],
+      [/\/queries$/, async (route) => {
+        const params = new URL(route.request().url()).searchParams;
+        const library = params.get('library');
+        const withTag = params.getAll('withTag');
+        if (withTag.length > 0) await delay(slowMs);
+        const rows = queries
+          .filter((row) => inLibrary(row, library))
+          .filter((row) => withTag.every((tag) => row.tags.includes(tag)))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        return json(route, rows);
+      }],
+      [/\/queries\/[^/]+$/, byId(queries)],
+    ],
+  });
+  await page.addInitScript(([key, id]) => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem(key as string, id as string);
+      sessionStorage.setItem('seeded', '1');
+    }
+  }, [ACTIVE_LIBRARY_KEY, LIBRARY.id]);
+}
+
+for (const slowMs of [0, 150, 400]) {
+  test(`grouped by tag: a switch opens the first row under the first heading (${slowMs} ms tags)`, async ({ page }) => {
+    await setUpTagged(page, slowMs);
+    await page.goto(`/queries/${encodeURIComponent(QUERY.id)}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator(`[data-entity-id="${QUERY.id}"]`).first()).toBeVisible();
+
+    await switchTo(page, OTHER);
+
+    await expect(page).toHaveURL(recordUrl('queries', TAGGED_QUERY.id));
+    await expect(page.locator('[data-testid="saved-row"]').first()).toHaveAttribute('data-entity-id', TAGGED_QUERY.id);
+  });
+}
