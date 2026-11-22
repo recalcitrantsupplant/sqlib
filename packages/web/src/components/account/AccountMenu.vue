@@ -135,7 +135,7 @@
         </DropdownMenuItem>
       </template>
 
-      <template v-if="state !== 'guest' && state !== 'demo'">
+      <template v-if="state !== 'guest' && state !== 'demo' && (tokenAvailable || state === 'expired' || canSignOut)">
         <DropdownMenuSeparator />
         <DropdownMenuItem
           v-if="tokenAvailable"
@@ -149,7 +149,7 @@
         <DropdownMenuItem v-if="state === 'expired'" data-testid="account-sign-in" @select="login()">
           <LogIn :size="14" aria-hidden="true" />Sign in again
         </DropdownMenuItem>
-        <DropdownMenuItem v-else data-testid="account-sign-out" @select="logout()">
+        <DropdownMenuItem v-else-if="canSignOut" data-testid="account-sign-out" @select="logout()">
           <LogOut :size="14" aria-hidden="true" />Sign out
         </DropdownMenuItem>
       </template>
@@ -181,6 +181,8 @@ import { useRouter } from '#imports';
 
 const { account, me, mode, login, logout, demoPeople, demoPersonId, switchDemoPerson } = useAuth();
 const canSignIn = computed(() => mode.value === 'optional');
+// Behind a sign-in proxy the proxy owns the session, and the app has none to end.
+const canSignOut = computed(() => mode.value !== 'trusted-header');
 const { available: tokenAvailable, expiresLabel, copyToken } = useApiTokenCopy();
 const { libraries } = useActiveLibrary();
 const { backends } = useBackendsStore();

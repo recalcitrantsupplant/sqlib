@@ -12,7 +12,8 @@ import { DEMO_PERSON_HEADER, demoPerson, isDemoMode } from '../config/demoMode.j
 import { getAuthStore } from './AuthStore.js';
 import { getAuthConfig, type AuthConfig } from './config.js';
 import { resolveEffectiveGrants } from './grants.js';
-import { derivePrincipals, isGroupPrincipal } from './principals.js';
+import { derivePrincipals, isGroupPrincipal, type DerivedPrincipals } from './principals.js';
+import { TrustedHeaderError, hasTrustedSecret, readTrustedIdentity, type TrustedHeaderConfig } from './trustedHeader.js';
 import {
   bearerChallenge,
   isProtectedResourceMetadataRoute,
@@ -22,6 +23,7 @@ import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js'
 import {
   PRINCIPAL_ANONYMOUS,
   readsBearerTokens,
+  servesGuests,
   createAnonymousContext,
   createDemoPersonContext,
   createFullAccessContext,
@@ -91,6 +93,20 @@ async function buildContext(
     claimClientId: verified.issuerConfig.claimClientId,
   });
 
+  return contextFor(request, config, derived, verified.issuerConfig.issuer, verified.claims);
+}
+
+/**
+ * The context of a signed-in caller, from principals a token or a proxy
+ * header gave. Records the principals for the share dialog and the People list.
+ */
+function contextFor(
+  request: FastifyRequest,
+  config: AuthConfig,
+  derived: DerivedPrincipals,
+  issuer: string,
+  claims: Record<string, unknown>
+): AuthContext {
   const store = getAuthStore();
 
   // Record principals so admins can find them in the share dialog. Best effort:
@@ -108,28 +124,80 @@ async function buildContext(
     request.log.debug({ err: error, principal: derived.subject }, 'Failed to record last seen');
   });
 
-  // The groups this token carried, kept for `Test as`. Best effort, as above.
+  // The groups this caller carried, kept for `Test as`. Best effort, as above.
   store
     .recordGroups(derived.subject, derived.principals.filter(isGroupPrincipal))
     .catch((error: unknown) => {
       request.log.debug({ err: error, principal: derived.subject }, 'Failed to record groups');
     });
 
-  // In `optional` mode a signed-in caller also holds what a guest holds, so
-  // signing in never shows less than the public view.
-  const principals =
-    config.mode === 'optional' ? [...derived.principals, PRINCIPAL_ANONYMOUS] : derived.principals;
+  // Where guests are served, a signed-in caller also holds what a guest
+  // holds, so signing in never shows less than the public view.
+  const principals = servesGuests(config.mode) ? [...derived.principals, PRINCIPAL_ANONYMOUS] : derived.principals;
 
   return {
     subject: derived.subject,
     principals,
-    issuer: verified.issuerConfig.issuer,
+    issuer,
     tokenType: derived.tokenType,
     grants: resolveEffectiveGrants(principals, store),
-    claims: verified.claims,
+    claims,
     fullAccess: false,
     mode: config.mode,
   };
+}
+
+/**
+ * `trusted-header` mode: refuse a request without the proxy's secret, serve
+ * one without an identity header as a guest, and otherwise the caller the
+ * header names. Returns false when it has replied.
+ */
+function applyTrustedHeader(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  config: AuthConfig,
+  trusted: TrustedHeaderConfig,
+  basePath: string
+): boolean {
+  const guest = () =>
+    createAnonymousContext(resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore()), 'trusted-header');
+
+  if (!hasTrustedSecret(request.headers, trusted)) {
+    // A load balancer's probe reaches `/health` without the proxy.
+    if (isPublicRoute(request.routeOptions?.url, config, basePath)) {
+      request.authContext = guest();
+      return true;
+    }
+    request.log.warn({ audit: true, authError: 'trusted-secret', requestId: request.id }, 'Request without the proxy secret');
+    reply.code(403).send({ error: 'Request did not come through the sign-in proxy.' });
+    return false;
+  }
+
+  let identity;
+  try {
+    identity = readTrustedIdentity(request.headers, trusted);
+  } catch (error) {
+    const message = error instanceof TrustedHeaderError ? error.message : 'The identity header could not be read.';
+    request.log.warn({ audit: true, authError: 'trusted-header', requestId: request.id }, message);
+    reply.code(400).send({ error: message });
+    return false;
+  }
+
+  if (!identity) {
+    request.authContext = guest();
+    return true;
+  }
+
+  const derived = derivePrincipals({
+    issuer: trusted.issuer,
+    subject: identity.subject,
+    claims: identity.claims,
+    claimGroups: 'groups',
+    // No client credentials reach sqlib through a proxy session.
+    claimClientId: '',
+  });
+  request.authContext = contextFor(request, config, derived, trusted.issuer, identity.claims);
+  return true;
 }
 
 export interface AuthPluginOptions {
@@ -192,6 +260,11 @@ export async function registerAuthPlugin(
       request.authContext = createAnonymousContext(
         resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore())
       );
+      return;
+    }
+
+    if (config.mode === 'trusted-header' && config.trustedHeader) {
+      if (!applyTrustedHeader(request, reply, config, config.trustedHeader, basePath)) return reply;
       return;
     }
 
