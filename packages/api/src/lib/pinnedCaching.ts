@@ -17,10 +17,14 @@
  * media type and the caller. It is computed before anything runs, so
  * `If-None-Match` can answer `304` without executing.
  *
- * Shared caches: `public` only where every caller gets the same answer
- * (`disabled` mode, or a guest in `anonymous` mode). Elsewhere `private`, so a
- * shared cache in front of the auth check never serves one caller's result to
- * another.
+ * Shared caches: `public, immutable` only where every caller gets the same
+ * answer (`disabled` mode, or a guest in `anonymous` mode). Elsewhere
+ * `private, no-cache`: a shared cache in front of the auth check does not store
+ * it, and a browser asks again on each use. The caller can come from a cookie
+ * that a sign-in proxy turns into a header, which `Vary` cannot name, so a
+ * browser must not reuse one person's result for the next person who signs in.
+ * The ETag is per caller, so the repeat request still gets `304` without
+ * running.
  */
 import { createHash } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -129,7 +133,10 @@ export function matchesIfNoneMatch(header: string | string[] | undefined, etag: 
 /** The headers a pinned response carries. */
 export function setPinnedHeaders(reply: FastifyReply, etag: string, scope: 'public' | 'private'): void {
   reply.header('ETag', etag);
-  reply.header('Cache-Control', `${scope}, max-age=${PINNED_MAX_AGE_SECONDS}, immutable`);
+  reply.header(
+    'Cache-Control',
+    scope === 'public' ? `public, max-age=${PINNED_MAX_AGE_SECONDS}, immutable` : 'private, no-cache'
+  );
   reply.header('Vary', 'Accept, Authorization');
 }
 

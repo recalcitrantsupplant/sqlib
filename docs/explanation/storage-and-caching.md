@@ -419,16 +419,21 @@ A pinned response gets:
 
 - a strong `ETag`, a hash of the pins, the limits, offsets, graphs and
   `nodeDetail`, the `Accept` header and the caller's principals;
-- `Cache-Control: <scope>, max-age=31536000, immutable`;
+- `Cache-Control: public, max-age=31536000, immutable` where every caller gets
+  the same answer, and `Cache-Control: private, no-cache` elsewhere;
 - `Vary: Accept, Authorization`.
 
 A request whose `If-None-Match` names that ETag gets `304` without running.
 sqlib checks the caller's grants before it answers `304`.
 
-`<scope>` is `public` in `disabled` mode and for a guest in `anonymous` mode,
-where every caller gets the same answer. It is `private` in every other case,
-so a shared cache in front of the auth check never serves one caller's result
-to another.
+Every caller gets the same answer in `disabled` mode and for a guest in
+`anonymous` mode. In every other case the response is `private, no-cache`. A
+shared cache in front of the auth check does not store it. A browser keeps it
+but asks again before each use, and gets `304` while the caller and the pins
+are the same. This matters in `trusted-header` mode: the browser sends a
+cookie to the sign-in proxy, and `Vary` cannot name what the proxy derives from
+it. Without `no-cache`, a browser could show one person's result to the next
+person who signs in on it.
 
 An error response keeps `no-store`.
 

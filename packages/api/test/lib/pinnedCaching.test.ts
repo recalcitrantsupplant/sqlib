@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  setPinnedHeaders,
   matchesIfNoneMatch,
   pinBackendData,
   pinQueryAndArguments,
@@ -89,5 +90,24 @@ describe('ETags', () => {
     expect(matchesIfNoneMatch('*', a)).toBe(true);
     expect(matchesIfNoneMatch(b, a)).toBe(false);
     expect(matchesIfNoneMatch(undefined, a)).toBe(false);
+  });
+});
+
+describe('setPinnedHeaders', () => {
+  function headersFor(scope: 'public' | 'private') {
+    const headers: Record<string, string> = {};
+    const reply = { header: (name: string, value: string) => { headers[name] = value; } };
+    setPinnedHeaders(reply as never, '"p1-x"', scope);
+    return headers;
+  }
+
+  it('lets every cache keep a public answer for a year', () => {
+    expect(headersFor('public')['Cache-Control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('makes a browser revalidate a private answer, so the next person to sign in does not see it', () => {
+    const headers = headersFor('private');
+    expect(headers['Cache-Control']).toBe('private, no-cache');
+    expect(headers.ETag).toBe('"p1-x"');
   });
 });
