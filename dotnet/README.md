@@ -11,6 +11,10 @@ For each bundle and payload, it returns the same text as the TypeScript runtime
 (`@sparql-query-lib/runtime`), or refuses with the same error type and the same
 message. A shared set of golden cases checks this on every build.
 
+New to this library? [GETTING-STARTED.md](https://github.com/recalcitrantsupplant/sqlib/blob/main/dotnet/GETTING-STARTED.md)
+goes step by step from installing .NET to running a query, with a runnable
+example in `dotnet/examples/QuickStart`.
+
 ## Install
 
 ```sh

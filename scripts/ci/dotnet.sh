@@ -2,7 +2,8 @@
 source "$(dirname "$0")/lib.sh"
 
 # The C# runtime (dotnet/) against the shared conformance goldens in
-# packages/runtime/test/conformance/goldens.json. Two test runs, then a pack:
+# packages/runtime/test/conformance/goldens.json. Two test runs, the
+# QuickStart example, then a pack:
 #   1. The net8.0 and net10.0 test assemblies against the net8.0 library build.
 #   2. The same tests against the netstandard2.0 library build, which is the
 #      build that a .NET Framework 4.7.2+ consumer loads.
@@ -20,6 +21,9 @@ dotnet test "$PROJECT" -c Release
 
 log "dotnet: test against the netstandard2.0 library build"
 dotnet test "$PROJECT" -c Release -p:TestNetStandard=true
+
+log "dotnet: run the QuickStart example"
+dotnet run --project dotnet/examples/QuickStart -c Release
 
 log "dotnet: pack"
 dotnet pack dotnet/src/SparqlQueryLib.Runtime -c Release -o "${DOTNET_PACK_OUT:-dotnet/artifacts}"

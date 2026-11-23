@@ -14,6 +14,11 @@ with the same error type and the same message. A wrong slot span gives a valid
 query with wrong results and no error, so both runtimes are checked against one
 set of golden cases. See [Conformance](#conformance).
 
+For a developer who uses the library,
+[`dotnet/GETTING-STARTED.md`](../../dotnet/GETTING-STARTED.md) goes step by
+step from installing .NET to a query against an endpoint. It is built on the
+console example in [`dotnet/examples/QuickStart`](../../dotnet/examples/QuickStart/Program.cs).
+
 The package README, [`dotnet/README.md`](../../dotnet/README.md), shows the
 install, the API and the error types. This guide gives the workflow, the value
 pattern subset, the differences from the TypeScript runtime, the tests and the
@@ -189,7 +194,19 @@ bash scripts/ci/dotnet.sh
 The script runs the tests on `net8.0` and `net10.0` against the `net8.0`
 library build. It then runs them again against the `netstandard2.0` build
 (`-p:TestNetStandard=true`), which is the build a .NET Framework application
-loads. Last, it packs the package into `dotnet/artifacts`.
+loads. Then it runs the QuickStart example, and last it packs the package into
+`dotnet/artifacts`.
+
+To review without installing .NET, run the tests in the SDK container from the
+repository root:
+
+```sh
+docker run --rm -v "$PWD":/src -w /src/dotnet mcr.microsoft.com/dotnet/sdk:10.0 \
+  dotnet test test/SparqlQueryLib.Runtime.Tests -f net10.0
+```
+
+The container writes `bin/` and `obj/` folders owned by root into
+`dotnet/`. `git status` ignores them.
 
 Not run in CI:
 
