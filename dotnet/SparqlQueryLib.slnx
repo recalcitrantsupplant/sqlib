@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/examples/">
+    <Project Path="examples/Playground/Playground.csproj" />
     <Project Path="examples/QuickStart/QuickStart.csproj" />
   </Folder>
   <Folder Name="/src/">

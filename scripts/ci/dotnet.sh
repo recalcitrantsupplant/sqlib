@@ -25,5 +25,8 @@ dotnet test "$PROJECT" -c Release -p:TestNetStandard=true
 log "dotnet: run the QuickStart example"
 dotnet run --project dotnet/examples/QuickStart -c Release
 
+log "dotnet: build the Playground example"
+dotnet build dotnet/examples/Playground -c Release
+
 log "dotnet: pack"
 dotnet pack dotnet/src/SparqlQueryLib.Runtime -c Release -o "${DOTNET_PACK_OUT:-dotnet/artifacts}"

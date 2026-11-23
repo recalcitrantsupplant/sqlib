@@ -120,6 +120,9 @@ Step 8: http://localhost:7878/query answered 200
 
 4. When you are done, remove the server: `docker rm -f sqlib-test`.
 
+To try queries in a web page instead, run the playground in
+`dotnet/examples/Playground`. See its [README](examples/Playground/README.md).
+
 ## 5. Use your own bundle
 
 You get the bundle file from the query author. Treat it as a build input:
