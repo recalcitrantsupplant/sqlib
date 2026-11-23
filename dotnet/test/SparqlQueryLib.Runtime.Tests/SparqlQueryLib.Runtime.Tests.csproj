@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <!-- `-p:TestNetStandard=true` tests the netstandard2.0 build, the one a .NET Framework consumer gets. -->
+  <ItemGroup Condition="'$(TestNetStandard)' != 'true'">
+    <ProjectReference Include="../../src/SparqlQueryLib.Runtime/SparqlQueryLib.Runtime.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TestNetStandard)' == 'true'">
+    <ProjectReference Include="../../src/SparqlQueryLib.Runtime/SparqlQueryLib.Runtime.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
+  </ItemGroup>
+
+</Project>

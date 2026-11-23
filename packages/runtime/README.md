@@ -137,6 +137,14 @@ const lib = fromBundle(bundle, { executor: await oxigraphExecutor({ data: turtle
   calculates the hash of the text again. Call it for a bundle from a source that
   you do not control.
 
+## Other languages
+
+The `SparqlQueryLib.Runtime` NuGet package, in `dotnet/`, runs the queries of a
+bundle from .NET. `test/conformance.test.ts` writes the outcomes of this runtime
+to `test/conformance/goldens.json`, and the .NET suite checks the same file. A
+change here that changes an outcome fails that test. See
+[docs/guides/dotnet-runtime.md](../../docs/guides/dotnet-runtime.md).
+
 ## The bundle format
 
 A bundle has `version: 2`. That number is the compatibility promise:
