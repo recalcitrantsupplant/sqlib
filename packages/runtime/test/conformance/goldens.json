@@ -2012,7 +2012,7 @@
       "name": "random 2: multi",
       "bundle": "terms",
       "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"uri\",\"value\":\"http://other.org/ﬀü>\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"_K \"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"uri\",\"value\":\"http://other.org/ﬀü>\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"_K \"}}]}}]}",
       "expect": {
         "error": {
           "type": "InvalidTermError",
@@ -2021,25 +2021,61 @@
       }
     },
     {
-      "name": "random 3: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"c\":{\"type\":\"literal\",\"value\":\"\\ud800١﻿\\\\ﬀa\"}},{\"a\":{\"type\":\"literal\",\"value\":\"<\\u001f{\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":{\"type\":\"literal\",\"value\":\" :a |-\\u0001Z\"}}]}}]}",
+      "name": "random 3: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}}]}",
       "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ ( UNDEF UNDEF \"\ud800١﻿\\\\ﬀa\" ) ( \"<\u001f{\"@en UNDEF \" :a |-\u0001Z\" ) } ?a ?b ?c . }"
+        "error": {
+          "type": "Error",
+          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
       }
     },
     {
-      "name": "random 4: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "name": "random 4: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\\\ﬀaſ😀\"}},{\"t\":{\"type\":\"literal\",\"value\":\"<\\u001f{9\"}}]}}]}",
       "expect": {
-        "text": "SELECT * WHERE {  ?a ?b ?c . }"
+        "error": {
+          "type": "Error",
+          "message": "Value \"\\\\ﬀaſ😀\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
       }
     },
     {
-      "name": "random 5: one",
+      "name": "random 5: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 6: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[null]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE {  ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 7: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/\"}}]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ ( UNDEF <http://example.org/> UNDEF ) } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 8: one",
       "bundle": "terms",
       "query": "one",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/a/>\\u0001\"}},null]}}]}",
@@ -2051,7 +2087,7 @@
       }
     },
     {
-      "name": "random 6: policy",
+      "name": "random 9: policy",
       "bundle": "policies",
       "query": "policy",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
@@ -2060,10 +2096,10 @@
       }
     },
     {
-      "name": "random 7: multi",
+      "name": "random 10: multi",
       "bundle": "terms",
       "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\\n{`\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"uri\",\"value\":\"http://other.org/ \"},\"c\":{\"type\":\"uri\",\"value\":\"http://example.org/a/\"}},{\"a\":{\"type\":\"literal\",\"value\":\"  \",\"xml:lang\":\"de-1996\"},\"b\":{\"type\":\"literal\",\"value\":\":_\",\"xml:lang\":\"ен\"}},{\"b\":{\"type\":\"literal\",\"value\":\"\\r١😀\\\\\",\"xml:lang\":\"e n\"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\\n{`\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"uri\",\"value\":\"http://other.org/ \"},\"c\":{\"type\":\"uri\",\"value\":\"http://example.org/a/\"}},{\"a\":{\"type\":\"literal\",\"value\":\"  \",\"xml:lang\":\"de-1996\"},\"b\":{\"type\":\"literal\",\"value\":\":_\",\"xml:lang\":\"ен\"}},{\"b\":{\"type\":\"literal\",\"value\":\"\\r١😀\\\\\",\"xml:lang\":\"e n\"}}]}}]}",
       "expect": {
         "error": {
           "type": "InvalidTermError",
@@ -2072,10 +2108,10 @@
       }
     },
     {
-      "name": "random 8: multi",
+      "name": "random 11: multi",
       "bundle": "terms",
       "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"typed-literal\",\"value\":\"\\t/\"},\"c\":{\"type\":\"typed-literal\",\"value\":\">-<\"}},{\"a\":{\"type\":\"uri\",\"value\":\"urn:x:\"},\"b\":{\"type\":\"literal\",\"value\":\"😀\",\"datatype\":\"\"},\"c\":\"x\"}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"typed-literal\",\"value\":\"\\t/\"},\"c\":{\"type\":\"typed-literal\",\"value\":\">-<\"}},{\"a\":{\"type\":\"uri\",\"value\":\"urn:x:\"},\"b\":{\"type\":\"literal\",\"value\":\"😀\",\"datatype\":\"\"},\"c\":\"x\"}]}}]}",
       "expect": {
         "error": {
           "type": "InvalidArgumentError",
@@ -2084,98 +2120,68 @@
       }
     },
     {
-      "name": "random 9: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":1}},{\"x\":{\"type\":\"uri\",\"value\":\"http://other.org/ |.-\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 0, ?x has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 10: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"typed-literal\",\"value\":\"\"}},{\"x\":{\"type\":\"literal\",\"value\":\"😀\\\\\"}},{\"x\":{\"type\":\"literal\",\"value\":\"ﬀ\\u001f\\\"ſ\",\"xml:lang\":\"en\"}}]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { \"\"^^<http://www.w3.org/2001/XMLSchema#string> \"😀\\\\\" \"ﬀ\u001f\\\"ſ\"@en } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 11: wide",
+      "name": "random 12: wide",
       "bundle": "terms",
       "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":1.5},\"offsets\":[{\"name\":\"skip\",\"value\":1e+21}]}",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":9007199254740991},{\"name\":\"page\",\"value\":1000}],\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
       "expect": {
         "error": {
           "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1.5."
+          "message": "Invalid offset value for 'skip': expected a non-negative integer, received -1."
         }
       }
     },
     {
-      "name": "random 12: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"𝔸\\ud800\\\\Z/Ω\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"𝔸\\ud800\\\\Z/Ω\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 13: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\" /:\"}}]}}],\"limits\":{\"page\":0},\"offsets\":[{\"name\":\"skip\",\"value\":1}]}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 } VALUES ?x { \" /:\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 1"
-      }
-    },
-    {
-      "name": "random 14: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 15: one",
+      "name": "random 13: one",
       "bundle": "terms",
       "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"é\"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/e/\"}},null,{\"x\":{\"type\":\"other\",\"value\":\"v\"}}]}}]}",
       "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { \"é\" } ?s ?p ?x . }"
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 2, ?x has type \"other\"; an argument term is a \"uri\" or a \"literal\"."
+        }
+      }
+    },
+    {
+      "name": "random 14: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"`\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":9007199254740992},{\"name\":\"page\",\"value\":1000}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1000 } VALUES ?x { \"`\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 15: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":123456789},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 123456789 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
       }
     },
     {
       "name": "random 16: wide",
       "bundle": "terms",
       "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\" \"}}]}}],\"limits\":{\"page\":7},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \" \" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 17: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":1.5},\"offsets\":[{\"name\":\"skip\",\"value\":0}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"-ﬀ\\r﻿ \"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1.5},{\"name\":\"page\",\"value\":0.1}],\"offsets\":[{\"name\":\"skip\",\"value\":0.1}]}",
       "expect": {
         "error": {
           "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1.5."
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 0.1."
+        }
+      }
+    },
+    {
+      "name": "random 17: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":1}},null,{\"x\":{\"type\":\"other\",\"value\":\"v\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 0, ?x has no string value."
         }
       }
     },
@@ -2195,13 +2201,79 @@
       "name": "random 19: wide",
       "bundle": "terms",
       "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":1e+21},\"offsets\":{}}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1e+21."
+        }
+      }
+    },
+    {
+      "name": "random 20: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 21: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"é\"}}]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { \"é\" } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 22: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\" \"}}]}}],\"limits\":{\"page\":7},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \" \" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 23: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":1.5},\"offsets\":[{\"name\":\"skip\",\"value\":0}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1.5."
+        }
+      }
+    },
+    {
+      "name": "random 24: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"urn:z\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 25: wide",
+      "bundle": "terms",
+      "query": "wide",
       "payload": "{\"arguments\":[],\"limits\":{\"page\":9007199254740991},\"offsets\":{}}",
       "expect": {
         "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
       }
     },
     {
-      "name": "random 20: multi",
+      "name": "random 26: multi",
       "bundle": "terms",
       "query": "multi",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"other\",\"value\":\"v\"}},{\"a\":{\"type\":\"literal\",\"value\":\"𝔸`Z\"},\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/e/Zé\\u0000\"},\"c\":null},{\"a\":{\"type\":\"uri\",\"value\":\"http://other.org/\"},\"b\":{\"type\":\"other\",\"value\":\"v\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"ZK\"}}]}}]}",
@@ -2213,7 +2285,7 @@
       }
     },
     {
-      "name": "random 21: multi",
+      "name": "random 27: multi",
       "bundle": "terms",
       "query": "multi",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"literal\",\"value\":\"\\n\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":{\"type\":\"literal\",\"value\":\"\\t\\ud800﻿\",\"datatype\":\"http://x/a b\"}}]}}]}",
@@ -2225,19 +2297,79 @@
       }
     },
     {
-      "name": "random 22: multi",
+      "name": "random 28: multi",
       "bundle": "terms",
       "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
       "expect": {
         "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
       }
     },
     {
-      "name": "random 23: one",
+      "name": "random 29: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":1.5},{\"name\":\"page\",\"value\":25}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 30: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES ?r { \"r\" } VALUES ?e { }    VALUES( ?p ?q ){ ( \"abc\" <https://x> ) } }"
+      }
+    },
+    {
+      "name": "random 31: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\u0001:\"}}]}}],\"limits\":{\"page\":9007199254740991},\"offsets\":[{\"name\":\"skip\",\"value\":123456789}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 } VALUES ?x { \"\u0001:\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 123456789"
+      }
+    },
+    {
+      "name": "random 32: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 33: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"other\",\"value\":\"v\"},\"b\":{\"type\":\"literal\",\"value\":\"K`Ω\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 0, ?a has type \"other\"; an argument term is a \"uri\" or a \"literal\"."
+        }
+      }
+    },
+    {
+      "name": "random 34: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":1000},\"offsets\":[{\"name\":\"skip\",\"value\":0}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1000 } VALUES ?x { \"\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 0"
+      }
+    },
+    {
+      "name": "random 35: one",
       "bundle": "terms",
       "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":null},{\"x\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\tΩ\",\"datatype\":\"http://x/a b\"}},{\"x\":null},{\"x\":{\"type\":\"literal\",\"value\":\"^ſ ü\"}}]}}]}",
       "expect": {
         "error": {
           "type": "Error",
@@ -2246,1018 +2378,31 @@
       }
     },
     {
-      "name": "random 24: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"|^\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":\"x\",\"c\":{\"type\":\"literal\",\"value\":\" \"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 0, ?b is not an RDF term object."
-        }
-      }
-    },
-    {
-      "name": "random 25: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/e/١\\ud800\\ud800^\"}},{\"x\":{\"type\":\"typed-literal\",\"value\":\"Ω:/\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'x' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+005E) at index 24."
-        }
-      }
-    },
-    {
-      "name": "random 26: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"é\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":null}]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ ( \"é\"@en UNDEF UNDEF ) } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 27: wide",
+      "name": "random 36: wide",
       "bundle": "terms",
       "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":1000},\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"ﬀ^😀\"}}]}}],\"limits\":{\"page\":1},\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
       "expect": {
         "error": {
           "type": "InvalidParameterError",
           "message": "Invalid offset value for 'skip': expected a non-negative integer, received -1."
         }
-      }
-    },
-    {
-      "name": "random 28: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 29: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"uri\",\"value\":\"urn:x:ſ.\"},\"b\":{\"type\":\"literal\",\"value\":\"^ﬀ^😀\",\"xml:lang\":\"en\\n\"}},{\"b\":{\"type\":\"uri\",\"value\":1},\"c\":{\"type\":\"uri\",\"value\":\"http://example.org/\\u001f{😀\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?b has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 30: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"😀_\"}}]}}],\"limits\":{\"page\":1},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 } VALUES ?x { \"😀_\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 31: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"K\",\"xml:lang\":\"e n\"}},{\"x\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"x\":{\"type\":\"uri\",\"value\":\"urn:x:é`\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid language tag 'e n' for variable 'x' in argument set 1."
-        }
-      }
-    },
-    {
-      "name": "random 32: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/ <#\"},\"c\":{\"type\":\"literal\",\"value\":\"}{_\",\"datatype\":\"http://example.org/dt\"}},{\"c\":{\"type\":\"literal\",\"value\":\"9\",\"datatype\":\"\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'a' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0020) at index 19."
-        }
-      }
-    },
-    {
-      "name": "random 33: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":9007199254740992},{\"name\":\"page\",\"value\":0.1}],\"offsets\":[{\"name\":\"skip\",\"value\":1.5}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received 0.1."
-        }
-      }
-    },
-    {
-      "name": "random 34: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 35: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":\"x\",\"b\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":null},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/#\\ud800 \"},\"b\":{\"type\":\"literal\",\"value\":\"\\udc009\",\"xml:lang\":\"a1\"},\"c\":{\"type\":\"literal\",\"value\":\"ü{﻿\\\"\",\"datatype\":\"http://x/a b\"}},{\"a\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 0, ?a is not an RDF term object."
-        }
-      }
-    },
-    {
-      "name": "random 36: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES ?r { \"r\" } VALUES ?e { }    VALUES( ?p ?q ){ ( \"abc\" <https://x> ) } }"
       }
     },
     {
       "name": "random 37: policy",
       "bundle": "policies",
       "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES ?r { \"r\" } VALUES ?e { }    VALUES( ?p ?q ){ ( \"http://x\" <https://x> ) } }"
-      }
-    },
-    {
-      "name": "random 38: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"<\",\"datatype\":\"http://x/a b\"},\"c\":{\"type\":\"bnode\",\"value\":\"b\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":{\"type\":\"literal\",\"value\":\"ﬀZ\\udc00\",\"xml:lang\":\"ен\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 0, ?c is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
-        }
-      }
-    },
-    {
-      "name": "random 39: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"é^\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1000},{\"name\":\"page\",\"value\":0}],\"offsets\":[{\"name\":\"skip\",\"value\":1000}]}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 } VALUES ?x { \"é^\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 1000"
-      }
-    },
-    {
-      "name": "random 40: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 41: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":-1},\"offsets\":[{\"name\":\"skip\",\"value\":0.1}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
-        }
-      }
-    },
-    {
-      "name": "random 42: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"|.-\"}},{\"t\":{\"type\":\"literal\",\"value\":\"\\u001f{😀\\u0001\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
       "expect": {
         "error": {
           "type": "Error",
-          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+          "message": "Value \"|.-\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
         }
       }
     },
     {
-      "name": "random 43: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"𝔸\\\\#\"}},{\"t\":{\"type\":\"literal\",\"value\":\">}﻿é\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"𝔸\\\\#\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 44: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{}]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE {  ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 45: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"K<\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}},{\"x\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 46: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 47: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"b\":null},{},{\"a\":{\"type\":\"literal\",\"value\":\"^\\ud800١\",\"xml:lang\":\"EN-gb\"},\"b\":{\"type\":\"literal\",\"value\":\"`😀\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 48: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":-1},{\"name\":\"page\",\"value\":1000}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1000 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 49: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 50: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\na\\n\"}}]}}],\"limits\":{\"page\":1000},\"offsets\":[{\"name\":\"skip\",\"value\":25}]}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1000 } VALUES ?x { \"\\na\\n\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 25"
-      }
-    },
-    {
-      "name": "random 51: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":1000},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1000 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 52: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\\\😀😀\",\"datatype\":\"http://x/a b\"}},null,{\"x\":{\"type\":\"literal\",\"value\":\"\\r\\t \",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 53: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 54: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"uri\",\"value\":1},\"c\":{\"type\":\"literal\",\"value\":\"a\\\\>0\",\"xml:lang\":\"en\\n\"}},{\"b\":{\"type\":\"literal\",\"value\":\"﻿ſK\\udc00\",\"xml:lang\":\"a1\"},\"c\":{\"type\":\"uri\",\"value\":\"http://other.org/|\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/\"},\"b\":{\"type\":\"uri\",\"value\":\"urn:x:\\u001fΩ ﬀ\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 0, ?a has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 55: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}},{\"t\":{\"type\":\"literal\",\"value\":\"Ω١{/\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 56: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"c\":{\"type\":\"uri\",\"value\":1}},{\"a\":{\"type\":\"literal\",\"value\":\".\",\"xml:lang\":\"a1\"},\"b\":null,\"c\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 0, ?c has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 57: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 58: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\". ^\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"x\":{\"type\":\"uri\",\"value\":\"urn:x:a﻿\\na\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'x' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+000A) at index 8."
-        }
-      }
-    },
-    {
-      "name": "random 59: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"١9\",\"datatype\":\"http://x/a b\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid datatype IRI for variable 'x' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0020) at index 10."
-        }
-      }
-    },
-    {
-      "name": "random 60: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 61: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"http://other.org/𝔸\\ud800\"}},{\"x\":{\"type\":\"literal\",\"value\":\"#ü١ -_}\"}}]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { <http://other.org/𝔸\ud800> \"#ü١ -_}\" } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 62: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"x\"}}]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { \"\"@x } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 63: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":9007199254740992},\"offsets\":{}}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received 9007199254740992."
-        }
-      }
-    },
-    {
-      "name": "random 64: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"﻿a\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}}]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { \"﻿a\"^^<http://www.w3.org/2001/XMLSchema#integer> } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 65: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"c\":{\"type\":\"literal\",\"value\":\"{.\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"b\":{\"type\":\"typed-literal\",\"value\":\"a\\nü\\ud800\"},\"c\":{\"type\":\"literal\",\"value\":\">:\\\\<\",\"xml:lang\":\"a1\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid language tag 'a1' for variable 'c' in argument set 1."
-        }
-      }
-    },
-    {
-      "name": "random 66: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 67: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"<{\"}}]}}],\"limits\":{\"page\":0},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 } VALUES ?x { \"<{\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 68: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"Z\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"Z\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 69: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 70: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"urn:x: \"}},{\"x\":{\"type\":\"typed-literal\",\"value\":\"\"}},{\"x\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 71: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"-\"}}]}}],\"limits\":{\"page\":25},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 } VALUES ?x { \"-\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 72: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 73: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"urn:z\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 74: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[null,{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
-        }
-      }
-    },
-    {
-      "name": "random 75: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":123456789},{\"name\":\"page\",\"value\":25}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 76: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"😀١> \"}},{\"t\":{\"type\":\"literal\",\"value\":\"ﬀ \"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"😀١> \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 77: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 78: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"|:Z\\nZ\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"|:Z\\nZ\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 79: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/a/9١<\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/a/_/\"},\"b\":null,\"c\":null},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/a/\"},\"b\":{\"type\":\"literal\",\"value\":\"_\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"\\\\𝔸<<\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'b' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+003C) at index 23."
-        }
-      }
-    },
-    {
-      "name": "random 80: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"﻿\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":-1}],\"offsets\":{}}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
-        }
-      }
-    },
-    {
-      "name": "random 81: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"b\":null,\"c\":{\"type\":\"literal\",\"value\":\"0\",\"xml:lang\":\"ен\"}},{\"b\":{\"type\":\"uri\",\"value\":1},\"c\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?b has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 82: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 83: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"ü\\u001f\\n{\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":0}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 } VALUES ?x { \"ü\u001f\\n{\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 84: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\" 😀{\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \" 😀{\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 85: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 86: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid offset value for 'skip': expected a non-negative integer, received -1."
-        }
-      }
-    },
-    {
-      "name": "random 87: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"١ \"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"١ \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 88: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":1},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 89: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 90: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\udc00\\u0000﻿\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\\udc00\\u0000﻿\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 91: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":null,\"b\":{\"type\":\"literal\",\"value\":\"\\\"\\udc00𝔸é\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\\udc00>_\\u0001\"},\"c\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"http://example.org/dt\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\\\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"literal\",\"value\":\">\",\"xml:lang\":\"x\"},\"c\":{\"type\":\"uri\",\"value\":1}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 2, ?c has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 92: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 93: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\": 𝔸\",\"xml:lang\":\"ен\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid language tag 'ен' for variable 'x' in argument set 1."
-        }
-      }
-    },
-    {
-      "name": "random 94: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 95: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 96: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[null,{\"x\":{\"type\":\"literal\",\"value\":\"Ω\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"x\":{\"type\":\"uri\",\"value\":\"urn:x:Ω.\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 97: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 98: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/e/\\u0000\\\\\"}},{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/\\u0001Z\"},\"c\":{\"type\":\"literal\",\"value\":\" ١\\n<\",\"datatype\":\"\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'a' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0000) at index 21."
-        }
-      }
-    },
-    {
-      "name": "random 99: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 100: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":0},{\"name\":\"page\",\"value\":0}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 101: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"9ſ𝔸\",\"datatype\":\"\"},\"b\":{\"type\":\"literal\",\"value\":\"9}\\r\\nſ\\u001f\"}},{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/e/é\"},\"c\":{\"type\":\"literal\",\"value\":\"\\t \\u001f\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid datatype IRI for variable 'a' in argument set 1. IRI must be a non-empty string."
-        }
-      }
-    },
-    {
-      "name": "random 102: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\".9 \"}},{\"t\":{\"type\":\"literal\",\"value\":\"\\r\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \".9 \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 103: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\\"`é\\udc00\\u001f\\\\\"}},{\"t\":{\"type\":\"literal\",\"value\":\"a𝔸\\u0001 :Ω\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\\\"`é\\udc00\\u001f\\\\\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 104: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":null},{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/a/ﬀé😀\"}},{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 2, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
-        }
-      }
-    },
-    {
-      "name": "random 105: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\ud800\"}},{\"t\":{\"type\":\"literal\",\"value\":\"\\\"-9\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\\ud800\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 106: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\t\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\\t\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 107: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}},{\"t\":{\"type\":\"literal\",\"value\":\"ſ\\ud8009<-\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 108: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[{\"a\":null,\"b\":{\"type\":\"uri\",\"value\":\"urn:x:\"},\"c\":{\"type\":\"uri\",\"value\":\"http://example.org/\"}},{\"c\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 109: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1000},{\"name\":\"page\",\"value\":7}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \"\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 110: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\ud800}^\\u0001Z\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":0},{\"name\":\"page\",\"value\":7}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \"\ud800}^\u0001Z\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 111: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"{0K} \"}},{\"t\":{\"type\":\"literal\",\"value\":\":😀\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"{0K} \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 112: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":25},{\"name\":\"page\",\"value\":1}],\"offsets\":[{\"name\":\"skip\",\"value\":9007199254740991}]}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 9007199254740991"
-      }
-    },
-    {
-      "name": "random 113: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":7},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \"\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 114: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{},{\"a\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 115: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"üΩ\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1e+21},{\"name\":\"page\",\"value\":0.1}],\"offsets\":{}}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received 0.1."
-        }
-      }
-    },
-    {
-      "name": "random 116: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":1.5},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 117: policy",
+      "name": "random 38: policy",
       "bundle": "policies",
       "query": "policy",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}}]}",
@@ -3269,10 +2414,1015 @@
       }
     },
     {
-      "name": "random 118: multi",
+      "name": "random 39: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 40: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":9007199254740992},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 } VALUES ?x { \"\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 41: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"typed-literal\",\"value\":\"`\"}}]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { \"`\"^^<http://www.w3.org/2001/XMLSchema#string> } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 42: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"<\"}}]}}],\"limits\":{\"page\":25},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 } VALUES ?x { \"<\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 43: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"}{_\",\"datatype\":\"http://example.org/dt\"}}]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { \"}{_\"^^<http://example.org/dt> } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 44: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 45: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES ?r { \"r\" } VALUES ?e { }    VALUES( ?p ?q ){ ( \"http://x\" <https://x> ) } }"
+      }
+    },
+    {
+      "name": "random 46: multi",
       "bundle": "terms",
       "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"c\":{\"type\":\"typed-literal\",\"value\":\"ſ😀Z\"}},{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/^Z\"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"literal\",\"value\":\"}_\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":{\"type\":\"uri\",\"value\":\"http://other.org/\\u0000😀\\udc00ﬀ\"}},{\"a\":{\"type\":\"other\",\"value\":\"v\"},\"c\":null}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 1, ?a has type \"other\"; an argument term is a \"uri\" or a \"literal\"."
+        }
+      }
+    },
+    {
+      "name": "random 47: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\" ١<\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}},{\"x\":{\"type\":\"literal\",\"value\":\"١ü{\",\"xml:lang\":\"en\\n\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 1, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
+        }
+      }
+    },
+    {
+      "name": "random 48: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":null},{\"a\":null,\"b\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\\ud800\",\"xml:lang\":\"e n\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 49: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"ſ\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":9007199254740991},{\"name\":\"page\",\"value\":7}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \"ſ\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 50: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 51: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 52: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":1.5}],\"offsets\":[{\"name\":\"skip\",\"value\":0}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1.5."
+        }
+      }
+    },
+    {
+      "name": "random 53: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"é\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { \"é\"@en \"\" } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 54: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"ﬀ\",\"datatype\":\"\"},\"c\":{\"type\":\"literal\",\"value\":\"\\u0000 <\",\"datatype\":\"\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\\ud800\\u001f𝔸\",\"xml:lang\":\"x\"},\"c\":{\"type\":\"literal\",\"value\":\"﻿é\",\"xml:lang\":\"en\\n\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/a/Z\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidTermError",
+          "message": "Invalid datatype IRI for variable 'a' in argument set 1. IRI must be a non-empty string."
+        }
+      }
+    },
+    {
+      "name": "random 55: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":9007199254740991},{\"name\":\"page\",\"value\":-1}],\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
+        }
+      }
+    },
+    {
+      "name": "random 56: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\" \"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":25},{\"name\":\"page\",\"value\":1}],\"offsets\":[{\"name\":\"skip\",\"value\":0}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 } VALUES ?x { \" \" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 0"
+      }
+    },
+    {
+      "name": "random 57: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[null,{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 58: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":9007199254740991},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":[{\"name\":\"skip\",\"value\":123456789}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 123456789"
+      }
+    },
+    {
+      "name": "random 59: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":[{\"name\":\"skip\",\"value\":25}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 25"
+      }
+    },
+    {
+      "name": "random 60: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":1.5},\"offsets\":{}}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1.5."
+        }
+      }
+    },
+    {
+      "name": "random 61: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 62: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"K\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"literal\",\"value\":\"\\né`\\na\"}}]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ ( \"K\"@en \"\\né`\\na\" UNDEF ) } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 63: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 64: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"😀ü9{😀\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"😀ü9{😀\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 65: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"a\":null,\"c\":{\"type\":\"literal\",\"value\":\"\\udc00\\ud800/\",\"xml:lang\":\"en-\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":null}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidTermError",
+          "message": "Invalid language tag 'en-' for variable 'c' in argument set 1."
+        }
+      }
+    },
+    {
+      "name": "random 66: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"^\\nΩ\\u0000|\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":123456789},{\"name\":\"page\",\"value\":1e+21}],\"offsets\":[{\"name\":\"skip\",\"value\":9007199254740992}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 1e+21."
+        }
+      }
+    },
+    {
+      "name": "random 67: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES ?r { \"r\" } VALUES ?e { }    VALUES( ?p ?q ){ ( \"abc\" <https://x> ) } }"
+      }
+    },
+    {
+      "name": "random 68: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\" ﬀ KZ😀KΩ\"},\"b\":null,\"c\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"-en\"}},{\"a\":\"x\",\"c\":{\"type\":\"literal\",\"value\":\" \",\"datatype\":\"http://example.org/dt\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 1, ?a is not an RDF term object."
+        }
+      }
+    },
+    {
+      "name": "random 69: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 70: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":null},{\"x\":null},{\"x\":{\"type\":\"literal\",\"value\":\".\",\"xml:lang\":\"EN-gb\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 71: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 72: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"  ١a\"}},{\"t\":{\"type\":\"literal\",\"value\":\"\\naa.\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"  ١a\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 73: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"urn:z\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 74: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 75: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 76: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":7},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 77: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":1000},{\"name\":\"page\",\"value\":0.1}],\"offsets\":[{\"name\":\"skip\",\"value\":7}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 0.1."
+        }
+      }
+    },
+    {
+      "name": "random 78: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":9007199254740992},\"offsets\":{}}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 9007199254740992."
+        }
+      }
+    },
+    {
+      "name": "random 79: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"﻿a\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}}]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { \"﻿a\"^^<http://www.w3.org/2001/XMLSchema#integer> } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 80: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"c\":{\"type\":\"literal\",\"value\":\"{.\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"b\":{\"type\":\"typed-literal\",\"value\":\"a\\nü\\ud800\"},\"c\":{\"type\":\"literal\",\"value\":\">:\\\\<\",\"xml:lang\":\"a1\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidTermError",
+          "message": "Invalid language tag 'a1' for variable 'c' in argument set 1."
+        }
+      }
+    },
+    {
+      "name": "random 81: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 82: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"<{\"}}]}}],\"limits\":{\"page\":0},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 } VALUES ?x { \"<{\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 83: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"Z\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"Z\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 84: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 85: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\t . _\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\\t . _\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 86: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"-\"}}]}}],\"limits\":{\"page\":25},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 } VALUES ?x { \"-\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 87: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 88: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"urn:z\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 89: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[null,{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 1, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
+        }
+      }
+    },
+    {
+      "name": "random 90: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":123456789},{\"name\":\"page\",\"value\":25}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 91: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"😀١> \"}},{\"t\":{\"type\":\"literal\",\"value\":\"ﬀ \"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"😀١> \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 92: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 93: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"|:Z\\nZ\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"|:Z\\nZ\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 94: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/a/9١<\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/a/_/\"},\"b\":null,\"c\":null},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/a/\"},\"b\":{\"type\":\"literal\",\"value\":\"_\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"\\\\𝔸<<\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidTermError",
+          "message": "Invalid IRI for variable 'b' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+003C) at index 23."
+        }
+      }
+    },
+    {
+      "name": "random 95: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"﻿\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":-1}],\"offsets\":{}}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
+        }
+      }
+    },
+    {
+      "name": "random 96: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"c\",\"b\"]},\"results\":{\"bindings\":[{\"b\":null,\"c\":{\"type\":\"literal\",\"value\":\"0\",\"xml:lang\":\"ен\"}},{\"b\":{\"type\":\"uri\",\"value\":1},\"c\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 1, ?b has no string value."
+        }
+      }
+    },
+    {
+      "name": "random 97: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 98: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"ü\\u001f\\n{\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":0}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 0 } VALUES ?x { \"ü\u001f\\n{\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 99: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\" 😀{\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \" 😀{\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 100: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 101: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid offset value for 'skip': expected a non-negative integer, received -1."
+        }
+      }
+    },
+    {
+      "name": "random 102: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"١ \"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"١ \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 103: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":1},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 104: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 105: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\udc00\\u0000﻿\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\\udc00\\u0000﻿\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 106: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[{\"a\":null,\"b\":{\"type\":\"literal\",\"value\":\"\\\"\\udc00𝔸é\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\\udc00>_\\u0001\"},\"c\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"http://example.org/dt\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\\\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"b\":{\"type\":\"literal\",\"value\":\">\",\"xml:lang\":\"x\"},\"c\":{\"type\":\"uri\",\"value\":1}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 2, ?c has no string value."
+        }
+      }
+    },
+    {
+      "name": "random 107: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":1},{\"name\":\"page\",\"value\":1}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 108: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"typed-literal\",\"value\":\"\"},\"b\":{\"type\":\"literal\",\"value\":\"\\ud800\\\"a\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"b\":{\"type\":\"typed-literal\",\"value\":\"\\t\"},\"c\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidTermError",
+          "message": "Invalid datatype IRI for variable 'c' in argument set 1. IRI must be a non-empty string."
+        }
+      }
+    },
+    {
+      "name": "random 109: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"^\\u0001\"}},{\"t\":{\"type\":\"literal\",\"value\":\".\\\\Z.0<\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"^\\u0001\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 110: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"- \"}},null]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 111: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 112: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"https://x\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\" ١\\n<\"}},{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \" ١\\n<\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 113: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":{\"page\":25},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 114: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[{\"a\":null},{\"b\":{\"type\":\"literal\",\"value\":\"é 9ſ\",\"datatype\":\"\"},\"c\":{\"type\":\"literal\",\"value\":\"ſ\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 115: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/\\\\|\\\"\"},\"b\":{\"type\":\"literal\",\"value\":\"😀\\t \\u001f\\t#ﬀ\"},\"c\":{\"type\":\"literal\",\"value\":\"K}\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}},{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/a/9\\udc00\\u001f \"},\"c\":{\"type\":\"other\",\"value\":\"v\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 1, ?c has type \"other\"; an argument term is a \"uri\" or a \"literal\"."
+        }
+      }
+    },
+    {
+      "name": "random 116: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":-1},\"offsets\":{}}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
+        }
+      }
+    },
+    {
+      "name": "random 117: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"A\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 118: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":123456789},{\"name\":\"page\",\"value\":7}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 119: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":\"x\",\"b\":{\"type\":\"typed-literal\",\"value\":\"_|\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidArgumentError",
+          "message": "Argument 0, row 0, ?a is not an RDF term object."
+        }
+      }
+    },
+    {
+      "name": "random 120: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
+      }
+    },
+    {
+      "name": "random 121: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\".#\\t_Ω\\\"\\r\"}},{\"x\":{\"type\":\"typed-literal\",\"value\":\"\"}},{\"x\":{\"type\":\"typed-literal\",\"value\":\"9<-a\"}}]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { \".#\t_Ω\\\"\\r\" \"\"^^<http://www.w3.org/2001/XMLSchema#string> \"9<-a\"^^<http://www.w3.org/2001/XMLSchema#string> } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 122: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"a\":null,\"b\":{\"type\":\"uri\",\"value\":\"urn:x:\"},\"c\":{\"type\":\"uri\",\"value\":\"http://example.org/\"}},{\"c\":null}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 123: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/e/\"}},null,{\"x\":null}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 124: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\ud800}^\\u0001Z\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":0},{\"name\":\"page\",\"value\":7}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \"\ud800}^\u0001Z\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 125: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"{0K} \"}},{\"t\":{\"type\":\"literal\",\"value\":\":😀\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"{0K} \" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 126: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":25},{\"name\":\"page\",\"value\":1}],\"offsets\":[{\"name\":\"skip\",\"value\":9007199254740991}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 9007199254740991"
+      }
+    },
+    {
+      "name": "random 127: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":7},\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 } VALUES ?x { \"\" } ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 128: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[{},{\"a\":null}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+        }
+      }
+    },
+    {
+      "name": "random 129: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"üΩ\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1e+21},{\"name\":\"page\",\"value\":0.1}],\"offsets\":{}}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 0.1."
+        }
+      }
+    },
+    {
+      "name": "random 130: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":1.5},{\"name\":\"page\",\"value\":9007199254740991}],\"offsets\":{}}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 9007199254740991 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
+      }
+    },
+    {
+      "name": "random 131: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"urn:z\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 132: multi",
+      "bundle": "terms",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"c\":{\"type\":\"typed-literal\",\"value\":\"ſ😀Z\"}},{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/^Z\"}}]}}]}",
       "expect": {
         "error": {
           "type": "InvalidTermError",
@@ -3281,7 +3431,7 @@
       }
     },
     {
-      "name": "random 119: one",
+      "name": "random 133: one",
       "bundle": "terms",
       "query": "one",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"uri\",\"value\":\"http://other.org/\\\\<\"}}]}}]}",
@@ -3293,7 +3443,7 @@
       }
     },
     {
-      "name": "random 120: wide",
+      "name": "random 134: wide",
       "bundle": "terms",
       "query": "wide",
       "payload": "{\"arguments\":[],\"limits\":{\"page\":9007199254740992},\"offsets\":{}}",
@@ -3305,7 +3455,7 @@
       }
     },
     {
-      "name": "random 121: policy",
+      "name": "random 135: policy",
       "bundle": "policies",
       "query": "policy",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\\\:_.ſ\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
@@ -3317,7 +3467,7 @@
       }
     },
     {
-      "name": "random 122: multi",
+      "name": "random 136: multi",
       "bundle": "terms",
       "query": "multi",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
@@ -3326,19 +3476,7 @@
       }
     },
     {
-      "name": "random 123: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://other.org/ \"},\"b\":{\"type\":\"literal\",\"value\":\"ü\\n\",\"xml:lang\":\"en-\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'a' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0020) at index 17."
-        }
-      }
-    },
-    {
-      "name": "random 124: one",
+      "name": "random 137: one",
       "bundle": "terms",
       "query": "one",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[]}}]}",
@@ -3347,19 +3485,40 @@
       }
     },
     {
-      "name": "random 125: one",
+      "name": "random 138: multi",
       "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\n}\",\"xml:lang\":\"e n\"}},{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
+      "query": "multi",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://other.org/ \"},\"b\":{\"type\":\"literal\",\"value\":\"ü\\n\",\"xml:lang\":\"en-\"}}]}}]}",
       "expect": {
         "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
+          "type": "InvalidTermError",
+          "message": "Invalid IRI for variable 'a' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0020) at index 17."
         }
       }
     },
     {
-      "name": "random 126: policy",
+      "name": "random 139: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[],\"limits\":[{\"name\":\"page\",\"value\":1},{\"name\":\"page\",\"value\":7}],\"offsets\":[{\"name\":\"skip\",\"value\":123456789}]}",
+      "expect": {
+        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 7 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 123456789"
+      }
+    },
+    {
+      "name": "random 140: wide",
+      "bundle": "terms",
+      "query": "wide",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1.5},{\"name\":\"page\",\"value\":-1}],\"offsets\":[{\"name\":\"skip\",\"value\":123456789}]}",
+      "expect": {
+        "error": {
+          "type": "InvalidParameterError",
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
+        }
+      }
+    },
+    {
+      "name": "random 141: policy",
       "bundle": "policies",
       "query": "policy",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
@@ -3371,7 +3530,7 @@
       }
     },
     {
-      "name": "random 127: multi",
+      "name": "random 142: multi",
       "bundle": "terms",
       "query": "multi",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
@@ -3380,43 +3539,85 @@
       }
     },
     {
-      "name": "random 128: one",
+      "name": "random 143: one",
       "bundle": "terms",
       "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"ü.\\ud800\",\"datatype\":\"urn:dt\"}},{\"x\":null},{\"x\":{\"type\":\"literal\",\"value\":\" K\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[null]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE {  ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 144: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\ud800\"}},{\"t\":{\"type\":\"literal\",\"value\":\"`a`\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
       "expect": {
         "error": {
           "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
+          "message": "Value \"\\ud800\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
         }
       }
     },
     {
-      "name": "random 129: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"ﬀKa\\n\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"},\"b\":{\"type\":\"typed-literal\",\"value\":\"﻿Ω\"},\"c\":{\"type\":\"uri\",\"value\":\"urn:x:𝔸\\u0000\"}},{\"a\":{\"type\":\"literal\",\"value\":\"9\",\"datatype\":\"http://x/a b\"}}]}}]}",
+      "name": "random 145: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"ﬀﬀKa\"}},{\"t\":{\"type\":\"literal\",\"value\":\"a\\udc00\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
       "expect": {
         "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'c' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0000) at index 8."
+          "type": "Error",
+          "message": "Value \"ﬀﬀKa\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
         }
       }
     },
     {
-      "name": "random 130: wide",
+      "name": "random 146: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?p does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 147: policy",
+      "bundle": "policies",
+      "query": "policy",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"A\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
+      "expect": {
+        "error": {
+          "type": "Error",
+          "message": "Value \"\" for ?t does not match the pattern ^[A-Za-z0-9 ]{1,10}$ that the query sets for it."
+        }
+      }
+    },
+    {
+      "name": "random 148: one",
+      "bundle": "terms",
+      "query": "one",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[]}}]}",
+      "expect": {
+        "text": "SELECT ?x WHERE { VALUES ?x { } ?s ?p ?x . }"
+      }
+    },
+    {
+      "name": "random 149: wide",
       "bundle": "terms",
       "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":9007199254740991},{\"name\":\"page\",\"value\":0.1}],\"offsets\":[{\"name\":\"skip\",\"value\":-1}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"ſ< :\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1e+21},{\"name\":\"page\",\"value\":9007199254740992}],\"offsets\":{}}",
       "expect": {
         "error": {
           "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received 0.1."
+          "message": "Invalid limit value for 'page': expected a non-negative integer, received 9007199254740992."
         }
       }
     },
     {
-      "name": "random 131: policy",
+      "name": "random 150: policy",
       "bundle": "policies",
       "query": "policy",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"abc\"},\"q\":{\"type\":\"uri\",\"value\":\"urn:z\"}}]}},{\"head\":{\"vars\":[\"t\"]},\"results\":{\"bindings\":[{\"t\":{\"type\":\"literal\",\"value\":\"\\t9\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
@@ -3428,7 +3629,7 @@
       }
     },
     {
-      "name": "random 132: wide",
+      "name": "random 151: wide",
       "bundle": "terms",
       "query": "wide",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"9ſſ^Ω\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":1},{\"name\":\"page\",\"value\":0}],\"offsets\":[{\"name\":\"skip\",\"value\":7}]}",
@@ -3437,10 +3638,10 @@
       }
     },
     {
-      "name": "random 133: multi",
+      "name": "random 152: multi",
       "bundle": "terms",
       "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"-en\"},\"c\":{\"type\":\"literal\",\"value\":\" a^\"}},{\"b\":{\"type\":\"literal\",\"value\":\"a^`\\u001f\",\"xml:lang\":\"de-1996\"},\"c\":null},{\"b\":{\"type\":\"literal\",\"value\":\"-ü{a\"},\"c\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"http://x/a b\"}}]}}]}",
+      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"-en\"},\"c\":{\"type\":\"literal\",\"value\":\" a^\"}},{\"b\":{\"type\":\"literal\",\"value\":\"a^`\\u001f\",\"xml:lang\":\"de-1996\"},\"c\":null},{\"b\":{\"type\":\"literal\",\"value\":\"-ü{a\"},\"c\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"http://x/a b\"}}]}}]}",
       "expect": {
         "error": {
           "type": "InvalidTermError",
@@ -3449,7 +3650,7 @@
       }
     },
     {
-      "name": "random 134: wide",
+      "name": "random 153: wide",
       "bundle": "terms",
       "query": "wide",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":7},{\"name\":\"page\",\"value\":1.5}],\"offsets\":[{\"name\":\"skip\",\"value\":1e+21}]}",
@@ -3461,7 +3662,7 @@
       }
     },
     {
-      "name": "random 135: one",
+      "name": "random 154: one",
       "bundle": "terms",
       "query": "one",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":null},{\"x\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"x\":{\"type\":\"literal\",\"value\":\"K\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}}]}}]}",
@@ -3473,7 +3674,7 @@
       }
     },
     {
-      "name": "random 136: wide",
+      "name": "random 155: wide",
       "bundle": "terms",
       "query": "wide",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}}]}}],\"limits\":{\"page\":9007199254740991},\"offsets\":{}}",
@@ -3482,7 +3683,7 @@
       }
     },
     {
-      "name": "random 137: multi",
+      "name": "random 156: multi",
       "bundle": "terms",
       "query": "multi",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/\"},\"c\":{\"type\":\"literal\",\"value\":\"\\\"K\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"}}]}}]}",
@@ -3491,7 +3692,7 @@
       }
     },
     {
-      "name": "random 138: wide",
+      "name": "random 157: wide",
       "bundle": "terms",
       "query": "wide",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\udc00\"}}]}}],\"limits\":{\"page\":1.5},\"offsets\":[{\"name\":\"skip\",\"value\":0}]}",
@@ -3503,7 +3704,7 @@
       }
     },
     {
-      "name": "random 139: one",
+      "name": "random 158: one",
       "bundle": "terms",
       "query": "one",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"﻿\\u001f\\\"_\\\\/\\u0000\"}},{\"x\":{\"type\":\"literal\",\"value\":\"𝔸\",\"xml:lang\":\"en-\"}},{\"x\":\"x\"}]}}]}",
@@ -3515,216 +3716,12 @@
       }
     },
     {
-      "name": "random 140: one",
+      "name": "random 159: one",
       "bundle": "terms",
       "query": "one",
       "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[]}}]}",
       "expect": {
         "text": "SELECT ?x WHERE { VALUES ?x { } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 141: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"١_\",\"datatype\":\"http://example.org/dt\"}},null]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Invalid bindings for VALUES clause 1: an all-UNDEF row cannot be mixed with bound rows."
-        }
-      }
-    },
-    {
-      "name": "random 142: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 143: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 144: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":25},\"offsets\":{}}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 25 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 000skip"
-      }
-    },
-    {
-      "name": "random 145: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/﻿\"}}]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ ( UNDEF <http://example.org/﻿> UNDEF ) } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 146: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 147: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\"}},{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}},{\"x\":{\"type\":\"uri\",\"value\":\"http://example.org/a/\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
-        }
-      }
-    },
-    {
-      "name": "random 148: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"é^\\u0000\"}}]}}],\"limits\":[{\"name\":\"page\",\"value\":9007199254740992},{\"name\":\"page\",\"value\":-1}],\"offsets\":[{\"name\":\"skip\",\"value\":1.5}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidParameterError",
-          "message": "Invalid limit value for 'page': expected a non-negative integer, received -1."
-        }
-      }
-    },
-    {
-      "name": "random 149: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"c\",\"a\"]},\"results\":{\"bindings\":[]}}]}",
-      "expect": {
-        "text": "SELECT * WHERE { VALUES( ?a ?b ?c ){ } ?a ?b ?c . }"
-      }
-    },
-    {
-      "name": "random 150: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"literal\",\"value\":\"`\\r09^ ﬀ\"},\"c\":{\"type\":\"literal\",\"value\":\"١\\\\\",\"xml:lang\":\"de-1996\"}},{\"a\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#integer\"},\"b\":{\"type\":\"bnode\",\"value\":\"b\"},\"c\":null}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?b is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
-        }
-      }
-    },
-    {
-      "name": "random 151: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"}\",\"datatype\":\"http://example.org/dt\"}},{\"x\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}}]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { \"}\"^^<http://example.org/dt> \"\"@en } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 152: policy",
-      "bundle": "policies",
-      "query": "policy",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"r\"]},\"results\":{\"bindings\":[{\"r\":{\"type\":\"literal\",\"value\":\"r\"}}]}},{\"head\":{\"vars\":[\"q\",\"p\"]},\"results\":{\"bindings\":[{\"p\":{\"type\":\"literal\",\"value\":\"http://x\"},\"q\":{\"type\":\"uri\",\"value\":\"ftp://y\"}}]}},{\"head\":{\"vars\":[\"e\"]},\"results\":{\"bindings\":[{}]}}]}",
-      "expect": {
-        "error": {
-          "type": "Error",
-          "message": "Value \"ftp://y\" for ?q does not match the pattern ^(?:https?://|[a-z]+$) that the query sets for it."
-        }
-      }
-    },
-    {
-      "name": "random 153: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"a\",\"b\",\"c\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"﻿\\u0001\",\"datatype\":\"\"},\"b\":{\"type\":\"uri\",\"value\":\"urn:x:\\n\"},\"c\":{\"type\":\"literal\",\"value\":\"𝔸\\u0000|^\\u0001><\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid datatype IRI for variable 'a' in argument set 1. IRI must be a non-empty string."
-        }
-      }
-    },
-    {
-      "name": "random 154: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"﻿\\u0001<}\"}},{\"x\":{\"type\":\"typed-literal\",\"value\":\".\"}},{\"x\":{\"type\":\"bnode\",\"value\":\"b\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 2, ?x is a blank node. A blank node label only means something inside the document it came from, so it cannot be passed as an argument; use an IRI."
-        }
-      }
-    },
-    {
-      "name": "random 155: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"b\",\"a\",\"c\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://example.org/\\u0000ﬀ\"},\"c\":{\"type\":\"typed-literal\",\"value\":\"ﬀ\\u001f |\"}},{\"b\":{\"type\":\"literal\",\"value\":\"\"},\"c\":{\"type\":\"uri\",\"value\":\"urn:x:﻿ ﬀ\\\\\"}},{\"a\":{\"type\":\"uri\",\"value\":\"http://example.org/a/ſ<\\r\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'b' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+0000) at index 19."
-        }
-      }
-    },
-    {
-      "name": "random 156: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"b\",\"a\"]},\"results\":{\"bindings\":[{\"b\":{\"type\":\"uri\",\"value\":\"http://other.org/|\"},\"c\":{\"type\":\"literal\",\"value\":\"#_ZK-0\"}},{\"a\":{\"type\":\"typed-literal\",\"value\":\"\\\\\"},\"b\":{\"type\":\"uri\",\"value\":1},\"c\":{\"type\":\"literal\",\"value\":\"𝔸\\udc00\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"}},{\"a\":{\"type\":\"literal\",\"value\":\"Z:\\t\",\"xml:lang\":\"a1\"},\"c\":{\"type\":\"literal\",\"value\":\"\",\"datatype\":\"urn:dt\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidArgumentError",
-          "message": "Argument 0, row 1, ?b has no string value."
-        }
-      }
-    },
-    {
-      "name": "random 157: wide",
-      "bundle": "terms",
-      "query": "wide",
-      "payload": "{\"arguments\":[],\"limits\":{\"page\":1000},\"offsets\":[{\"name\":\"skip\",\"value\":123456789}]}",
-      "expect": {
-        "text": "SELECT * WHERE { { SELECT ?s WHERE { ?s ?p \"é😀𝔸\" } LIMIT 1000 }  ?s ?q \"𝔸\" . ?s ?r ?x } OFFSET 123456789"
-      }
-    },
-    {
-      "name": "random 158: one",
-      "bundle": "terms",
-      "query": "one",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"x\"]},\"results\":{\"bindings\":[{\"x\":{\"type\":\"literal\",\"value\":\"\\\"\\tZ-😀| K\"}}]}}]}",
-      "expect": {
-        "text": "SELECT ?x WHERE { VALUES ?x { \"\\\"\tZ-😀| K\" } ?s ?p ?x . }"
-      }
-    },
-    {
-      "name": "random 159: multi",
-      "bundle": "terms",
-      "query": "multi",
-      "payload": "{\"arguments\":[{\"head\":{\"vars\":[\"c\",\"a\",\"b\"]},\"results\":{\"bindings\":[{\"a\":{\"type\":\"literal\",\"value\":\"é\",\"xml:lang\":\"en\"},\"b\":null,\"c\":{\"type\":\"literal\",\"value\":\"\",\"xml:lang\":\"EN-gb\"}},{\"a\":{\"type\":\"literal\",\"value\":\"K\\udc00}\",\"xml:lang\":\"en\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\"},\"c\":{\"type\":\"uri\",\"value\":\"http://other.org//𝔸|\"}}]}}]}",
-      "expect": {
-        "error": {
-          "type": "InvalidTermError",
-          "message": "Invalid IRI for variable 'c' in argument set 1. IRI contains a character SPARQL forbids in an IRIREF (U+007C) at index 20."
-        }
       }
     }
   ],

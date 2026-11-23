@@ -491,7 +491,13 @@ function randomCalls(): CallCase[] {
         for (const v of vars) if (rng.int(3) > 0) row[v] = randomTerm(rng);
         return row;
       });
-      const head = [...vars].sort(() => rng.next() - 0.5);
+      // A Fisher-Yates shuffle. Array.prototype.sort with a random comparator
+      // gives a different order on each engine version.
+      const head = [...vars];
+      for (let j = head.length - 1; j > 0; j--) {
+        const k = rng.int(j + 1);
+        [head[j], head[k]] = [head[k], head[j]];
+      }
       cases.push({ name: `random ${i}: multi`, bundle: 'terms', query: 'multi', payload: payload({ arguments: [set(head, rows)] }) });
     } else if (kind === 2) {
       const value = () => rng.pick([0, 1, 7, 25, 1000, -1, 1.5, 2 ** 53 - 1, 2 ** 53, 1e21, 0.1, 123456789]);
