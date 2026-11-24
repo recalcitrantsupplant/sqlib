@@ -199,7 +199,8 @@ Steps outside that sequence:
   [dotnet-runtime](../guides/dotnet-runtime.md).
 - `nuget-push.sh`: pushes the packed `SparqlQueryLib.Runtime` to nuget.org. It
   refuses when the packed version is not `EXPECTED_VERSION`. The `nuget` job in
-  `release-please.yml` runs it after a `dotnet` release.
+  `release-please.yml` runs it after a `dotnet` release, with the key from
+  the `NuGet/login` trusted publishing step.
 - `fuzz-nightly.sh`: the query group property harness, at `PHASE2_FUZZ_RUNS`
   (default 1000) and a seed from the clock, over `test/phase2/` and
   `test/web/`. The PR suite runs the same files with a fixed seed and about 50

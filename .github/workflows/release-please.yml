@@ -110,14 +110,18 @@ jobs:
   # nuget.org. release-please writes the version into the csproj (the
   # x-release-please-version markers), so the pack reads it from there. The
   # step refuses a mismatch, because a pushed NuGet version cannot be replaced.
-  # Needs the NUGET_API_KEY repository secret: a nuget.org API key scoped to
-  # push SparqlQueryLib.Runtime.
+  # The push uses nuget.org trusted publishing: NuGet/login exchanges the job's
+  # GitHub OIDC token for an API key that is valid for 1 hour. No API key is
+  # stored. It needs a nuget.org trusted publishing policy for this repository
+  # with the workflow file `release-please.yml`, and the NUGET_USER repository
+  # secret: the nuget.org profile name that owns the policy.
   nuget:
     needs: release
     if: needs.release.outputs.dotnet_release_created == 'true'
     runs-on: [self-hosted, Linux, X64]
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
@@ -128,7 +132,11 @@ jobs:
       - run: bash scripts/ci/dotnet.sh
         env:
           DOTNET_PACK_OUT: dotnet/artifacts
+      - uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
       - run: bash scripts/ci/nuget-push.sh
         env:
           EXPECTED_VERSION: ${{ needs.release.outputs.dotnet_version }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}

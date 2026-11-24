@@ -234,9 +234,21 @@ tests, packs, and runs [`scripts/ci/nuget-push.sh`](../../scripts/ci/nuget-push.
 That script refuses to push when the packed version is not the tagged version.
 nuget.org does not let a version be replaced, so a wrong push cannot be undone.
 
-The job needs the `NUGET_API_KEY` repository secret. Create a nuget.org API
-key with the "Push new packages and package versions" scope, limited to the
-glob `SparqlQueryLib.Runtime`.
+The job pushes with nuget.org trusted publishing. The `NuGet/login` step
+exchanges the job's GitHub OIDC token for an API key that is valid for 1 hour,
+so the repository stores no API key. To set it up:
+
+1. On nuget.org, open your user menu, then **Trusted Publishing**. Add a
+   GitHub Actions policy with the owner `recalcitrantsupplant`, the
+   repository `sqlib` and the workflow file `release-please.yml`. Leave the
+   environment empty.
+2. In the repository settings, add the `NUGET_USER` secret: the nuget.org
+   profile name that owns the policy. Do not use the email address.
+3. Merge a `dotnet` release pull request. The first push registers the package
+   ID `SparqlQueryLib.Runtime`.
+
+The policy names the workflow file, so keep the `nuget` job in
+`release-please.yml`. A job in another workflow file gets no key.
 
 A bundle format change needs a release of both runtimes. State the bundle
 versions that a release reads in `dotnet/README.md` and in the package
