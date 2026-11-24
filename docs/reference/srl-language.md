@@ -626,7 +626,8 @@ A `GROUP` compiles to a subquery that groups the pattern by the `BY`
 variables, joined to the elements before it. The subquery projects only the
 keys and the results, so SPARQL hides the other pattern variables from the rest
 of the body. The pattern keeps its variable names, and each result is projected
-under its own name. The join drops a row whose key has no group. For
+under its own name. The subquery starts with the distinct values of the keys
+bound before the `GROUP`. The join drops a row whose key has no group. For
 `RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }`,
 `compileRule` returns:
 
@@ -639,6 +640,11 @@ INSERT {
   ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Person> .
   {
   SELECT ?x (COUNT( * ) AS ?n) WHERE {
+  {
+  SELECT DISTINCT ?x WHERE {
+  ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Person> .
+}
+}
   ?y <http://example.org/childOf> ?x .
 }
 GROUP BY ?x
@@ -653,11 +659,16 @@ drops the row. The `BOUND` test covers every result at once, so one failed
 aggregate drops the group. A `GROUP` with no `BY` keeps its subquery's one row
 even when the pattern has no solutions, as SPARQL does for an aggregate query
 without `GROUP BY`. An empty block with no `BY` has no aggregate to form that
-row, so the subquery projects a hidden `COUNT(*)` for it. When a `BY` variable bound before the `GROUP` is
-not bound by the pattern, as `?score` is in the rank example, the subquery
-cannot compute it, since SPARQL evaluates a subquery without the outer
-bindings. The subquery is then seeded with the distinct key values from the
-elements before the `GROUP`, which repeats those elements inside it.
+row, so the subquery projects a hidden `COUNT(*)` for it.
+
+SPARQL evaluates a subquery without the outer bindings. So when a `BY`
+variable is bound before the `GROUP`, the subquery body starts with a
+`SELECT DISTINCT` over those keys, with the elements before the `GROUP` as its
+body. The pattern follows it, so a `FILTER`, `SET` or `NOT` in the pattern
+sees the incoming keys. The seed is added also when the pattern binds the same
+key. A `BY` variable that only the pattern binds is not seeded. Each seed
+repeats the elements before the `GROUP`, and a `GROUP` after another `GROUP`
+repeats the earlier one with its seed.
 
 ### Test cases
 

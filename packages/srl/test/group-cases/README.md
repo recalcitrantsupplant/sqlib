@@ -146,3 +146,5 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-29` | An empty block keeps the implicit group: one row for a pattern with no solutions. |
 | `eval-group-agg-30` | MAX fails on the empty group, so the group is dropped and COUNT(*) gives no value either. |
 | `eval-group-agg-31` | A GROUP with no BY adds its one group to every earlier row, also when its pattern has no solutions. |
+| `eval-group-agg-32` | A SET before the pattern reads a BY variable bound before the GROUP. |
+| `eval-group-agg-33` | A SET reads a BY variable that only the elements before the GROUP bind, and a FILTER reads the SET. |

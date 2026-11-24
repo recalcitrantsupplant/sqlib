@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+RULE { ?x :childNames ?n } WHERE { ?x a :Person . GROUP BY ?x { SET (?z := STR(?x)) ?y :childOf ?x } [ ?n := COUNT(?z) ] }
