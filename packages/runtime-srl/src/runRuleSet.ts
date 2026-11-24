@@ -440,7 +440,7 @@ export class RuleSetRunner {
       // of the result. See `docs/reference/srl-language.md`.
       baselineState = captureDatasetState(store);
 
-      // Freeze the ground graph, `GD`, for `WHERE DATA` / `NOT DATA` to match
+      // Freeze the ground graph, `GD`, for `WHERE GROUND` / `NOT GROUND` to match
       // against. Here — after the base graph is loaded, *before* any DATA block
       // runs — because ground data is the input, and DATA blocks are part of
       // the rule set rather than the data.
@@ -448,8 +448,8 @@ export class RuleSetRunner {
       // The spec says this twice and not quite the same way. The prose is
       // "Ground data is the triples in the base graph" (Matching Ground Data);
       // the pseudocode is `let GD = G0 ∪ D` (Evaluation of a Rule Set). The two
-      // disagree exactly when a DATA block supplies a triple a `NOT DATA` asks
-      // about, and `eval-neg-data-03` is that case: base graph empty, `DATA {
+      // disagree exactly when a DATA block supplies a triple a `NOT GROUND` asks
+      // about, and `eval-neg-ground-03` is that case: base graph empty, `DATA {
       // :s :p :o }`, and the expected result has the rule firing — so the test
       // sides with the prose. It is also the reading that holds together with
       // §1 of our data-graph design (issue #149): DATA triples are inference
@@ -460,7 +460,7 @@ export class RuleSetRunner {
       // and `test/lib/RuleSetExecutor.groundGraph.test.ts` is where that shows:
       // three of its cases fail and the rest pass, which is the difference
       // between the two readings and nothing else. In the W3C suite the same
-      // move costs `eval-neg-data-03` and `-06`, taking the eval category from
+      // move costs `eval-neg-ground-03` and `-06`, taking the eval category from
       // 35/35 to 33/35.
       await executor.update(`INSERT { GRAPH <${GROUND_GRAPH_IRI}> { ?s ?p ?o } } WHERE { ?s ?p ?o }`);
 
@@ -963,7 +963,7 @@ function renderTupleRow(row: string[]): string {
 
 function captureDatasetState(store: RuleStore): DatasetState {
   // Everything except the ground graph. That named graph is a frozen copy of
-  // `G0 ∪ D` kept so `WHERE DATA` / `NOT DATA` have something to match against
+  // `G0 ∪ D` kept so `WHERE GROUND` / `NOT GROUND` have something to match against
   // (see `GROUND_GRAPH_IRI`); it is executor bookkeeping, not data. Counting it
   // would double every triple in the fixpoint's convergence check and emit the
   // whole input again as "inferred".

@@ -17,7 +17,7 @@ export type { TupleRef } from './tuples/compile.js';
  * The named graph holding `GD` — the base graph plus every DATA block — as it
  * stood before any rule ran.
  *
- * `WHERE DATA` and `NOT DATA` are the spec's way of matching the *input* rather
+ * `WHERE GROUND` and `NOT GROUND` are the spec's way of matching the *input* rather
  * than the growing evaluation graph, and SPARQL's way of matching one graph
  * rather than another is `GRAPH <g> { … }`. So the executor keeps a copy of the
  * ground data under this IRI and the compiler points ground patterns at it.
@@ -160,8 +160,8 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
         // Newlines matter: a tuple placeholder ends in a comment (the read
         // marker), so a closing brace on the same line would be commented out.
         const inner = compileBody(item.body, context, bound);
-        // `NOT DATA` negates against the ground graph. A plain `NOT` inside a
-        // `WHERE DATA` rule needs no marker here — the whole body is already
+        // `NOT GROUND` negates against the ground graph. A plain `NOT` inside a
+        // `WHERE GROUND` rule needs no marker here — the whole body is already
         // inside the GRAPH block, which is exactly the spec's
         // `evalRuleElements(N.inner, S, G=GD, GD)`.
         parts.push(item.data
@@ -395,7 +395,7 @@ export function compileRule(rule: SrlRule, prologueText = '', options: CompileOp
   // SET targets and aggregate results are plain strings, not term nodes.
   for (const item of items) for (const name of boundBy(item)) used.add(name);
   const inner = compileBody(items, { tupleIndex: { n: 0 }, aggregateIndex: { n: 0 }, used });
-  // `WHERE DATA`: the spec evaluates the whole body with GD in place of G, so
+  // `WHERE GROUND`: the spec evaluates the whole body with GD in place of G, so
   // one GRAPH block around everything is the exact translation — nested NOTs
   // included, which is why they need no marker of their own.
   const body = rule.data ? `GRAPH <${GROUND_GRAPH_IRI}> {\n  ${inner}\n}` : inner;

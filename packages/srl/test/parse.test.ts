@@ -77,8 +77,8 @@ describe('SRL base grammar — parse + compile', () => {
         .toThrow(/SRL syntax error: NOT cannot appear inside NOT; only FILTER can appear inside NOT/);
     });
 
-    it('rejects a NOT DATA inside a NOT', () => {
-      expect(() => parseRuleSet(rule('?x :p ?y NOT { ?x :q ?y NOT DATA { ?y :z 1 } }')))
+    it('rejects a NOT GROUND inside a NOT', () => {
+      expect(() => parseRuleSet(rule('?x :p ?y NOT { ?x :q ?y NOT GROUND { ?y :z 1 } }')))
         .toThrow(/NOT cannot appear inside NOT/);
     });
 

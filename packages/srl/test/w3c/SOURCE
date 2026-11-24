@@ -1,21 +1,41 @@
 W3C SPARQL-RL test suite — vendored snapshot
-Source: https://github.com/w3c/data-shapes/tree/inuse-tests/shacl12-test-suite/tests/sparql-rl
-Branch: inuse-tests
-Commit: 335659b7c7a7eab2ff2122f979c434a2dbb14a05
-PR:     inuse-tests is w3c/data-shapes#1455 (tests for the inUse condition)
-Base:   gh-pages at 7e3ded5841fa20756505a0a872a6614a31b0adf6; #1455 is not behind it
+Source: https://github.com/w3c/data-shapes/tree/gh-pages/shacl12-test-suite/tests/sparql-rl
+Branch: gh-pages
+Commit: eacdef4528d66ee116f0ac9118d968c5717c7233
 Dirs:   syntax/ wellformed/ stratification/ eval/ eval2/ examples/
 
-This pin assumes that #1455 merges as it is. If #1455 changes before it
-merges, refresh from its new head. After it merges, and its branch is
-deleted, refresh from gh-pages.
-
 How the snapshot was made: every directory above, README.md and
-manifest-sparql-rl.ttl were taken unchanged from #1455 at 335659b7. There is
-no local change. The one commit on gh-pages between the previous pin and
-#1455's base, 7e3ded58, changes only the specification text.
+manifest-sparql-rl.ttl were taken unchanged from gh-pages at eacdef45. There
+is no local change.
 
-What this refresh changed, relative to the previous pin, gh-pages at 75276926:
+What this refresh changed, relative to the previous pin, #1455 at 335659b7:
+
+  #1455 merged as 84008f4. On merge it changes only the rdfs:label of the
+  eval and eval2 manifests.
+
+  004346d renames the keywords: NOT DATA is NOT GROUND, and WHERE DATA is
+  WHERE GROUND (grammar rules [11] and [18]). b346ab9 changes the tests to
+  match, and adds eval-group-31: a GROUP with no BY whose pattern shares no
+  variable with the rest of the body, so each outer row gets the count over
+  the whole pattern. The eval/ entries eval-neg-data-01 .. -06 are eval-neg-ground-01 ..
+  -06, and eval-where-data-01 .. -03 are eval-where-ground-01 .. -03. In
+  eval2/, the four default-value entries become two: eval-dft-value-01 (NOT
+  GROUND) and eval-dft-value-02 (WHERE GROUND). The mf:name of the second is
+  "eval-dft-value02", with no hyphen before 02, so library-expected-pass.json
+  lists it under that name. Seven syntax/ and stratification/ files change
+  only the keyword or a comment.
+
+  sqlib's parser accepts GROUND, and still accepts DATA in the same two
+  places. The formatter and the generator write GROUND.
+
+  The other gh-pages commits since #1455 change the specification text, the
+  SHACL UI and profiling documents, and the inference-rules suite
+  (eacdef4). None changes a file under tests/sparql-rl.
+
+  Entries: eval 65 -> 66, eval2 6 -> 4. 367 in all. Every entry passes.
+
+What the refresh before that changed, relative to gh-pages at 75276926
+(the pin was #1455 at 335659b7, on branch inuse-tests):
 
   #1455 adds the tests for inUse, the well-formedness condition of
   w3c/data-shapes#690 (on gh-pages since 04ecbb4a). A variable used in a NOT
@@ -79,7 +99,8 @@ What the refresh before those changed, relative to gh-pages at 9c863967:
   Entries: syntax 139 -> 212, wellformed 8 -> 33, stratification 10 -> 21,
   eval 35 -> 59; eval2 6 and examples 5 are unchanged. 336 in all.
 
-Previous pins, for reference: 752769264137d192b3d603075162819466c46690
+Previous pins, for reference: 335659b7c7a7eab2ff2122f979c434a2dbb14a05
+(#1455, branch inuse-tests), 752769264137d192b3d603075162819466c46690
 (gh-pages, after #1380 merged), 643cf6a7ce95e63457b7b293c1c22819af1cbb71
 (#1380, the last head of srl-group-tests), 87514ecb410bedb6cd0640b980b4b7bc10f2f411
 (#1380, with #1375 at a3eac70d), 9c863967bceaef1a87c24e4dd761eda763823120

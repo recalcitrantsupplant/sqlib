@@ -136,7 +136,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-group-agg-10-results.ttl>
     .
 
-# WHERE DATA counts only the given graph: the derived :childOf triples are not counted.
+# WHERE GROUND counts only the given graph: the derived :childOf triples are not counted.
 :eval-group-agg-11 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-group-agg-11";
     mf:action

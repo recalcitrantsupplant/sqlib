@@ -32,7 +32,7 @@ The package is `private: true`, and is not published to npm.
 A rule body is a SPARQL group pattern, plus three SRL constructs:
 
 - `NOT { … }` is negation. It compiles to `FILTER NOT EXISTS`.
-- `NOT DATA { … }` and `WHERE DATA { … }` match the *ground* graph. This is the
+- `NOT GROUND { … }` and `WHERE GROUND { … }` match the *ground* graph. This is the
   base graph plus each `DATA` block, before any rule ran. Both compile to a
   `GRAPH <urn:sqlib:srl:ground>` block. The package exports the IRI as
   `GROUND_GRAPH_IRI`, so the executor and the compiler use the same name.
@@ -237,7 +237,7 @@ Such a document has no defined answer. `:a` fires only where `:r` is absent.
 `:b` derives `:r` from the output of `:a`. The result therefore depends on the
 rule that runs first.
 
-A `WHERE DATA` rule reads only the ground graph. It adds no edges, and is never
+A `WHERE GROUND` rule reads only the ground graph. It adds no edges, and is never
 part of a cycle.
 
 ## Limitations

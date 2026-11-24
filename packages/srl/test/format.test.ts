@@ -29,10 +29,16 @@ RULE {
     );
   });
 
-  it('indents a nested NOT and keeps its DATA flag', () => {
+  it('indents a nested NOT and keeps its GROUND flag', () => {
+    const formatted = format(`${PREFIX}\nRULE { ?x :p ?y } WHERE GROUND { ?x :q ?y . NOT GROUND { ?x :blocked ?y } }`);
+    expect(formatted).toContain('} WHERE GROUND {\n');
+    expect(formatted).toContain('  NOT GROUND {\n    ?x :blocked ?y .\n  }');
+  });
+
+  it('writes the older DATA spelling as GROUND', () => {
     const formatted = format(`${PREFIX}\nRULE { ?x :p ?y } WHERE DATA { ?x :q ?y . NOT DATA { ?x :blocked ?y } }`);
-    expect(formatted).toContain('} WHERE DATA {\n');
-    expect(formatted).toContain('  NOT DATA {\n    ?x :blocked ?y .\n  }');
+    expect(formatted).toContain('} WHERE GROUND {\n');
+    expect(formatted).toContain('  NOT GROUND {\n');
   });
 
   it('honours a custom indent unit', () => {

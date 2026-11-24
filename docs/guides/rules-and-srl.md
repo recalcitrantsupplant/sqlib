@@ -60,9 +60,9 @@ A rule body can contain a basic graph pattern, and these constructs:
 | --- | --- |
 | `FILTER(…)` | an ordinary SPARQL filter |
 | `NOT { … }` | the pattern must not match |
-| `NOT DATA { … }` | the pattern must not match *the input*; triples inferred so far are ignored |
+| `NOT GROUND { … }` | the pattern must not match *the input*; triples inferred so far are ignored |
 | `SET (?v := expr)` | bind `?v` to the value of an expression |
-| `WHERE DATA { … }` | evaluate the whole body against the input, and ignore inferred triples |
+| `WHERE GROUND { … }` | evaluate the whole body against the input, and ignore inferred triples |
 
 ```srl
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -156,7 +156,7 @@ The compiler translates the SRL constructs as follows:
 | --- | --- |
 | `NOT { P }` | `FILTER NOT EXISTS { P }`, in a group when a later pattern binds one of its variables, so that the filter cannot see that binding |
 | `SET (?v := E)` | `BIND(E AS ?v) FILTER(BOUND(?v))`, in a group |
-| `WHERE DATA`, `NOT DATA` | a `GRAPH <urn:sqlib:srl:ground>` pattern, over a copy of the input that the executor keeps |
+| `WHERE GROUND`, `NOT GROUND` | a `GRAPH <urn:sqlib:srl:ground>` pattern, over a copy of the input that the executor keeps |
 
 ## Stratification
 
@@ -197,7 +197,7 @@ The rule set editor shows the same result:
   pattern and the head that cause it, for example
   `NOT ?s :p "ABC" → :s :p "ABC"`. Each dependency links to its lines.
 - The tab gives the reason that the rules have no order, and three ways to
-  break the cycle: rewrite one `NOT`; write it as `NOT DATA` if it must test
+  break the cycle: rewrite one `NOT`; write it as `NOT GROUND` if it must test
   only the input; or make a pattern narrower, so that it does not match the
   head of the other rule.
 
