@@ -421,6 +421,8 @@ A pinned response gets:
   `nodeDetail`, the `Accept` header and the caller's principals;
 - `Cache-Control: public, max-age=31536000, immutable` where every caller gets
   the same answer, and `Cache-Control: private, no-cache` elsewhere;
+  `SQLIB_PINNED_CACHE_MAX_AGE` sets the `max-age` of the public form, and `0`
+  there gives `public, no-cache`;
 - `Vary: Accept, Authorization`.
 
 A request whose `If-None-Match` names that ETag gets `304` without running.
@@ -438,8 +440,11 @@ person who signs in on it.
 An error response keeps `no-store`.
 
 The backend record has no version. If you change a pinned backend's sources,
-a cache can still serve the old result for the old URL. Register a new backend
-for new data, or purge the cache in front of sqlib.
+a cache can still serve the old result for the old URL for up to
+`SQLIB_PINNED_CACHE_MAX_AGE` seconds. Register a new backend for new data, or
+purge the cache in front of sqlib. With `SQLIB_PINNED_CACHE_MAX_AGE=0`, every
+cache asks again on each use, and sqlib answers `304` only while the ETag still
+matches.
 
 `GET /substitute?targetId=…&argumentSetIds=[…]` returns the substituted text of
 a stored query, as `POST /substitute` does for text in the body. It needs Read

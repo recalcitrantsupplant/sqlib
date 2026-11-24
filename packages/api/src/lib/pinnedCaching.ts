@@ -18,7 +18,8 @@
  * `If-None-Match` can answer `304` without executing.
  *
  * Shared caches: `public, immutable` only where every caller gets the same
- * answer (`disabled` mode, or a guest in `anonymous` mode). Elsewhere
+ * answer (`disabled` mode, or a guest in `anonymous` mode). Its lifetime is
+ * `SQLIB_PINNED_CACHE_MAX_AGE`, and `0` there gives `public, no-cache`. Elsewhere
  * `private, no-cache`: a shared cache in front of the auth check does not store
  * it, and a browser asks again on each use. The caller can come from a cookie
  * that a sign-in proxy turns into a header, which `Vary` cannot name, so a
@@ -35,6 +36,28 @@ import { QueryTypeIri } from '../constants/queryTypes.js';
 
 /** A year, the longest lifetime RFC 9111 caches are asked to honour. */
 export const PINNED_MAX_AGE_SECONDS = 31_536_000;
+
+/**
+ * `SQLIB_PINNED_CACHE_MAX_AGE`: how long, in seconds, a cache may reuse a
+ * public pinned response without asking again. `0` makes every cache
+ * revalidate on each use. Read on every call, so a test or a restart sees the
+ * value in force. A value that is not a non-negative integer, or is over a
+ * year, gives the default.
+ */
+export function pinnedMaxAgeSeconds(): number {
+  const raw = process.env.SQLIB_PINNED_CACHE_MAX_AGE;
+  if (raw === undefined || raw.trim() === '') return PINNED_MAX_AGE_SECONDS;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0 || value > PINNED_MAX_AGE_SECONDS) return PINNED_MAX_AGE_SECONDS;
+  return value;
+}
+
+/** The `Cache-Control` value for a pinned response. */
+export function pinnedCacheControl(scope: 'public' | 'private'): string {
+  if (scope === 'private') return 'private, no-cache';
+  const maxAge = pinnedMaxAgeSeconds();
+  return maxAge === 0 ? 'public, no-cache' : `public, max-age=${maxAge}, immutable`;
+}
 
 /** Reads an entity by id; `getCacheCoordinator().get` in the server. */
 export type EntityLookup = (id: string) => unknown;
@@ -133,10 +156,7 @@ export function matchesIfNoneMatch(header: string | string[] | undefined, etag: 
 /** The headers a pinned response carries. */
 export function setPinnedHeaders(reply: FastifyReply, etag: string, scope: 'public' | 'private'): void {
   reply.header('ETag', etag);
-  reply.header(
-    'Cache-Control',
-    scope === 'public' ? `public, max-age=${PINNED_MAX_AGE_SECONDS}, immutable` : 'private, no-cache'
-  );
+  reply.header('Cache-Control', pinnedCacheControl(scope));
   reply.header('Vary', 'Accept, Authorization');
 }
 

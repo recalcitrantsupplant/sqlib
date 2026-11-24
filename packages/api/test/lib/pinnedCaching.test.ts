@@ -1,7 +1,7 @@
 /**
  * Which runs are pinned, and so cacheable (#206).
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import {
   setPinnedHeaders,
   matchesIfNoneMatch,
@@ -101,8 +101,34 @@ describe('setPinnedHeaders', () => {
     return headers;
   }
 
+  afterEach(() => {
+    delete process.env.SQLIB_PINNED_CACHE_MAX_AGE;
+  });
+
   it('lets every cache keep a public answer for a year', () => {
     expect(headersFor('public')['Cache-Control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('keeps a public answer for SQLIB_PINNED_CACHE_MAX_AGE seconds', () => {
+    process.env.SQLIB_PINNED_CACHE_MAX_AGE = '3600';
+    expect(headersFor('public')['Cache-Control']).toBe('public, max-age=3600, immutable');
+  });
+
+  it('makes every cache revalidate a public answer when SQLIB_PINNED_CACHE_MAX_AGE is 0', () => {
+    process.env.SQLIB_PINNED_CACHE_MAX_AGE = '0';
+    const headers = headersFor('public');
+    expect(headers['Cache-Control']).toBe('public, no-cache');
+    expect(headers.ETag).toBe('"p1-x"');
+  });
+
+  it.each(['-1', '1.5', 'week', '31536001'])('uses a year for SQLIB_PINNED_CACHE_MAX_AGE=%s', raw => {
+    process.env.SQLIB_PINNED_CACHE_MAX_AGE = raw;
+    expect(headersFor('public')['Cache-Control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('keeps a private answer at no-cache whatever SQLIB_PINNED_CACHE_MAX_AGE says', () => {
+    process.env.SQLIB_PINNED_CACHE_MAX_AGE = '3600';
+    expect(headersFor('private')['Cache-Control']).toBe('private, no-cache');
   });
 
   it('makes a browser revalidate a private answer, so the next person to sign in does not see it', () => {
