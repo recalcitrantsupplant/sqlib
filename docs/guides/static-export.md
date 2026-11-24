@@ -523,6 +523,9 @@ Status:
   `check-public-api.mjs`.
 - To do: publish a release to npm.
 
+For a .NET application, the `SparqlQueryLib.Runtime` NuGet package reads the
+same bundles. See [dotnet-runtime.md](dotnet-runtime.md).
+
 In this repository, the packages resolve through the pnpm workspace. The
 packages of the `sqlib` CLI can also be published, as ESM only. See
 [cli.md](cli.md).

@@ -4,10 +4,24 @@
   "include-component-in-tag": false,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
+  "separate-pull-requests": true,
   "packages": {
     ".": {
       "package-name": "sqlib",
       "changelog-path": "CHANGELOG.md"
+    },
+    "dotnet": {
+      "package-name": "SparqlQueryLib.Runtime",
+      "component": "dotnet",
+      "include-component-in-tag": true,
+      "initial-version": "0.1.0",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "src/SparqlQueryLib.Runtime/SparqlQueryLib.Runtime.csproj"
+        }
+      ]
     }
   }
 }

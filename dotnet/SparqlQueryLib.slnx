@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/Playground/Playground.csproj" />
+    <Project Path="examples/QuickStart/QuickStart.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/SparqlQueryLib.Runtime/SparqlQueryLib.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/SparqlQueryLib.Runtime.Tests/SparqlQueryLib.Runtime.Tests.csproj" />
+  </Folder>
+</Solution>
