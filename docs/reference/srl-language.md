@@ -54,9 +54,8 @@ evaluation graph. The ground graph is the base graph and each `DATA` block, as
 they were before any rule ran. Such a rule reads only the given data, and never
 an inferred triple, so it depends on no other rule.
 
-The parser also accepts `WHERE DATA` and `NOT DATA`, the names of these
-keywords before w3c/data-shapes commit `004346d` (2026-11-19). The formatter
-and the generator write `GROUND`.
+Before w3c/data-shapes commit `004346d` (2026-11-19), these keywords were
+`WHERE DATA` and `NOT DATA`. The parser rejects the old names.
 
 ### `DATA`
 

@@ -76,17 +76,18 @@ describe('WHERE GROUND', () => {
 });
 
 describe('the DATA spelling', () => {
-  it('parses NOT DATA and WHERE DATA as NOT GROUND and WHERE GROUND', () => {
-    const old = parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE DATA { :s :p ?o . NOT DATA { :s :q ?o } }`).rules[0];
-    const current = parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE GROUND { :s :p ?o . NOT GROUND { :s :q ?o } }`).rules[0];
-    expect(old.data).toBe(true);
-    expect(old.body.find((item) => item.kind === 'not')).toMatchObject({ data: true });
-    expect(generateRule(old)).toBe(generateRule(current));
+  it('rejects WHERE DATA', () => {
+    expect(() => parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE DATA { :s :p ?o }`)).toThrow();
   });
 
-  it('accepts the keywords in any case', () => {
+  it('rejects NOT DATA', () => {
+    expect(() => parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE { :s :p ?o . NOT DATA { :s :q ?o } }`)).toThrow();
+  });
+
+  it('accepts the GROUND keywords in any case', () => {
     const rule = parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE ground { :s :p ?o . not Ground { :s :q ?o } }`).rules[0];
     expect(rule.data).toBe(true);
+    expect(rule.body.find((item) => item.kind === 'not')).toMatchObject({ data: true });
   });
 });
 

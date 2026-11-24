@@ -35,12 +35,6 @@ RULE {
     expect(formatted).toContain('  NOT GROUND {\n    ?x :blocked ?y .\n  }');
   });
 
-  it('writes the older DATA spelling as GROUND', () => {
-    const formatted = format(`${PREFIX}\nRULE { ?x :p ?y } WHERE DATA { ?x :q ?y . NOT DATA { ?x :blocked ?y } }`);
-    expect(formatted).toContain('} WHERE GROUND {\n');
-    expect(formatted).toContain('  NOT GROUND {\n');
-  });
-
   it('honours a custom indent unit', () => {
     const ruleSet = parse(`${PREFIX}\nRULE { ?x :p ?y } WHERE { ?x :q ?y }`);
     expect(formatRule(ruleSet.rules[0], { indent: '    ' })).toContain('\n    ?x :p ?y .\n');

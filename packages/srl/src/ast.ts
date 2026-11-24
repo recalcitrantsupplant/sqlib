@@ -27,8 +27,7 @@ export type SrlBodyItem =
   | { kind: 'bgp'; triples: unknown }
   | { kind: 'filter'; filter: unknown }
   /**
-   * `NOT { … }`, or `NOT GROUND { … }` when `data` is true. The parser also
-   * accepts `NOT DATA`, the keyword's name before w3c/data-shapes 004346d.
+   * `NOT { … }`, or `NOT GROUND { … }` when `data` is true.
    *
    * `data` sends the negated pattern to the ground graph (`GD`, the base graph
    * plus every DATA block) instead of the evaluation graph, which is how a rule
@@ -81,7 +80,7 @@ export interface SrlRule {
   /** Structured, SRL-aware body. */
   body: SrlBodyItem[];
   /**
-   * `WHERE GROUND` (or the older `WHERE DATA`): match the whole body against the ground graph rather than
+   * `WHERE GROUND`: match the whole body against the ground graph rather than
    * the evaluation graph.
    *
    * Per the spec's `evalRuleElements`, a rule with `R.data` is evaluated with

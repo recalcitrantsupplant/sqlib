@@ -77,7 +77,7 @@ function sourceStart(term: unknown): number | undefined {
 export const srlGroupBody = {
   name: 'srlGroupBody',
   impl:
-    ({ ACTION, CONSUME, CONSUME2, SUBRULE, OR, OR2, MANY, OPTION, OPTION2 }: any) =>
+    ({ ACTION, CONSUME, SUBRULE, OR, MANY, OPTION, OPTION2 }: any) =>
     (_C: unknown) => {
       const items: any[] = [];
       MANY(() => {
@@ -89,11 +89,7 @@ export const srlGroupBody = {
               // matched against the ground graph rather than the evaluation
               // graph, so a rule can ask "was this absent from the input?"
               // while the rest of its body still sees inferred triples.
-              // `NOT DATA` is the keyword's name before w3c/data-shapes
-              // 004346d, and is still accepted.
-              const ground = OPTION2(() =>
-                OR2([{ ALT: () => CONSUME(groundKeyword) }, { ALT: () => CONSUME2(dataKeyword) }]),
-              );
+              const ground = OPTION2(() => CONSUME(groundKeyword));
               CONSUME(l.symbols.LCurly);
               const body = SUBRULE(srlGroupBody);
               CONSUME(l.symbols.RCurly);
@@ -190,21 +186,18 @@ const srlBodyBlock = {
  *
  * The optional `GROUND` after `WHERE` makes the *whole* body match the ground
  * graph rather than the evaluation graph — the rule then reads only what was
- * given, never what has been inferred. `WHERE DATA` is the keyword's name
- * before w3c/data-shapes 004346d, and is still accepted.
+ * given, never what has been inferred.
  */
 const srlRule = {
   name: 'srlRule',
   impl:
-    ({ ACTION, CONSUME, CONSUME2, OPTION1, OPTION2, OR, SUBRULE }: any) =>
+    ({ ACTION, CONSUME, OPTION1, OPTION2, SUBRULE }: any) =>
     (_C: unknown) => {
       const kw = CONSUME(ruleKeyword);
       const name = OPTION1(() => SUBRULE(g.iri));
       const h = SUBRULE(srlHead);
       CONSUME(l.where);
-      const ground = OPTION2(() =>
-        OR([{ ALT: () => CONSUME(groundKeyword) }, { ALT: () => CONSUME2(dataKeyword) }]),
-      );
+      const ground = OPTION2(() => CONSUME(groundKeyword));
       const b = SUBRULE(srlBodyBlock);
       return ACTION(() => buildRule(kw, name, h, b, Boolean(ground)));
     },
