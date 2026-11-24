@@ -449,7 +449,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     set.dateModified = isoNow();
   };
 
-  await page.route(/\/argument-sets\?libraryId=/, async (route) => {
+  await page.route(/\/argument-sets\?library=/, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;

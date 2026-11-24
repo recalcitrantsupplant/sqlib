@@ -95,9 +95,8 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
 
   /**
    * `GET /argument-sets?library=…` — the listing the switcher's "elsewhere in
-   * the library" needs. `libraryId` is the older name and stays an alias, so
-   * this route takes the same `library` filter as every other list (#250). One
-   * of the two is required, and the two must agree when both are given. It could not exist before `ArgumentSet.isPartOf`,
+   * the library" needs. It takes the same `library` filter as every other list
+   * (#250), and it requires it. It could not exist before `ArgumentSet.isPartOf`,
    * because the only path to a library ran through each set's target, making
    * enumeration one request per query.
    *
@@ -107,7 +106,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
   fastify.get('/', ...reposRoute({
       querystring: withListPageQuery({
         type: 'object',
-        properties: { libraryId: { type: 'string' }, preferTarget: { type: 'string' } },
+        properties: { preferTarget: { type: 'string' } },
         additionalProperties: false,
       } as const),
       response: {
@@ -115,11 +114,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
         400: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
       },
     }, async ({ request, reply }) => {
-    const { library, libraryId: alias } = request.query;
-    if (library && alias && library !== alias) {
-      return reply.code(400).send({ error: '`library` and `libraryId` name different libraries. Send one of them.' });
-    }
-    const libraryId = library || alias;
+    const libraryId = request.query.library;
     if (!libraryId) {
       return reply.code(400).send({ error: 'Name the library with `?library=`.' });
     }

@@ -3048,7 +3048,7 @@ export function useApiClient() {
   const listLibraryArgumentSets = (libraryId: string) => {
     ensureQueriesEnabled();
     return requestData(
-      buildUrl(`/argument-sets?libraryId=${encodeURIComponent(libraryId)}`),
+      buildUrl(`/argument-sets?library=${encodeURIComponent(libraryId)}`),
       { method: 'GET' },
       (payload) => z.array(argumentSetSummarySchema).parse(payload),
     );
@@ -3064,7 +3064,7 @@ export function useApiClient() {
   ): Promise<ListPage<ArgumentSetSummary>> => {
     ensureQueriesEnabled();
     const result = await request(
-      buildUrl(`/argument-sets?libraryId=${encodeURIComponent(libraryId)}${listPageQuery(params, '&')}`),
+      buildUrl(`/argument-sets?library=${encodeURIComponent(libraryId)}${listPageQuery({ ...params, library: undefined }, '&')}`),
       { method: 'GET' },
       (payload) => z.array(argumentSetSummarySchema).parse(payload),
     );
@@ -3487,7 +3487,7 @@ export function useApiClient() {
   /*
    * One page of any kind the rail lists (#197). Every kind goes through the
    * same server helper (`lib/listPage.ts` in the API), so one call shape
-   * serves them all. An argument set names its library in `libraryId`.
+   * serves them all. An argument set list needs `library`.
    */
   const PAGED_KINDS: Record<PagedKind, { path: (params: ListPageParams) => string; parse: (payload: unknown) => unknown[] }> = {
     query: { path: () => '/queries', parse: (payload) => querySchema.array().parse(payload) },
@@ -3496,10 +3496,7 @@ export function useApiClient() {
     benchmark: { path: () => '/benchmark-experiments', parse: (payload) => z.array(benchmarkExperimentSchema).parse(payload) },
     dataGraph: { path: () => '/data-graphs', parse: (payload) => dataGraphSchema.array().parse(payload) },
     tupleSet: { path: () => '/tuple-sets', parse: (payload) => tupleSetSchema.array().parse(payload) },
-    argumentSet: {
-      path: (params) => `/argument-sets?libraryId=${encodeURIComponent(params.library ?? '')}`,
-      parse: (payload) => z.array(argumentSetSummarySchema).parse(payload),
-    },
+    argumentSet: { path: () => '/argument-sets', parse: (payload) => z.array(argumentSetSummarySchema).parse(payload) },
   };
 
   /**
@@ -3529,9 +3526,8 @@ export function useApiClient() {
   const pageEntities = async (kind: PagedKind, params: ListPageParams): Promise<ListPage<PagedEntity>> => {
     const { path, parse } = PAGED_KINDS[kind];
     const base = path(params);
-    const rest = kind === 'argumentSet' ? { ...params, library: undefined } : params;
     const result = await request(
-      buildUrl(`${base}${listPageQuery(rest, base.includes('?') ? '&' : '?')}`),
+      buildUrl(`${base}${listPageQuery(params, base.includes('?') ? '&' : '?')}`),
       { method: 'GET' },
       parse,
     );

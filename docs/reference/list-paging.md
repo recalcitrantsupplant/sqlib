@@ -10,7 +10,7 @@ Every collection route takes the parameters, through one helper (`sendListPage`)
 
 - `GET /libraries`, `/backends`, `/environments`, `/tags`, `/benchmarks` and `/etl-jobs`.
 - `GET /queries`, `/query-groups`, `/rules`, `/rule-sets`, `/data-blocks`, `/data-graphs`, `/tuple-sets`, `/tests` and `/notebooks`.
-- `GET /argument-sets?library=…`. The route needs a library. It also takes the older name `libraryId`, and refuses the request with 400 when the two name different libraries.
+- `GET /argument-sets?library=…`. The route needs `library`, and answers 400 without it.
 - `GET /queries/:id/argument-sets` and `GET /query-groups/:id/argument-sets`.
 
 `GET /libraries` with an RDF `Accept` header returns the whole collection, and ignores the parameters.

@@ -250,7 +250,7 @@ export function useArgumentSets(
    * at all. Until now it listed only sets whose `targetEntity` was this one, so
    * the verdict could never say anything but "fits": there was nothing else to
    * judge. This is the "elsewhere in the library" listing the query arguments
-   * design wanted and could not have before `GET /argument-sets?libraryId=`.
+   * design wanted and could not have before `GET /argument-sets?library=`.
    *
    * The library-wide read is best-effort: if it fails, the target-scoped list
    * still stands, because losing the sets made on this very screen would be a
