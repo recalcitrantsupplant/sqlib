@@ -58,6 +58,7 @@ const benchmarkSubjectSpecShape = {
   inputs: z.array(iriString).optional(),
   backends: z.array(iriString).optional(),
   dataGraphs: z.array(iriString).optional(),
+  caseId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/).optional(),
 };
 // Reusable field definitions for BenchmarkExperimentVersion
 const benchmarkExperimentVersionShape = {
@@ -92,6 +93,9 @@ const benchmarkRunShape = {
   runStatus: z.string(),
   tasksTotal: z.number().int(),
   tasksCompleted: z.number().int(),
+  caseIds: z.array(z.string()).optional().nullable(),
+  pass: nullableString,
+  context: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().nullable(),
   keywords: z.array(z.string()).optional().nullable(),
   startedAt: isoDateTime,
   endedAt: isoDateTime,

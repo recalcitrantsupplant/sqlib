@@ -46,6 +46,7 @@ import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import * as oxigraph from 'oxigraph';
 import { versionSlotPolicies } from './slotPolicies.js';
+import { caseIdFor, enumerateCases, resolveCaseSelection, validateRunContext, type RunContext } from './benchmarkCases.js';
 
 type BenchmarkTask = {
   subjectId: string;
@@ -77,6 +78,8 @@ type BenchmarkTask = {
   dataGraphId: string | null;
   dataGraphVersionId: string | null;
   runIndex: number;
+  /** The case the task belongs to; see `lib/benchmarkCases.ts`. */
+  caseId: string;
 };
 
 type BenchmarkRunResult = {
@@ -146,6 +149,20 @@ export interface BenchmarkRunOptions {
    * and every attempt in flight is aborted. The run ends `Aborted`.
    */
   deadlineMs?: number;
+  /**
+   * Case ids or spec labels to run (issue #251). Absent runs every case. The
+   * run records the ids it resolved to.
+   */
+  cases?: string[];
+  /** The pass the run belongs to. */
+  pass?: string;
+  /** Facts the client records with the run; see `validateRunContext`. */
+  context?: RunContext;
+}
+
+/** What part of a version a run executes, and what it records about it. */
+export interface BenchmarkRunSelection {
+  cases?: string[];
 }
 
 /**
@@ -370,13 +387,14 @@ export class BenchmarkRunner {
    * The tasks a frozen version would run, without running any — for a caller
    * that must weigh a plan before it starts (a read-only deployment's caps).
    */
-  planExperimentVersion(versionId: string): { tasks: Array<{ subjectId: string; backendId: string; argumentSetId: string; dataGraphId: string | null }>; warmupRuns: number; maxConcurrency: number } {
+  planExperimentVersion(versionId: string, selection: BenchmarkRunSelection = {}): { tasks: Array<{ subjectId: string; backendId: string; argumentSetId: string; dataGraphId: string | null }>; warmupRuns: number; maxConcurrency: number } {
     const version = getCacheCoordinator().get(versionId) as PersistedBenchmarkExperimentVersion | null;
     if (!version || version['@type'] !== 'BenchmarkExperimentVersion') {
       throw new Error(`BenchmarkExperimentVersion ${versionId} not found`);
     }
     assertBenchmarkVersionDependencies(versionId, version.subjectSpecs);
-    const tasks = this.buildTasks(parseSubjectSpecs(version.subjectSpecs), version.repeats ?? DEFAULT_BENCHMARK_REPEATS);
+    const subjectSpecs = parseSubjectSpecs(version.subjectSpecs);
+    const { tasks } = this.selectTasks(subjectSpecs, this.buildTasks(subjectSpecs, version.repeats ?? DEFAULT_BENCHMARK_REPEATS), selection);
     return { tasks, warmupRuns: Math.max(0, version.warmupRuns ?? 0), maxConcurrency: version.maxConcurrency ?? 1 };
   }
 
@@ -393,7 +411,8 @@ export class BenchmarkRunner {
     const version = versionEntity;
     assertBenchmarkVersionDependencies(versionId, version.subjectSpecs);
     const subjectSpecs = parseSubjectSpecs(version.subjectSpecs);
-    const tasks = this.buildTasks(subjectSpecs, version.repeats ?? DEFAULT_BENCHMARK_REPEATS);
+    const { tasks, caseIds } = this.selectTasks(subjectSpecs, this.buildTasks(subjectSpecs, version.repeats ?? DEFAULT_BENCHMARK_REPEATS), options);
+    const context = validateRunContext(options.context);
     const orderedTasks = version.randomizeOrder ? shuffle(tasks) : tasks;
 
     const runId = mintId('benchmarkRun');
@@ -406,6 +425,9 @@ export class BenchmarkRunner {
       runStatus: 'Running',
       tasksTotal: orderedTasks.length,
       tasksCompleted: 0,
+      ...(caseIds ? { caseIds } : {}),
+      ...(options.pass ? { pass: options.pass } : {}),
+      ...(context ? { context } : {}),
       startedAt: nowIso,
       dateCreated: nowIso,
       dateModified: nowIso,
@@ -680,6 +702,20 @@ export class BenchmarkRunner {
     };
   }
 
+  /**
+   * The tasks of the selected cases, and the case ids to record on the run.
+   * With no selection, every task, and no ids: the run covers the version.
+   */
+  private selectTasks(
+    subjectSpecs: BenchmarkSubjectSpec[],
+    tasks: BenchmarkTask[],
+    selection: BenchmarkRunSelection,
+  ): { tasks: BenchmarkTask[]; caseIds: string[] | null } {
+    if (!selection.cases) return { tasks, caseIds: null };
+    const selected = resolveCaseSelection(enumerateCases(subjectSpecs), selection.cases);
+    return { tasks: tasks.filter((task) => selected.has(task.caseId)), caseIds: [...selected] };
+  }
+
   private buildTasks(subjectSpecs: BenchmarkSubjectSpec[], repeats: number): BenchmarkTask[] {
     const tasks: BenchmarkTask[] = [];
     const runs = Math.max(1, repeats || DEFAULT_BENCHMARK_REPEATS);
@@ -766,6 +802,7 @@ export class BenchmarkRunner {
                 dataGraphId: dataGraph,
                 dataGraphVersionId,
                 runIndex: i,
+                caseId: caseIdFor(spec.subject, subjectType === 'QueryVersion' ? backend : BENCHMARK_NOT_APPLICABLE_BACKEND_IRI, input, dataGraph),
               });
             }
           }

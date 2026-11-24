@@ -337,6 +337,50 @@ one or more subject specs. A subject spec has the same form as the call part of
 a test: a callable and its inputs. A run produces iterations, runs per node and
 observations, so you can read timings for each node and for the whole call.
 
+### Cases, passes and run context
+
+A **case** is one cell of a version's plan: a subject on one backend, with one
+input and, for a rule set, one data graph. Its repeats and warmups belong to
+it. `GET /benchmark-experiments/:id/versions/:n/cases` lists the cases of a
+version.
+
+- Each case has an id of 16 hex digits. sqlib derives it from the subject,
+  backend, input and data graph, so a version saved before cases had ids has
+  them too. The same cell has the same id in every version.
+- A subject spec can set a `caseId` label. The label names every case that the
+  spec expands to. A label is 1 to 64 letters, digits, `.`, `_` or `-`. Two
+  specs cannot share a label, and a label cannot equal a case id. Freezing
+  checks both rules.
+
+`POST /benchmark-experiments/:id/versions/:n/run` takes an optional body. A call
+with no body runs every case, as before.
+
+```json
+{
+  "cases": ["3f9c2a1b7d0e4c55", "scan"],
+  "pass": "cold-2026-11-24",
+  "context": { "pageCache": "dropped", "peakCpuC": 61.5, "storeBuild": "oxigraph 0.5.2" }
+}
+```
+
+- `cases` selects case ids or labels. A selector that names no case gets a
+  `400` with `unknownCases`, and sqlib records no run.
+- `pass` groups runs of one version. A client that restarts a store or waits
+  for the CPU to cool between cases makes one call per case or group, with
+  the same `pass`.
+- `context` is a flat object of strings, numbers, booleans and nulls. It holds
+  at most 64 keys and 8 KiB as JSON.
+
+Each call makes one finished `BenchmarkRun`. The run records `caseIds`, `pass`
+and `context`. A pass has no record of its own, so there is nothing to open or
+to finish. `GET /benchmark-experiments/:id/versions/:n/passes/:pass` returns the
+runs of the pass and its case coverage:
+
+- `casesRun`: cases with at least one observation in the pass.
+- `casesFailed`: cases with at least one failed observation.
+- `casesMissing`: cases with no observation. A run that stops early leaves its
+  remaining cases here.
+
 ## ETL pipeline
 
 An **EtlJob** builds RDF from tabular sources. Its version holds:
