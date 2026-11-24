@@ -224,6 +224,8 @@ it as a second package in
 - A conventional commit that changes a file under `dotnet/` goes into the
   release pull request of this package. Other commits go to the server
   release.
+- `separate-pull-requests` is on, so the server and the package each have
+  their own release pull request. Merge one to release that one only.
 - release-please writes the version into the csproj, between the
   `x-release-please-start-version` and `x-release-please-end` markers, and
   writes `dotnet/CHANGELOG.md`.
