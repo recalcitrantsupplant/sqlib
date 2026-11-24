@@ -61,9 +61,9 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
       }
     };
     const [queries, groups, ruleSets] = await Promise.all([
-      settle(() => api.listQueries()),
-      settle(() => api.listQueryGroups()),
-      settle(() => api.listRuleSets()),
+      settle(() => api.listQueries({ library })),
+      settle(() => api.listQueryGroups({ library })),
+      settle(() => api.listRuleSets({ library })),
     ]);
     const shape = (kind: PromotableKind) => (item: {
       id: string; name: string; currentVersion?: string | null; currentVersionNumber?: number | null; groupOnly?: boolean | null;

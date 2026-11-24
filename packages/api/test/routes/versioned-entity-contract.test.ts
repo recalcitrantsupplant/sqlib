@@ -77,6 +77,7 @@ const NOUNS: Noun[] = [
   { path: 'data-graphs', plugin: () => import('../../src/routes/data-graphs.js'), type: 'DataGraph', versionType: 'DataGraphVersion' },
   { path: 'tuple-sets', plugin: () => import('../../src/routes/tuple-sets.js'), type: 'TupleSet', versionType: 'TupleSetVersion' },
   { path: 'tests', plugin: () => import('../../src/routes/tests.js'), type: 'Test', versionType: 'TestVersion' },
+  { path: 'notebooks', plugin: () => import('../../src/routes/notebooks.js'), type: 'Notebook', versionType: 'NotebookVersion' },
 ];
 
 const LIBRARY = 'urn:sqlib:library:contract';
@@ -187,6 +188,24 @@ describe.each(NOUNS)('/$path', noun => {
     expect(names(await inject('GET', `/${noun.path}?ids=${encodeURIComponent(id)}`))).toEqual(['Seeded']);
     // Only Seeded has a current version, so it sorts first and the rest by name.
     expect(names(await inject('GET', `/${noun.path}?sort=versions`))).toEqual(['Seeded', 'Alpha', 'Bravo']);
+  });
+
+  it('keeps one library with `?library=` and lists every library without it (#250)', async () => {
+    seed(noun);
+    const OTHER = 'urn:sqlib:library:other';
+    const elsewhere = `urn:sqlib:${noun.path}:elsewhere`;
+    store.set(OTHER, { $id: OTHER, '@type': 'Library', name: 'Other' });
+    store.set(elsewhere, {
+      $id: elsewhere, '@type': noun.type, name: 'Elsewhere', isPartOf: noun.single ? OTHER : [OTHER],
+      subject: 'urn:sqlib:query:subject', subjectKind: 'query',
+    });
+    const names = (response: { json: () => Array<{ name: string }> }) => response.json().map(entity => entity.name);
+
+    expect(names(await inject('GET', `/${noun.path}?library=${encodeURIComponent(LIBRARY)}`))).toEqual(['Seeded']);
+    const other = await inject('GET', `/${noun.path}?library=${encodeURIComponent(OTHER)}`);
+    expect(names(other)).toEqual(['Elsewhere']);
+    expect(other.headers['x-total-count']).toBe('1');
+    expect(names(await inject('GET', `/${noun.path}`)).sort()).toEqual(['Elsewhere', 'Seeded']);
   });
 
   it('answers a stale If-Match on PUT with 412 and the entity as it stands', async () => {

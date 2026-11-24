@@ -96,6 +96,14 @@ describe('GET /benchmark-experiments', () => {
     const response = await call(stranger, 'GET', '/benchmark-experiments');
     expect(response.json()).toEqual([]);
   });
+
+  it('keeps one library with `?library=` (#250)', async () => {
+    const mine = await call(admin, 'GET', `/benchmark-experiments?library=${encodeURIComponent(MINE)}`);
+    expect(mine.json().map((experiment: { id: string }) => experiment.id)).toEqual([OURS]);
+    const theirs = await call(reader, 'GET', `/benchmark-experiments?library=${encodeURIComponent(THEIRS)}`);
+    expect(theirs.statusCode, theirs.payload).toBe(200);
+    expect(theirs.json()).toEqual([]);
+  });
 });
 
 describe('POST /benchmark-experiments', () => {

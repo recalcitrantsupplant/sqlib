@@ -176,6 +176,29 @@ describe('POST /argument-sets', () => {
     expect(all.headers['x-total-count']).toBe('6');
   });
 
+  it('takes `library` as every list does, with `libraryId` as an alias (#250)', async () => {
+    await create({ name: 'Composed', libraryId: LIBRARY });
+    const library = encodeURIComponent(LIBRARY);
+
+    const byLibrary = await app.inject({ method: 'GET', url: `/argument-sets?library=${library}` });
+    expect(byLibrary.statusCode).toBe(200);
+    expect(byLibrary.json().map((set: { name: string }) => set.name)).toEqual(['Composed']);
+
+    const both = await app.inject({ method: 'GET', url: `/argument-sets?library=${library}&libraryId=${library}` });
+    expect(both.json().map((set: { name: string }) => set.name)).toEqual(['Composed']);
+    expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'read' });
+
+    const disagree = await app.inject({
+      method: 'GET',
+      url: `/argument-sets?library=${library}&libraryId=${encodeURIComponent('urn:sqlib:library:other')}`,
+    });
+    expect(disagree.statusCode).toBe(400);
+
+    const neither = await app.inject({ method: 'GET', url: '/argument-sets' });
+    expect(neither.statusCode).toBe(400);
+    expect(neither.json().error).toContain('library');
+  });
+
   it('scopes the write by the library on the body', async () => {
     await create({ name: 'Composed', libraryId: LIBRARY });
     expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'write' });

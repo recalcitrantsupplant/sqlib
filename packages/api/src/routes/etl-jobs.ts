@@ -15,7 +15,7 @@ import { setupValidator } from '../lib/validator-setup.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { AuthorizationError, filterReadable, requireAdmin, requireLibraryMode } from '../auth/enforce.js';
 import { toEntityUrn } from '../lib/id.js';
-import { sendListPage, withListPage } from '../lib/listPage.js';
+import { applyListPage, parseListPageQuery, sendTotal, withListPage } from '../lib/listPage.js';
 
 export default async function etlJobRoutes(fastify: FastifyInstance) {
   /*
@@ -148,8 +148,17 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
         200: etlJobListSchema,
       },
     }), async ({ request, reply }) => {
-    const result = await etlService.listEtlJobs(jobs => filterReadable(request, jobs));
-    return sendListPage(request, reply, result, job => job);
+    // A job summary names its libraries by short id, so `?library=` is applied
+    // to the stored job's `isPartOf` here, and the paging helper does not apply
+    // it again to the summary. Both spellings of the library are accepted (#250).
+    const query = parseListPageQuery(request);
+    const library = query.library;
+    const inLibrary = (job: { isPartOf: string[] }) => !library
+      || job.isPartOf.some(iri => iri === library || iri.endsWith(`:${library}`));
+    const result = await etlService.listEtlJobs(jobs => filterReadable(request, jobs).filter(inLibrary));
+    const page = applyListPage(result, { ...query, library: undefined });
+    sendTotal(reply, page.total);
+    return reply.send(page.items);
   }));
 
   // Get ETL job by ID

@@ -280,6 +280,17 @@ describe('the collection listing', () => {
     const response = await inject(authDisabled, 'GET', '/etl-jobs');
     expect(response.json()).toHaveLength(2);
   });
+
+  it('keeps one library with `?library=`, by its IRI or its short id (#250)', async () => {
+    const scoped = await inject(authDisabled, 'GET', `/etl-jobs?library=${encodeURIComponent(LIBRARY)}`);
+    expect(scoped.json().map((job: { id: string }) => job.id)).toEqual([short(JOB)]);
+    expect(scoped.headers['x-total-count']).toBe('1');
+    const byShortId = await inject(authDisabled, 'GET', `/etl-jobs?library=${short(LIBRARY)}`);
+    expect(byShortId.json().map((job: { id: string }) => job.id)).toEqual([short(JOB)]);
+    const ghost = await inject(reader, 'GET', `/etl-jobs?library=${encodeURIComponent(GHOST_LIBRARY)}`);
+    expect(ghost.statusCode, ghost.body).toBe(200);
+    expect(ghost.json()).toEqual([]);
+  });
 });
 
 describe('creating a job', () => {

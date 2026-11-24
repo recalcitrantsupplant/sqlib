@@ -669,7 +669,7 @@ async function loadFits() {
     return;
   }
   try {
-    const queries = (await apiClient.listQueries())
+    const queries = (await apiClient.listQueries({ library: libraryId }))
       .filter(query => (query.isPartOf ?? []).includes(libraryId));
 
     /*

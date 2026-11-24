@@ -368,6 +368,13 @@ function pageOf<T>(data: T[], totalCount: number | null | undefined, params: Lis
 }
 
 /** `params` as a query string, with a leading `?` or `&` as `joiner` says. */
+/** One list's library filter (#250): `?library=<iri>`, or nothing for every library. */
+export type LibraryFilter = { library?: string | null };
+
+function libraryFilterQuery(filter?: LibraryFilter): string {
+  return filter?.library ? `?library=${encodeURIComponent(filter.library)}` : '';
+}
+
 export function listPageQuery(params: ListPageParams | object, joiner: '?' | '&' = '?'): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -1350,9 +1357,9 @@ export function useApiClient() {
   };
 
 
-  const listQueries = () => {
+  const listQueries = (filter?: LibraryFilter) => {
     ensureQueriesEnabled();
-    return requestData(buildUrl('/queries'), { method: 'GET' }, (payload) => querySchema.array().parse(payload));
+    return requestData(buildUrl(`/queries${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => querySchema.array().parse(payload));
   };
 
   const getQuery = (id: string) => {
@@ -1440,9 +1447,9 @@ export function useApiClient() {
     return result;
   };
 
-  const listQueryGroups = () => {
+  const listQueryGroups = (filter?: LibraryFilter) => {
     ensureQueryGroupsEnabled();
-    return requestData(buildUrl('/query-groups'), { method: 'GET' }, (payload) => queryGroupSchema.array().parse(payload));
+    return requestData(buildUrl(`/query-groups${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => queryGroupSchema.array().parse(payload));
   };
 
   const getQueryGroup = (id: string) => {
@@ -1539,9 +1546,9 @@ export function useApiClient() {
     );
   };
 
-  const listRules = () => {
+  const listRules = (filter?: LibraryFilter) => {
     ensureRulesSuiteEnabled();
-    return requestData(buildUrl('/rules'), { method: 'GET' }, (payload) => ruleSchema.array().parse(payload));
+    return requestData(buildUrl(`/rules${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => ruleSchema.array().parse(payload));
   };
 
   const getRule = (id: string) => {
@@ -1575,9 +1582,9 @@ export function useApiClient() {
     return true;
   };
 
-  const listRuleSets = () => {
+  const listRuleSets = (filter?: LibraryFilter) => {
     ensureRulesSuiteEnabled();
-    return requestData(buildUrl('/rule-sets'), { method: 'GET' }, (payload) => ruleSetSchema.array().parse(payload));
+    return requestData(buildUrl(`/rule-sets${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => ruleSetSchema.array().parse(payload));
   };
 
   const getRuleSet = (id: string) => {
@@ -1915,8 +1922,8 @@ export function useApiClient() {
    * the `sqlib-notebook/1` document as a JSON string; unsaved edits are a
    * browser draft, as on every other work area.
    */
-  const listNotebooks = () =>
-    requestData(buildUrl('/notebooks'), { method: 'GET' }, (payload) => notebookSchema.array().parse(payload));
+  const listNotebooks = (filter?: LibraryFilter) =>
+    requestData(buildUrl(`/notebooks${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => notebookSchema.array().parse(payload));
 
   const getNotebook = (id: string) =>
     request(buildUrl(`/notebooks/${encodeURIComponent(id)}`), { method: 'GET' }, notebookSchema.parse);
@@ -1966,9 +1973,9 @@ export function useApiClient() {
    * blocks. Registered in the library like anything else, so a run can name a
    * version id and be reproducible.
    */
-  const listDataGraphs = () => {
+  const listDataGraphs = (filter?: LibraryFilter) => {
     ensureRulesSuiteEnabled();
-    return requestData(buildUrl('/data-graphs'), { method: 'GET' }, (payload) => dataGraphSchema.array().parse(payload));
+    return requestData(buildUrl(`/data-graphs${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => dataGraphSchema.array().parse(payload));
   };
 
   const getDataGraph = (id: string) => {
@@ -2083,12 +2090,9 @@ export function useApiClient() {
    */
   const ensureTupleSetsEnabled = () => ensureFeatureEnabled('tupleSets');
 
-  const listTupleSets = (filter?: { library?: string | null }) => {
-    const search = new URLSearchParams();
-    if (filter?.library) search.set('library', filter.library);
-    const suffix = search.toString();
+  const listTupleSets = (filter?: LibraryFilter) => {
     return requestData(
-      buildUrl(`/tuple-sets${suffix ? `?${suffix}` : ''}`),
+      buildUrl(`/tuple-sets${libraryFilterQuery(filter)}`),
       { method: 'GET' },
       (payload) => tupleSetSchema.array().parse(payload),
     );
@@ -2260,7 +2264,7 @@ export function useApiClient() {
    * tab on a record page is — the same list, filtered, so the two views cannot
    * disagree about what exists.
    */
-  const listTests = (filter?: {
+  const listTests = (filter?: LibraryFilter & {
     subject?: string | null;
     subjectKind?: string | null;
     /** Tag IRIs. Sent comma-separated, which is the one spelling the API takes. */
@@ -2269,6 +2273,7 @@ export function useApiClient() {
   }) => {
     ensureFeatureEnabled('tests');
     const params = new URLSearchParams();
+    if (filter?.library) params.set('library', filter.library);
     if (filter?.subject) params.set('subject', filter.subject);
     if (filter?.subjectKind) params.set('subjectKind', filter.subjectKind);
     if (filter?.tags?.length) params.set('tags', filter.tags.join(','));
@@ -2592,9 +2597,9 @@ export function useApiClient() {
     );
   };
 
-  const listDataBlocks = () => {
+  const listDataBlocks = (filter?: LibraryFilter) => {
     ensureRulesSuiteEnabled();
-    return requestData(buildUrl('/data-blocks'), { method: 'GET' }, (payload) => dataBlockSchema.array().parse(payload));
+    return requestData(buildUrl(`/data-blocks${libraryFilterQuery(filter)}`), { method: 'GET' }, (payload) => dataBlockSchema.array().parse(payload));
   };
 
   const getDataBlock = (id: string) => {
@@ -3314,9 +3319,9 @@ export function useApiClient() {
   // Benchmark API
   // ========================================================================
 
-  const listBenchmarkExperiments = () => {
+  const listBenchmarkExperiments = (filter?: LibraryFilter) => {
     return requestData(
-      buildUrl('/benchmark-experiments'),
+      buildUrl(`/benchmark-experiments${libraryFilterQuery(filter)}`),
       { method: 'GET' },
       (payload) => z.array(benchmarkExperimentSchema).parse(payload)
     );
