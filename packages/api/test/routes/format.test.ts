@@ -148,15 +148,15 @@ WHERE {
   it('keeps SRL comments and block order, and is idempotent over SRL', async () => {
     const code = `PREFIX : <http://example/>
 # blocked pairs
-RULE { ?x :p ?y } WHERE DATA { ?x :q ?y . NOT DATA { ?x :blocked ?y } }
+RULE { ?x :p ?y } WHERE GROUND { ?x :q ?y . NOT GROUND { ?x :blocked ?y } }
 DATA { :a :q :b . }`;
 
     const first = await app.inject({ method: 'POST', url: '/format', payload: { code } });
     expect(first.statusCode).toBe(200);
     const formatted = JSON.parse(first.body).formatted as string;
     expect(formatted).toContain('# blocked pairs');
-    expect(formatted).toContain('WHERE DATA {');
-    expect(formatted).toContain('  NOT DATA {\n    ?x :blocked ?y\n  }');
+    expect(formatted).toContain('WHERE GROUND {');
+    expect(formatted).toContain('  NOT GROUND {\n    ?x :blocked ?y\n  }');
     expect(formatted.indexOf('RULE')).toBeLessThan(formatted.indexOf('DATA {\n  :a'));
 
     const second = await app.inject({ method: 'POST', url: '/format', payload: { code: formatted } });

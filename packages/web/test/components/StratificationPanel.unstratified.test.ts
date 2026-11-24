@@ -80,10 +80,10 @@ describe('StratificationPanel, unstratified', () => {
     expect(wrapper.emitted('go-to-line')?.[0]).toEqual([12]);
   });
 
-  it('says how to break it, including NOT DATA', () => {
+  it('says how to break it, including NOT GROUND', () => {
     const wrapper = mountPanel();
     const fix = wrapper.get('[data-testid="stratification-fix"]').text();
-    expect(fix).toMatch(/NOT DATA/);
+    expect(fix).toMatch(/NOT GROUND/);
   });
 
   it('shows no strata, no evaluation order and no internal ids', () => {
