@@ -65,6 +65,8 @@ export type ToolObject = {
  */
 export const RULE_SET_DATA_ARGUMENT = 'data';
 export const RULE_SET_FORMAT_ARGUMENT = 'format';
+/** The seed rows argument of a rule set tool whose version reads `TUPLE( … )`. */
+export const RULE_SET_TUPLES_ARGUMENT = 'tuples';
 
 /** The formats a published rule set's `data` may be in. The first is the default. */
 export const RULE_SET_DATA_FORMATS = ['text/turtle', 'application/n-triples', 'application/n-quads'] as const;
@@ -157,10 +159,11 @@ export type PublishedToolSpec = {
   /** The `tool` object's refusal messages, by flag. Published updates only. */
   refusals?: Record<string, string>;
   /**
-   * Queries that only read, and groups whose start node takes RDF: the tool
-   * also takes `data` and `format`, RDF sent with the call. A query given
-   * `data` runs over it alone, in an ephemeral store, in place of a backend;
-   * a group's `data` fills its start node's first RDF input.
+   * Queries, and groups whose start node takes RDF: the tool also takes
+   * `data` and `format`, RDF sent with the call. A query given `data` runs
+   * over it alone, in an ephemeral store, in place of a backend; an update
+   * given `data` answers with the graph it leaves. A group's `data` fills its
+   * start node's first RDF input.
    */
   acceptsData?: boolean;
   /** Rule sets only: the rule set and the number of its pinned version. */
@@ -169,6 +172,8 @@ export type PublishedToolSpec = {
     version: number;
     /** The pinned data graph's version at startup, used when a call sends no `data`. */
     dataGraphVersionId?: string;
+    /** The pinned version reads seed rows, and the server offers rule tuples. */
+    tuplesEnabled?: boolean;
   };
 };
 
@@ -395,7 +400,23 @@ export function publishedInputSchema(spec: PublishedToolSpec): Record<string, un
 }
 
 function ruleSetInputSchema(spec: PublishedToolSpec): Record<string, unknown> & { type: 'object' } {
-  return { type: 'object', properties: dataSchemaProperties(spec), additionalProperties: false };
+  const properties = dataSchemaProperties(spec);
+  if (spec.ruleSet?.tuplesEnabled) properties[RULE_SET_TUPLES_ARGUMENT] = tuplesSchemaProperty();
+  return { type: 'object', properties, additionalProperties: false };
+}
+
+/** The `tuples` argument: one SPARQL Results JSON document of seed rows. */
+function tuplesSchemaProperty(): Record<string, unknown> {
+  return {
+    type: 'object',
+    description: 'Seed rows for the rules\' TUPLE reads, as SPARQL Results JSON. '
+      + 'head.vars gives the column order. Without it the run starts with no rows.',
+    properties: {
+      head: { type: 'object', properties: { vars: { type: 'array', items: { type: 'string' } } }, required: ['vars'] },
+      results: { type: 'object', properties: { bindings: { type: 'array', items: { type: 'object' } } }, required: ['bindings'] },
+    },
+    required: ['head', 'results'],
+  };
 }
 
 /**
@@ -414,9 +435,11 @@ function dataSchemaProperties(spec: PublishedToolSpec): Record<string, unknown> 
     ? spec.ruleSet?.dataGraphVersionId
       ? 'RDF to run the rules on, in place of the data graph this tool runs on by default.'
       : 'RDF to run the rules on. Without it the rules run on their own data blocks only.'
-    : spec.targetKind === 'query'
-      ? 'RDF to run the query over, alone, in place of a backend. Keep it small: it is loaded for this call only.'
-      : 'RDF for the group\'s data input. Keep it small: it is loaded for this call only.';
+    : spec.targetKind === 'query' && !spec.readOnly
+      ? `RDF to run the update on, in place of a backend. The answer is the graph after the update, in the format of "${RULE_SET_DATA_ARGUMENT}". Keep it small: it is loaded for this call only.`
+      : spec.targetKind === 'query'
+        ? 'RDF to run the query over, alone, in place of a backend. Keep it small: it is loaded for this call only.'
+        : 'RDF for the group\'s data input. Keep it small: it is loaded for this call only.';
   return {
     [RULE_SET_DATA_ARGUMENT]: { type: 'string', description },
     [RULE_SET_FORMAT_ARGUMENT]: {
@@ -619,12 +642,14 @@ export type PublishedRuleSetBody = {
   dataGraphVersionId?: string;
   dataGraphInline?: string;
   dataGraphInlineFormat?: string;
+  tuples?: { inline: unknown };
 };
 
 /**
  * The `POST /rule-sets/{id}/execute` body for a call to a published rule set:
  * the pinned version, and the caller's `data` if it sent any, else the pinned
- * data graph, else neither, so the rules run on their own data blocks.
+ * data graph, else neither, so the rules run on their own data blocks. A
+ * call's `tuples` go in as inline seed rows.
  */
 export function buildPublishedRuleSetBody(
   spec: PublishedToolSpec,
@@ -636,9 +661,14 @@ export function buildPublishedRuleSetBody(
   }
   for (const key of Object.keys(values)) {
     if (key === RULE_SET_DATA_ARGUMENT || key === RULE_SET_FORMAT_ARGUMENT) continue;
+    if (key === RULE_SET_TUPLES_ARGUMENT && ruleSet.tuplesEnabled) continue;
     throw new PublishedToolArgumentError(`${key}: this tool takes no such argument`);
   }
   const data = postedData(values);
+  const tuples = values[RULE_SET_TUPLES_ARGUMENT];
+  if (tuples !== undefined && tuples !== null && (typeof tuples !== 'object' || Array.isArray(tuples))) {
+    throw new PublishedToolArgumentError(`${RULE_SET_TUPLES_ARGUMENT}: must be a SPARQL Results JSON object`);
+  }
 
   const body: PublishedRuleSetBody = { version: ruleSet.version, inferenceFormat: RULE_SET_INFERENCE_FORMAT };
   if (data) {
@@ -647,6 +677,7 @@ export function buildPublishedRuleSetBody(
   } else if (ruleSet.dataGraphVersionId) {
     body.dataGraphVersionId = ruleSet.dataGraphVersionId;
   }
+  if (tuples !== undefined && tuples !== null) body.tuples = { inline: tuples };
   return body;
 }
 
@@ -780,12 +811,16 @@ export function publishedOpenApiDocument(options: {
     const schema = publishedInputSchema(spec);
     const properties = schema.properties as Record<string, Record<string, unknown>>;
     const required = new Set((schema.required as string[] | undefined) ?? []);
+    const update = spec.targetKind === 'query' && !spec.readOnly;
     const responses = {
       200: {
         description: spec.targetKind === 'ruleSet'
           ? 'What `POST /rule-sets/{id}/execute` returns for the pinned version, the inferred triples as Turtle.'
-          : 'What `POST /execute` returns for the pinned version.',
+          : update && offersData(spec)
+            ? `The graph after the update, for a call that sends "${RULE_SET_DATA_ARGUMENT}".`
+            : 'What `POST /execute` returns for the pinned version.',
       },
+      ...(update ? { 204: { description: 'The update ran on its backend.' } } : {}),
       400: { description: 'An argument is missing, unknown or of the wrong kind.' },
       ...(spec.refusals
         ? {

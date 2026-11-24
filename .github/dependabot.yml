@@ -42,6 +42,16 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
 
+  # The C# runtime's package references (dotnet/).
+  - package-ecosystem: nuget
+    directory: "/dotnet"
+    schedule:
+      interval: weekly
+    groups:
+      nuget:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
   # Watch the server image's base.
   - package-ecosystem: docker
     directory: "/"

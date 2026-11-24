@@ -23,7 +23,7 @@ import { compileValuePattern, type EmptyArgumentMode, type QueryTemplate, type S
 import type { WireArgumentSet } from './arguments.js';
 import type { ExecutionParameter } from './limit-offset.js';
 
-/** The query forms an exported bundle can carry. UPDATE is deliberately absent. */
+/** The query forms `ExportBundle.queries` carries. An update goes in `ExportBundle.updates`. */
 export type ExportedQueryType = 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE';
 
 /**
@@ -119,6 +119,38 @@ export interface ExportedQuery {
   /** Runnable examples, in the order the export found them. */
   examples?: QueryExample[];
   /** The library tags the query carries, for filtering a rendered library. */
+  tags?: string[];
+  description?: string;
+}
+
+/**
+ * One compiled SPARQL UPDATE, as written by `sqlib export` with updates turned on.
+ *
+ * Its arguments are applied as a read query's are: a `VALUES … { UNDEF }`
+ * slot is a span into `template.text`, and the runtime splices rows over it.
+ * The runtime sends the result to `Executor.update`. A bundle carries updates
+ * only on request, because a bundle has no authorization of its own: an
+ * exported update writes wherever its executor can write. See
+ * `docs/guides/static-export.md`, "Exporting updates".
+ */
+export interface ExportedUpdate {
+  /** The compiled template: canonical text plus each parameter slot's span. */
+  template: QueryTemplate;
+  /** Parameter names usable as `limits` / `offsets`, for a sub-select that pages. */
+  limitParameters: string[];
+  offsetParameters: string[];
+  /** Where those parameters sit in {@link QueryTemplate.text}. */
+  pageParameters?: PageParameterSpan[];
+  /** Declared variables per parameter slot, in slot order, each sorted. */
+  inferredInputs: string[][];
+  /** The query author's `whenEmpty` per slot, as on {@link ExportedQuery}. */
+  inputPolicies?: SlotPolicy[];
+  /** `sha256-<hex>` of `template.text`; see {@link verifyBundleIntegrity}. */
+  textHash: string;
+  /** Provenance: the QueryVersion and the Query this was compiled from. */
+  sourceVersion?: string;
+  sourceQuery?: string;
+  /** The library tags the query carries. */
   tags?: string[];
   description?: string;
 }
@@ -280,6 +312,12 @@ export interface ExportBundle {
   etlJobs?: Record<string, ExportedEtlJob>;
   /** Rule sets, keyed by a slug unique among them. Optional. */
   ruleSets?: Record<string, ExportedRuleSet>;
+  /**
+   * SPARQL UPDATEs, keyed by a slug unique among queries and updates. Present
+   * only when the export was asked for them; a reader that does not know this
+   * member ignores it and still runs the read queries.
+   */
+  updates?: Record<string, ExportedUpdate>;
   /** ISO timestamp of the export, for provenance. Never used at runtime. */
   generatedAt?: string;
   /** Tags the export was filtered by, if any. Provenance only. */
@@ -301,7 +339,7 @@ function isEmptyArgumentMode(value: unknown): value is EmptyArgumentMode {
 }
 
 /** Each policy names a slot the template declares, with a known mode. */
-function assertValidInputPolicies(query: ExportedQuery, where: string): void {
+function assertValidInputPolicies(query: ExportedQuery | ExportedUpdate, where: string): void {
   if (query.inputPolicies === undefined) return;
   if (!Array.isArray(query.inputPolicies)) fail(`${where}: inputPolicies must be an array.`);
   const signature = (vars: readonly string[]) => [...vars].sort().join(' ');
@@ -341,7 +379,7 @@ function fail(message: string): never {
  * spans pointing at the wrong offsets, which would otherwise splice a VALUES block
  * into the middle of some unrelated token.
  */
-function assertValidPageParameters(query: ExportedQuery, where: string): void {
+function assertValidPageParameters(query: ExportedQuery | ExportedUpdate, where: string): void {
   const spans = query.pageParameters;
   if (spans === undefined) return;
   if (!Array.isArray(spans)) fail(`${where}: pageParameters must be an array.`);
@@ -632,18 +670,7 @@ export function assertValidBundle(bundle: unknown): asserts bundle is ExportBund
     if (!QUERY_TYPES.has(query.queryType)) {
       fail(`${where} has unsupported queryType '${String(query.queryType)}'.`);
     }
-    assertValidTemplate(query.template, where);
-    assertValidPageParameters(query, where);
-    if (!Array.isArray(query.inferredInputs)) fail(`${where}: inferredInputs must be an array.`);
-    if (query.inferredInputs.length !== query.template.slots.length) {
-      fail(
-        `${where}: inferredInputs describes ${query.inferredInputs.length} slots but the template has ${query.template.slots.length}.`,
-      );
-    }
-    if (typeof query.textHash !== 'string' || !query.textHash.startsWith('sha256-')) {
-      fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
-    }
-    assertValidInputPolicies(query, where);
+    assertValidCompiledEntry(query, where);
     assertValidExamples(query, where);
   }
 
@@ -657,6 +684,26 @@ export function assertValidBundle(bundle: unknown): asserts bundle is ExportBund
   }
   assertValidMap(candidate.etlJobs, 'etlJobs', 'ETL job', assertValidEtlJob);
   assertValidMap(candidate.ruleSets, 'ruleSets', 'Rule set', assertValidRuleSet);
+  assertValidMap(candidate.updates, 'updates', 'Update', (update, where) => {
+    if (!update || typeof update !== 'object') fail(`${where} is not an object.`);
+    assertValidCompiledEntry(update, where);
+  });
+}
+
+/** The checks a compiled query and a compiled update share. */
+function assertValidCompiledEntry(entry: ExportedQuery | ExportedUpdate, where: string): void {
+  assertValidTemplate(entry.template, where);
+  assertValidPageParameters(entry, where);
+  if (!Array.isArray(entry.inferredInputs)) fail(`${where}: inferredInputs must be an array.`);
+  if (entry.inferredInputs.length !== entry.template.slots.length) {
+    fail(
+      `${where}: inferredInputs describes ${entry.inferredInputs.length} slots but the template has ${entry.template.slots.length}.`,
+    );
+  }
+  if (typeof entry.textHash !== 'string' || !entry.textHash.startsWith('sha256-')) {
+    fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
+  }
+  assertValidInputPolicies(entry, where);
 }
 
 /** Hash a template text the way {@link ExportedQuery.textHash} spells it. */
@@ -687,6 +734,13 @@ export async function verifyBundleIntegrity(bundle: ExportBundle): Promise<void>
     if (actual !== query.textHash) {
       throw new InvalidBundleError(
         `Query '${name}' does not match its recorded hash: the template text has been edited, which invalidates its parameter slot offsets. Re-export the bundle.`,
+      );
+    }
+  }
+  for (const [name, update] of Object.entries(bundle.updates ?? {})) {
+    if ((await hashTemplateText(update.template.text)) !== update.textHash) {
+      throw new InvalidBundleError(
+        `Update '${name}' does not match its recorded hash: the template text has been edited, which invalidates its parameter slot offsets. Re-export the bundle.`,
       );
     }
   }

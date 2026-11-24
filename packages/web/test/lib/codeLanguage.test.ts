@@ -28,6 +28,7 @@ import { EditorView } from '@codemirror/view';
 import { forEachDiagnostic, forceLinting } from '@codemirror/lint';
 
 import {
+  formatCode,
   languageExtensionsFor,
   normalizeContentType,
   prefixGrammarFor,
@@ -306,5 +307,51 @@ describe('a SPARQL editor given LATERAL', () => {
 
   it('still flags an error inside the LATERAL group', async () => {
     expect(await lintSparql('SELECT * WHERE { ?s ?p ?o LATERAL { ?s ?p } }')).not.toEqual([]);
+  });
+});
+
+describe('formatCode', () => {
+  it('changes only whitespace in SPARQL, and keeps comments, `a` and parameters', () => {
+    const query = '# cities\nSELECT * WHERE { VALUES ?c { UNDEF } ?x a ?c } LIMIT 0001';
+    expect(formatCode(query, 'application/sparql-query')).toEqual({
+      text: '# cities\nSELECT *\nWHERE {\n  VALUES ?c { UNDEF }\n  ?x a ?c\n}\nLIMIT 0001',
+    });
+  });
+
+  it('reads LATERAL, as the editor does', () => {
+    expect(formatCode('SELECT * WHERE { ?s ?p ?o LATERAL { ?o ?q ?r } }', 'application/sparql-query')).not.toHaveProperty('error');
+  });
+
+  it('formats SRL with the SRL grammar and keeps block order', () => {
+    const result = formatCode('PREFIX : <http://e/> RULE { ?x :q ?y } WHERE { ?x :p ?y } DATA { :a :p :b . }', 'application/srl');
+    expect(result).toEqual({
+      text: 'PREFIX : <http://e/>\nRULE {\n  ?x :q ?y\n}\nWHERE {\n  ?x :p ?y\n}\nDATA {\n  :a :p :b .\n}',
+    });
+  });
+
+  it('formats Turtle and TriG, and has no formatter for N-Triples', () => {
+    expect(formatCode('@prefix : <http://e/> . :a :p :b ; :q :c .', 'text/turtle; charset=utf-8')).not.toHaveProperty('error');
+    expect(formatCode('GRAPH <http://g> { <http://a> <http://p> <http://b> }', 'application/trig')).not.toHaveProperty('error');
+    expect(formatCode('<http://a> <http://p> <http://b> .', 'application/n-triples')).toBeNull();
+  });
+
+  it('gives the line and column of a parse error', () => {
+    expect(formatCode('SELECT * WHERE {\n  ?s ?p }', 'application/sparql-query')).toEqual({
+      error: expect.stringMatching(/^Parse error at line \d+, column \d+$/),
+    });
+  });
+
+  /*
+   * The API formats with the same packages (`packages/api/src/lib/formatText.ts`).
+   * Two versions could lay the same text out two ways, and a Format in the
+   * editor after a Format through MCP would then make a whitespace-only version.
+   */
+  it('pins the same formatter versions as the API', () => {
+    const read = (path: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, path), 'utf8')).dependencies as Record<string, string>;
+    const web = read('../../package.json');
+    const api = read('../../../api/package.json');
+    for (const name of ['@kurrawongai/codemirror-lang-sparql12', '@kurrawongai/codemirror-lang-srl']) {
+      expect(api[name]).toBe(web[name]);
+    }
   });
 });

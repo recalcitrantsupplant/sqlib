@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 22 exported names.
+Version `0.1.0`. 1 entry point, 24 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/compiler`
 
-22 exports, from `index.d.ts`.
+24 exports, from `index.d.ts`.
 
 ### `ApplyArgumentSet` — interface, from `parser`
 
@@ -54,6 +54,12 @@ interface CompiledQuery {
 }
 ```
 
+### `CompiledUpdate` — type, from `compileTemplate`
+
+```ts
+type CompiledUpdate = Omit<CompiledQuery, 'queryType'>;
+```
+
 ### `CompileQueryOptions` — interface, from `compileTemplate`
 
 ```ts
@@ -67,6 +73,12 @@ interface CompileQueryOptions {
 
 ```ts
 declare function compileQueryTemplate(queryString: string, options: CompileQueryOptions): CompiledQuery;
+```
+
+### `compileUpdateTemplate` — function, from `compileTemplate`
+
+```ts
+declare function compileUpdateTemplate(updateString: string, options: CompileQueryOptions): CompiledUpdate;
 ```
 
 ### `CONSTANT_PREFIX` — const, from `constantSlots`

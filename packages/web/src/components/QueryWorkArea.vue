@@ -473,7 +473,7 @@
 <script setup lang="ts">
 import { ref, computed, shallowRef, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { X } from '@lucide/vue';
-import { languageExtensionsFor } from '@/lib/codeLanguage';
+import { formatCode, languageExtensionsFor } from '@/lib/codeLanguage';
 import { useCommentKeymap } from '@/composables/useCommentKeymap';
 import { useEditorKeymaps } from '@/composables/useEditorKeymaps';
 import { useExecuteKeymap } from '@/composables/useExecuteKeymap';
@@ -2404,21 +2404,24 @@ const handleFocusRequest = (tab: 'arguments' | 'results') => {
   }
 };
 
-const formatQueryCode = async () => {
+/*
+ * Formatted in the browser, with the grammar the editor highlights with. The
+ * API's `/format` calls the same formatter, so the two give the same text.
+ */
+const formatQueryCode = () => {
   if (!queryCode.value || queryCode.value.trim().length === 0) {
     toast.error('No code to format');
     return;
   }
 
-  try {
-    const result = await apiClient.formatCode(queryCode.value);
-    queryCode.value = result.formatted;
-    toast.success('Query formatted successfully');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to format code';
-    toast.error(`Format failed: ${message}`);
-    console.error('[QueryWorkArea] Format failed:', error);
+  const result = formatCode(queryCode.value, 'application/sparql-query');
+  if (!result) return;
+  if ('error' in result) {
+    toast.error(`Format failed: ${result.error}`);
+    return;
   }
+  queryCode.value = result.text;
+  toast.success('Query formatted successfully');
 };
 
 /*

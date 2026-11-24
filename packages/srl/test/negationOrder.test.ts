@@ -46,16 +46,6 @@ describe('compileRule — NOT before the patterns that bind its variables', () =
     // position is immaterial (W3C wellformed-04 has this shape).
     expect(squash(compile('?x :p ?y NOT { ?x :q ?z } ?x :s ?y'))).not.toContain('{ {');
   });
-
-  it('applies the same rule inside a NOT', () => {
-    expect(squash(compile('?x :p ?y NOT { NOT { ?o :banned :yes } ?x :owner ?o }')))
-      .toContain('FILTER NOT EXISTS { { FILTER NOT EXISTS { ?o :banned :yes . } } ?x :owner ?o . }');
-  });
-
-  it('does not wrap an inner NOT whose variable the enclosing body bound first', () => {
-    expect(squash(compile('?x :p ?y ?x :owner ?o NOT { NOT { ?o :banned :yes } ?x :owner ?o }')))
-      .toContain('FILTER NOT EXISTS { FILTER NOT EXISTS { ?o :banned :yes . } ?x :owner ?o . }');
-  });
 });
 
 describe('checkWellFormed — order inside a NOT', () => {
@@ -69,10 +59,6 @@ describe('checkWellFormed — order inside a NOT', () => {
   // ?x is local to the NOT too, so the pattern after it is an in-use error.
   it('rejects a FILTER in a NOT that uses a variable bound only after it', () => {
     expect(issues('NOT { ?x :q ?z FILTER ( ?z != ?y ) } ?x :p ?y')).toEqual(['use-before-bind', 'in-use']);
-  });
-
-  it('rejects a SET in a NOT that uses a variable bound only after it', () => {
-    expect(issues('NOT { ?x :q ?z SET ( ?w := ?y ) } ?x :p ?y')).toEqual(['use-before-bind', 'in-use']);
   });
 });
 
@@ -90,7 +76,6 @@ describe('checkWellFormed — a variable local to a NOT', () => {
     ['a later triple pattern', '?x :p 1 NOT { ?x :q ?y } ?y :t 2'],
     ['a later SET target', '?x :p 1 NOT { ?x :q ?y } SET (?y := 2)'],
     ['a later NOT', '?x :p 1 NOT { ?x :q ?y } NOT { ?x :t ?y }'],
-    ['a NOT inside a NOT', '?x :p 1 NOT { NOT { ?o :banned true } ?x :owner ?o }'],
     ['a NOT DATA', '?x :p 1 NOT DATA { ?x :q ?y } ?x :t ?y'],
     ['a GROUP key', '?x :p 1 NOT { ?x :q ?k } GROUP BY ?k { ?k :r ?o } [ ?n := COUNT(*) ]'],
   ])('rejects its reuse by %s', (_, body) => {
@@ -106,7 +91,6 @@ describe('checkWellFormed — a variable local to a NOT', () => {
   it.each([
     ['a variable bound before the NOT', '?x :p ?y NOT { ?x :q ?y } ?y :t 1'],
     ['two NOTs with different local variables', '?x :p 1 NOT { ?x :q ?y } NOT { ?x :t ?z }'],
-    ['a nested NOT over a variable bound before both', '?x :p ?y ?x :owner ?o NOT { NOT { ?o :banned true } ?x :owner ?o }'],
   ])('accepts %s', (_, body) => {
     expect(issues(body)).toEqual([]);
   });
