@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- Run on .NET 8, or on a newer runtime when .NET 8 is not installed. -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <!--
+    This reference builds the library from the source in this repository.
+    In your own project, use the NuGet package instead:
+      dotnet add package SparqlQueryLib.Runtime
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/SparqlQueryLib.Runtime/SparqlQueryLib.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="sample.bundle.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="sample-data.ttl" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
+</Project>

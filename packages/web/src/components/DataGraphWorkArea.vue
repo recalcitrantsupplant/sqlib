@@ -95,6 +95,18 @@
                 there is nothing here to offer for them. On the right, beside
                 Expand: like it, they act on the whole document.
               -->
+              <button
+                v-if="canFormatContent"
+                type="button"
+                class="icon-control"
+                data-testid="data-graph-format"
+                title="Format"
+                aria-label="Format"
+                :disabled="!contentString.trim()"
+                @click="formatContent"
+              >
+                <WandSparkles :size="16" />
+              </button>
               <PrefixConversionButtons
                 :code="contentString"
                 :content-type="contentFormat"
@@ -248,7 +260,8 @@
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { GitCompare, Upload } from '@lucide/vue';
+import { GitCompare, Upload, WandSparkles } from '@lucide/vue';
+import { formatCode } from '@/lib/codeLanguage';
 import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
 import { DRAFT_SIDE, NOTHING_TO_DIFF, planVersionDiff, versionDiffLabel } from '@/lib/versionDiff';
 import InlineNote from './shared/InlineNote.vue';
@@ -818,6 +831,20 @@ async function onFileChosen(event: Event) {
     saveError.value = message;
     toast.error(message);
   }
+}
+
+/** Whether the content's format has a formatter. Turtle has one. N-Triples and N-Quads have none. */
+const canFormatContent = computed(() => formatCode('', contentFormat.value) !== null);
+
+/** Format the content in the browser, changing only the whitespace between tokens. */
+function formatContent() {
+  const result = formatCode(contentString.value, contentFormat.value);
+  if (!result) return;
+  if ('error' in result) {
+    toast.error(`Format failed: ${result.error}`);
+    return;
+  }
+  contentString.value = result.text;
 }
 
 function formatBytes(bytes: number | null | undefined) {

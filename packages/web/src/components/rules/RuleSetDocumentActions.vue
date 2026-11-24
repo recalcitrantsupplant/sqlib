@@ -5,7 +5,7 @@
       type="button"
       data-testid="format-document"
       title="Format the rule set"
-      :disabled="!code.trim() || formatting"
+      :disabled="!code.trim()"
       @click="emit('format')"
     >
       <WandSparkles :size="16" />
@@ -65,7 +65,6 @@ import { NOTHING_TO_DIFF } from '@/lib/versionDiff';
 
 defineProps<{
   code: string;
-  formatting: boolean;
   /** False on a scratch rule set: nothing saved to compare against. */
   canDiff: boolean;
   /** The pair being compared, or empty when there is no pair. */

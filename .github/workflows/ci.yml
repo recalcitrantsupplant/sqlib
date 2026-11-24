@@ -99,6 +99,23 @@ jobs:
       - run: bash scripts/ci/install.sh
       - run: bash scripts/ci/test.sh
 
+  # The C# runtime in dotnet/ (issue #252). It reads the conformance goldens
+  # that the TypeScript runtime writes, so a change to either runtime that
+  # changes an outcome fails here or in `test`. No pnpm install: the goldens
+  # are a committed file. See scripts/ci/dotnet.sh.
+  dotnet:
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: bash scripts/ci/dotnet.sh
+
   # OGC API Features Part 1, with the OGC's own CITE suite in Docker, against
   # the plain starter set. See scripts/ci/ogc-cite.sh.
   ogc-cite:
@@ -155,7 +172,7 @@ jobs:
   # this repo is private on the free plan, so branch protection / required
   # checks are unavailable and nothing else stops a red PR from being merged.
   dependabot-automerge:
-    needs: [verify, test, image, web-image, cli-image, e2e]
+    needs: [verify, test, dotnet, image, web-image, cli-image, e2e]
     if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
     runs-on: ${{ github.event.pull_request.head.repo.fork
       && fromJSON('["ubuntu-latest"]')
@@ -181,7 +198,7 @@ jobs:
   # because its own push and pull request start no CI. Same `needs` as
   # dependabot-automerge, for the same reason: it is the only gate.
   lockfile-refresh-automerge:
-    needs: [verify, test, image, web-image, cli-image, e2e]
+    needs: [verify, test, dotnet, image, web-image, cli-image, e2e]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/deps/lockfile-refresh'
     runs-on: [self-hosted, Linux, X64]
     permissions:

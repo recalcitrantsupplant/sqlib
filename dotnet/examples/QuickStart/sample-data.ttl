@@ -1,0 +1,3 @@
+@prefix ex: <http://example.org/> .
+ex:alice ex:name "Alice" ; ex:livesIn <http://example.org/city/perth> .
+ex:bob ex:name "Bob" ; ex:livesIn <http://example.org/city/darwin> .

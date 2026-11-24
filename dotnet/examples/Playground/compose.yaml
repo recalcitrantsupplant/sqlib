@@ -1,0 +1,21 @@
+# The playground and a SPARQL endpoint with the sample data.
+#   docker compose up --build
+# Then open http://localhost:5080
+services:
+  oxigraph:
+    image: ghcr.io/oxigraph/oxigraph
+    command: serve --location /data --bind 0.0.0.0:7878
+    ports:
+      - "7878:7878"
+
+  playground:
+    build:
+      context: ../..
+      dockerfile: examples/Playground/Dockerfile
+    environment:
+      ENDPOINT: http://oxigraph:7878/query
+      SEED_STORE: http://oxigraph:7878/store
+    ports:
+      - "5080:5080"
+    depends_on:
+      - oxigraph

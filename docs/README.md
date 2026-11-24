@@ -18,6 +18,7 @@ Each guide covers one task.
 - [guides/publishing-ogc-collections.md](guides/publishing-ogc-collections.md): serve a query as an OGC API Features collection for QGIS and other map clients.
 - [guides/mcp-app.md](guides/mcp-app.md): edit, run and save a query inside a chat client, teach SPARQL rules there with a lesson library, and test this locally.
 - [guides/static-export.md](guides/static-export.md): export a library as a self-contained page that runs without the server.
+- [guides/dotnet-runtime.md](guides/dotnet-runtime.md): run the queries of an exported bundle from a .NET application, and keep the .NET library in step with the TypeScript runtime.
 - [guides/testing-and-conformance.md](guides/testing-and-conformance.md): attach tests to a query or rule set, and run a conformance suite.
 - [guides/etl.md](guides/etl.md): build RDF from tabular sources with DuckDB SQL.
 - [guides/prefixes.md](guides/prefixes.md): manage namespace prefixes across a library.

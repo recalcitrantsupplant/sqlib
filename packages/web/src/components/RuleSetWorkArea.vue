@@ -72,7 +72,6 @@
             <RuleSetDocumentActions
               v-if="editorExpanded"
               :code="srlDocument"
-              :formatting="formatting"
               :can-diff="!isScratch"
               :diff-title="diffButtonTitle"
               @format="formatDocument"
@@ -144,7 +143,6 @@
             <template #header-actions>
               <RuleSetDocumentActions
                 :code="srlDocument"
-                :formatting="formatting"
                 :can-diff="!isScratch"
                 :diff-title="diffButtonTitle"
                 @format="formatDocument"
@@ -259,7 +257,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, shallowRef, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { languageExtensionsFor } from '../lib/codeLanguage';
+import { formatCode, languageExtensionsFor } from '../lib/codeLanguage';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import SaveBar from './shared/SaveBar.vue';
@@ -1553,42 +1551,31 @@ function openImportDialog() {
   showImportDialog.value = true;
 }
 
-const formatting = ref(false);
 
 /**
- * Format the document, through the same `/format` route the query editor uses.
- *
- * What comes back for SRL is the document validated and trimmed — the route
- * treats it as a passthrough rather than re-laying it out (see the SRL branch
- * in `routes/detection.ts`). So the outcome worth reporting is whether
- * anything changed, and the button says so rather than claiming a formatting
- * pass that did not happen. When the route learns to lay SRL out, this button
- * starts doing it without changing.
+ * Format the document in the browser, with the SRL grammar the editor
+ * highlights with. The API's `/format` calls the same formatter.
  */
-async function formatDocument() {
+function formatDocument() {
   const document = srlDocument.value;
   if (!document.trim()) return;
-  formatting.value = true;
-  try {
-    const { formatted } = await apiClient.formatCode(document);
-    /*
-     * Compared without trailing whitespace: the route trims, and a document
-     * that differs only by the newline it ended with has not been formatted —
-     * treating that as a change would turn a press of Format on an untouched
-     * rule set into an unsaved edit.
-     */
-    if (formatted.trimEnd() === document.trimEnd()) {
-      toast.info('Nothing to change — the rule set is already formatted');
-      return;
-    }
-    applyEditedDocument(formatted);
-    toast.success('Rule set formatted');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Could not format the rule set';
-    toast.error(`Format failed: ${message}`);
-  } finally {
-    formatting.value = false;
+  const result = formatCode(document, 'application/srl');
+  if (!result) return;
+  if ('error' in result) {
+    toast.error(`Format failed: ${result.error}`);
+    return;
   }
+  /*
+   * Compared without trailing whitespace, so that a press of Format on an
+   * untouched rule set that differs only by its last newline is not an
+   * unsaved edit.
+   */
+  if (result.text.trimEnd() === document.trimEnd()) {
+    toast.info('Nothing to change — the rule set is already formatted');
+    return;
+  }
+  applyEditedDocument(result.text);
+  toast.success('Rule set formatted');
 }
 
 /**

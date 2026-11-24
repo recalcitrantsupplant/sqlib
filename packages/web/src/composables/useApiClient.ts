@@ -55,9 +55,6 @@ import {
   validateRuleDataRequestSchema,
   validateRuleDataResponseSchema,
   type ValidateRuleDataResponse,
-  formatRequestSchema,
-  formatResponseSchema,
-  type FormatResponse,
   executionRequestSchema,
   type ExecutionRequest,
   type ExecutionResponse,
@@ -1352,12 +1349,6 @@ export function useApiClient() {
     }
   };
 
-  const ensureFormattingEnabled = () => {
-    if (!isEnabled('queries') && !isEnabled('rulesSuite') && !isEnabled('playgroundQueries') && !isEnabled('playgroundRules')) {
-      const message = 'Formatting is disabled because Queries and Rules features are off';
-      throw createError({ statusCode: 404, statusMessage: message, message });
-    }
-  };
 
   const listQueries = () => {
     ensureQueriesEnabled();
@@ -2756,19 +2747,6 @@ export function useApiClient() {
     );
   };
 
-  const formatCode = (code: string): Promise<FormatResponse> => {
-    ensureFormattingEnabled();
-    return requestData(
-      buildUrl('/format'),
-      {
-        method: 'POST',
-        headers: JSON_HEADERS,
-        body: JSON.stringify(formatRequestSchema.parse({ code })),
-      },
-      formatResponseSchema.parse,
-    );
-  };
-
   const executeTarget = async (payload: ExecutionRequest, acceptMediaType?: string): Promise<ExecuteTargetResult> => {
     ensureQueriesEnabled();
     const url = buildUrl('/execute');
@@ -3706,7 +3684,6 @@ export function useApiClient() {
     detectOutputs,
     validateQuery,
     validateRuleData,
-    formatCode,
     executeTarget,
     executeSparqlDirect,
     runSparql,

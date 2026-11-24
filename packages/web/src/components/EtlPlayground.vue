@@ -501,7 +501,7 @@ import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
 import ExpandButton from './shared/ExpandButton.vue';
 import CopyButton from './shared/CopyButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
-import { languageExtensionsFor } from '../lib/codeLanguage';
+import { formatCode, languageExtensionsFor } from '../lib/codeLanguage';
 import { X, Eye, GitCompare, Unlink } from '@lucide/vue';
 import QueryDocumentActions from './query-work-area/QueryDocumentActions.vue';
 import SparqlDiffViewer from './shared/SparqlDiffViewer.vue';
@@ -1630,16 +1630,16 @@ const unlinkTemplate = () => {
   onSparqlEdit();
 };
 
-const formatTemplate = async () => {
+const formatTemplate = () => {
   if (!sparqlTemplate.value.trim()) return;
-  try {
-    const result = await apiClient.formatCode(sparqlTemplate.value);
-    sparqlTemplate.value = result.formatted;
-    onSparqlEdit();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to format the template';
-    toast.error(`Format failed: ${message}`);
+  const result = formatCode(sparqlTemplate.value, 'application/sparql-update');
+  if (!result) return;
+  if ('error' in result) {
+    toast.error(`Format failed: ${result.error}`);
+    return;
   }
+  sparqlTemplate.value = result.text;
+  onSparqlEdit();
 };
 
 const onSparqlEdit = () => {

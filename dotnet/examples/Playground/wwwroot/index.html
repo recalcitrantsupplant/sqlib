@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SparqlQueryLib Playground</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1c2330; --muted: #5d6879; --line: #d9dee6;
+    --accent: #2457c5; --accent-text: #ffffff; --code: #f0f2f6; --error: #b42318; --error-bg: #fdecea;
+    --ok: #1a7f37; --slot: #fff4d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1a1f27; --text: #e3e7ee; --muted: #98a2b3; --line: #2c3340;
+      --accent: #5b8def; --accent-text: #0b1020; --code: #222833; --error: #ff8a80; --error-bg: #3a1d1d;
+      --ok: #56d364; --slot: #4a3d14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  main { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); gap: 16px; padding: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
+  h3 { font-size: 14px; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre, textarea, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  pre { background: var(--code); padding: 10px; border-radius: 6px; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-word; }
+  textarea { width: 100%; min-height: 140px; background: var(--code); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  input, select, button { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  input[type=number] { width: 110px; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .muted { color: var(--muted); }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .input-block { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+  .input-block:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  .cells { display: grid; gap: 6px; margin-top: 6px; }
+  .cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .cell .var { min-width: 60px; font-family: ui-monospace, monospace; color: var(--muted); }
+  .cell input.value { flex: 1 1 200px; }
+  .rowbox { border: 1px dashed var(--line); border-radius: 6px; padding: 6px 8px; }
+  mark { background: var(--slot); color: inherit; border-radius: 3px; }
+  .error { background: var(--error-bg); color: var(--error); border-radius: 6px; padding: 8px 10px; margin-top: 8px; white-space: pre-wrap; }
+  .status-ok { color: var(--ok); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; word-break: break-word; }
+  th { background: var(--code); }
+  #log { max-height: 360px; min-height: 120px; }
+  #log div { border-bottom: 1px solid var(--line); padding: 2px 0; }
+  #log .t { color: var(--muted); margin-right: 8px; }
+  #log .err { color: var(--error); }
+  label.file { cursor: pointer; }
+  label.file input { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SparqlQueryLib Playground</h1>
+  <span id="source" class="muted"></span>
+  <label class="file"><input type="file" id="bundleFile" accept=".json,application/json"><span class="pill" title="Load another bundle file">Load bundle…</span></label>
+  <span class="row" style="margin:0 0 0 auto">
+    <label for="endpoint" class="muted">Endpoint</label>
+    <input id="endpoint" size="36">
+  </span>
+</header>
+
+<main>
+  <div>
+    <section>
+      <h2>Query</h2>
+      <div class="row">
+        <select id="query"></select>
+        <span id="queryType" class="pill"></span>
+        <select id="example"><option value="">Examples…</option></select>
+      </div>
+      <div id="description" class="muted"></div>
+      <pre id="template" style="margin-top:8px"></pre>
+    </section>
+
+    <section>
+      <h2>Inputs</h2>
+      <div id="inputs"></div>
+      <div id="paging"></div>
+    </section>
+
+    <section>
+      <h2>Payload</h2>
+      <textarea id="payload" spellcheck="false"></textarea>
+      <div class="row">
+        <button id="rebuild" class="small" title="Write the payload from the inputs above">From inputs</button>
+        <span id="payloadState" class="muted"></span>
+      </div>
+      <div class="row">
+        <button id="fill">Fill in</button>
+        <button id="run" class="primary">Fill in and run</button>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Query text</h2>
+      <pre id="text" class="muted">–</pre>
+      <div id="error"></div>
+    </section>
+    <section>
+      <h2>Result <span id="status"></span></h2>
+      <div id="result" class="muted">–</div>
+    </section>
+    <section>
+      <h2>Log</h2>
+      <pre id="log"></pre>
+      <div class="row"><button id="clearLog" class="small">Clear</button></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let library = null;
+let manualPayload = false;
+
+const TERM_TYPES = [
+  ['iri', 'IRI'],
+  ['literal', 'literal'],
+  ['lang', 'literal @lang'],
+  ['typed', 'literal ^^type'],
+  ['undef', 'UNDEF'],
+];
+
+function log(line, isError) {
+  const div = document.createElement('div');
+  const t = document.createElement('span');
+  t.className = 't';
+  t.textContent = new Date().toLocaleTimeString();
+  const m = document.createElement('span');
+  if (isError) m.className = 'err';
+  m.textContent = line;
+  div.append(t, m);
+  $('log').append(div);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function el(tag, props = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const child of children) node.append(child);
+  return node;
+}
+
+async function loadLibrary() {
+  const response = await fetch('api/library');
+  library = await response.json();
+  $('source').textContent = `${library.source} · format v${library.version} · ${library.queries.length} queries`;
+  if (!$('endpoint').value) $('endpoint').value = library.endpoint;
+  const select = $('query');
+  select.replaceChildren(...library.queries.map((q) => el('option', { value: q.name, textContent: q.name })));
+  showQuery();
+}
+
+function currentQuery() {
+  return library.queries.find((q) => q.name === $('query').value);
+}
+
+function highlightTemplate(text) {
+  const pre = $('template');
+  pre.replaceChildren();
+  const pattern = /<urn:sqlib:template-slot:[^>]*>|\b(?:LIMIT|OFFSET) 000\S+/g;
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    pre.append(text.slice(last, match.index));
+    pre.append(el('mark', { textContent: match[0] }));
+    last = match.index + match[0].length;
+  }
+  pre.append(text.slice(last));
+}
+
+function showQuery() {
+  const q = currentQuery();
+  $('queryType').textContent = q.queryType;
+  $('description').textContent = q.description || '';
+  highlightTemplate(q.template);
+  const examples = $('example');
+  examples.replaceChildren(el('option', { value: '', textContent: q.examples.length ? 'Examples…' : 'No examples' }),
+    ...q.examples.map((e, i) => el('option', { value: String(i), textContent: e.name })));
+  renderInputs(q);
+  manualPayload = false;
+  rebuildPayload();
+}
+
+function policyFor(q, vars) {
+  const key = [...vars].sort().join(' ');
+  return q.policies.find((p) => [...p.vars].sort().join(' ') === key);
+}
+
+function renderInputs(q) {
+  const box = $('inputs');
+  box.replaceChildren();
+  if (q.inputs.length === 0) box.append(el('div', { className: 'muted', textContent: 'This query has no inputs.' }));
+  q.inputs.forEach((vars, index) => {
+    const policy = policyFor(q, vars);
+    const header = el('div', { className: 'row' }, el('h3', { textContent: vars.map((v) => '?' + v).join(' ') }));
+    if (policy?.whenEmpty) header.append(el('span', { className: 'pill', textContent: policy.whenEmpty, title: 'whenEmpty' }));
+    if (policy?.valuePattern) header.append(el('span', { className: 'pill', textContent: '/' + policy.valuePattern + '/', title: 'valuePattern' }));
+
+    const mode = el('select', { title: 'How this input is sent' },
+      el('option', { value: 'omit', textContent: 'Leave out' }),
+      el('option', { value: 'values', textContent: 'Values' }),
+      el('option', { value: 'empty', textContent: 'No rows' }));
+    mode.dataset.role = 'mode';
+    header.append(mode);
+
+    const rows = el('div', { className: 'cells' });
+    const addRow = el('button', { className: 'small', textContent: '+ row' });
+    addRow.addEventListener('click', () => { rows.append(makeRow(vars)); mode.value = 'values'; rebuildPayload(); });
+    const block = el('div', { className: 'input-block' }, header, rows, el('div', { className: 'row' }, addRow));
+    block.dataset.index = String(index);
+    block.dataset.vars = JSON.stringify(vars);
+    mode.addEventListener('change', () => {
+      if (mode.value === 'values' && rows.children.length === 0) rows.append(makeRow(vars));
+      rebuildPayload();
+    });
+    box.append(block);
+  });
+
+  const paging = $('paging');
+  paging.replaceChildren();
+  const pageFields = [...q.limits.map((n) => ['limit', n]), ...q.offsets.map((n) => ['offset', n])];
+  if (pageFields.length) {
+    const row = el('div', { className: 'row input-block' });
+    for (const [kind, name] of pageFields) {
+      const input = el('input', { type: 'number', min: '0', step: '1', placeholder: 'placeholder' });
+      input.dataset.kind = kind;
+      input.dataset.name = name;
+      input.addEventListener('input', rebuildPayload);
+      row.append(el('label', { className: 'muted', textContent: `${kind.toUpperCase()} "${name}"` }), input);
+    }
+    paging.append(row);
+  }
+}
+
+function makeRow(vars) {
+  const box = el('div', { className: 'rowbox' });
+  for (const v of vars) {
+    const type = el('select', {}, ...TERM_TYPES.map(([value, label]) => el('option', { value, textContent: label })));
+    const value = el('input', { className: 'value', placeholder: 'value' });
+    const extra = el('input', { placeholder: 'en', size: 18 });
+    extra.style.display = 'none';
+    type.addEventListener('change', () => {
+      extra.style.display = type.value === 'lang' || type.value === 'typed' ? '' : 'none';
+      extra.placeholder = type.value === 'lang' ? 'en' : 'http://www.w3.org/2001/XMLSchema#integer';
+      value.disabled = type.value === 'undef';
+      rebuildPayload();
+    });
+    value.addEventListener('input', rebuildPayload);
+    extra.addEventListener('input', rebuildPayload);
+    const cell = el('div', { className: 'cell' }, el('span', { className: 'var', textContent: '?' + v }), type, value, extra);
+    cell.dataset.var = v;
+    box.append(cell);
+  }
+  const remove = el('button', { className: 'small', textContent: '× row' });
+  remove.addEventListener('click', () => { box.remove(); rebuildPayload(); });
+  box.append(el('div', { className: 'row' }, remove));
+  return box;
+}
+
+function termOf(cell) {
+  const [type, value, extra] = cell.querySelectorAll('select, input');
+  switch (type.value) {
+    case 'iri': return { type: 'uri', value: value.value };
+    case 'literal': return { type: 'literal', value: value.value };
+    case 'lang': return { type: 'literal', value: value.value, 'xml:lang': extra.value };
+    case 'typed': return { type: 'literal', value: value.value, datatype: extra.value };
+    default: return undefined;
+  }
+}
+
+function payloadFromInputs() {
+  const payload = { arguments: [] };
+  for (const block of $('inputs').querySelectorAll('.input-block')) {
+    const mode = block.querySelector('[data-role=mode]').value;
+    if (mode === 'omit') continue;
+    const vars = JSON.parse(block.dataset.vars);
+    const bindings = [];
+    if (mode === 'values') {
+      for (const rowBox of block.querySelectorAll('.rowbox')) {
+        const row = {};
+        for (const cell of rowBox.querySelectorAll('.cell')) {
+          const term = termOf(cell);
+          if (term) row[cell.dataset.var] = term;
+        }
+        bindings.push(row);
+      }
+    }
+    payload.arguments.push({ head: { vars }, results: { bindings } });
+  }
+  for (const input of $('paging').querySelectorAll('input')) {
+    if (input.value === '') continue;
+    const key = input.dataset.kind === 'limit' ? 'limits' : 'offsets';
+    (payload[key] ??= []).push({ name: input.dataset.name, value: Number(input.value) });
+  }
+  return payload;
+}
+
+function rebuildPayload() {
+  if (manualPayload) return;
+  $('payload').value = JSON.stringify(payloadFromInputs(), null, 2);
+  $('payloadState').textContent = '';
+}
+
+function showResult(data) {
+  const result = $('result');
+  $('status').textContent = '';
+  if (data.status === undefined) { result.className = 'muted'; result.textContent = '–'; return; }
+  $('status').textContent = String(data.status);
+  $('status').className = data.status < 300 ? 'status-ok' : '';
+  result.className = '';
+  let parsed = null;
+  if (data.contentType && data.contentType.includes('json')) {
+    try { parsed = JSON.parse(data.body); } catch { parsed = null; }
+  }
+  if (parsed && parsed.head && parsed.results) {
+    const vars = parsed.head.vars;
+    const rows = parsed.results.bindings;
+    const table = el('table', {},
+      el('tr', {}, ...vars.map((v) => el('th', { textContent: '?' + v }))),
+      ...rows.map((b) => el('tr', {}, ...vars.map((v) => el('td', { textContent: b[v] ? formatTerm(b[v]) : '' })))));
+    result.replaceChildren(el('div', { className: 'muted', textContent: `${rows.length} row(s)` }), table);
+  } else if (parsed && typeof parsed.boolean === 'boolean') {
+    result.replaceChildren(el('pre', { textContent: String(parsed.boolean) }));
+  } else {
+    result.replaceChildren(el('pre', { textContent: data.body ?? '' }));
+  }
+}
+
+function formatTerm(t) {
+  if (t.type === 'uri') return `<${t.value}>`;
+  if (t['xml:lang']) return `"${t.value}"@${t['xml:lang']}`;
+  if (t.datatype) return `"${t.value}"^^<${t.datatype}>`;
+  return t.type === 'bnode' ? `_:${t.value}` : `"${t.value}"`;
+}
+
+async function call(withEndpoint) {
+  const body = { query: $('query').value, payload: $('payload').value, endpoint: withEndpoint ? $('endpoint').value : null };
+  log(`→ ${withEndpoint ? 'fill in and run' : 'fill in'} ${body.query}`);
+  const response = await fetch('api/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await response.json();
+  for (const line of data.log ?? []) log(line, /Exception|refused/.test(line));
+  $('text').className = data.text ? '' : 'muted';
+  $('text').textContent = data.text ?? '–';
+  $('error').replaceChildren();
+  if (data.error) {
+    const name = data.error.typeScriptName ? ` (TypeScript: ${data.error.typeScriptName})` : '';
+    $('error').append(el('div', { className: 'error', textContent: `${data.error.type}${name}\n${data.error.message}` }));
+  }
+  showResult(data);
+}
+
+$('query').addEventListener('change', showQuery);
+$('example').addEventListener('change', () => {
+  const index = $('example').value;
+  if (index === '') return;
+  const example = currentQuery().examples[Number(index)];
+  $('payload').value = JSON.stringify(JSON.parse(example.payload), null, 2);
+  manualPayload = true;
+  $('payloadState').textContent = `example: ${example.name}`;
+  log(`example "${example.name}" copied to the payload`);
+});
+$('payload').addEventListener('input', () => { manualPayload = true; $('payloadState').textContent = 'edited'; });
+$('rebuild').addEventListener('click', () => { manualPayload = false; rebuildPayload(); });
+$('fill').addEventListener('click', () => call(false));
+$('run').addEventListener('click', () => call(true));
+$('clearLog').addEventListener('click', () => $('log').replaceChildren());
+$('bundleFile').addEventListener('change', async () => {
+  const file = $('bundleFile').files[0];
+  if (!file) return;
+  log(`→ load bundle ${file.name}`);
+  const response = await fetch('api/library?name=' + encodeURIComponent(file.name), { method: 'POST', body: await file.text() });
+  const data = await response.json();
+  for (const line of data.log ?? []) log(line, /Exception/.test(line));
+  $('bundleFile').value = '';
+  if (!data.error) await loadLibrary();
+});
+
+loadLibrary().then(() => log(`loaded ${library.source}`));
+</script>
+</body>
+</html>

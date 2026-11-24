@@ -53,8 +53,6 @@ const FALLBACK_ISSUER = 'http://localhost:8080/auth/v1/';
 
 const POLICY_QUERY = `PREFIX acl: <${EX}acl#>
 
-# Which graphs of "Company data" the caller may read.
-# Everyone signed in reads the public graph; a group reads what a rule gives it.
 SELECT DISTINCT ?graph WHERE {
   { ?rule acl:everyone true ; acl:graph ?graph . }
   UNION
@@ -65,8 +63,9 @@ const QUERIES = [
   {
     slug: 'policy',
     name: 'Readable graphs (graph policy)',
-    description: 'The graph policy of "Company data". It runs on the access rules backend, once per caller. '
-      + 'Kept with the data, for administrators only.',
+    description: 'The graph policy of "Company data": the graphs the caller may read. Everyone signed in reads '
+      + 'the public graph; a group reads what a rule gives it. It runs on the access rules backend, once per '
+      + 'caller. Kept with the data, for administrators only.',
     backend: GRAPH_ACCESS_DEMO_AUTH_BACKEND_ID,
     library: GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID,
     queryString: POLICY_QUERY,

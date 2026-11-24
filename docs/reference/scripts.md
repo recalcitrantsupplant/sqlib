@@ -192,6 +192,15 @@ Steps outside that sequence:
 - `commitlint.sh`: conventional commits, **blocking**, on pull requests only. A
   commit that release-please cannot parse gets no version bump and no changelog
   entry, so the check fails the job.
+- `dotnet.sh`: the .NET runtime in `dotnet/`. It runs the tests on `net8.0`
+  and `net10.0`, again against the `netstandard2.0` build, then packs into
+  `dotnet/artifacts`. The `dotnet` job runs it, and `dependabot-automerge.sh`
+  waits for that job. It needs the .NET 8 and .NET 10 SDKs. See
+  [dotnet-runtime](../guides/dotnet-runtime.md).
+- `nuget-push.sh`: pushes the packed `SparqlQueryLib.Runtime` to nuget.org. It
+  refuses when the packed version is not `EXPECTED_VERSION`. The `nuget` job in
+  `release-please.yml` runs it after a `dotnet` release, with the key from
+  the `NuGet/login` trusted publishing step.
 - `fuzz-nightly.sh`: the query group property harness, at `PHASE2_FUZZ_RUNS`
   (default 1000) and a seed from the clock, over `test/phase2/` and
   `test/web/`. The PR suite runs the same files with a fixed seed and about 50

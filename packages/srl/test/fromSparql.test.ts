@@ -124,6 +124,10 @@ describe('sparqlToRule (CONSTRUCT) — rejections', () => {
     ['GRAPH', `${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { GRAPH ?g { ?s :p ?o } }`],
     ['SERVICE', `${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { SERVICE <http://x/> { ?s :p ?o } }`],
     ['sub-SELECT', `${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { { SELECT ?s ?o WHERE { ?s :p ?o } } }`],
+    ['a negation inside FILTER NOT EXISTS',
+      `${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { ?s :p ?o FILTER NOT EXISTS { ?s :m ?o FILTER NOT EXISTS { ?o :z 1 } } }`],
+    ['a BIND inside FILTER NOT EXISTS',
+      `${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { ?s :p ?o FILTER NOT EXISTS { ?s :m ?w BIND (1 AS ?k) } }`],
   ])('rejects %s', (_name, query) => {
     expect(errorsOf(query)).toEqual(['unsupported-pattern']);
   });
