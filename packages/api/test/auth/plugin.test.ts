@@ -240,6 +240,22 @@ describe('optional mode', () => {
     await app.close();
   });
 
+  it('gives a signed-in caller with no grants of their own exactly the guest grants', async () => {
+    await store.createGrant({ principal: ANONYMOUS, resourceKind: 'backend', resource: BACKEND, modes: ['query:saved'] });
+    const app = await buildApp('optional');
+    const signedIn = (await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: `Bearer ${await token({ sub: 'user-2' })}` },
+    })).json();
+    const guest = (await app.inject({ method: 'GET', url: '/whoami' })).json();
+
+    expect(signedIn.subject).toBe(principalIri('user', ISSUER, 'user-2'));
+    expect(signedIn.backends).toEqual(guest.backends);
+    expect(signedIn.backends).toEqual({ [BACKEND]: ['query:saved'] });
+    await app.close();
+  });
+
   it('rejects an invalid token with 401 and a challenge, rather than serving a guest', async () => {
     const app = await buildApp('optional');
     const response = await app.inject({
