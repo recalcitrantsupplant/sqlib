@@ -204,6 +204,7 @@ CORS.
 | `CACHE_WRITE_THROUGH` | `true` | Every entity write goes to the store as well as the in-memory cache. Set to exactly `false` to keep writes in memory only; any other value leaves it on. With it off, background refreshes from the store are skipped too. |
 | `CACHE_PRELOAD` | `true` | Load every entity into the cache at startup. Set to `false` (case-insensitive) to skip the preload; with it off, background per-type refreshes are also skipped. |
 | `ENABLE_TIMING_LOGS` | `true`, and not changeable | Intended to switch per-request timing logs. The expression that reads it is `process.env.ENABLE_TIMING_LOGS === 'true' \|\| true`, so `config.enableTimingLogs` is always `true` and setting the variable has no effect. |
+| `SQLIB_PINNED_CACHE_MAX_AGE` | `31536000` (1 year) | The seconds a cache may reuse a public pinned response from `GET /execute` or `GET /substitute` without asking again (`Cache-Control: public, max-age=<n>, immutable`). `0` gives `public, no-cache`: every cache revalidates and gets `304` while the ETag matches. A value that is not a whole number from `0` to `31536000` gives the default. A private pinned response is always `private, no-cache`. See [HTTP caching of pinned runs](../explanation/storage-and-caching.md#http-caching-of-pinned-runs). |
 
 No environment variable sets the time-to-live of entities in the cache.
 `packages/api/src/lib/EntityRegistry.ts` sets it for each entity type, and keeps

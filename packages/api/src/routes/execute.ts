@@ -36,7 +36,17 @@ import {
 } from '@sparql-query-lib/types';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
-import { AuthorizationError, requireLibraryMode, requireVersionExecute, resolveOwningLibrary } from '../auth/enforce.js';
+import { AuthorizationError, requireBackendMode, requireLibraryMode, requireVersionExecute, resolveOwningLibrary } from '../auth/enforce.js';
+import {
+    applyPinnedHeaders,
+    cacheAudience,
+    markPinned,
+    matchesIfNoneMatch,
+    pinBackendData,
+    pinQueryAndArguments,
+    pinnedEtag,
+    setPinnedHeaders,
+} from '../lib/pinnedCaching.js';
 import { environmentsPointingTo, findEnvironment, isEnvironmentVersionType, LATEST_ENVIRONMENT, isPromotableType, requestedEnvironment, resolveVersionIn } from '../lib/environments.js';
 import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
@@ -390,6 +400,12 @@ export default async function (
     // Import SparqlSelectJsonOutput if not already imported
     // import { SparqlSelectJsonOutput } from '../server/ISparqlExecutor'; // Assuming it's exported there
     type ExecuteReply = SparqlSelectJsonOutput | string | { error: string } | { boolean: boolean } | any; // Allow flexibility
+
+    // A pinned GET run that succeeded may be cached (`lib/pinnedCaching.ts`).
+    fastify.addHook('onSend', async (request, reply, payload) => {
+        applyPinnedHeaders(request, reply);
+        return payload;
+    });
 
     // Shared execution logic function
     async function executeQuery(
@@ -1702,6 +1718,43 @@ export default async function (
                     graphs[key] = JSON.parse(raw);
                 } catch (parseError__u: unknown) {
                     return reply.code(400).send({ error: `Invalid JSON in ${key} parameter: ${toError(parseError__u).message}` });
+                }
+            }
+
+            /*
+             * A run whose every input is pinned gets an ETag, and a matching
+             * `If-None-Match` gets 304 without running (#206). The caller's
+             * grants are checked first, so a 304 confirms nothing to a caller
+             * who may not run the query.
+             */
+            if (!environment && !getDataGraphs) {
+                const lookup = (id: string) => getCacheCoordinator().get(id);
+                const query = pinQueryAndArguments(lookup, { targetId, argumentSetIds, inlineArguments: args });
+                const data = query.pinned ? pinBackendData(lookup, backendId) : null;
+                if (query.pinned && data?.pinned) {
+                    const target = lookup(targetId);
+                    requireVersionExecute(request, resolveOwningLibrary(target), environmentsPointingTo(targetId));
+                    requireBackendMode(request, backendId, 'query:saved');
+                    for (const id of argumentSetIds ?? []) {
+                        requireLibraryMode(request, resolveOwningLibrary(lookup(id)), 'read');
+                    }
+                    const audience = cacheAudience(request);
+                    const etag = pinnedEtag({
+                        route: 'execute',
+                        ...query.pins,
+                        ...data.pins,
+                        limits: limits ?? null,
+                        offsets: offsets ?? null,
+                        graphs,
+                        nodeDetail: nodeDetail ?? null,
+                        accept: request.headers.accept ?? '',
+                        caller: audience.caller,
+                    });
+                    if (matchesIfNoneMatch(request.headers['if-none-match'], etag)) {
+                        setPinnedHeaders(reply, etag, audience.scope);
+                        return reply.code(304).send();
+                    }
+                    markPinned(request, etag, audience.scope);
                 }
             }
 
