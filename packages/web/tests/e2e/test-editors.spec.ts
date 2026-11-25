@@ -105,6 +105,42 @@ test.describe('Tests screen editors', () => {
   });
 
   /*
+   * An open expectation fills the rest of the column and scrolls inside it.
+   * Before, the peek clipped the editor at the panel's bottom edge, and the
+   * lines below the edge could not be reached.
+   */
+  test('scrolls a long expectation to its last line', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await mockTestsScreen(page, { tuplesEnabled: false });
+    await page.goto('/?section=tests');
+    await page.getByTestId('section-overview-new').click();
+    await chooseFirstSubject(page);
+
+    const bindings = Array.from({ length: 20 }, (_, index) => ({
+      line: { type: 'literal', value: `Line ${index}` },
+    }));
+    const expected = JSON.stringify({ head: { vars: ['line'] }, results: { bindings } }, null, 2);
+    await page.getByTestId('test-expected').locator('.cm-content').click();
+    await page.keyboard.insertText(expected);
+
+    const peek = page.getByTestId('test-expected-peek');
+    const toggle = page.getByTestId('test-expected-peek-toggle');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    const editor = page.getByTestId('test-expected');
+    const peekBox = await peek.boundingBox();
+    const editorBox = await editor.boundingBox();
+    expect(peekBox && editorBox).toBeTruthy();
+    expect(editorBox!.y + editorBox!.height).toBeLessThanOrEqual(peekBox!.y + peekBox!.height + 1);
+
+    await editor.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(editor.locator('.cm-line', { hasText: '"Line 19"' })).toBeInViewport();
+  });
+
+  /*
    * The fields that hold a document are not labels.
    *
    * A `<label>` with no `for` forwards a click anywhere inside it to its first

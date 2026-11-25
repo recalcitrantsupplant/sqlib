@@ -210,6 +210,11 @@ const enableFacetsForColumn = (columnId: string) => {
  *
  * A column the user drags gets a fixed width in `columnWidths`, which may be
  * above the cap. Double-clicking the handle drops it back to automatic.
+ *
+ * Once a column has a fixed width, an empty last column takes the space that
+ * is left, so the table still reaches the right edge of the panel. Without it,
+ * the table stops at the sum of its columns, or the browser spreads the space
+ * over the columns and moves the edge the user dragged.
  */
 const ROW_NUMBER_COLUMN_ID = "row-number"
 const MIN_DEFAULT_MAX_WIDTH = 240
@@ -251,8 +256,10 @@ const cellStyle = (columnId: string) => {
   }
   // `min-width: 100%` lets the box fill a cell that the table stretched past
   // the cap. A percentage counts as 0 when the browser sizes the column, so
-  // the cap still sets the column's own width.
-  return { maxWidth: `${defaultMaxWidth.value}px`, minWidth: "100%" }
+  // the cap still sets the column's own width. `width: max-content` keeps
+  // that width when the empty last column takes the free space: without it,
+  // the column shrinks to its narrowest wrap.
+  return { width: "max-content", maxWidth: `${defaultMaxWidth.value}px`, minWidth: "100%" }
 }
 
 let dragCleanup: (() => void) | null = null
@@ -324,7 +331,7 @@ onBeforeUnmount(() => {
     </p>
     <div class="table-shell">
       <div ref="scrollRef" class="table-scroll" :class="{ 'dt-wrap': wrap }">
-        <Table :class="{ 'dt-table--sized': hasSizedColumns }">
+        <Table>
           <TableHeader>
             <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
               <TableHead
@@ -434,6 +441,7 @@ onBeforeUnmount(() => {
                   @click.stop
                 ></div>
               </TableHead>
+              <TableHead v-if="hasSizedColumns" class="dt-filler" aria-hidden="true" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -452,10 +460,11 @@ onBeforeUnmount(() => {
                     <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
                   </div>
                 </TableCell>
+                <TableCell v-if="hasSizedColumns" class="dt-filler" aria-hidden="true" />
               </TableRow>
             </template>
             <template v-else>
-              <TableEmpty :colspan="columnCount" class="text-muted-foreground">
+              <TableEmpty :colspan="columnCount + (hasSizedColumns ? 1 : 0)" class="text-muted-foreground">
                 {{ emptyStateText }}
               </TableEmpty>
             </template>
@@ -585,8 +594,10 @@ onBeforeUnmount(() => {
   min-width: 100%;
 }
 
-.table-scroll :deep(table.dt-table--sized) {
-  min-width: 0;
+/* Takes the width the sized columns leave; see the "Column widths" note. */
+.table-scroll :deep(.dt-filler) {
+  width: 100%;
+  padding: 0;
 }
 
 :deep(.dt-head) {
@@ -738,6 +749,7 @@ onBeforeUnmount(() => {
 :deep(.row-number-header),
 :deep(.row-number-cell) {
   width: 50px;
+  min-width: 50px;
   max-width: 50px;
   padding-left: var(--space-4);
   padding-right: var(--space-4);
