@@ -31,7 +31,7 @@ There are six values. **The default is `disabled`.**
 | `dry-run` | no | If a token is sent, sqlib verifies it and resolves the grants. sqlib logs a request that would be denied as `would-deny`, and serves it. |
 | `required` | yes | A request without a valid token gets `401`. If sqlib cannot fetch the JWKS endpoint, the request gets `503`, because the failure is on the server side. A token whose `kid` is not in the published key set gets `401`. For an unknown `kid`, sqlib fetches the key set again at most once in each 30-second period. |
 | `anonymous` | no, and sqlib reads none | Each request is the one principal `urn:sqlib:principal:anonymous`, with the grants of that principal only. Enforcement is the same as in `required`: a failed check is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
-| `optional` | no | A request without a token is the anonymous principal, as in `anonymous`. A request with a token is verified as in `required`. A valid token gives the caller's own principals, the authenticated sentinel and the anonymous principal, so a signed-in caller holds at least what a guest holds. An invalid or expired token gets `401` with a bearer challenge. Enforcement is the same as in `required`. |
+| `optional` | no | A request without a token is the anonymous principal, as in `anonymous`. A request with a token is verified as in `required`. A valid token gives the caller's own principals, the authenticated sentinel and the anonymous principal. A signed-in caller holds the guest grants plus their own grants, and reads the guest graphs plus their own graphs under a graph policy. A signed-in caller never holds less than a guest. An invalid or expired token gets `401` with a bearer challenge. Enforcement is the same as in `required`. |
 | `trusted-header` | no, and sqlib reads none | A sign-in proxy in front of sqlib names the caller in a header. A request without the proxy's secret gets `403`. A request with the secret and no identity header is the anonymous principal. A request with both is the caller the header names, with the authenticated sentinel and the anonymous principal. Enforcement is the same as in `required`. |
 
 `anonymous` is the mode for a public deployment. Use it with
@@ -252,6 +252,13 @@ The result becomes a dataset:
 - `?defaultGraph` and `?namedGraph` fill one part each.
 - A part that the policy does not project is empty. The caller reads no graphs
   there.
+
+A guest is the anonymous principal with no groups, so a rule for
+`urn:sqlib:principal:anonymous` names the graphs a guest reads. A caller who
+also holds the anonymous principal (a signed-in caller in `optional` mode, or a
+demo person) gets the union of two runs: one for the caller, and one for the
+guest. If either run fails, the read is refused. `Test as` adds the guest run
+in the same modes.
 
 sqlib intersects that dataset with any dataset that the caller asked for (the
 graph picker, `defaultGraphs`/`namedGraphs` on `/sparql` and `/execute`) and

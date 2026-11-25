@@ -63,19 +63,23 @@ import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './rout
 import path from 'node:path';
 import { authOf, requireAdmin, requireBackendMode } from '../auth/enforce.js';
 import {
+  GUEST_POLICY_SUBJECT,
   GraphPolicyError,
   clearGraphPolicyCache,
   evaluateGraphPolicy,
   graphPolicyOf,
   graphPolicyQueryProblem,
   patchLogReadMode,
+  unionDatasets,
 } from '../auth/graphPolicy.js';
+import { getAuthConfig } from '../auth/config.js';
+import { isDemoMode } from '../config/demoMode.js';
 import { getAuthStore } from '../auth/AuthStore.js';
 import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
 import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
-import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
+import { BACKEND_MODES, PRINCIPAL_ANONYMOUS, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 import { sendListPage, withListPage } from '../lib/listPage.js';
@@ -1170,7 +1174,12 @@ export default async function (
         groupsSource = lastSeen ? 'lastSeen' : 'none';
       }
 
-      const principals = [...(user ? [user] : []), ...groups, PRINCIPAL_AUTHENTICATED];
+      // A signed-in caller in `optional` mode, and a demo person, also hold
+      // what a guest holds (`auth/plugin.ts`), so the test adds the guest too.
+      const withGuest = getAuthConfig().mode === 'optional' || isDemoMode();
+      const principals = [
+        ...(user ? [user] : []), ...groups, PRINCIPAL_AUTHENTICATED, ...(withGuest ? [PRINCIPAL_ANONYMOUS] : []),
+      ];
       const grants = resolveEffectiveGrants(principals, store);
       const modes = BACKEND_MODES.filter(mode => hasBackendMode(grants, id, mode));
 
@@ -1189,7 +1198,10 @@ export default async function (
       if (!policy) return reply.send(result);
 
       try {
-        const dataset = await evaluateGraphPolicy(id, policy, { user: user ?? '', groups }, { useCache: false });
+        const own = await evaluateGraphPolicy(id, policy, { user: user ?? '', groups }, { useCache: false });
+        const dataset = withGuest
+          ? unionDatasets(own, await evaluateGraphPolicy(id, policy, GUEST_POLICY_SUBJECT, { useCache: false }))
+          : own;
         result.defaultGraphs = dataset.defaultGraphs;
         result.namedGraphs = dataset.namedGraphs;
       } catch (error) {
