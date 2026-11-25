@@ -145,8 +145,8 @@ interface CompileContext {
   used: Set<string>;
 }
 
-function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: ReadonlySet<string> = new Set()): string {
-  let parts: string[] = [];
+function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: ReadonlySet<string> = new Set(), initial: string[] = []): string {
+  let parts: string[] = [...initial];
   const bound = new Set(outerBound);
   items.forEach((item, index) => {
     switch (item.kind) {
@@ -245,10 +245,18 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  * - **Grouping the pattern alone** means the multiplicity of `P` never reaches
  *   a count: a person with two names and three children counts three.
  *
- * When a key bound by `P` is not bound by the pattern, as in the rank idiom
- * `{ ?o :score ?s FILTER(?s > ?score) }`, the subquery cannot compute it from
- * its own pattern, since SPARQL evaluates a subquery bottom-up. It is then
- * seeded with the distinct key rows of `P`, which repeats `P` inside it.
+ * - **Seeding.** SPARQL evaluates a subquery bottom-up, so the pattern
+ *   cannot see the keys that `P` binds. When any key is bound by `P`, the
+ *   subquery body starts with `SELECT DISTINCT` over those keys, with `P` as
+ *   its body. The pattern follows it, so every `FILTER`, `SET` and `NOT` in
+ *   the pattern sees the incoming keys. The seed is the first part of the
+ *   pattern's body, so a `SET` wrap encloses it. A key that only the pattern
+ *   binds is not seeded. With no keys there is no seed.
+ *
+ * The seed is added whenever a key is bound by `P`, also when the pattern
+ * binds the same key. This is the strict translation. Each seed repeats `P`,
+ * and an earlier `GROUP` in `P` brings its own seed with it, so `n` chained
+ * `GROUP`s compile to `2^n - 1` seeds.
  */
 function compileAggregate(
   item: SrlAggregate,
@@ -270,22 +278,20 @@ function compileAggregate(
   }
   const keyList = keys.map((k) => `?${k}`).join(' ');
 
-  // Keys the pattern binds itself; any other key comes from `P` and needs
-  // seeding.
-  const patternBound = new Set(item.body.flatMap((inner) => boundBy(inner)));
+  // Seed the keys bound by `P`, as the first part of the pattern's body.
   const outerKeys = keys.filter((k) => boundBefore.has(k));
-  const seed = outerKeys.length > 0 && keys.some((k) => !patternBound.has(k))
-    ? `{\n  SELECT DISTINCT ${outerKeys.map((k) => `?${k}`).join(' ')} WHERE {\n  ${prefix.join('\n  ')}\n}\n}\n  `
-    : '';
+  const seed = outerKeys.length > 0
+    ? [`{\n  SELECT DISTINCT ${outerKeys.map((k) => `?${k}`).join(' ')} WHERE {\n  ${prefix.join('\n  ')}\n}\n}`]
+    : [];
 
-  const inner = compileBody(item.body, context, new Set(outerKeys));
+  const inner = compileBody(item.body, context, new Set(outerKeys), seed);
   const projection = [
     keyList,
     count ? `(COUNT(*) AS ?${count})` : '',
     ...item.assignments.map((a) => `(${serialize('expression', a.aggregate)} AS ?${a.variable})`),
   ].filter(Boolean).join(' ');
   const groupBy = keys.length > 0 ? `\nGROUP BY ${keyList}` : '';
-  const subquery = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
+  const subquery = `{\n  SELECT ${projection} WHERE {\n  ${inner}\n}${groupBy}\n}`;
 
   const after: string[] = [];
   if (item.assignments.length > 0) {

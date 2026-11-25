@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+RULE { ?q :tenAbove ?n } WHERE { ?q :dept ?d ; :score ?s . GROUP BY ?d ?s { SET (?lo := ?s + 10) ?o :dept ?d ; :score ?s2 FILTER(?s2 >= ?lo) } [ ?n := COUNT(*) ] }
