@@ -2749,6 +2749,16 @@ watch([argumentSetVersion, argumentSetOptions], () => {
   width: 100%;
 }
 
+/*
+ * Open, the peek fills the rest of the column and the editor scrolls inside
+ * it. Without this the peek clips a long expectation at the panel's bottom
+ * edge, and the lines below the edge cannot be reached.
+ */
+.expected-peek.open {
+  flex: 1;
+  min-height: 0;
+}
+
 /* The peek draws the frame; a second border inside it would box the text twice. */
 .expected-peek :deep(.expand-region:not(.expanded) .code-editor) {
   border: 0;
