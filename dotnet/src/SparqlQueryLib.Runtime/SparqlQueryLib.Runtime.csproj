@@ -10,7 +10,7 @@
     <RootNamespace>SparqlQueryLib.Runtime</RootNamespace>
 
     <!-- x-release-please-start-version -->
-    <Version>0.0.0</Version>
+    <Version>0.1.0</Version>
     <!-- x-release-please-end -->
     <PackageId>SparqlQueryLib.Runtime</PackageId>
     <Authors>David Habgood</Authors>
