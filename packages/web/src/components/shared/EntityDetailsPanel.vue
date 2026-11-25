@@ -353,7 +353,7 @@
       v-if="showFooter"
       :noun="entityNoun"
       :confirm-prompt="deleteConfirmPrompt"
-      :can-delete="canDelete"
+      :can-delete="deletable"
       :deleting="deleting"
       :reset-key="entityId"
       @delete="emit('delete')"
@@ -420,6 +420,7 @@ import EntityTagsField from '../tags/EntityTagsField.vue';
 import InlineNote from './InlineNote.vue';
 import PersonChip from './PersonChip.vue';
 import RecordFooter from './RecordFooter.vue';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 import SearchSelect from './SearchSelect.vue';
 import type { TaggableKind } from '../../composables/useEntityTags';
 
@@ -709,7 +710,12 @@ const editedLabel = computed(() => {
   return formatRelativeTime(props.modifiedAt);
 });
 
-const showFooter = computed(() => props.canDelete || !!createdLabel.value || !!editedLabel.value);
+/** A read-only deployment refuses the delete, so the button is left out. */
+const deployment = useDeploymentMode();
+void deployment.ensureLoaded();
+const deletable = computed(() => props.canDelete && !deployment.isReadOnly.value);
+
+const showFooter = computed(() => deletable.value || !!createdLabel.value || !!editedLabel.value);
 
 const deleteConfirmPrompt = computed(() => {
   const count = props.versionOptions.length;

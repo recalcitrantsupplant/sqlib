@@ -145,6 +145,7 @@ describe('trusted-header requests', () => {
     expect(body.caller.user).toBe(user);
     expect(body.backends).toEqual({ 'urn:b:public': ['query:saved'], 'urn:b:geo': ['update:adhoc'] });
     expect(store.principalRecord(user)?.label).toBe('ada@example.org');
+    expect(store.principalRecord(user)?.displayName).toBe('user-1');
     await app.close();
   });
 

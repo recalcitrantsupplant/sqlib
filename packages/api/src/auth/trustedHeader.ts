@@ -85,6 +85,8 @@ function readPlain(headers: IncomingHttpHeaders, config: TrustedHeaderConfig): T
   if (email) claims.email = email;
   // oauth2-proxy sends a username beside the user id.
   if (subject.includes('@') && !email) claims.email = subject;
+  // The user id is the caller's display name. `displayNameOf` skips an email.
+  else claims.preferred_username = subject;
   return { subject, claims };
 }
 
