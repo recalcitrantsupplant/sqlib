@@ -204,6 +204,7 @@ CORS.
 | `CACHE_WRITE_THROUGH` | `true` | Every entity write goes to the store as well as the in-memory cache. Set to exactly `false` to keep writes in memory only; any other value leaves it on. With it off, background refreshes from the store are skipped too. |
 | `CACHE_PRELOAD` | `true` | Load every entity into the cache at startup. Set to `false` (case-insensitive) to skip the preload; with it off, background per-type refreshes are also skipped. |
 | `ENABLE_TIMING_LOGS` | `true`, and not changeable | Intended to switch per-request timing logs. The expression that reads it is `process.env.ENABLE_TIMING_LOGS === 'true' \|\| true`, so `config.enableTimingLogs` is always `true` and setting the variable has no effect. |
+| `SQLIB_PINNED_CACHE_MAX_AGE` | `31536000` (1 year) | The seconds a cache may reuse a public pinned response from `GET /execute` or `GET /substitute` without asking again (`Cache-Control: public, max-age=<n>, immutable`). `0` gives `public, no-cache`: every cache revalidates and gets `304` while the ETag matches. A value that is not a whole number from `0` to `31536000` gives the default. A private pinned response is always `private, no-cache`. See [HTTP caching of pinned runs](../explanation/storage-and-caching.md#http-caching-of-pinned-runs). |
 
 No environment variable sets the time-to-live of entities in the cache.
 `packages/api/src/lib/EntityRegistry.ts` sets it for each entity type, and keeps
@@ -506,7 +507,7 @@ covers.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), `required` or `anonymous`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer, and an audience for every issuer unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true`. `anonymous` reads no token: every caller is `urn:sqlib:principal:anonymous`, holds the grants on that principal, and is refused everything else. For a public deployment beside `SQLIB_READ_ONLY=true`; seed the grants with `SQLIB_AUTH_SEED_GRANTS`. |
+| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), `required`, `anonymous`, `optional` or `trusted-header`. An empty value is `disabled`. Anything else throws. `dry-run`, `required` and `optional` require an issuer, and an audience for every issuer unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true`. `anonymous` reads no token: every caller is `urn:sqlib:principal:anonymous`, holds the grants on that principal, and is refused everything else. For a public deployment beside `SQLIB_READ_ONLY=true`; seed the grants with `SQLIB_AUTH_SEED_GRANTS`. `trusted-header` reads the caller from a header that a sign-in proxy sets; see the `SQLIB_AUTH_TRUSTED_*` rows. `optional` serves a request without a token as `urn:sqlib:principal:anonymous`, verifies a token when one is sent, and answers `401` to an invalid or expired token. A signed-in caller also holds the grants on the anonymous principal. |
 | `SQLIB_AUTH_ISSUER` | unset | OIDC issuer URL for a single-issuer deployment. |
 | `SQLIB_AUTH_AUDIENCE` | unset | Expected `aud` for that issuer. |
 | `SQLIB_AUTH_AUDIENCE_UNCHECKED` | `false` | Set to exactly `true` (case-insensitive) to start `dry-run` or `required` with an issuer that has no audience. Without an audience the `aud` claim is not checked, so any token that issuer minted for any application is accepted; without this flag that configuration throws at startup. Applies to `SQLIB_AUTH_ISSUERS_JSON` entries too. |
@@ -527,6 +528,12 @@ covers.
 | `SQLIB_AUTH_SPARQL_USERNAME` / `SQLIB_AUTH_SPARQL_PASSWORD` | unset | Basic credentials for that dataset. |
 | `SQLIB_AUTH_POLICY_CACHE_SECONDS` | `60` | How long a backend graph policy's result is kept per backend and caller. `0` evaluates the policy on every read. A change to the policy, or any update to an auth backend, clears the cache. A negative or non-numeric value throws. |
 | `SQLIB_AUTH_SCOPES` | empty | Space- or comma-separated scopes. Published as `scopes_supported` in the metadata and as `scope` in the 401 challenge. Empty leaves both out. |
+| `SQLIB_AUTH_TRUSTED_HEADER` | unset | `trusted-header` mode only, and required there: the header the sign-in proxy sets to name the caller, such as `x-forwarded-user` or `x-ms-client-principal`. |
+| `SQLIB_AUTH_TRUSTED_FORMAT` | `plain` | `plain`: the header value is the user id. `ms-client-principal`: base64 JSON from Azure Static Web Apps (`userId`, `userDetails`, `userRoles`) or App Service authentication (`claims`). Azure's `anonymous` and `authenticated` roles are not read as groups. Anything else throws. |
+| `SQLIB_AUTH_TRUSTED_GROUPS_HEADER` | unset | `plain` only: a comma-separated groups header, such as `x-forwarded-groups`. |
+| `SQLIB_AUTH_TRUSTED_EMAIL_HEADER` | unset | `plain` only: an email header, such as `x-forwarded-email`, used to label the person in the People list. |
+| `SQLIB_AUTH_TRUSTED_SECRET_HEADER`, `SQLIB_AUTH_TRUSTED_SECRET` | unset | `trusted-header` mode only, and required there: the header and the value of a secret, at least 16 characters, that the proxy adds to every request. A request without it gets `403`, except `/health`, `/` and the public docs. |
+| `SQLIB_AUTH_TRUSTED_ISSUER` | `urn:sqlib:trusted-header` | The issuer that principal IRIs are built with in `trusted-header` mode. Write an admin as `<issuer>\|<user id>` in `SQLIB_AUTH_ADMIN_PRINCIPALS`. |
 
 The API serves OAuth 2.0 Protected Resource Metadata (RFC 9728) at:
 

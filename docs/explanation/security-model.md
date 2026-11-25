@@ -23,7 +23,7 @@ designed but not built.
 
 ## What `SQLIB_AUTH_MODE` does
 
-There are four values. **The default is `disabled`.**
+There are six values. **The default is `disabled`.**
 
 | Mode | Token required | Effect |
 | --- | --- | --- |
@@ -31,6 +31,8 @@ There are four values. **The default is `disabled`.**
 | `dry-run` | no | If a token is sent, sqlib verifies it and resolves the grants. sqlib logs a request that would be denied as `would-deny`, and serves it. |
 | `required` | yes | A request without a valid token gets `401`. If sqlib cannot fetch the JWKS endpoint, the request gets `503`, because the failure is on the server side. A token whose `kid` is not in the published key set gets `401`. For an unknown `kid`, sqlib fetches the key set again at most once in each 30-second period. |
 | `anonymous` | no, and sqlib reads none | Each request is the one principal `urn:sqlib:principal:anonymous`, with the grants of that principal only. Enforcement is the same as in `required`: a failed check is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
+| `optional` | no | A request without a token is the anonymous principal, as in `anonymous`. A request with a token is verified as in `required`. A valid token gives the caller's own principals, the authenticated sentinel and the anonymous principal. A signed-in caller holds the guest grants plus their own grants, and reads the guest graphs plus their own graphs under a graph policy. A signed-in caller never holds less than a guest. An invalid or expired token gets `401` with a bearer challenge. Enforcement is the same as in `required`. |
+| `trusted-header` | no, and sqlib reads none | A sign-in proxy in front of sqlib names the caller in a header. A request without the proxy's secret gets `403`. A request with the secret and no identity header is the anonymous principal. A request with both is the caller the header names, with the authenticated sentinel and the anonymous principal. Enforcement is the same as in `required`. |
 
 `anonymous` is the mode for a public deployment. Use it with
 `SQLIB_READ_ONLY=true`, and grant `execute` on a library and `query:saved` on
@@ -45,7 +47,28 @@ create a library on a writable deployment. Set it to `admin` unless you want
 that. The anonymous principal is a different principal from the authenticated
 sentinel, so a grant to "everyone signed in" does not reach a visitor.
 
-`dry-run` or `required` without an issuer stops the server at start. An issuer
+`trusted-header` is for a deployment behind a proxy that signs people in
+itself and sends no bearer token, such as Azure App Service authentication or
+oauth2-proxy. Set these:
+
+- `SQLIB_AUTH_TRUSTED_HEADER`: the identity header, such as `x-forwarded-user`
+  or `x-ms-client-principal`.
+- `SQLIB_AUTH_TRUSTED_FORMAT`: `plain` (the value is the user id) or
+  `ms-client-principal` (base64 JSON from Azure).
+- `SQLIB_AUTH_TRUSTED_SECRET_HEADER` and `SQLIB_AUTH_TRUSTED_SECRET`: a secret
+  of at least 16 characters that the proxy adds to every request. The server
+  does not start without them.
+
+Anyone who reaches sqlib without the proxy can set the identity header to any
+user. The secret stops that. Keep sqlib unreachable except through the proxy
+too, and make the proxy strip the identity header from client requests.
+
+`optional` is the mode for a public deployment where some people sign in to
+write. Grant reads to the anonymous principal and writes to users or groups.
+sqlib gates writes by grants alone, as in `required`. It needs an issuer and an
+audience, as `required` does.
+
+`dry-run`, `required` or `optional` without an issuer stops the server at start. An issuer
 without an audience also stops the server, unless
 `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` is set. With no audience, sqlib does not
 check the `aud` claim, and it accepts a token that the issuer made for any other
@@ -230,6 +253,13 @@ The result becomes a dataset:
 - A part that the policy does not project is empty. The caller reads no graphs
   there.
 
+A guest is the anonymous principal with no groups, so a rule for
+`urn:sqlib:principal:anonymous` names the graphs a guest reads. A caller who
+also holds the anonymous principal (a signed-in caller in `optional` mode, or a
+demo person) gets the union of two runs: one for the caller, and one for the
+guest. If either run fails, the read is refused. `Test as` adds the guest run
+in the same modes.
+
 sqlib intersects that dataset with any dataset that the caller asked for (the
 graph picker, `defaultGraphs`/`namedGraphs` on `/sparql` and `/execute`) and
 with dataset edges in a query group. It sends the intersection as the SPARQL
@@ -322,8 +352,8 @@ fails. The wrappers of the API (`applyExecutionArguments`, `invokeCallable`)
 take the caller as a required field, so the compiler lists each call site.
 
 No caller is signed in for a full-access context (`disabled` mode, or `dry-run`
-without a valid token), for a guest in `anonymous` mode (its one principal
-identifies nobody), and for the internal work of sqlib. A demo person in demo
+without a valid token), for a guest in `anonymous` or `optional` mode (its
+one principal identifies nobody), and for the internal work of sqlib. A demo person in demo
 mode is a caller. A route refuses such a run with
 `401` or `403` before it starts. The zero rows are a second protection behind
 that refusal.

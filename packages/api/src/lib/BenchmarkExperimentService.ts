@@ -11,9 +11,16 @@ import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGro
 import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import { BENCHMARK_NO_ARGUMENTS_IRI, BENCHMARK_NOT_APPLICABLE_BACKEND_IRI } from '../constants/benchmarks.js';
 import { EPHEMERAL_BACKEND_ID, LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { caseLabelIssues } from './benchmarkCases.js';
 
 export type BenchmarkSubjectSpec = {
   subject: string;
+  /**
+   * A label for every case this spec expands to, so a run can select them by
+   * one name (issue #251). Optional: each case also has an id derived from
+   * its references; see `lib/benchmarkCases.ts`.
+   */
+  caseId?: string;
   /**
    * The tabular input axis: argument sets for a query or query group, tuple
    * sets for a rule set.
@@ -388,6 +395,11 @@ export function assertBenchmarkVersionDependencies(
 
   if (issues.length) {
     throw new Error(`BenchmarkExperimentVersion ${versionId} has non-frozen dependencies: ${issues.join('; ')}`);
+  }
+
+  const labelIssues = caseLabelIssues(subjectSpecs);
+  if (labelIssues.length) {
+    throw new Error(`BenchmarkExperimentVersion ${versionId} has invalid case labels: ${labelIssues.join('; ')}`);
   }
 }
 

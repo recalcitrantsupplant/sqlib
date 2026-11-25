@@ -1,5 +1,10 @@
 <template>
-  <section v-if="hasContent || hasFull" class="code-peek" :data-testid="testId">
+  <section
+    v-if="hasContent || hasFull"
+    class="code-peek"
+    :class="{ open: isExpanded }"
+    :data-testid="testId"
+  >
     <!--
       The toggle and Copy are siblings in one bar: a button cannot hold
       another button. Copy takes `content`, the whole document, prologue
@@ -349,6 +354,8 @@ const fullExtensions = computed<Extension[]>(() => [
    */
   --peek-line-height: calc(var(--text-code) * 1.4);
 
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
@@ -358,6 +365,7 @@ const fullExtensions = computed<Extension[]>(() => [
 
 .peek-bar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-subtle);
@@ -411,6 +419,7 @@ const fullExtensions = computed<Extension[]>(() => [
 
 .peek-body {
   position: relative;
+  flex-shrink: 0;
   overflow: hidden;
   cursor: pointer;
 }
@@ -439,9 +448,16 @@ const fullExtensions = computed<Extension[]>(() => [
   overflow: auto;
 }
 
-/* The editor the caller passes sizes itself; this only lets it shrink. */
+/*
+ * The editor the caller passes sizes itself. The slot passes on the height the
+ * peek is given, so an editor with `flex: 1` fills it and scrolls inside it.
+ */
 .peek-slot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .peek-head:disabled {

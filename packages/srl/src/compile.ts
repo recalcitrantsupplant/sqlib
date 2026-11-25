@@ -17,7 +17,7 @@ export type { TupleRef } from './tuples/compile.js';
  * The named graph holding `GD` — the base graph plus every DATA block — as it
  * stood before any rule ran.
  *
- * `WHERE DATA` and `NOT DATA` are the spec's way of matching the *input* rather
+ * `WHERE GROUND` and `NOT GROUND` are the spec's way of matching the *input* rather
  * than the growing evaluation graph, and SPARQL's way of matching one graph
  * rather than another is `GRAPH <g> { … }`. So the executor keeps a copy of the
  * ground data under this IRI and the compiler points ground patterns at it.
@@ -145,8 +145,8 @@ interface CompileContext {
   used: Set<string>;
 }
 
-function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: ReadonlySet<string> = new Set()): string {
-  let parts: string[] = [];
+function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: ReadonlySet<string> = new Set(), initial: string[] = []): string {
+  let parts: string[] = [...initial];
   const bound = new Set(outerBound);
   items.forEach((item, index) => {
     switch (item.kind) {
@@ -160,8 +160,8 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
         // Newlines matter: a tuple placeholder ends in a comment (the read
         // marker), so a closing brace on the same line would be commented out.
         const inner = compileBody(item.body, context, bound);
-        // `NOT DATA` negates against the ground graph. A plain `NOT` inside a
-        // `WHERE DATA` rule needs no marker here — the whole body is already
+        // `NOT GROUND` negates against the ground graph. A plain `NOT` inside a
+        // `WHERE GROUND` rule needs no marker here — the whole body is already
         // inside the GRAPH block, which is exactly the spec's
         // `evalRuleElements(N.inner, S, G=GD, GD)`.
         parts.push(item.data
@@ -245,10 +245,18 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  * - **Grouping the pattern alone** means the multiplicity of `P` never reaches
  *   a count: a person with two names and three children counts three.
  *
- * When a key bound by `P` is not bound by the pattern, as in the rank idiom
- * `{ ?o :score ?s FILTER(?s > ?score) }`, the subquery cannot compute it from
- * its own pattern, since SPARQL evaluates a subquery bottom-up. It is then
- * seeded with the distinct key rows of `P`, which repeats `P` inside it.
+ * - **Seeding.** SPARQL evaluates a subquery bottom-up, so the pattern
+ *   cannot see the keys that `P` binds. When any key is bound by `P`, the
+ *   subquery body starts with `SELECT DISTINCT` over those keys, with `P` as
+ *   its body. The pattern follows it, so every `FILTER`, `SET` and `NOT` in
+ *   the pattern sees the incoming keys. The seed is the first part of the
+ *   pattern's body, so a `SET` wrap encloses it. A key that only the pattern
+ *   binds is not seeded. With no keys there is no seed.
+ *
+ * The seed is added whenever a key is bound by `P`, also when the pattern
+ * binds the same key. This is the strict translation. Each seed repeats `P`,
+ * and an earlier `GROUP` in `P` brings its own seed with it, so `n` chained
+ * `GROUP`s compile to `2^n - 1` seeds.
  */
 function compileAggregate(
   item: SrlAggregate,
@@ -270,22 +278,20 @@ function compileAggregate(
   }
   const keyList = keys.map((k) => `?${k}`).join(' ');
 
-  // Keys the pattern binds itself; any other key comes from `P` and needs
-  // seeding.
-  const patternBound = new Set(item.body.flatMap((inner) => boundBy(inner)));
+  // Seed the keys bound by `P`, as the first part of the pattern's body.
   const outerKeys = keys.filter((k) => boundBefore.has(k));
-  const seed = outerKeys.length > 0 && keys.some((k) => !patternBound.has(k))
-    ? `{\n  SELECT DISTINCT ${outerKeys.map((k) => `?${k}`).join(' ')} WHERE {\n  ${prefix.join('\n  ')}\n}\n}\n  `
-    : '';
+  const seed = outerKeys.length > 0
+    ? [`{\n  SELECT DISTINCT ${outerKeys.map((k) => `?${k}`).join(' ')} WHERE {\n  ${prefix.join('\n  ')}\n}\n}`]
+    : [];
 
-  const inner = compileBody(item.body, context, new Set(outerKeys));
+  const inner = compileBody(item.body, context, new Set(outerKeys), seed);
   const projection = [
     keyList,
     count ? `(COUNT(*) AS ?${count})` : '',
     ...item.assignments.map((a) => `(${serialize('expression', a.aggregate)} AS ?${a.variable})`),
   ].filter(Boolean).join(' ');
   const groupBy = keys.length > 0 ? `\nGROUP BY ${keyList}` : '';
-  const subquery = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
+  const subquery = `{\n  SELECT ${projection} WHERE {\n  ${inner}\n}${groupBy}\n}`;
 
   const after: string[] = [];
   if (item.assignments.length > 0) {
@@ -395,7 +401,7 @@ export function compileRule(rule: SrlRule, prologueText = '', options: CompileOp
   // SET targets and aggregate results are plain strings, not term nodes.
   for (const item of items) for (const name of boundBy(item)) used.add(name);
   const inner = compileBody(items, { tupleIndex: { n: 0 }, aggregateIndex: { n: 0 }, used });
-  // `WHERE DATA`: the spec evaluates the whole body with GD in place of G, so
+  // `WHERE GROUND`: the spec evaluates the whole body with GD in place of G, so
   // one GRAPH block around everything is the exact translation — nested NOTs
   // included, which is why they need no marker of their own.
   const body = rule.data ? `GRAPH <${GROUND_GRAPH_IRI}> {\n  ${inner}\n}` : inner;

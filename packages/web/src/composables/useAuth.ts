@@ -26,7 +26,7 @@ import {
   type DemoPersonEntry,
 } from '../lib/demoPerson';
 
-export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
+export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous' | 'optional' | 'trusted-header';
 
 export interface AuthMe {
   authMode: AuthMode;
@@ -94,9 +94,26 @@ function requireLogin(): boolean {
  *
  * `anonymous` is a public deployment that reads no token, so there is nothing
  * to sign in to; what the visitor may do comes from `/auth/me` instead.
+ * `optional` reads a token when one is sent, and serves a guest otherwise.
  */
 function signsIn(): boolean {
-  return mode.value === 'dry-run' || mode.value === 'required' || requireLogin();
+  return mode.value === 'dry-run' || mode.value === 'required' || mode.value === 'optional' || requireLogin();
+}
+
+/**
+ * Whether the API answers a caller with no token as a guest. In
+ * `trusted-header` mode a sign-in proxy in front of the API names the caller,
+ * so the app has no token and learns who it is from `/auth/me`.
+ */
+function servesGuests(): boolean {
+  return mode.value === 'anonymous' || mode.value === 'optional' || mode.value === 'trusted-header';
+}
+
+const ANONYMOUS_PRINCIPAL = 'urn:sqlib:principal:anonymous';
+
+/** `trusted-header` mode: the proxy named a caller. */
+function proxySignedIn(): boolean {
+  return mode.value === 'trusted-header' && Boolean(me.value?.authenticated) && me.value?.subject !== ANONYMOUS_PRINCIPAL;
 }
 
 /**
@@ -200,9 +217,9 @@ async function fetchMode(): Promise<AuthMode> {
 
 async function refreshMe(): Promise<void> {
   const token = user.value?.access_token;
-  // An anonymous deployment answers `/auth/me` for everyone, and that answer
-  // is the only thing that says which libraries and backends a visitor holds.
-  if (!token && mode.value !== 'anonymous') {
+  // A deployment that serves guests answers `/auth/me` for everyone, and that
+  // answer is the only thing that says which libraries and backends a guest holds.
+  if (!token && !servesGuests()) {
     me.value = null;
     return;
   }
@@ -231,6 +248,9 @@ export function useAuth() {
       mode.value = await fetchMode();
 
       if (!signsIn()) {
+        if (mode.value === 'trusted-header') {
+          await refreshMe();
+        }
         if (mode.value === 'anonymous') {
           // Keep a stored demo person only while the server still lists them.
           const stored = currentDemoPersonId();
@@ -342,7 +362,7 @@ export function useAuth() {
       return {
         state: accountStateOf({
           mode: mode.value,
-          signedIn: Boolean(user.value),
+          signedIn: Boolean(user.value) || proxySignedIn(),
           lapsed: Boolean(lapsed.value),
           demoPerson: Boolean(person),
         }),
@@ -350,7 +370,9 @@ export function useAuth() {
           ? { name: person.name, email: null }
           : user.value
             ? identityFrom(user.value.profile as Record<string, unknown>, me.value?.label)
-            : (lapsed.value ?? { name: null, email: null }),
+            : proxySignedIn()
+              ? identityFrom({ name: me.value?.displayName }, me.value?.label)
+              : (lapsed.value ?? { name: null, email: null }),
       };
     }),
     /** The people a server in demo mode offers; empty elsewhere. */

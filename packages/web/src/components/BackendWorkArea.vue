@@ -589,7 +589,7 @@
         noun="backend"
         :confirm-prompt="deleteConfirmPrompt"
         :created-at="backend.dateCreated ?? null"
-        :can-delete="canEdit"
+        :can-delete="canEdit && (isBrowser || !deployment.isReadOnly.value)"
         :deleting="deleting"
         :reset-key="backend.id"
         test-id-prefix="backend"

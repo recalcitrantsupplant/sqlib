@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
- * What `WHERE DATA` and `NOT DATA` match against: the ground graph `GD`.
+ * What `WHERE GROUND` and `NOT GROUND` match against: the ground graph `GD`.
  *
  * `GD` is frozen once, in `RuleSetExecutor.execute`, after the base graph is
  * loaded and *before* the DATA blocks run — so it is `G0`, the data graph, and
@@ -13,8 +13,8 @@ import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinator
  *   graph";
  * - pseudocode, [Evaluation of a Rule Set]: `let GD = G0 ∪ D`.
  *
- * The two disagree exactly when a DATA block supplies a triple a `NOT DATA`
- * asks about, and the upstream `eval-neg-data-03` / `-06` cases are that case:
+ * The two disagree exactly when a DATA block supplies a triple a `NOT GROUND`
+ * asks about, and the upstream `eval-neg-ground-03` / `-06` cases are that case:
  * base graph empty, `DATA { :s :p :o }`, and the expected result has the rule
  * firing — so the suite sides with the prose, against its own pseudocode. We
  * follow the prose, for the reasons written at the freeze point.
@@ -25,7 +25,7 @@ import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinator
  * made: each one states which reading it discriminates, so moving the freeze
  * line fails with a sentence rather than a scoreboard.
  *
- * `NOT DATA`'s stratification depends on the same reading — see
+ * `NOT GROUND`'s stratification depends on the same reading — see
  * `packages/srl/test/groundData.test.ts`, where a rule that derives `:km` and
  * asks whether `:km` was in the input stratifies only because no rule can add
  * to the graph it asks. That is sound under `GD = G0` and unsound under
@@ -99,9 +99,9 @@ beforeEach(() => {
   hoisted.entities.clear();
 });
 
-describe('RuleSetExecutor — NOT DATA negates against the base graph', () => {
-  it('eval-neg-data-01: nothing anywhere, so the negation holds', async () => {
-    const result = await run([], [rule('r', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT DATA { :s :p ?o } }')]);
+describe('RuleSetExecutor — NOT GROUND negates against the base graph', () => {
+  it('eval-neg-ground-01: nothing anywhere, so the negation holds', async () => {
+    const result = await run([], [rule('r', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT GROUND { :s :p ?o } }')]);
 
     expect(result.status).toBe('converged');
     expect(triples(result.finalGraphNQuads)).toEqual([MSG]);
@@ -113,7 +113,7 @@ describe('RuleSetExecutor — NOT DATA negates against the base graph', () => {
     // agree on, and the control for the two below.
     const result = await run(
       [],
-      [rule('r', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT DATA { :s :p ?o } }')],
+      [rule('r', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT GROUND { :s :p ?o } }')],
       SPO,
     );
 
@@ -121,39 +121,39 @@ describe('RuleSetExecutor — NOT DATA negates against the base graph', () => {
     expect(triples(result.finalGraphNQuads)).toEqual([]);
   });
 
-  it('eval-neg-data-02: does not see what a rule derived', async () => {
+  it('eval-neg-ground-02: does not see what a rule derived', async () => {
     // A derived triple is in the evaluation graph and never in `GD`, however
     // `GD` is read — the pair with the case below, which is what makes "a DATA
     // block is a rule with an empty body" a claim with a consequence.
     const result = await run([], [
       rule('give', 'RULE { :s :p :o } WHERE { }'),
-      rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT DATA { :s :p ?o } }'),
+      rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT GROUND { :s :p ?o } }'),
     ]);
 
     expect(result.status).toBe('converged');
     expect(triples(result.finalGraphNQuads)).toEqual([MSG, SPO].sort());
   });
 
-  it('eval-neg-data-03: does not see what a DATA block supplied — the prose reading', async () => {
+  it('eval-neg-ground-03: does not see what a DATA block supplied — the prose reading', async () => {
     // THE discriminating case (#174). Under `GD = G0 ∪ D` the DATA block would
     // answer the negation and this rule would not fire; the upstream expected
     // result has it firing, and so do we.
     const result = await run(
       [dataBlock('d', 'DATA { :s :p :o }')],
-      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT DATA { :s :p ?o } }')],
+      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { NOT GROUND { :s :p ?o } }')],
     );
 
     expect(result.status).toBe('converged');
     expect(triples(result.finalGraphNQuads)).toEqual([MSG, SPO].sort());
   });
 
-  it('eval-neg-data-06: same, with the triple also read positively', async () => {
+  it('eval-neg-ground-06: same, with the triple also read positively', async () => {
     // `:s :p ?o` matches in the evaluation graph, where the DATA block's triple
-    // is, while `NOT DATA` asks the base graph, where it is not. One rule
+    // is, while `NOT GROUND` asks the base graph, where it is not. One rule
     // holding both halves, which is the shape a default-value rule has.
     const result = await run(
       [dataBlock('d', 'DATA { :s :p :o }')],
-      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { :s :p ?o NOT DATA { :s :p ?o } }')],
+      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { :s :p ?o NOT GROUND { :s :p ?o } }')],
     );
 
     expect(result.status).toBe('converged');
@@ -166,7 +166,7 @@ describe('RuleSetExecutor — NOT DATA negates against the base graph', () => {
     // them the same run; they are not, and this is the assertion that says so.
     const result = await run(
       [],
-      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { :s :p ?o NOT DATA { :s :p ?o } }')],
+      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE { :s :p ?o NOT GROUND { :s :p ?o } }')],
       SPO,
     );
 
@@ -175,11 +175,11 @@ describe('RuleSetExecutor — NOT DATA negates against the base graph', () => {
   });
 });
 
-describe('RuleSetExecutor — WHERE DATA matches the base graph', () => {
+describe('RuleSetExecutor — WHERE GROUND matches the base graph', () => {
   it('matches a base-graph triple', async () => {
     const result = await run(
       [],
-      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE DATA { :s :p ?o }')],
+      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE GROUND { :s :p ?o }')],
       SPO,
     );
 
@@ -188,12 +188,12 @@ describe('RuleSetExecutor — WHERE DATA matches the base graph', () => {
   });
 
   it('does not match a DATA block triple — the same decision, positively', async () => {
-    // `WHERE DATA` and `NOT DATA` read one graph between them, so the reading
+    // `WHERE GROUND` and `NOT GROUND` read one graph between them, so the reading
     // has to hold on both sides or a rule set could see a DATA block's triple
     // by asking about its absence and not by asking about its presence.
     const result = await run(
       [dataBlock('d', 'DATA { :s :p :o }')],
-      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE DATA { :s :p ?o }')],
+      [rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE GROUND { :s :p ?o }')],
     );
 
     expect(result.status).toBe('converged');
@@ -203,7 +203,7 @@ describe('RuleSetExecutor — WHERE DATA matches the base graph', () => {
   it('does not match what a rule derived', async () => {
     const result = await run([], [
       rule('give', 'RULE { :s :p :o } WHERE { }'),
-      rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE DATA { :s :p ?o }'),
+      rule('ask', 'RULE { :x :msg ":s :p :o inferred" } WHERE GROUND { :s :p ?o }'),
     ]);
 
     expect(result.status).toBe('converged');

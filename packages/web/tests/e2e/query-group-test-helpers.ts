@@ -449,12 +449,12 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     set.dateModified = isoNow();
   };
 
-  await page.route(/\/argument-sets\?libraryId=/, async (route) => {
+  await page.route(/\/argument-sets\?library=/, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
     }
-    const libraryId = decodeId(new URL(route.request().url()).searchParams.get('libraryId') ?? '');
+    const libraryId = decodeId(new URL(route.request().url()).searchParams.get('library') ?? '');
     await json(route, 200, state.argumentSets.filter((set) => set.libraryId === libraryId));
   });
 

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:d :tenAbove 3 .
+:f :tenAbove 1 .

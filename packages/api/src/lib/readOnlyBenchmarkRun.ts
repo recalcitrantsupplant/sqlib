@@ -20,7 +20,7 @@
  *   count is deployment-wide.
  */
 import type { FastifyRequest } from 'fastify';
-import { BenchmarkRunner, countPlannedRequests, transientBenchmarkSink } from './BenchmarkRunner.js';
+import { BenchmarkRunner, countPlannedRequests, transientBenchmarkSink, type BenchmarkRunOptions } from './BenchmarkRunner.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import {
   readOnlyBenchConcurrentRuns,
@@ -54,6 +54,8 @@ export async function runBenchmarkReadOnly(
   versionId: string,
   /** A seam for tests; the route always runs as the request's caller. */
   makeRunner: () => BenchmarkRunner = () => new BenchmarkRunner({ request }),
+  /** The cases, pass and context the caller asked for; the caps apply to the selected cases. */
+  selection: Pick<BenchmarkRunOptions, 'cases' | 'pass' | 'context'> = {},
 ) {
   const version = getCacheCoordinator().get(versionId) as PersistedBenchmarkExperimentVersion | null;
   if (!version || version['@type'] !== 'BenchmarkExperimentVersion') {
@@ -68,7 +70,7 @@ export async function runBenchmarkReadOnly(
   }
 
   const runner = makeRunner();
-  const plan = runner.planExperimentVersion(versionId);
+  const plan = runner.planExperimentVersion(versionId, selection);
   const planned = countPlannedRequests(plan.tasks, plan.warmupRuns);
   const maxRequests = readOnlyBenchMaxRequests();
   if (planned > maxRequests) {
@@ -92,6 +94,7 @@ export async function runBenchmarkReadOnly(
   inFlight += 1;
   try {
     return await runner.runExperimentVersion(versionId, {
+      ...selection,
       sink: transientBenchmarkSink,
       maxConcurrency: readOnlyBenchMaxConcurrency(),
       deadlineMs: readOnlyBenchDeadlineMs(),

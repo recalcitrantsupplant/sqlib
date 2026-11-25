@@ -1,7 +1,7 @@
 import { LexerBuilder } from '@traqula/core';
 import { lex as l11 } from '@traqula/rules-sparql-1-1';
 import { lex as l12 } from '@traqula/rules-sparql-1-2';
-import { assignOp, dataKeyword, notKeyword, ruleKeyword, setKeyword } from './tokens.js';
+import { assignOp, dataKeyword, groundKeyword, notKeyword, ruleKeyword, setKeyword } from './tokens.js';
 import { tupleKeyword } from './tuples/grammar.js';
 
 /**
@@ -12,7 +12,7 @@ import { tupleKeyword } from './tuples/grammar.js';
  *  - `:=` inserted before `PNameNs` so `:` is not lexed as an empty prefix.
  */
 export const srlLexerBuilder = LexerBuilder.create(l12.sparql12LexerBuilder)
-  .add(ruleKeyword, setKeyword, dataKeyword, notKeyword, tupleKeyword)
+  .add(ruleKeyword, setKeyword, dataKeyword, groundKeyword, notKeyword, tupleKeyword)
   .addBefore(l11.terminals.pNameNs as any, assignOp);
 
 export const srlTokenVocabulary: readonly unknown[] = srlLexerBuilder.tokenVocabulary as readonly unknown[];

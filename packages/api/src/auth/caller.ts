@@ -10,8 +10,8 @@
  *
  * - the context has full access: `disabled` mode, `dry-run` without a valid
  *   token, and sqlib's own identity. Their subject is a placeholder;
- * - the mode is `anonymous`: every visitor is the one anonymous principal, so
- *   it identifies nobody;
+ * - the caller is the anonymous principal (`anonymous` mode, or `optional`
+ *   without a token): it identifies nobody;
  * - the run is sqlib's own work (`InternalExecution`).
  *
  * "No one" fills both slots with zero rows. A door that runs a query declaring
@@ -33,7 +33,7 @@ export function callerIdentityOf(context: AuthContext): CallerIdentity | null {
   if (context.fullAccess) return null;
   // A guest has no identity. A demo person (`config/demoMode.ts`) has one,
   // though the mode stays `anonymous`, so `?authUser` reads their own rows.
-  if (context.mode === 'anonymous' && context.subject === PRINCIPAL_ANONYMOUS) return null;
+  if (context.subject === PRINCIPAL_ANONYMOUS) return null;
   if (context.tokenType === 'system') return null;
   return {
     user: context.subject,
@@ -69,8 +69,9 @@ export function declaredReservedSlots(queryString: string | null | undefined, pa
 /**
  * Refused because a query reads the caller and no one is signed in.
  *
- * `401` where a token could have been sent (`required`, `dry-run`), `403`
- * where sign-in does not exist (`disabled`, `anonymous`).
+ * `401` where the caller could have signed in (`required`, `optional`,
+ * `trusted-header`, `dry-run`), `403` where sign-in does not exist
+ * (`disabled`, `anonymous`).
  */
 export class CallerRequiredError extends Error {
   constructor(readonly statusCode: 401 | 403, slots: readonly string[]) {
@@ -100,7 +101,8 @@ export function requireCallerForSlots(request: FastifyRequest, slots: readonly s
     );
     return;
   }
-  throw new CallerRequiredError(context.mode === 'required' ? 401 : 403, slots);
+  const canSignIn = context.mode === 'required' || context.mode === 'optional' || context.mode === 'trusted-header';
+  throw new CallerRequiredError(canSignIn ? 401 : 403, slots);
 }
 
 /** `requireCallerForSlots` as a value: the refusal, or null to go on. */

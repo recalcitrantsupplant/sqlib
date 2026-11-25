@@ -306,7 +306,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       nodeObservations: [],
       iterationObservations: [],
     });
-    expect(hoisted.mockRun).toHaveBeenCalledWith(versionEntity.$id);
+    expect(hoisted.mockRun).toHaveBeenCalledWith(versionEntity.$id, {});
   });
 
   describe('on a read-only deployment', () => {
@@ -338,7 +338,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       });
       const res = await app.inject({ method: 'POST', url });
       expect(res.statusCode).toBe(200);
-      expect(hoisted.mockReadOnlyRun).toHaveBeenCalledWith(expect.anything(), versionEntity.$id);
+      expect(hoisted.mockReadOnlyRun).toHaveBeenCalledWith(expect.anything(), versionEntity.$id, undefined, {});
       expect(hoisted.mockRun).not.toHaveBeenCalled();
     });
 

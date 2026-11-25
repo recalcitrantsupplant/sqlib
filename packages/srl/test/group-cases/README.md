@@ -41,7 +41,7 @@ is rejected with the flag off.
 | `syntax-group-agg-05` | accepted | Keywords are case-insensitive. |
 | `syntax-group-agg-06` | accepted | The pattern may hold FILTER and SET. |
 | `syntax-group-agg-07` | accepted | An empty pattern. |
-| `syntax-group-agg-08` | accepted | A GROUP inside WHERE DATA. |
+| `syntax-group-agg-08` | accepted | A GROUP inside WHERE GROUND. |
 | `syntax-group-agg-09` | accepted | Assignments laid out one per line. |
 | `syntax-group-agg-10` | accepted | A triple pattern starting with ( may follow the block, which ends the GROUP. |
 | `syntax-group-agg-11` | accepted | An empty block may be written with space inside. |
@@ -125,7 +125,7 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-08` | Dense rank, counting distinct higher scores. The top score gets no rank. |
 | `eval-group-agg-09` | COUNT(DISTINCT *) equals COUNT(*): the solutions of a pattern are already distinct. |
 | `eval-group-agg-10` | The GROUP counts :childOf only after the rule deriving it is complete, so Bob gets 3 and no partial count. |
-| `eval-group-agg-11` | WHERE DATA counts only the given graph: the derived :childOf triples are not counted. |
+| `eval-group-agg-11` | WHERE GROUND counts only the given graph: the derived :childOf triples are not counted. |
 | `eval-group-agg-12` | An aggregation error drops the row: SUM over strings has no value, SUM over numbers does. |
 | `eval-group-agg-13` | On an empty graph a GROUP with no BY still has one group: COUNT gives 0, and MAX fails, so it gives no value. |
 | `eval-group-agg-14` | A FILTER on the result after the GROUP keeps only people with more than one child. |
@@ -146,3 +146,5 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-29` | An empty block keeps the implicit group: one row for a pattern with no solutions. |
 | `eval-group-agg-30` | MAX fails on the empty group, so the group is dropped and COUNT(*) gives no value either. |
 | `eval-group-agg-31` | A GROUP with no BY adds its one group to every earlier row, also when its pattern has no solutions. |
+| `eval-group-agg-32` | A SET before the pattern reads a BY variable bound before the GROUP. |
+| `eval-group-agg-33` | A SET reads a BY variable that only the elements before the GROUP bind, and a FILTER reads the SET. |

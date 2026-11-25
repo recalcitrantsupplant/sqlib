@@ -94,8 +94,9 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
   registerEntityAuthGuard(fastify);
 
   /**
-   * `GET /argument-sets?libraryId=…` — the listing the switcher's "elsewhere in
-   * the library" needs. It could not exist before `ArgumentSet.isPartOf`,
+   * `GET /argument-sets?library=…` — the listing the switcher's "elsewhere in
+   * the library" needs. It takes the same `library` filter as every other list
+   * (#250), and it requires it. It could not exist before `ArgumentSet.isPartOf`,
    * because the only path to a library ran through each set's target, making
    * enumeration one request per query.
    *
@@ -105,15 +106,18 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
   fastify.get('/', ...reposRoute({
       querystring: withListPageQuery({
         type: 'object',
-        properties: { libraryId: { type: 'string' }, preferTarget: { type: 'string' } },
-        required: ['libraryId'],
+        properties: { preferTarget: { type: 'string' } },
         additionalProperties: false,
       } as const),
       response: {
         200: argumentSetListResponseSchema,
+        400: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
       },
     }, async ({ request, reply }) => {
-    const { libraryId } = request.query;
+    const libraryId = request.query.library;
+    if (!libraryId) {
+      return reply.code(400).send({ error: 'Name the library with `?library=`.' });
+    }
     requireLibraryMode(request, libraryId, 'read');
     const page = await service.pageForLibrary(libraryId, parseListPageQuery(request), request.query.preferTarget);
     sendTotal(reply, page.total);

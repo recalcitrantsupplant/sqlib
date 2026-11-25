@@ -248,7 +248,7 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
    * three ways: `scope` is documented as provenance and explicitly "not a
    * fence", which is why the switcher computes a fits/partial/mismatch verdict
    * against whatever callable is open; `isPartOf → Library` is required and
-   * `GET /argument-sets?libraryId=` exists; and a test case pins an argument
+   * `GET /argument-sets?library=` exists; and a test case pins an argument
    * set *version*, so a rail entity already referenced one that had no rail
    * entry of its own.
    *

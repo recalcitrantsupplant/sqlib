@@ -431,6 +431,17 @@ export const benchmarkRouteSchemas = {
                   "type": "string",
                   "minLength": 1
                 }
+              },
+              "dataGraphs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "caseId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
               }
             },
             "required": [
@@ -698,6 +709,17 @@ export const benchmarkRouteSchemas = {
                   "type": "string",
                   "minLength": 1
                 }
+              },
+              "dataGraphs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "caseId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
               }
             },
             "required": [
@@ -973,9 +995,52 @@ export const benchmarkRouteSchemas = {
       ],
       "additionalProperties": false
     },
+    /*
+     * Optional: a POST with no body runs every case, as before issue #251.
+     * `cases` selects case ids or spec labels. `pass` groups runs of one
+     * version. `context` is a flat object, capped at 64 keys and 8 KiB as JSON.
+     */
+    "body": {
+      "type": "object",
+      "properties": {
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "pass": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "context": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": { "minLength": 1, "maxLength": 128 },
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "response": {
       "200": {
         "$ref": "benchmark.run.response#"
+      },
+      "400": {
+        "description": "A selector names no case of the version, or the context is over a cap.",
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "unknownCases": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["error"],
+        "additionalProperties": false
       },
       "404": {
         "type": "object",
@@ -1025,6 +1090,129 @@ export const benchmarkRouteSchemas = {
         "additionalProperties": false
       },
       "500": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "listCases": {
+    "tags": [
+      "Benchmark"
+    ],
+    "summary": "List the cases of a benchmark experiment version",
+    "params": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "response": {
+      "200": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "caseId": { "type": "string" },
+            "specCaseId": { "type": ["string", "null"] },
+            "subject": { "type": "string" },
+            "backend": { "type": "string" },
+            "input": { "type": "string" },
+            "dataGraph": { "type": ["string", "null"] }
+          },
+          "required": ["caseId", "specCaseId", "subject", "backend", "input", "dataGraph"],
+          "additionalProperties": false
+        }
+      },
+      "404": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "getPass": {
+    "tags": [
+      "Benchmark"
+    ],
+    "summary": "Get the runs and case coverage of one pass over a benchmark experiment version",
+    "params": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "pass": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "pass"
+      ],
+      "additionalProperties": false
+    },
+    "response": {
+      "200": {
+        "type": "object",
+        "properties": {
+          "pass": { "type": "string" },
+          "definedBy": { "type": "string" },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "benchmarkrun#"
+            }
+          },
+          "casesTotal": { "type": "integer" },
+          "casesRun": { "type": "array", "items": { "type": "string" } },
+          "casesFailed": { "type": "array", "items": { "type": "string" } },
+          "casesMissing": { "type": "array", "items": {
+          "type": "object",
+          "properties": {
+            "caseId": { "type": "string" },
+            "specCaseId": { "type": ["string", "null"] },
+            "subject": { "type": "string" },
+            "backend": { "type": "string" },
+            "input": { "type": "string" },
+            "dataGraph": { "type": ["string", "null"] }
+          },
+          "required": ["caseId", "specCaseId", "subject", "backend", "input", "dataGraph"],
+          "additionalProperties": false
+        } }
+        },
+        "required": ["pass", "definedBy", "runs", "casesTotal", "casesRun", "casesFailed", "casesMissing"],
+        "additionalProperties": false
+      },
+      "404": {
         "type": "object",
         "properties": {
           "error": {

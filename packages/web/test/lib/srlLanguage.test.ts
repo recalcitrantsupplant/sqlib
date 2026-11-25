@@ -100,23 +100,23 @@ describe('the SRL grammar', () => {
     expect(errors(text)).toEqual([]);
   });
 
-  it('reads a ground DATA block, at the top and after NOT', () => {
+  it('reads a DATA block at the top, and a NOT GROUND in a body', () => {
     const top = `${PREFIX}\nDATA { :a :p :b . }`;
-    const nested = `${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?k . NOT DATA { ?x :km ?any } }`;
+    const nested = `${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?k . NOT GROUND { ?x :km ?any } }`;
 
     expect(errors(top)).toEqual([]);
     expect(names(top)).toContain('SrlDataBlock');
     expect(errors(nested)).toEqual([]);
-    // `NOT DATA { … }` is a negation against the ground graph, so the node that
-    // names it is the negation rather than a second kind of data block.
-    expect(names(nested)).toEqual(expect.arrayContaining(['Negation', 'KwDATA']));
+    // `NOT GROUND { … }` is a negation against the ground graph, so the node that
+    // names it is the negation, not a data block.
+    expect(names(nested)).toEqual(expect.arrayContaining(['Negation', 'KwGROUND']));
   });
 
-  it('reads a whole-body ground match — WHERE DATA { … }', () => {
-    const text = `${PREFIX}\nRULE { :x :msg "seen" } WHERE DATA { :s :p ?o }`;
+  it('reads a whole-body ground match — WHERE GROUND { … }', () => {
+    const text = `${PREFIX}\nRULE { :x :msg "seen" } WHERE GROUND { :s :p ?o }`;
 
     expect(errors(text)).toEqual([]);
-    expect(names(text)).toContain('KwDATA');
+    expect(names(text)).toContain('KwGROUND');
   });
 
   it('reads the SET assignment SPARQL has no operator for', () => {
@@ -212,10 +212,10 @@ describe('the SRL grammar', () => {
   });
 
   it('keeps keywords case-insensitive, as SPARQL does', () => {
-    const text = 'rule { ?s :q ?o } Where Data { ?s :p ?o }';
+    const text = 'rule { ?s :q ?o } Where Ground { ?s :p ?o }';
 
     expect(errors(text)).toEqual([]);
-    expect(names(text)).toEqual(expect.arrayContaining(['Rule', 'KwWHERE', 'KwDATA']));
+    expect(names(text)).toEqual(expect.arrayContaining(['Rule', 'KwWHERE', 'KwGROUND']));
   });
 
   it('does not find a keyword inside a longer word', () => {
@@ -293,9 +293,9 @@ describe('SRL highlighting', () => {
   it('colours the block keywords the SPARQL grammar left plain', () => {
     // The whole point of the issue: `WHERE` was coloured because SPARQL shares
     // it, `RULE`, `DATA` and `TUPLE` were not.
-    const doc = 'RULE { TUPLE( :a ) } WHERE DATA { }';
+    const doc = 'DATA { :a :p :b }\nRULE { TUPLE( :a ) } WHERE GROUND { }';
 
-    for (const keyword of ['RULE', 'TUPLE', 'WHERE', 'DATA']) {
+    for (const keyword of ['DATA', 'RULE', 'TUPLE', 'WHERE', 'GROUND']) {
       expect(tagOf(doc, keyword)).toBe('keyword');
     }
   });

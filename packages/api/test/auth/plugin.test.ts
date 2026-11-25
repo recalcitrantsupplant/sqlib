@@ -196,6 +196,87 @@ describe('anonymous mode', () => {
   });
 });
 
+describe('optional mode', () => {
+  const BACKEND = 'urn:sqlib:backend:demo';
+  const ANONYMOUS = 'urn:sqlib:principal:anonymous';
+
+  it('needs an issuer, as it verifies a token when one is sent', () => {
+    expect(() => resetAuthConfig({ SQLIB_AUTH_MODE: 'optional' } as NodeJS.ProcessEnv)).toThrow(/requires an issuer/);
+  });
+
+  it('serves a request with no token as the anonymous principal', async () => {
+    const app = await buildApp('optional');
+    const response = await app.inject({ method: 'GET', url: '/whoami' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      subject: ANONYMOUS,
+      principals: [ANONYMOUS],
+      fullAccess: false,
+      admin: false,
+      mode: 'optional',
+    });
+    await app.close();
+  });
+
+  it('gives a caller with a valid token their own grants and the guest grants', async () => {
+    await store.createGrant({ principal: ANONYMOUS, resourceKind: 'backend', resource: BACKEND, modes: ['query:saved'] });
+    const user = principalIri('user', ISSUER, 'user-1');
+    await store.createGrant({ principal: user, resourceKind: 'backend', resource: 'urn:sqlib:backend:private', modes: ['update:adhoc'] });
+
+    const app = await buildApp('optional');
+    const signedIn = (await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: `Bearer ${await token({ sub: 'user-1' })}` },
+    })).json();
+
+    expect(signedIn.subject).toBe(user);
+    expect(signedIn.principals).toEqual(expect.arrayContaining([user, PRINCIPAL_AUTHENTICATED, ANONYMOUS]));
+    expect(signedIn.backends).toEqual({ [BACKEND]: ['query:saved'], 'urn:sqlib:backend:private': ['update:adhoc'] });
+
+    const guest = (await app.inject({ method: 'GET', url: '/whoami' })).json();
+    expect(guest.backends).toEqual({ [BACKEND]: ['query:saved'] });
+    await app.close();
+  });
+
+  it('gives a signed-in caller with no grants of their own exactly the guest grants', async () => {
+    await store.createGrant({ principal: ANONYMOUS, resourceKind: 'backend', resource: BACKEND, modes: ['query:saved'] });
+    const app = await buildApp('optional');
+    const signedIn = (await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: `Bearer ${await token({ sub: 'user-2' })}` },
+    })).json();
+    const guest = (await app.inject({ method: 'GET', url: '/whoami' })).json();
+
+    expect(signedIn.subject).toBe(principalIri('user', ISSUER, 'user-2'));
+    expect(signedIn.backends).toEqual(guest.backends);
+    expect(signedIn.backends).toEqual({ [BACKEND]: ['query:saved'] });
+    await app.close();
+  });
+
+  it('rejects an invalid token with 401 and a challenge, rather than serving a guest', async () => {
+    const app = await buildApp('optional');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: 'Bearer not-a-token' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.headers['www-authenticate']).toContain('invalid_token');
+    await app.close();
+  });
+
+  it('does not reach a guest through the authenticated sentinel', async () => {
+    await store.createGrant({ principal: PRINCIPAL_AUTHENTICATED, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'] });
+    const app = await buildApp('optional');
+    expect((await app.inject({ method: 'GET', url: '/whoami' })).json().backends).toEqual({});
+    await app.close();
+  });
+});
+
 describe('required mode', () => {
   it('rejects a missing token with 401 and a challenge header', async () => {
     const app = await buildApp('required');

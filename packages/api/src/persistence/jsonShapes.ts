@@ -234,9 +234,32 @@ export const OGC_COLLECTION: JsonShape = {
   .strict()`,
 };
 
+/**
+ * `BenchmarkRun.context` — facts a client records with a run (issue #251),
+ * such as page-cache state, peak CPU temperature or the store's build.
+ *
+ * Flat, with scalar values, so every reader can show it as a table of keys.
+ * The key cap is here; the 8 KiB cap on the whole document is checked by
+ * `validateRunContext` in `lib/benchmarkCases.ts`, because JSON Schema cannot
+ * state a size in bytes.
+ */
+export const BENCHMARK_RUN_CONTEXT: JsonShape = {
+  jsonSchema: {
+    title: 'BenchmarkRunContext',
+    type: 'object',
+    maxProperties: 64,
+    propertyNames: { minLength: 1, maxLength: 128 },
+    additionalProperties: { type: ['string', 'number', 'boolean', 'null'] },
+  },
+  zod: `z
+  .record(z.string().min(1).max(128), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+  .refine((value) => Object.keys(value).length <= 64, 'At most 64 keys')`,
+};
+
 /** Every declared shape, keyed by the name a property's `@jsonShape` names. */
 export const JSON_SHAPES = {
   EphemeralBackendConfig: EPHEMERAL_BACKEND_CONFIG,
+  BenchmarkRunContext: BENCHMARK_RUN_CONTEXT,
   PublishedTool: PUBLISHED_TOOL,
   OgcCollection: OGC_COLLECTION,
 } as const;

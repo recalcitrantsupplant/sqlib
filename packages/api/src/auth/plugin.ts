@@ -4,7 +4,7 @@
  * Registered before any route, as an `onRequest` hook. In `disabled` mode it
  * decorates a full-access context and does nothing else, and in `anonymous`
  * mode a context for the one anonymous principal, so the request path is
- * identical in shape across all four modes.
+ * identical in shape in every mode.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { normalizeRouteUrl } from '../config/readOnly.js';
@@ -12,7 +12,8 @@ import { DEMO_PERSON_HEADER, demoPerson, isDemoMode } from '../config/demoMode.j
 import { getAuthStore } from './AuthStore.js';
 import { getAuthConfig, type AuthConfig } from './config.js';
 import { resolveEffectiveGrants } from './grants.js';
-import { derivePrincipals, isGroupPrincipal } from './principals.js';
+import { derivePrincipals, isGroupPrincipal, type DerivedPrincipals } from './principals.js';
+import { TrustedHeaderError, hasTrustedSecret, readTrustedIdentity, type TrustedHeaderConfig } from './trustedHeader.js';
 import {
   bearerChallenge,
   isProtectedResourceMetadataRoute,
@@ -21,6 +22,8 @@ import {
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
 import {
   PRINCIPAL_ANONYMOUS,
+  readsBearerTokens,
+  servesGuests,
   createAnonymousContext,
   createDemoPersonContext,
   createFullAccessContext,
@@ -90,6 +93,20 @@ async function buildContext(
     claimClientId: verified.issuerConfig.claimClientId,
   });
 
+  return contextFor(request, config, derived, verified.issuerConfig.issuer, verified.claims);
+}
+
+/**
+ * The context of a signed-in caller, from principals a token or a proxy
+ * header gave. Records the principals for the share dialog and the People list.
+ */
+function contextFor(
+  request: FastifyRequest,
+  config: AuthConfig,
+  derived: DerivedPrincipals,
+  issuer: string,
+  claims: Record<string, unknown>
+): AuthContext {
   const store = getAuthStore();
 
   // Record principals so admins can find them in the share dialog. Best effort:
@@ -107,23 +124,80 @@ async function buildContext(
     request.log.debug({ err: error, principal: derived.subject }, 'Failed to record last seen');
   });
 
-  // The groups this token carried, kept for `Test as`. Best effort, as above.
+  // The groups this caller carried, kept for `Test as`. Best effort, as above.
   store
     .recordGroups(derived.subject, derived.principals.filter(isGroupPrincipal))
     .catch((error: unknown) => {
       request.log.debug({ err: error, principal: derived.subject }, 'Failed to record groups');
     });
 
+  // Where guests are served, a signed-in caller also holds what a guest
+  // holds, so signing in never shows less than the public view.
+  const principals = servesGuests(config.mode) ? [...derived.principals, PRINCIPAL_ANONYMOUS] : derived.principals;
+
   return {
     subject: derived.subject,
-    principals: derived.principals,
-    issuer: verified.issuerConfig.issuer,
+    principals,
+    issuer,
     tokenType: derived.tokenType,
-    grants: resolveEffectiveGrants(derived.principals, store),
-    claims: verified.claims,
+    grants: resolveEffectiveGrants(principals, store),
+    claims,
     fullAccess: false,
     mode: config.mode,
   };
+}
+
+/**
+ * `trusted-header` mode: refuse a request without the proxy's secret, serve
+ * one without an identity header as a guest, and otherwise the caller the
+ * header names. Returns false when it has replied.
+ */
+function applyTrustedHeader(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  config: AuthConfig,
+  trusted: TrustedHeaderConfig,
+  basePath: string
+): boolean {
+  const guest = () =>
+    createAnonymousContext(resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore()), 'trusted-header');
+
+  if (!hasTrustedSecret(request.headers, trusted)) {
+    // A load balancer's probe reaches `/health` without the proxy.
+    if (isPublicRoute(request.routeOptions?.url, config, basePath)) {
+      request.authContext = guest();
+      return true;
+    }
+    request.log.warn({ audit: true, authError: 'trusted-secret', requestId: request.id }, 'Request without the proxy secret');
+    reply.code(403).send({ error: 'Request did not come through the sign-in proxy.' });
+    return false;
+  }
+
+  let identity;
+  try {
+    identity = readTrustedIdentity(request.headers, trusted);
+  } catch (error) {
+    const message = error instanceof TrustedHeaderError ? error.message : 'The identity header could not be read.';
+    request.log.warn({ audit: true, authError: 'trusted-header', requestId: request.id }, message);
+    reply.code(400).send({ error: message });
+    return false;
+  }
+
+  if (!identity) {
+    request.authContext = guest();
+    return true;
+  }
+
+  const derived = derivePrincipals({
+    issuer: trusted.issuer,
+    subject: identity.subject,
+    claims: identity.claims,
+    claimGroups: 'groups',
+    // No client credentials reach sqlib through a proxy session.
+    claimClientId: '',
+  });
+  request.authContext = contextFor(request, config, derived, trusted.issuer, identity.claims);
+  return true;
 }
 
 export interface AuthPluginOptions {
@@ -189,7 +263,21 @@ export async function registerAuthPlugin(
       return;
     }
 
+    if (config.mode === 'trusted-header' && config.trustedHeader) {
+      if (!applyTrustedHeader(request, reply, config, config.trustedHeader, basePath)) return reply;
+      return;
+    }
+
     const token = TokenVerifier.extractBearer(request.headers.authorization);
+
+    // `optional`: a caller with no token is a guest, as in `anonymous`.
+    if (!token && config.mode === 'optional') {
+      request.authContext = createAnonymousContext(
+        resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore()),
+        'optional'
+      );
+      return;
+    }
 
     if (!token) {
       if (config.mode === 'required' && !isPublicRoute(request.routeOptions?.url, config, basePath)) {
@@ -216,7 +304,10 @@ export async function registerAuthPlugin(
         'Bearer token rejected'
       );
 
-      if (config.mode === 'required') {
+      // `optional` refuses a bad token as `required` does. Serving it as a
+      // guest would hide the expiry from the client, and show a signed-in
+      // person the public view without saying why.
+      if (config.mode === 'required' || config.mode === 'optional') {
         const status = tokenError.statusCode;
         if (status === 401) {
           reply.header(
@@ -234,7 +325,7 @@ export async function registerAuthPlugin(
     }
   });
 
-  const readsTokens = config.mode === 'dry-run' || config.mode === 'required';
+  const readsTokens = readsBearerTokens(config.mode);
 
   if (readsTokens && config.audienceUnchecked) {
     const unscoped = config.issuers.filter(entry => !entry.audience).map(entry => entry.issuer);

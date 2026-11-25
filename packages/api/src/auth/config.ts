@@ -5,7 +5,8 @@
  * point the module at a different environment.
  */
 import path from 'node:path';
-import type { AuthMode } from './types.js';
+import { readsBearerTokens, type AuthMode } from './types.js';
+import { parseTrustedHeaderConfig, type TrustedHeaderConfig } from './trustedHeader.js';
 
 export interface IssuerConfig {
   issuer: string;
@@ -61,6 +62,8 @@ export interface AuthConfig {
    * per caller and backend. 0 runs the policy on every request.
    */
   graphPolicyCacheSeconds: number;
+  /** The proxy header settings. Set only in `trusted-header` mode. */
+  trustedHeader?: TrustedHeaderConfig;
 }
 
 function parseMode(raw: string | undefined): AuthMode {
@@ -72,12 +75,16 @@ function parseMode(raw: string | undefined): AuthMode {
       return 'dry-run';
     case 'anonymous':
       return 'anonymous';
+    case 'optional':
+      return 'optional';
+    case 'trusted-header':
+      return 'trusted-header';
     case 'disabled':
     case '':
       return 'disabled';
     default:
       throw new Error(
-        `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required, anonymous.`
+        `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required, anonymous, optional, trusted-header.`
       );
   }
 }
@@ -147,7 +154,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
 
   // `anonymous` reads no token, so it has no use for an issuer: every caller is
   // the anonymous principal and the grants on it are the whole decision.
-  const readsTokens = mode === 'dry-run' || mode === 'required';
+  const readsTokens = readsBearerTokens(mode);
 
   if (readsTokens && issuers.length === 0) {
     throw new Error(
@@ -226,6 +233,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
       env.SQLIB_AUTH_RESOURCE?.trim() || issuers.find(entry => entry.audience)?.audience || undefined,
     scopes: parseScopes(env.SQLIB_AUTH_SCOPES),
     graphPolicyCacheSeconds,
+    ...(mode === 'trusted-header' ? { trustedHeader: parseTrustedHeaderConfig(env) } : {}),
   };
 }
 

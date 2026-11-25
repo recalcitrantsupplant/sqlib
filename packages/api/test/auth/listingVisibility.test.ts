@@ -294,3 +294,40 @@ describe('disabled mode', () => {
     expect((await list(authDisabled, 'query-groups', '/query-groups')).json()).toHaveLength(2);
   });
 });
+
+/*
+ * `?library=` keeps one library's rows (#250). It narrows what `filterReadable`
+ * lets through, so it cannot widen a listing: a reader who names a library it
+ * cannot read gets an empty list, the same answer as for a library with no rows.
+ * `isPartOf` is an array on five of these nouns and a string on a query group.
+ */
+const NAMES: Record<Plugin, { mine: string; theirs: string }> = {
+  'rule-sets': { mine: 'Gauge inference', theirs: 'Salary banding' },
+  tests: { mine: 'Flow is monotonic', theirs: 'Salary is not negative' },
+  rules: { mine: 'Gauge is a station', theirs: 'Salary implies band' },
+  'data-blocks': { mine: 'Gauge fixtures', theirs: 'Payroll fixtures' },
+  'data-graphs': { mine: 'Catchment graph', theirs: 'Salary graph' },
+  'query-groups': { mine: 'Catchment rollup', theirs: 'Payroll rollup' },
+};
+
+describe.each(Object.keys(NAMES) as Plugin[])('GET /%s?library=', plugin => {
+  const names = (response: { json: () => Array<{ name: string }> }) => response.json().map(item => item.name);
+  const scoped = (library: string) => `/${plugin}?library=${encodeURIComponent(library)}`;
+
+  it('keeps the named library only, with auth off', async () => {
+    expect(names(await list(authDisabled, plugin, scoped(MINE)))).toEqual([NAMES[plugin].mine]);
+    expect(names(await list(authDisabled, plugin, scoped(THEIRS)))).toEqual([NAMES[plugin].theirs]);
+  });
+
+  it('gives a reader nothing from a library it cannot read', async () => {
+    expect(names(await list(reader, plugin, scoped(MINE)))).toEqual([NAMES[plugin].mine]);
+    const refused = await list(reader, plugin, scoped(THEIRS));
+    expect(refused.statusCode).toBe(200);
+    expect(refused.json()).toEqual([]);
+  });
+
+  it('lists every readable row without the parameter', async () => {
+    expect(names(await list(authDisabled, plugin, `/${plugin}`)).sort())
+      .toEqual([NAMES[plugin].mine, NAMES[plugin].theirs].sort());
+  });
+});

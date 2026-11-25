@@ -212,9 +212,9 @@ describe('the highlight tags lib/codemirrorHighlight.ts styles', () => {
   it('tags SRL block keywords, which is why SRL has a grammar at all', () => {
     // Issue #157: under the SPARQL grammar `WHERE` was coloured because SPARQL
     // shares it and `RULE` was not — half a signal, which reads as deliberate.
-    const doc = 'RULE { ?s :q ?o } WHERE DATA { ?s :p ?o }';
+    const doc = 'DATA { :a :p :b }\nRULE { ?s :q ?o } WHERE GROUND { ?s :p ?o }';
 
-    for (const keyword of ['RULE', 'WHERE', 'DATA']) {
+    for (const keyword of ['DATA', 'RULE', 'WHERE', 'GROUND']) {
       expect(tagOf(SRL, doc, keyword)).toBe('keyword');
     }
   });

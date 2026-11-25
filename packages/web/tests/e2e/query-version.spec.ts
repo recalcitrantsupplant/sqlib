@@ -534,6 +534,20 @@ test.describe('Query Version', () => {
     await expect(page.locator('[data-testid="details-delete"]')).toBeVisible();
   });
 
+  test('a read-only deployment leaves Delete out of the Details tab', async ({ page }) => {
+    await page.route(`**//${API_HOST}/health`, (route: Route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'ok', auth: { mode: 'disabled' }, readOnly: true }),
+    }));
+    seedOneVersion();
+    await openQuery(page);
+    await page.locator('[data-testid="details-tab"]').click();
+
+    await expect(page.locator('[data-testid="details-created"]')).toBeVisible();
+    await expect(page.locator('[data-testid="details-delete"]')).toHaveCount(0);
+  });
+
   test('renaming in the Details tab saves it', async ({ page }) => {
     seedOneVersion();
     await openQuery(page);

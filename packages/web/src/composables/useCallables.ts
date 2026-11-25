@@ -159,8 +159,8 @@ export function useCallables(libraryId: Ref<string | null>) {
     error.value = null;
     try {
       const [queries, groups] = await Promise.all([
-        isEnabled('queries') ? apiClient.listQueries() : Promise.resolve([] as Query[]),
-        isEnabled('queryGroups') ? apiClient.listQueryGroups() : Promise.resolve([] as QueryGroup[]),
+        isEnabled('queries') ? apiClient.listQueries({ library: id }) : Promise.resolve([] as Query[]),
+        isEnabled('queryGroups') ? apiClient.listQueryGroups({ library: id }) : Promise.resolve([] as QueryGroup[]),
       ]);
 
       const [queryCallables, groupCallables] = await Promise.all([

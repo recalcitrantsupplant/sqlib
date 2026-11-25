@@ -112,7 +112,7 @@ export function stratify(rules: Array<{ id: string; ast: SrlRule }>): Stratifica
   for (const { id, ast } of rules) {
     monotonicity[id] = hasAggregate(ast.body) ? 'aggregation' : hasNegation(ast.body) ? 'negation' : 'monotone';
     heads.set(id, headTriples(ast.head));
-    // A `WHERE DATA` rule matches the ground graph throughout, so it reads
+    // A `WHERE GROUND` rule matches the ground graph throughout, so it reads
     // nothing any rule produces and depends on no rule at all. Its body is not
     // walked rather than walked-and-discarded, so that a nested `NOT` inside it
     // cannot contribute an edge either.
@@ -297,12 +297,12 @@ function bodyDeps(items: SrlBodyItem[], label: DependencyLabel): BodyDep[] {
       const triples = (item.triples as any)?.triples;
       if (Array.isArray(triples)) for (const t of flattenTriples(triples)) deps.push({ triple: t, label });
     } else if (item.kind === 'not') {
-      // `NOT DATA` matches the ground graph, which no rule can add to — so it
+      // `NOT GROUND` matches the ground graph, which no rule can add to — so it
       // is a dependency on *nothing*, not a negative dependency on whoever
       // derives the predicate.
       //
       // This is what makes the spec's own default-value example legal. A rule
-      // deriving `:distanceKilometers` under `NOT DATA { ?x :distanceKilometers
+      // deriving `:distanceKilometers` under `NOT GROUND { ?x :distanceKilometers
       // ?km }` would otherwise be a negative self-dependency — a
       // non-stratifiable cycle — when in fact it reads only the input and
       // converges in one pass.
@@ -327,7 +327,7 @@ function tupleBodyDeps(items: SrlBodyItem[], label: DependencyLabel): TupleDep[]
   const deps: TupleDep[] = [];
   for (const item of items) {
     if (item.kind === 'tuple') deps.push(tupleDep(item.tuple, label));
-    // `NOT DATA` reads the ground graph, which holds no tuples and which no
+    // `NOT GROUND` reads the ground graph, which holds no tuples and which no
     // rule writes — same reasoning as the triple case in `bodyDeps`.
     else if (item.kind === 'not' && !item.data) deps.push(...tupleBodyDeps(item.body, 'negative'));
     else if (item.kind === 'aggregate') deps.push(...tupleBodyDeps(item.body, label));

@@ -1,11 +1,11 @@
 {
   "eval": {
-    "pass": 65,
-    "total": 65
+    "pass": 66,
+    "total": 66
   },
   "eval2": {
-    "pass": 6,
-    "total": 6
+    "pass": 4,
+    "total": 4
   },
   "examples": {
     "pass": 5,

@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+:bob :childNames 3 .

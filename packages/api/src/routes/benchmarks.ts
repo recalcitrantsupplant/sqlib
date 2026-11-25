@@ -15,6 +15,7 @@ import {
   benchmarkrunSchema as benchmarkRunJsonSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { BenchmarkExperimentService, assertBenchmarkVersionDependencies } from '../lib/BenchmarkExperimentService.js';
+import { RunContextError, UnknownCaseError, caseIdOfObservation, enumerateCases } from '../lib/benchmarkCases.js';
 import { BenchmarkRunner } from '../lib/BenchmarkRunner.js';
 import { ReadOnlyBenchmarkRefusal, runBenchmarkReadOnly } from '../lib/readOnlyBenchmarkRun.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
@@ -138,6 +139,17 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     const entity = getCacheCoordinator().get(id);
     if (entity?.['@type'] === 'BenchmarkExperiment' && !resolveOwningLibrary(entity)) {
       requireAdmin(request, 'a benchmark experiment with no owning library');
+    }
+  });
+
+  /*
+   * A run's body is optional: a POST with none runs every case, which is what
+   * the web app sends. Fastify validates an absent body against the schema as
+   * `undefined`, so it is made an empty object first.
+   */
+  fastify.addHook('preValidation', async (request) => {
+    if (request.method === 'POST' && request.routeOptions.url?.endsWith('/versions/:version/run') && request.body === undefined) {
+      request.body = {};
     }
   });
 
@@ -301,12 +313,14 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     if (!detail) {
       return reply.code(404).send({ error: `Benchmark experiment version ${id} v${version} not found` });
     }
+    const { cases, pass, context } = request.body ?? {};
+    const selection = { cases, pass, context };
     try {
       // A read-only deployment runs a frozen, seeded version within its caps
       // and keeps nothing; see `lib/readOnlyBenchmarkRun.ts`.
       const result = isReadOnlyDeployment()
-        ? await runBenchmarkReadOnly(request, detail.id)
-        : await new BenchmarkRunner({ request }).runExperimentVersion(detail.id);
+        ? await runBenchmarkReadOnly(request, detail.id, undefined, selection)
+        : await new BenchmarkRunner({ request }).runExperimentVersion(detail.id, selection);
       const normalized = {
         ...result,
         run: toRestApi(result.run),
@@ -319,6 +333,12 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
       return reply.send(normalized);
     } catch (error) {
       if (error instanceof AuthorizationError) throw error;
+      if (error instanceof UnknownCaseError) {
+        return reply.code(400).send({ error: error.message, unknownCases: error.unknown });
+      }
+      if (error instanceof RunContextError) {
+        return reply.code(400).send({ error: error.message });
+      }
       if (error instanceof ReadOnlyBenchmarkRefusal) {
         if (error.statusCode === 429) reply.header('Retry-After', '10');
         return reply.code(error.statusCode).send({ error: error.message, ...error.details });
@@ -326,6 +346,59 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(409).send({ error: message });
     }
+  }));
+
+  /*
+   * The cases a version's specs expand to, with the ids a run selects them by
+   * (issue #251). Derived from the specs on every read, so a version saved
+   * before cases had ids lists them too.
+   */
+  fastify.get('/:id/versions/:version/cases', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.listCases), async ({ request, reply }) => {
+    const { id, version } = request.params;
+    const detail = experimentService.getVersion(id, Number.parseInt(version, 10));
+    if (!detail) {
+      return reply.code(404).send({ error: `Benchmark experiment version ${id} v${version} not found` });
+    }
+    return reply.send(enumerateCases(detail.subjectSpecs));
+  }));
+
+  /*
+   * One pass over a version: every run of the version that names the pass,
+   * and which of the version's cases those runs observed. A pass has no record
+   * of its own, so nothing opens or closes it. A case is missing until a run
+   * of the pass records an observation of it.
+   */
+  fastify.get('/:id/versions/:version/passes/:pass', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.getPass), async ({ request, reply }) => {
+    const { id, version, pass } = request.params;
+    const detail = experimentService.getVersion(id, Number.parseInt(version, 10));
+    if (!detail) {
+      return reply.code(404).send({ error: `Benchmark experiment version ${id} v${version} not found` });
+    }
+    const runs = (await findAllBenchmarkRuns())
+      .filter((run) => run.definedBy === detail.id && run.pass === pass)
+      .sort((a, b) => (a.startedAt ?? a.dateCreated ?? '').localeCompare(b.startedAt ?? b.dateCreated ?? ''));
+    if (!runs.length) {
+      return reply.code(404).send({ error: `Benchmark experiment version ${id} v${version} has no runs in pass ${pass}` });
+    }
+    const runIds = new Set(runs.map((run) => run.$id));
+    const observed = new Set<string>();
+    const failed = new Set<string>();
+    for (const observation of await findAllBenchmarkObservations()) {
+      if (!runIds.has(observation.dataSet)) continue;
+      const caseId = caseIdOfObservation(observation);
+      observed.add(caseId);
+      if (!observation.success) failed.add(caseId);
+    }
+    const cases = enumerateCases(detail.subjectSpecs);
+    return reply.send({
+      pass,
+      definedBy: detail.id,
+      runs: runs.map((run) => toRestApi(run)),
+      casesTotal: cases.length,
+      casesRun: cases.filter((item) => observed.has(item.caseId)).map((item) => item.caseId),
+      casesFailed: cases.filter((item) => failed.has(item.caseId)).map((item) => item.caseId),
+      casesMissing: cases.filter((item) => !observed.has(item.caseId)),
+    });
   }));
 
   fastify.get('/runs/:id', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.getRun), async ({ request, reply }) => {

@@ -48,6 +48,11 @@ describe('accountStateOf', () => {
     expect(accountStateOf({ mode: 'required', signedIn: true, lapsed: false })).toBe('signed-in');
     expect(accountStateOf({ mode: 'required', signedIn: false, lapsed: true })).toBe('expired');
     expect(accountStateOf({ mode: 'disabled', signedIn: false, lapsed: false })).toBe('none');
+    expect(accountStateOf({ mode: 'optional', signedIn: false, lapsed: false })).toBe('guest');
+    expect(accountStateOf({ mode: 'optional', signedIn: true, lapsed: false })).toBe('signed-in');
+    expect(accountStateOf({ mode: 'optional', signedIn: false, lapsed: true })).toBe('expired');
+    expect(accountStateOf({ mode: 'trusted-header', signedIn: false, lapsed: false })).toBe('guest');
+    expect(accountStateOf({ mode: 'trusted-header', signedIn: true, lapsed: false })).toBe('signed-in');
   });
 });
 
