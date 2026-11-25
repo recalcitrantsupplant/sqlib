@@ -10,7 +10,7 @@ Every collection route takes the parameters, through one helper (`sendListPage`)
 
 - `GET /libraries`, `/backends`, `/environments`, `/tags`, `/benchmarks` and `/etl-jobs`.
 - `GET /queries`, `/query-groups`, `/rules`, `/rule-sets`, `/data-blocks`, `/data-graphs`, `/tuple-sets`, `/tests` and `/notebooks`.
-- `GET /argument-sets?libraryId=…`.
+- `GET /argument-sets?library=…`. The route needs `library`, and answers 400 without it.
 - `GET /queries/:id/argument-sets` and `GET /query-groups/:id/argument-sets`.
 
 `GET /libraries` with an RDF `Accept` header returns the whole collection, and ignores the parameters.
@@ -23,7 +23,7 @@ Every collection route takes the parameters, through one helper (`sendListPage`)
 | `offset` | 0 or more | Skips this many matches before the page starts. Default 0. |
 | `q` | text | Keeps the entities whose name holds the characters of `q` in order, ignoring case and spaces. `qgrp` matches "Query group". |
 | `ids` | entity IRI, repeatable | Keeps the named entities only. |
-| `library` | library IRI | Keeps the entities in that library. |
+| `library` | library IRI | Keeps the entities in that library, by `isPartOf` as a string or an array. `GET /etl-jobs` also takes the short id that its summaries carry. The filter applies after the read-access filter, so a library the caller cannot read gives an empty list. |
 | `tag` | tag IRI, repeatable | Keeps the entities that carry the named tags: every one by default, at least one with `tagMatch=any`. |
 | `tagMatch` | `any`, `all` | How `tag` combines. Default `all`. |
 | `withTag` | tag IRI, repeatable | Keeps the entities that also carry every named tag, whatever `tagMatch` says. A tag heading loads its rows inside the tag filter this way. |
@@ -38,7 +38,7 @@ A row with no value for the sort key goes last in both directions. Rows with equ
 The body is a JSON array of the entities on the page. The `X-Total-Count` header gives the number of matches before `limit` and `offset` apply. The header is on every answer of these routes, with or without `limit`, and CORS exposes it to browsers.
 
 ```sh
-curl -sD - "$API/argument-sets?libraryId=$LIB&limit=50&q=perth&preferTarget=$QUERY" -o page.json
+curl -sD - "$API/argument-sets?library=$LIB&limit=50&q=perth&preferTarget=$QUERY" -o page.json
 ```
 
 ## Tag counts
@@ -66,3 +66,4 @@ The argument-set lists return summaries. A summary has the name, `currentVersion
   - The tag menu counts each tag over the section's whole kind in the library, from one more `GET /tags/counts` request.
 - The Tests and ETL sections still load each full list. Run all in Tests runs every test in the list, so it needs the full list. The Tests tag filter runs in the browser, with the same rule. With a tag filter, Run runs the filtered tests, and its menu runs all tests or downloads a report of the filtered run.
 - The screens that pick an entity (`SearchSelect`) still load each full list from their store, and draw 50 rows at a time.
+- The data-graph pickers on the test, rule-set and query-group screens, the argument-set fit list, the callables list and the environment board send `library` ([#250](https://github.com/recalcitrantsupplant/sqlib/issues/250)). The shared stores (`useTestsStore`, `useQueriesStore` and the others) still load every readable library.

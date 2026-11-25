@@ -511,7 +511,7 @@ export const tools: ToolDefinition[] = [
     description: 'List every argument set in a library',
     readOnly: true,
     inputSchema: libraryIdArg,
-    buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/argument-sets?libraryId=${enc(libraryId)}` }),
+    buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/argument-sets?library=${enc(libraryId)}` }),
   }),
   defineTool({
     name: 'argumentSets.create',

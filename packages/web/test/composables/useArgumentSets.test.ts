@@ -5,7 +5,7 @@
  * the fits/partial/mismatch verdict beside each row incapable of saying
  * anything but "fits" — there was nothing else in the list to judge. Scope has
  * always been provenance rather than a fence, and the query arguments design
- * wanted this listing and could not have it before `GET /argument-sets?libraryId=`
+ * wanted this listing and could not have it before `GET /argument-sets?library=`
  * existed.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';

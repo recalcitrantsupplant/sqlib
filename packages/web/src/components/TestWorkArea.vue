@@ -2118,7 +2118,7 @@ async function loadDataGraphOptions() {
     return;
   }
   try {
-    const graphs = await apiClient.listDataGraphs();
+    const graphs = await apiClient.listDataGraphs({ library: libraryId });
     const options = await Promise.all(
       graphs
         .filter((graph) => (graph.isPartOf ?? []).includes(libraryId))

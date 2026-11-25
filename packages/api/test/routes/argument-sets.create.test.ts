@@ -129,7 +129,7 @@ describe('POST /argument-sets', () => {
     });
     const id = created.json().id;
 
-    const list = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}` });
+    const list = await app.inject({ method: 'GET', url: `/argument-sets?library=${encodeURIComponent(LIBRARY)}` });
     expect(list.statusCode).toBe(200);
     const [summary] = list.json();
     expect(summary.id).toBe(id);
@@ -149,7 +149,7 @@ describe('POST /argument-sets', () => {
     for (const name of ['Delta', 'Alpha', 'Charlie', 'Bravo', 'Echo']) {
       await create({ name, libraryId: LIBRARY });
     }
-    const url = (query: string) => `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}&${query}`;
+    const url = (query: string) => `/argument-sets?library=${encodeURIComponent(LIBRARY)}&${query}`;
 
     const first = await app.inject({ method: 'GET', url: url('limit=2') });
     expect(first.statusCode).toBe(200);
@@ -171,9 +171,26 @@ describe('POST /argument-sets', () => {
     expect(preferred.json().map((set: { name: string }) => set.name)).toEqual(['Zulu', 'Alpha']);
     expect(preferred.headers['x-total-count']).toBe('6');
 
-    const all = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${encodeURIComponent(LIBRARY)}` });
+    const all = await app.inject({ method: 'GET', url: `/argument-sets?library=${encodeURIComponent(LIBRARY)}` });
     expect(all.json()).toHaveLength(6);
     expect(all.headers['x-total-count']).toBe('6');
+  });
+
+  it('needs `library`, and no longer takes `libraryId` (#250)', async () => {
+    await create({ name: 'Composed', libraryId: LIBRARY });
+    const library = encodeURIComponent(LIBRARY);
+
+    const byLibrary = await app.inject({ method: 'GET', url: `/argument-sets?library=${library}` });
+    expect(byLibrary.statusCode).toBe(200);
+    expect(byLibrary.json().map((set: { name: string }) => set.name)).toEqual(['Composed']);
+    expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'read' });
+
+    const old = await app.inject({ method: 'GET', url: `/argument-sets?libraryId=${library}` });
+    expect(old.statusCode).toBe(400);
+
+    const neither = await app.inject({ method: 'GET', url: '/argument-sets' });
+    expect(neither.statusCode).toBe(400);
+    expect(neither.json().error).toContain('library');
   });
 
   it('scopes the write by the library on the body', async () => {
