@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { compileRule, expandIris, generateRule, GROUND_GRAPH_IRI, parseRuleSet, stratify } from '../src/index.js';
 
 /**
- * `WHERE DATA` and `NOT DATA` — the two clauses the grammar has that plain
- * SPARQL does not.
+ * `WHERE GROUND` and `NOT GROUND` — the two clauses the grammar has that plain
+ * SPARQL does not. Before w3c/data-shapes 004346d they were `WHERE GROUND` and
+ * `NOT GROUND`, and the parser still accepts those.
  *
  * Both are how a rule reads the *input* rather than the graph it is growing;
  * the spec's motivating case is setting a default value only where the data did
@@ -13,9 +14,9 @@ import { compileRule, expandIris, generateRule, GROUND_GRAPH_IRI, parseRuleSet, 
 const PREFIX = 'PREFIX : <http://example/>';
 const parse = (src: string) => expandIris(parseRuleSet(src, { tuples: false }));
 
-describe('NOT DATA', () => {
+describe('NOT GROUND', () => {
   it('negates against the ground graph rather than the evaluation graph', () => {
-    const rule = parse(`${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?k . NOT DATA { ?x :km ?any } }`).rules[0];
+    const rule = parse(`${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?k . NOT GROUND { ?x :km ?any } }`).rules[0];
     const body = rule.body.find((item) => item.kind === 'not');
     expect(body).toMatchObject({ data: true });
     expect(compileRule(rule, PREFIX).program).toContain(`GRAPH <${GROUND_GRAPH_IRI}>`);
@@ -32,7 +33,7 @@ describe('NOT DATA', () => {
     // ordinary negation that is a negative self-dependency — a non-stratifiable
     // cycle. Read against the ground graph, which no rule can add to, it is not
     // a dependency at all. Four W3C eval2 tests turn on this.
-    const ruleSet = parse(`${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?m . NOT DATA { ?x :km ?any } SET ( ?k := ?m * 2 ) }`);
+    const ruleSet = parse(`${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?m . NOT GROUND { ?x :km ?any } SET ( ?k := ?m * 2 ) }`);
     const report = stratify(ruleSet.rules.map((ast, i) => ({ id: `r${i}`, ast })));
     expect(report.issues).toEqual([]);
     expect(report.edges).toEqual([]);
@@ -45,9 +46,9 @@ describe('NOT DATA', () => {
   });
 });
 
-describe('WHERE DATA', () => {
+describe('WHERE GROUND', () => {
   it('sends the whole body to the ground graph', () => {
-    const rule = parse(`${PREFIX}\nRULE { :x :msg "seen" } WHERE DATA { :s :p ?o . NOT { :s :q ?o } }`).rules[0];
+    const rule = parse(`${PREFIX}\nRULE { :x :msg "seen" } WHERE GROUND { :s :p ?o . NOT { :s :q ?o } }`).rules[0];
     expect(rule.data).toBe(true);
     const program = compileRule(rule, PREFIX).program;
     // One GRAPH block around everything — the spec evaluates such a rule with
@@ -57,20 +58,36 @@ describe('WHERE DATA', () => {
   });
 
   it('reads nothing any rule produces, so it depends on no rule', () => {
-    const ruleSet = parse(`${PREFIX}\nRULE { :s :p :o } WHERE { }\nRULE { :x :msg "m" } WHERE DATA { :s :p ?o }`);
+    const ruleSet = parse(`${PREFIX}\nRULE { :s :p :o } WHERE { }\nRULE { :x :msg "m" } WHERE GROUND { :s :p ?o }`);
     const report = stratify(ruleSet.rules.map((ast, i) => ({ id: `r${i}`, ast })));
     expect(report.edges).toEqual([]);
   });
 
   it('round-trips through the generator', () => {
-    const rule = parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE DATA { :s :p ?o . NOT DATA { :s :q ?o } }`).rules[0];
+    const rule = parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE GROUND { :s :p ?o . NOT GROUND { :s :q ?o } }`).rules[0];
     const text = generateRule(rule);
-    expect(text).toContain('WHERE DATA');
-    expect(text).toContain('NOT DATA');
+    expect(text).toContain('WHERE GROUND');
+    expect(text).toContain('NOT GROUND');
     // And what it generates parses back to the same flags.
     const reparsed = parse(`${PREFIX}\n${text}`).rules[0];
     expect(reparsed.data).toBe(true);
     expect(reparsed.body.find((item) => item.kind === 'not')).toMatchObject({ data: true });
+  });
+});
+
+describe('the DATA spelling', () => {
+  it('rejects WHERE DATA', () => {
+    expect(() => parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE DATA { :s :p ?o }`)).toThrow();
+  });
+
+  it('rejects NOT DATA', () => {
+    expect(() => parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE { :s :p ?o . NOT DATA { :s :q ?o } }`)).toThrow();
+  });
+
+  it('accepts the GROUND keywords in any case', () => {
+    const rule = parse(`${PREFIX}\nRULE { :x :msg "m" } WHERE ground { :s :p ?o . not Ground { :s :q ?o } }`).rules[0];
+    expect(rule.data).toBe(true);
+    expect(rule.body.find((item) => item.kind === 'not')).toMatchObject({ data: true });
   });
 });
 

@@ -642,7 +642,7 @@ tags. The mean is three tags for each entry.
 
 The seeder infers features from entry names. The manifests have no
 `dct:subject` and no keywords, and the names follow a consistent taxonomy
-(`syntax-template-bad-01`, `eval-neg-data-01`). Each matching rule applies, so an
+(`syntax-template-bad-01`, `eval-neg-ground-01`). Each matching rule applies, so an
 entry can be about negation and about data blocks. An entry that matches no
 feature rule gets no feature tag, and goes into the Untagged group. When this
 happens, add a rule.

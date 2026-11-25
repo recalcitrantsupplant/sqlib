@@ -40,7 +40,7 @@
  * `:=` as a single token, and the three published grammars share one node
  * vocabulary — so this walk reads an SRL document as it reads a query. The
  * round-trip corpus in `test/lib/prefixRewrite.test.ts` covers it: rule heads
- * and bodies, DATA and NOT DATA blocks, `TUPLE( … )` terms, and the assignment
+ * and bodies, DATA and NOT GROUND blocks, `TUPLE( … )` terms, and the assignment
  * that was the original hazard. The rules editor has the buttons.
  *
  * WHY THE DOCUMENT'S OWN DECLARATIONS WIN. A query that declares

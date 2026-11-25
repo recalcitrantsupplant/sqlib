@@ -38,7 +38,7 @@ RULE :grandparent {
 ### `RULE`
 
 ```
-RULE <iri>? { head } WHERE DATA? { body }
+RULE <iri>? { head } WHERE GROUND? { body }
 ```
 
 The name is optional. When present it is an IRI, expanded against the prologue,
@@ -49,10 +49,13 @@ one where editing a named rule revises it.
 The head is a set of triple templates. Every variable in the head must be bound
 by the body.
 
-`WHERE DATA` makes the whole body match the *ground* graph, and ignore the
+`WHERE GROUND` makes the whole body match the *ground* graph, and ignore the
 evaluation graph. The ground graph is the base graph and each `DATA` block, as
 they were before any rule ran. Such a rule reads only the given data, and never
 an inferred triple, so it depends on no other rule.
+
+Before w3c/data-shapes commit `004346d` (2026-11-19), these keywords were
+`WHERE DATA` and `NOT DATA`. The parser rejects the old names.
 
 ### `DATA`
 
@@ -82,7 +85,7 @@ is optional.
 | Triple patterns | `?s :p ?o . ?o :q ?x` |
 | `FILTER` | `FILTER(?age >= 18)`, and the rest of SPARQL's filter syntax except `EXISTS` / `NOT EXISTS` |
 | Negation | `NOT { … }` |
-| Ground negation | `NOT DATA { … }` |
+| Ground negation | `NOT GROUND { … }` |
 | Assignment | `SET ( ?v := expr )` |
 | Named tuples | `TUPLE( … )`: an extension, off by default. See below |
 
@@ -99,7 +102,7 @@ variables for the per-solution reading. `FILTER` and `SET` have no such trap:
 using a variable before it is bound makes the rule ill-formed (`use-before-bind`
 below).
 
-`NOT { … }` nests. `NOT DATA { … }` sends only the negated pattern to the ground
+`NOT { … }` nests. `NOT GROUND { … }` sends only the negated pattern to the ground
 graph, so a rule can ask "was this absent from the input?" while the rest of its
 body still sees inferred triples. Setting a default value is the usual case.
 
@@ -256,8 +259,8 @@ Body items translate as follows:
 | Triple patterns | The same triple patterns |
 | `FILTER(E)` | `FILTER(E)` |
 | `NOT { P }` | `FILTER NOT EXISTS { P }` |
-| `NOT DATA { P }` | `FILTER NOT EXISTS { GRAPH <urn:sqlib:srl:ground> { P } }` |
-| `WHERE DATA { B }` | The whole body wrapped in `GRAPH <urn:sqlib:srl:ground> { B }` |
+| `NOT GROUND { P }` | `FILTER NOT EXISTS { GRAPH <urn:sqlib:srl:ground> { P } }` |
+| `WHERE GROUND { B }` | The whole body wrapped in `GRAPH <urn:sqlib:srl:ground> { B }` |
 | `SET ( ?v := E )` | `BIND(E AS ?v) FILTER(BOUND(?v))`, with everything up to and including the assignment wrapped in a group |
 
 A `NOT` that names a variable bound only after it also closes a group. See

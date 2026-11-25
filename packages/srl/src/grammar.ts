@@ -2,7 +2,7 @@ import { ParserBuilder } from '@traqula/core';
 import { sparql12ParserBuilder } from '@traqula/parser-sparql-1-2';
 import { gram as g, lex as l } from '@traqula/rules-sparql-1-1';
 import { srlTokenVocabulary } from './lexer.js';
-import { assignOp, dataKeyword, notKeyword, ruleKeyword, setKeyword } from './tokens.js';
+import { assignOp, dataKeyword, groundKeyword, notKeyword, ruleKeyword, setKeyword } from './tokens.js';
 import { srlTuple, srlTupleSeedDoc } from './tuples/grammar.js';
 import { srlAggregate } from './aggregates/grammar.js';
 
@@ -85,11 +85,11 @@ export const srlGroupBody = {
           {
             ALT: () => {
               CONSUME(notKeyword);
-              // `NOT DATA { … }` (grammar rule [24]): the negated pattern is
+              // `NOT GROUND { … }` (grammar rule [18]): the negated pattern is
               // matched against the ground graph rather than the evaluation
               // graph, so a rule can ask "was this absent from the input?"
               // while the rest of its body still sees inferred triples.
-              const ground = OPTION2(() => CONSUME(dataKeyword));
+              const ground = OPTION2(() => CONSUME(groundKeyword));
               CONSUME(l.symbols.LCurly);
               const body = SUBRULE(srlGroupBody);
               CONSUME(l.symbols.RCurly);
@@ -182,9 +182,9 @@ const srlBodyBlock = {
 
 /**
  * A single rule (grammar rule [11]):
- *   RULE <iri>? { head } WHERE DATA? { body }
+ *   RULE <iri>? { head } WHERE GROUND? { body }
  *
- * The optional `DATA` after `WHERE` makes the *whole* body match the ground
+ * The optional `GROUND` after `WHERE` makes the *whole* body match the ground
  * graph rather than the evaluation graph — the rule then reads only what was
  * given, never what has been inferred.
  */
@@ -197,7 +197,7 @@ const srlRule = {
       const name = OPTION1(() => SUBRULE(g.iri));
       const h = SUBRULE(srlHead);
       CONSUME(l.where);
-      const ground = OPTION2(() => CONSUME(dataKeyword));
+      const ground = OPTION2(() => CONSUME(groundKeyword));
       const b = SUBRULE(srlBodyBlock);
       return ACTION(() => buildRule(kw, name, h, b, Boolean(ground)));
     },

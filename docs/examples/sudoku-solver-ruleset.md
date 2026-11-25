@@ -58,7 +58,7 @@ PREFIX ex: <http://example.org/sudoku#>
 RULE ex:candidate {
   ?cell ex:hasCandidate ?digit .
 }
-WHERE DATA {
+WHERE GROUND {
   ?cell ex:hasIndexI ?row ;
         ex:hasIndexJ ?col .
   ex:digits ex:digit ?digit .
@@ -125,7 +125,7 @@ binds a variable to the value of an expression, as `BIND` does in SPARQL. The
 rule calculates the box of the cell and the box of the other cell, and compares
 them inside the negated block.
 
-`WHERE DATA` makes the whole body match against the **ground** graph. The rule
+`WHERE GROUND` makes the whole body match against the **ground** graph. The rule
 reads the puzzle as given, and never reads what the other rules infer. This keeps
 the rule set stratifiable. It also means that one run calculates the candidates
 once, from the puzzle as given.
@@ -178,7 +178,7 @@ The grid updates.
 ## The SRL rule body, compared with SPARQL
 
 The rule body accepts less than a SPARQL group graph pattern. It accepts triple
-patterns, `FILTER`, `NOT { … }` and `NOT DATA { … }`, `SET ( ?v := expr )`, and,
+patterns, `FILTER`, `NOT { … }` and `NOT GROUND { … }`, `SET ( ?v := expr )`, and,
 with the `ruleTuples` extension on, `TUPLE( … )`. It does **not** accept
 `VALUES`, `BIND`, `OPTIONAL`, `UNION` or a sub-`SELECT`. The parser refuses each
 of these, and the message names the keyword it did not expect.
@@ -192,6 +192,6 @@ The translations this example uses:
 | `VALUES ?v { 1 2 3 … }` | a triple pattern over data that enumerates the values |
 | a sub-`SELECT` with `COUNT` | no equivalent; rewrite as a negation, or do it outside the rule set |
 
-`NOT DATA { … }` negates against the ground graph. `NOT { … }` negates against the
-evaluation graph. `WHERE DATA { … }` applies the ground-graph limit to a whole
+`NOT GROUND { … }` negates against the ground graph. `NOT { … }` negates against the
+evaluation graph. `WHERE GROUND { … }` applies the ground-graph limit to a whole
 rule body.
