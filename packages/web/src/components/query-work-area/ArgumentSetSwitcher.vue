@@ -193,10 +193,12 @@
         <DropdownMenuContent align="end" @close-auto-focus="openRenameOnClose">
           <DropdownMenuItem data-testid="argument-set-rename-open" @select="renameRequested = true">Rename…</DropdownMenuItem>
           <DropdownMenuItem :disabled="!canCopy" @select="emit('copy')">Copy JSON</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem :disabled="!canDelete" class="menu-danger" @select="emit('delete')">
-            Delete set
-          </DropdownMenuItem>
+          <template v-if="!deployment.isReadOnly.value">
+            <DropdownMenuSeparator />
+            <DropdownMenuItem :disabled="!canDelete" class="menu-danger" @select="emit('delete')">
+              Delete set
+            </DropdownMenuItem>
+          </template>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -244,6 +246,7 @@ import type { RunTarget } from '@/composables/useArgumentSets';
 import InlineNote from '../shared/InlineNote.vue';
 import FilterBox from '../shared/FilterBox.vue';
 import { fuzzyMatches } from '@/lib/fuzzy';
+import { useDeploymentMode } from '@/composables/useDeploymentMode';
 
 /** One row in the switcher list. `meta` is the right-hand grey text. */
 export interface SwitcherEntry {
@@ -251,6 +254,9 @@ export interface SwitcherEntry {
   name: string;
   meta: string;
 }
+
+/** A read-only deployment refuses a delete, so the menu leaves it out. */
+const deployment = useDeploymentMode();
 
 const props = defineProps<{
   displayName: string;

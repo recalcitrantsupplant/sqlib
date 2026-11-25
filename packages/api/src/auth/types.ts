@@ -58,12 +58,21 @@ export function modesSatisfying(mode: BackendMode): BackendMode[] {
  * principal, as in `anonymous`. A request with a token is verified as in
  * `required`: a valid token adds the caller's own principals to the anonymous
  * principal, and an invalid or expired token gets a 401.
+ *
+ * `trusted-header` (#208) reads the caller from a header that a sign-in proxy
+ * sets, and serves a request without that header as a guest, as `optional`
+ * does. See `trustedHeader.ts`.
  */
-export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous' | 'optional';
+export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous' | 'optional' | 'trusted-header';
 
 /** The modes in which a refused check is refused, rather than audited and allowed. */
 export function isEnforcingMode(mode: AuthMode): boolean {
-  return mode === 'required' || mode === 'anonymous' || mode === 'optional';
+  return mode === 'required' || mode === 'anonymous' || mode === 'optional' || mode === 'trusted-header';
+}
+
+/** The modes that serve a caller who is not signed in as the anonymous principal. */
+export function servesGuests(mode: AuthMode): boolean {
+  return mode === 'anonymous' || mode === 'optional' || mode === 'trusted-header';
 }
 
 /** The modes that verify a bearer token against an issuer. */
@@ -164,7 +173,7 @@ export function createFullAccessContext(mode: AuthMode = 'disabled'): AuthContex
  */
 export function createAnonymousContext(
   grants: EffectiveGrants,
-  mode: 'anonymous' | 'optional' = 'anonymous'
+  mode: 'anonymous' | 'optional' | 'trusted-header' = 'anonymous'
 ): AuthContext {
   return {
     subject: PRINCIPAL_ANONYMOUS,

@@ -23,7 +23,7 @@ designed but not built.
 
 ## What `SQLIB_AUTH_MODE` does
 
-There are five values. **The default is `disabled`.**
+There are six values. **The default is `disabled`.**
 
 | Mode | Token required | Effect |
 | --- | --- | --- |
@@ -32,6 +32,7 @@ There are five values. **The default is `disabled`.**
 | `required` | yes | A request without a valid token gets `401`. If sqlib cannot fetch the JWKS endpoint, the request gets `503`, because the failure is on the server side. A token whose `kid` is not in the published key set gets `401`. For an unknown `kid`, sqlib fetches the key set again at most once in each 30-second period. |
 | `anonymous` | no, and sqlib reads none | Each request is the one principal `urn:sqlib:principal:anonymous`, with the grants of that principal only. Enforcement is the same as in `required`: a failed check is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
 | `optional` | no | A request without a token is the anonymous principal, as in `anonymous`. A request with a token is verified as in `required`. A valid token gives the caller's own principals, the authenticated sentinel and the anonymous principal. A signed-in caller holds the guest grants plus their own grants, and reads the guest graphs plus their own graphs under a graph policy. A signed-in caller never holds less than a guest. An invalid or expired token gets `401` with a bearer challenge. Enforcement is the same as in `required`. |
+| `trusted-header` | no, and sqlib reads none | A sign-in proxy in front of sqlib names the caller in a header. A request without the proxy's secret gets `403`. A request with the secret and no identity header is the anonymous principal. A request with both is the caller the header names, with the authenticated sentinel and the anonymous principal. Enforcement is the same as in `required`. |
 
 `anonymous` is the mode for a public deployment. Use it with
 `SQLIB_READ_ONLY=true`, and grant `execute` on a library and `query:saved` on
@@ -45,6 +46,22 @@ same principal. `SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all` would therefore let anyone
 create a library on a writable deployment. Set it to `admin` unless you want
 that. The anonymous principal is a different principal from the authenticated
 sentinel, so a grant to "everyone signed in" does not reach a visitor.
+
+`trusted-header` is for a deployment behind a proxy that signs people in
+itself and sends no bearer token, such as Azure App Service authentication or
+oauth2-proxy. Set these:
+
+- `SQLIB_AUTH_TRUSTED_HEADER`: the identity header, such as `x-forwarded-user`
+  or `x-ms-client-principal`.
+- `SQLIB_AUTH_TRUSTED_FORMAT`: `plain` (the value is the user id) or
+  `ms-client-principal` (base64 JSON from Azure).
+- `SQLIB_AUTH_TRUSTED_SECRET_HEADER` and `SQLIB_AUTH_TRUSTED_SECRET`: a secret
+  of at least 16 characters that the proxy adds to every request. The server
+  does not start without them.
+
+Anyone who reaches sqlib without the proxy can set the identity header to any
+user. The secret stops that. Keep sqlib unreachable except through the proxy
+too, and make the proxy strip the identity header from client requests.
 
 `optional` is the mode for a public deployment where some people sign in to
 write. Grant reads to the anonymous principal and writes to users or groups.

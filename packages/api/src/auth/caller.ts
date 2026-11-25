@@ -69,8 +69,9 @@ export function declaredReservedSlots(queryString: string | null | undefined, pa
 /**
  * Refused because a query reads the caller and no one is signed in.
  *
- * `401` where a token could have been sent (`required`, `optional`, `dry-run`),
- * `403` where sign-in does not exist (`disabled`, `anonymous`).
+ * `401` where the caller could have signed in (`required`, `optional`,
+ * `trusted-header`, `dry-run`), `403` where sign-in does not exist
+ * (`disabled`, `anonymous`).
  */
 export class CallerRequiredError extends Error {
   constructor(readonly statusCode: 401 | 403, slots: readonly string[]) {
@@ -100,7 +101,8 @@ export function requireCallerForSlots(request: FastifyRequest, slots: readonly s
     );
     return;
   }
-  throw new CallerRequiredError(context.mode === 'required' || context.mode === 'optional' ? 401 : 403, slots);
+  const canSignIn = context.mode === 'required' || context.mode === 'optional' || context.mode === 'trusted-header';
+  throw new CallerRequiredError(canSignIn ? 401 : 403, slots);
 }
 
 /** `requireCallerForSlots` as a value: the refusal, or null to go on. */

@@ -1174,9 +1174,10 @@ export default async function (
         groupsSource = lastSeen ? 'lastSeen' : 'none';
       }
 
-      // A signed-in caller in `optional` mode, and a demo person, also hold
-      // what a guest holds (`auth/plugin.ts`), so the test adds the guest too.
-      const withGuest = getAuthConfig().mode === 'optional' || isDemoMode();
+      // A signed-in caller in `optional` or `trusted-header` mode, and a demo
+      // person, also hold what a guest holds (`auth/plugin.ts`), so the test
+      // adds the guest too.
+      const withGuest = ['optional', 'trusted-header'].includes(getAuthConfig().mode) || isDemoMode();
       const principals = [
         ...(user ? [user] : []), ...groups, PRINCIPAL_AUTHENTICATED, ...(withGuest ? [PRINCIPAL_ANONYMOUS] : []),
       ];
