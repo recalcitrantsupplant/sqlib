@@ -43,6 +43,8 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
         :eval-group-agg-29
         :eval-group-agg-30
         :eval-group-agg-31
+        :eval-group-agg-32
+        :eval-group-agg-33
     ) .
 
 # COUNT per person: a person with no children forms no group and gets no count.
@@ -136,7 +138,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-group-agg-10-results.ttl>
     .
 
-# WHERE DATA counts only the given graph: the derived :childOf triples are not counted.
+# WHERE GROUND counts only the given graph: the derived :childOf triples are not counted.
 :eval-group-agg-11 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-group-agg-11";
     mf:action
@@ -332,4 +334,22 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
          [ srlt:ruleset  <eval-group-agg-31.srl> ;
            srlt:data     <data-family.ttl> ] ;
     mf:result  <eval-group-agg-31-results.ttl>
+    .
+
+# A SET before the pattern reads a BY variable bound before the GROUP.
+:eval-group-agg-32 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-32";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-32.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-32-results.ttl>
+    .
+
+# A SET reads a BY variable that only the elements before the GROUP bind, and a FILTER reads the SET.
+:eval-group-agg-33 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-33";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-33.srl> ;
+           srlt:data     <data-scores.ttl> ] ;
+    mf:result  <eval-group-agg-33-results.ttl>
     .

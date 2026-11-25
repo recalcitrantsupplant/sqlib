@@ -90,7 +90,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-neg-order-07-results.ttl>
     .
 
-# NOT DATA before its binders
+# NOT GROUND before its binders
 :eval-neg-order-09 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-neg-order-09";
     mf:action
@@ -99,7 +99,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-neg-order-09-results.ttl>
     .
 
-# NOT before its binders in WHERE DATA
+# NOT before its binders in WHERE GROUND
 :eval-neg-order-10 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-neg-order-10";
     mf:action

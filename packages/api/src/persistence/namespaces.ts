@@ -426,6 +426,11 @@ export const sqlib = createNamespace({
     "runStatus",
     "tasksTotal",
     "tasksCompleted",
+    // A run of part of a version (issue #251): the cases it selected, the pass
+    // it belongs to, and the facts its client recorded with it.
+    "selectedCases",
+    "benchmarkPass",
+    "runContext",
     "refGroupObservation",
     "refNode",
     "nodeIndex",

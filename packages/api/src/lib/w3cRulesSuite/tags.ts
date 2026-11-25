@@ -36,7 +36,7 @@
  * **Inferred from names, deliberately.** The manifests carry no feature
  * vocabulary — no `dct:subject`, no keywords — so there is nothing to read. The
  * names are the suite's own taxonomy, and consistently so: `syntax-template-*`,
- * `eval-neg-data-*`, `rdfs-domain-*`. Matching them keeps the mapping honest
+ * `eval-neg-ground-*`, `rdfs-domain-*`. Matching them keeps the mapping honest
  * about what it is (a reading of the file names) and keeps a refreshed snapshot
  * tagging itself. An entry matching no feature rule takes no feature tag, and
  * lands in the sidebar's computed Untagged group — a visible gap is better than
@@ -123,8 +123,8 @@ export const W3C_SUITE_TAGS: readonly W3cSuiteTag[] = [
     description: 'Triple patterns in the rule body — the plain positive shape everything else builds on.',
   },
   { slug: 'blank-nodes', name: 'blank nodes', description: 'Blank nodes in rule bodies and heads, and the ones inference mints.' },
-  { slug: 'data-blocks', name: 'data blocks', description: 'DATA blocks: ground triples a rule set carries, and WHERE DATA / NOT DATA over them.' },
-  { slug: 'negation', name: 'negation', description: 'NOT and NOT DATA, and the stratification they require.' },
+  { slug: 'data-blocks', name: 'data blocks', description: 'DATA blocks: ground triples a rule set carries, and WHERE GROUND / NOT GROUND over them.' },
+  { slug: 'negation', name: 'negation', description: 'NOT and NOT GROUND, and the stratification they require.' },
   { slug: 'filters', name: 'filters', description: 'FILTER in the rule body, including the errors it can raise.' },
   { slug: 'rdfs', name: 'RDFS', description: 'The RDFS entailment rules — subclass, subproperty, domain, range.' },
   { slug: 'assignment', name: 'assignment', description: 'BIND-style assignment and the expressions it evaluates.' },
@@ -157,7 +157,7 @@ export function isW3cSuiteTagSlug(slug: string): boolean {
  *
  * Read against the entry's key — the manifest local name for an eval entry, the
  * file stem for a document one — with **every** matching rule applied:
- * `eval-neg-data-01` is about negation *and* about DATA blocks, and a first-match
+ * `eval-neg-ground-01` is about negation *and* about ground data, and a first-match
  * rule would have to choose which of the two the reader was looking for.
  *
  * The `(^|-)…(-|$)` fencing is what keeps `-data-` from matching `dft-value`
@@ -170,7 +170,7 @@ const FEATURE_RULES: ReadonlyArray<{ pattern: RegExp; tag: string }> = [
   // 41 entries across two headings a reader has to check both of.
   { pattern: /(^|-)(basic|patterns?)(-|$)/, tag: 'patterns' },
   { pattern: /(^|-)bnodes?(-|$)/, tag: 'blank-nodes' },
-  { pattern: /(^|-)data(-|$)/, tag: 'data-blocks' },
+  { pattern: /(^|-)(data|ground)(-|$)/, tag: 'data-blocks' },
   { pattern: /(^|-)(neg|negation)(-|$)|elements-not/, tag: 'negation' },
   { pattern: /(^|-)(filter|elements-filter)(-|$)/, tag: 'filters' },
   { pattern: /(^|-)rdfs(-|$)/, tag: 'rdfs' },

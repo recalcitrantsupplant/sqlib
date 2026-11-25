@@ -174,6 +174,8 @@ const MANIFEST: Record<string, Protection> = {
   'GET /benchmark-experiments/:id/versions/:version': 'read',
   'PATCH /benchmark-experiments/:id/versions/:version': 'write',
   'GET /benchmark-experiments/:id/versions/:version/runs': 'read',
+  'GET /benchmark-experiments/:id/versions/:version/cases': 'read',
+  'GET /benchmark-experiments/:id/versions/:version/passes/:pass': 'read',
   'POST /benchmark-experiments/:id/versions/:version/freeze': 'write',
   'POST /benchmark-experiments/:id/versions/:version/run': 'execute',
   'GET /benchmark-experiments/runs/:id': 'handler',
@@ -733,6 +735,7 @@ const MANIFEST: Record<string, Protection> = {
    * does touch, and that is a read.
    */
   'POST /substitute': 'stateless',
+  'GET /substitute': 'read-from-body',
 
   /*
    * One route, and the only one in the API whose answer is a subscription

@@ -1057,6 +1057,10 @@ export const benchmarkexperimentversionSchema = {
               "format": "iri"
             },
             "nullable": true
+          },
+          "caseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
           }
         },
         "required": [
@@ -1537,6 +1541,35 @@ export const benchmarkrunSchema = {
     },
     "tasksCompleted": {
       "type": "integer"
+    },
+    "caseIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "nullable": true
+    },
+    "pass": {
+      "type": "string",
+      "nullable": true
+    },
+    "context": {
+      "title": "BenchmarkRunContext",
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
+      "nullable": true
     },
     "keywords": {
       "type": "array",
@@ -5239,6 +5272,9 @@ export interface BenchmarkRunRestApi {
   runStatus: string;
   tasksTotal: number;
   tasksCompleted: number;
+  caseIds?: string[] | null;
+  pass?: string | null;
+  context?: string | null;
   keywords?: string[] | null;
   startedAt?: string | null;
   endedAt?: string | null;

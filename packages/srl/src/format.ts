@@ -50,7 +50,7 @@ function formatBodyItem(item: SrlBodyItem, unit: string, depth: number): string[
     case 'filter':
       return indentLines(serializeSparqlNode('filter', item.filter), unit, depth);
     case 'not': {
-      const header = `NOT${item.data ? ' DATA' : ''}`;
+      const header = `NOT${item.data ? ' GROUND' : ''}`;
       const inner = item.body.flatMap((nested) => formatBodyItem(nested, unit, depth + 1));
       return braced(header, inner, unit, depth).split('\n');
     }
@@ -92,13 +92,13 @@ function formatHeadLines(rule: SrlRule, unit: string, depth: number): string[] {
   return lines;
 }
 
-/** Pretty-print one rule as `RULE [name] { … } WHERE [DATA] { … }` over lines. */
+/** Pretty-print one rule as `RULE [name] { … } WHERE [GROUND] { … }` over lines. */
 export function formatRule(rule: SrlRule, options: FormatOptions = {}): string {
   const unit = options.indent ?? DEFAULT_INDENT;
   const name = renderRuleName(rule);
   const head = braced(`RULE${name ? ` ${name}` : ''}`, formatHeadLines(rule, unit, 1), unit, 0);
   const body = braced(
-    rule.data ? 'WHERE DATA' : 'WHERE',
+    rule.data ? 'WHERE GROUND' : 'WHERE',
     rule.body.flatMap((item) => formatBodyItem(item, unit, 1)),
     unit,
     0,

@@ -450,7 +450,7 @@ describe('contraction never invents a prefix', () => {
  * SRL documents: the round-trip evidence the rules editor's buttons rest on.
  *
  * A rule set is not a query with different keywords — it has DATA blocks,
- * `NOT DATA` blocks, `TUPLE( … )` terms and an assignment operator that spells
+ * `NOT GROUND` blocks, `TUPLE( … )` terms and an assignment operator that spells
  * itself with a colon. Each of those is a place where a rewrite could either
  * miss terms it should convert or touch text it must not, so each has a case
  * here rather than being assumed from the SPARQL corpus above.
@@ -536,10 +536,10 @@ describe('SRL documents', () => {
       .toContain('TUPLE(<http://example.org/a>, ?b)');
   });
 
-  it('reaches inside a NOT DATA block', () => {
-    const text = 'PREFIX ex: <http://example.org/>\nRULE { ?x ex:f true } WHERE { NOT DATA { ?x ex:ok ?o } }';
+  it('reaches inside a NOT GROUND block', () => {
+    const text = 'PREFIX ex: <http://example.org/>\nRULE { ?x ex:f true } WHERE { NOT GROUND { ?x ex:ok ?o } }';
 
-    expect(toFullIris(text, srlNamespaceFor, SRL).text).toContain('NOT DATA { ?x <http://example.org/ok> ?o }');
+    expect(toFullIris(text, srlNamespaceFor, SRL).text).toContain('NOT GROUND { ?x <http://example.org/ok> ?o }');
   });
 
   it('leaves IRIs in comments and string literals alone', () => {

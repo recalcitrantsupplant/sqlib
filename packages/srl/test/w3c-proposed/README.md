@@ -74,8 +74,8 @@ can't pass the other tests just by treating an early `NOT` as always failing.
 | 05 (control) | `stratification-04.srl` as is | empty | `:sz :p "abc"` | same |
 | 06 | `stratification-04.srl` as is | 3 | nothing | `:sz :p "abc"` |
 | 07 (control) | `?x :p ?v SET (?y := ?v) NOT { ?x :q ?y }` | 1 | `:b :r 2` | same |
-| 09 | `NOT DATA { ?x :q ?y } ?x :p ?y` | 1 | nothing | `:b :r 2` |
-| 10 | `WHERE DATA { NOT { ?x :q ?y } ?x :p ?y }` | 1 | nothing | `:b :r 2` |
+| 09 | `NOT GROUND { ?x :q ?y } ?x :p ?y` | 1 | nothing | `:b :r 2` |
+| 10 | `WHERE GROUND { NOT { ?x :q ?y } ?x :p ?y }` | 1 | nothing | `:b :r 2` |
 
 Every head is `?x :r ?y`, except in 05 and 06, which use the upstream rule set
 unchanged.

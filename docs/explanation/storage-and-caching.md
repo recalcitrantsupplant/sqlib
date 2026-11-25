@@ -397,6 +397,60 @@ It gives entity counts for each type and an estimated byte size for the cache,
 and triple counts and memory use for each Oxigraph store. The route needs
 administrator access, because it shows store contents and process internals.
 
+## HTTP caching of pinned runs
+
+Every API response carries `Cache-Control: no-store`, with two exceptions:
+`GET /execute` and `GET /substitute` when every input is pinned. Then nothing
+the response depends on can change, so a browser, a reverse proxy or a CDN may
+keep it.
+
+A run is pinned when all of these hold:
+
+- `targetId` names a query version. A query names its current version, which
+  moves.
+- Each id in `argumentSetIds` names an argument-set version.
+- The request has no inline `arguments`, no `environment` and no `dataGraphs`.
+- The query is not an update.
+- For `/execute`: the backend is an `oxigraphMemory` store in `readOnly` mode,
+  each of its sources names a data-graph version (`dataGraphVersionId`), it
+  loads nothing from outside, and it has no graph policy.
+
+A pinned response gets:
+
+- a strong `ETag`, a hash of the pins, the limits, offsets, graphs and
+  `nodeDetail`, the `Accept` header and the caller's principals;
+- `Cache-Control: public, max-age=31536000, immutable` where every caller gets
+  the same answer, and `Cache-Control: private, no-cache` elsewhere;
+  `SQLIB_PINNED_CACHE_MAX_AGE` sets the `max-age` of the public form, and `0`
+  there gives `public, no-cache`;
+- `Vary: Accept, Authorization`.
+
+A request whose `If-None-Match` names that ETag gets `304` without running.
+sqlib checks the caller's grants before it answers `304`.
+
+Every caller gets the same answer in `disabled` mode and for a guest in
+`anonymous` mode. In every other case the response is `private, no-cache`. A
+shared cache in front of the auth check does not store it. A browser keeps it
+but asks again before each use, and gets `304` while the caller and the pins
+are the same. This matters in `trusted-header` mode: the browser sends a
+cookie to the sign-in proxy, and `Vary` cannot name what the proxy derives from
+it. Without `no-cache`, a browser could show one person's result to the next
+person who signs in on it.
+
+An error response keeps `no-store`.
+
+The backend record has no version. If you change a pinned backend's sources,
+a cache can still serve the old result for the old URL for up to
+`SQLIB_PINNED_CACHE_MAX_AGE` seconds. Register a new backend for new data, or
+purge the cache in front of sqlib. With `SQLIB_PINNED_CACHE_MAX_AGE=0`, every
+cache asks again on each use, and sqlib answers `304` only while the ETag still
+matches.
+
+`GET /substitute?targetId=…&argumentSetIds=[…]` returns the substituted text of
+a stored query, as `POST /substitute` does for text in the body. It needs Read
+on the query's library and on each argument set's library. A query id runs its
+current version and is not cached.
+
 ## Patches and history
 
 sqlib can calculate a write to a *backend* before it is applied, and record it

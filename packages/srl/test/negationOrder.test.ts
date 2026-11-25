@@ -76,15 +76,15 @@ describe('checkWellFormed — a variable local to a NOT', () => {
     ['a later triple pattern', '?x :p 1 NOT { ?x :q ?y } ?y :t 2'],
     ['a later SET target', '?x :p 1 NOT { ?x :q ?y } SET (?y := 2)'],
     ['a later NOT', '?x :p 1 NOT { ?x :q ?y } NOT { ?x :t ?y }'],
-    ['a NOT DATA', '?x :p 1 NOT DATA { ?x :q ?y } ?x :t ?y'],
+    ['a NOT GROUND', '?x :p 1 NOT GROUND { ?x :q ?y } ?x :t ?y'],
     ['a GROUP key', '?x :p 1 NOT { ?x :q ?k } GROUP BY ?k { ?k :r ?o } [ ?n := COUNT(*) ]'],
   ])('rejects its reuse by %s', (_, body) => {
     expect(issues(body)).toEqual(['in-use']);
   });
 
-  it('rejects it in a WHERE DATA rule too', () => {
+  it('rejects it in a WHERE GROUND rule too', () => {
     expect(wellFormednessErrors(checkWellFormed(parseRuleSet(
-      `${PREFIX}\nRULE { ?x :r ?y } WHERE DATA { NOT { ?x :q ?y } ?x :p ?y }`,
+      `${PREFIX}\nRULE { ?x :r ?y } WHERE GROUND { NOT { ?x :q ?y } ?x :p ?y }`,
     ))).map((i) => i.category)).toEqual(['in-use', 'in-use']);
   });
 

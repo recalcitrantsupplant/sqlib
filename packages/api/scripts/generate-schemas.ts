@@ -163,6 +163,9 @@ function convertToOpenAPISchema(
             // `assertBenchmarkVersionDependencies` rather than here, where the
             // shape can only say "IRIs".
             dataGraphs: { type: 'array', items: { type: 'string', format: 'iri' }, nullable: true },
+            // A label for every case the spec expands to (issue #251); see
+            // `lib/benchmarkCases.ts`.
+            caseId: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' },
           },
           required: ['subject'],
         },

@@ -46,7 +46,7 @@ function generateBodyItem(item: SrlBodyItem): string {
     case 'filter':
       return serializeSparqlNode('filter', item.filter);
     case 'not':
-      return `NOT ${item.data ? 'DATA ' : ''}{ ${item.body.map(generateBodyItem).filter(Boolean).join(' ')} }`;
+      return `NOT ${item.data ? 'GROUND ' : ''}{ ${item.body.map(generateBodyItem).filter(Boolean).join(' ')} }`;
     case 'set':
       return `SET ( ?${item.variable} := ${serializeSparqlNode('expression', item.expr)} )`;
     case 'tuple':
@@ -88,11 +88,11 @@ export function generateBody(rule: SrlRule): string {
   return rule.body.map(generateBodyItem).filter(Boolean).join(' ');
 }
 
-/** Serialize one rule as `RULE [<name>] { head } WHERE [DATA] { body }`. */
+/** Serialize one rule as `RULE [<name>] { head } WHERE [GROUND] { body }`. */
 export function generateRule(rule: SrlRule): string {
   const rendered = renderRuleName(rule);
   const name = rendered ? ` ${rendered}` : '';
-  const where = rule.data ? 'WHERE DATA' : 'WHERE';
+  const where = rule.data ? 'WHERE GROUND' : 'WHERE';
   return `RULE${name} { ${generateHead(rule)} } ${where} { ${generateBody(rule)} }`;
 }
 

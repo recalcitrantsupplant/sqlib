@@ -308,7 +308,6 @@ describe('GROUP — stratification', () => {
 describe('GROUP — compile', () => {
   it('compiles to a grouped subquery that projects the keys and results, joined to the body', () => {
     const { program } = compile(CHILDREN);
-    expect(program).not.toContain('SELECT DISTINCT');
     // A key with no solutions forms no group (w3c/data-shapes#1377), so the
     // subquery is joined rather than OPTIONAL and needs no hidden count.
     expect(program).not.toContain('OPTIONAL');
@@ -341,8 +340,10 @@ describe('GROUP — compile', () => {
     expect(program).toContain('SELECT ?x (SUM( ?z ) AS ?t) WHERE {');
   });
 
-  it('seeds the subquery with the outer rows only when a key appears just in a FILTER', () => {
-    expect(compile(CHILDREN).program).not.toContain('SELECT DISTINCT ?x WHERE');
+  it('seeds the subquery with the distinct keys bound before the GROUP, also when the pattern binds them', () => {
+    expect(compile(CHILDREN).program).toContain(
+      'SELECT ?x (COUNT( * ) AS ?n) WHERE {\n  {\n  SELECT DISTINCT ?x WHERE {\n  ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example/P',
+    );
     const { program } = compile(
       'RULE { ?p :rank ?r } WHERE { ?q :dept ?d ; :score ?s . '
       + 'GROUP BY ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } [ ?b := COUNT(*) ] '
@@ -351,11 +352,23 @@ describe('GROUP — compile', () => {
     expect(program).toContain('SELECT DISTINCT ?d ?s WHERE {');
   });
 
+  it('seeds only the keys bound before the GROUP, and nothing without keys', () => {
+    expect(compile('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x ?y { ?y :c ?x } [ ?n := COUNT(*) ] }').program)
+      .toContain('SELECT DISTINCT ?x WHERE {');
+    expect(compile('RULE { ?s :n ?n } WHERE { ?s a :P . GROUP { ?a :c ?b } [ ?n := COUNT(*) ] }').program)
+      .not.toContain('SELECT DISTINCT');
+  });
+
+  it('puts the seed inside the group a SET closes, so the SET sees the incoming key', () => {
+    const { program } = compile('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x { SET (?z := STR(?x)) ?y :c ?x } [ ?n := COUNT(?z) ] }');
+    expect(program).toContain('SELECT ?x (COUNT( ?z ) AS ?n) WHERE {\n  {\n  {\n  SELECT DISTINCT ?x WHERE {');
+    expect(program).toContain('}\n}\n  BIND(STR( ?x ) AS ?z) FILTER(BOUND(?z))\n}');
+  });
+
   it('keeps only the outer rows with a group for an empty block', () => {
     const { program } = compile('RULE { ?x :hasChild true } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [] }');
     expect(program).not.toContain('OPTIONAL');
     expect(program).toContain('SELECT ?x WHERE {');
-    expect(program).not.toContain('SELECT DISTINCT');
   });
 
   it('gives one row when there are neither keys nor results, whether or not the pattern matches', () => {

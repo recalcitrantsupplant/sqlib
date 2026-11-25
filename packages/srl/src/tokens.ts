@@ -16,5 +16,6 @@ import { createToken } from '@traqula/core';
 export const ruleKeyword = createToken({ name: 'SrlRule', pattern: /rule/i, label: 'RULE' });
 export const setKeyword = createToken({ name: 'SrlSet', pattern: /set/i, label: 'SET' });
 export const dataKeyword = createToken({ name: 'SrlData', pattern: /data/i, label: 'DATA' });
+export const groundKeyword = createToken({ name: 'SrlGround', pattern: /ground/i, label: 'GROUND' });
 export const notKeyword = createToken({ name: 'SrlNot', pattern: /not/i, label: 'NOT' });
 export const assignOp = createToken({ name: 'SrlAssign', pattern: /:=/, label: ':=' });

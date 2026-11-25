@@ -55,7 +55,7 @@ describe('W3C rules suite tags', () => {
 
   it('gives every entry a kind and at least one feature', async () => {
     const rows = await tagged();
-    expect(rows.length).toBe(368);
+    expect(rows.length).toBe(367);
 
     const featureless = rows.filter(row => row.tags.every(tag => NON_FEATURE.has(tag)));
     expect(
@@ -120,7 +120,7 @@ describe('W3C rules suite tags', () => {
 
     // Two features at once, which is why every matching rule applies rather
     // than the first.
-    expect(bySlug.get('eval-eval-neg-data-01')).toEqual([
+    expect(bySlug.get('eval-eval-neg-ground-01')).toEqual([
       'evaluation', 'data-blocks', 'negation',
     ]);
     // The feature word lives in the rule set's file name, not the entry's.

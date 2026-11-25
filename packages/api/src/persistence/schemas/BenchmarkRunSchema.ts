@@ -3,7 +3,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { xsd, qb, prov, sqlib, sdo } from '../namespaces.js';
+import { xsd, qb, prov, sqlib, sdo, rdf } from '../namespaces.js';
 import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const BenchmarkRunSchema = {
@@ -34,6 +34,35 @@ export const BenchmarkRunSchema = {
   tasksCompleted: {
     '@id': sqlib.tasksCompleted,
     '@type': xsd.integer,
+  },
+  /*
+   * Set when the run executed part of its version (issue #251): the ids of
+   * the cases it selected. Absent or empty when it executed every case: a
+   * selection holds at least one case, and the store reads an absent array
+   * back as empty.
+   */
+  caseIds: {
+    '@id': sqlib.selectedCases,
+    '@array': true,
+    '@optional': true,
+  },
+  /*
+   * The pass the run belongs to. A pass is every run of one version that
+   * names the same pass; it has no record of its own.
+   */
+  pass: {
+    '@id': sqlib.benchmarkPass,
+    '@optional': true,
+  },
+  /*
+   * Facts the client recorded with the run, such as page-cache state or the
+   * store's build: a flat JSON object of scalar values, capped in size.
+   */
+  context: {
+    '@id': sqlib.runContext,
+    '@type': rdf.JSON,
+    '@jsonShape': 'BenchmarkRunContext',
+    '@optional': true,
   },
   keywords: {
     '@id': sdo.keywords,
@@ -73,6 +102,9 @@ export interface PersistedBenchmarkRun {
   runStatus: string;
   tasksTotal: number;
   tasksCompleted: number;
+  caseIds?: string[] | null;
+  pass?: string | null;
+  context?: Record<string, string | number | boolean | null> | null;
   keywords?: string[] | null;
   startedAt?: string | null;
   endedAt?: string | null;
