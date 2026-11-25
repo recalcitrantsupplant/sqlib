@@ -132,6 +132,7 @@
         <DropdownMenuSeparator />
         <DropdownMenuItem
           v-if="tokenAvailable"
+          class="account-action"
           :title="`Copies export ${TOKEN_ENV}=… for your terminal`"
           data-testid="account-copy-token"
           @select="copyToken()"
@@ -139,10 +140,10 @@
           <KeyRound :size="14" aria-hidden="true" />Copy API token
           <span v-if="expiresLabel" class="token-expiry" data-testid="account-token-expiry">until {{ expiresLabel }}</span>
         </DropdownMenuItem>
-        <DropdownMenuItem v-if="state === 'expired'" data-testid="account-sign-in" @select="login()">
+        <DropdownMenuItem v-if="state === 'expired'" class="account-action" data-testid="account-sign-in" @select="login()">
           <LogIn :size="14" aria-hidden="true" />Sign in again
         </DropdownMenuItem>
-        <DropdownMenuItem v-else data-testid="account-sign-out" @select="logout()">
+        <DropdownMenuItem v-else class="account-action" data-testid="account-sign-out" @select="logout()">
           <LogOut :size="14" aria-hidden="true" />Sign out
         </DropdownMenuItem>
       </template>
@@ -313,11 +314,20 @@ function openBackend(iri: string) {
   font-size: var(--text-label);
 }
 
+/*
+ * The access list, the head and the actions share one left edge
+ * (--space-5 inside the menu padding) and one row height (--control-h).
+ */
 .account-access {
+  --access-col: calc(var(--control-h) * 2);
+
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-1);
+  padding: var(--space-4) 0 var(--space-3);
+}
+
+.account-access .access-heading {
+  padding: 0 var(--space-5) var(--space-2);
 }
 
 .access-heading {
@@ -327,11 +337,15 @@ function openBackend(iri: string) {
   font-weight: var(--weight-semibold);
 }
 
-/* Name, then one column per grant. Rows and column labels share the tracks. */
+/*
+ * Name, then two fixed grant columns. Rows and column labels share the
+ * tracks. Labels and chips are centred in their column, so chips of
+ * different words still form a straight column.
+ */
 .access-table {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  column-gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr) var(--access-col) var(--access-col);
+  column-gap: var(--space-4);
 }
 
 .access-columns,
@@ -340,11 +354,21 @@ function openBackend(iri: string) {
   display: grid;
   grid-template-columns: subgrid;
   align-items: center;
-  padding: var(--space-2) var(--space-4);
+  padding: 0 var(--space-5);
+}
+
+.access-columns {
+  min-height: calc(var(--control-h) - var(--space-2));
+  align-items: end;
+  padding-bottom: var(--space-1);
+}
+
+.access-columns > * + * {
+  justify-self: center;
 }
 
 .access-columns--gap {
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
 }
 
 .access-span {
@@ -352,7 +376,8 @@ function openBackend(iri: string) {
 }
 
 .access-row {
-  font-size: var(--text-body);
+  min-height: var(--control-h);
+  font-size: var(--text-body-lg);
   cursor: pointer;
 }
 
@@ -364,6 +389,7 @@ function openBackend(iri: string) {
 .access-chips {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-2);
 }
 
@@ -373,6 +399,23 @@ function openBackend(iri: string) {
   border-radius: var(--radius-sm);
   font-weight: var(--weight-medium);
   white-space: nowrap;
+}
+
+/* Equal-width chips: "saved", "ad hoc" and "none" line up in a column. */
+.account-access .grant-chip {
+  justify-self: center;
+  display: inline-grid;
+  place-items: center;
+  min-width: calc(var(--access-col) - var(--space-2));
+  height: calc(var(--control-h-sm) - var(--space-1));
+  padding: 0 var(--space-3);
+  font-size: var(--text-body);
+}
+
+.account-action {
+  min-height: var(--control-h);
+  padding: 0 var(--space-5);
+  font-size: var(--text-body-lg);
 }
 
 .grant-chip--view { background: var(--grant-view-surface); color: var(--grant-view-ink); }
