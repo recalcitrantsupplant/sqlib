@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.0](https://github.com/recalcitrantsupplant/sqlib/compare/v0.2.0...v0.3.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **srl:** rename WHERE DATA and NOT DATA to GROUND, and refresh the W3C suite ([#265](https://github.com/recalcitrantsupplant/sqlib/issues/265))
+
+### Features
+
+* **api:** cache pinned GET /execute and /substitute responses over HTTP ([#248](https://github.com/recalcitrantsupplant/sqlib/issues/248)) ([7e3dca8](https://github.com/recalcitrantsupplant/sqlib/commit/7e3dca842e0ae1b2a95dffbe6830d5e8fe8ba24e))
+* **api:** let published rule sets take inline seed rows ([#218](https://github.com/recalcitrantsupplant/sqlib/issues/218)) ([7325e6b](https://github.com/recalcitrantsupplant/sqlib/commit/7325e6b73120eaa4760613d8218177e82ee8a003))
+* **auth:** add SQLIB_AUTH_MODE=optional, for guests and signed-in callers ([#246](https://github.com/recalcitrantsupplant/sqlib/issues/246)) ([e28a656](https://github.com/recalcitrantsupplant/sqlib/commit/e28a6561e239b9725463acb152f37b67fe37669b))
+* **auth:** add SQLIB_AUTH_MODE=trusted-header, for a sign-in proxy ([#247](https://github.com/recalcitrantsupplant/sqlib/issues/247)) ([a045a89](https://github.com/recalcitrantsupplant/sqlib/commit/a045a89a2b59bbe768005c1a1cb1a4c0d893121c))
+* **benchmarks:** run selected cases of a version and group runs into passes ([#263](https://github.com/recalcitrantsupplant/sqlib/issues/263)) ([7d63f9f](https://github.com/recalcitrantsupplant/sqlib/commit/7d63f9f4f7b6da64b94a58cd41248254f593bd7f))
+* **dotnet:** add a .NET runtime for exported bundles ([#255](https://github.com/recalcitrantsupplant/sqlib/issues/255)) ([cba3664](https://github.com/recalcitrantsupplant/sqlib/commit/cba3664855a8b3b9b69b512233f129f4f7f70db7))
+* format SPARQL, SRL and Turtle with the CodeMirror RDF formatter ([#244](https://github.com/recalcitrantsupplant/sqlib/issues/244)) ([0df65f9](https://github.com/recalcitrantsupplant/sqlib/commit/0df65f9a44fb919f1712977a0b5dc2903b643d2b))
+* run parameterised updates without a server holding the data ([#232](https://github.com/recalcitrantsupplant/sqlib/issues/232)) ([ada7f6b](https://github.com/recalcitrantsupplant/sqlib/commit/ada7f6bcd4bdf44d6294c5b33a571a06974b559c))
+* **runtime:** stream query results through httpExecutor ([#202](https://github.com/recalcitrantsupplant/sqlib/issues/202)) ([5670f44](https://github.com/recalcitrantsupplant/sqlib/commit/5670f44cd259222819ab0c3849af840351301626)), closes [#200](https://github.com/recalcitrantsupplant/sqlib/issues/200)
+* **srl:** rename WHERE DATA and NOT DATA to GROUND, and refresh the W3C suite ([#265](https://github.com/recalcitrantsupplant/sqlib/issues/265)) ([cc8abef](https://github.com/recalcitrantsupplant/sqlib/commit/cc8abef1cc0322b5f4545ce1f4bff879d7d6881d))
+* take one ?library= filter on every list ([#250](https://github.com/recalcitrantsupplant/sqlib/issues/250)) ([#264](https://github.com/recalcitrantsupplant/sqlib/issues/264)) ([37aaecf](https://github.com/recalcitrantsupplant/sqlib/commit/37aaecf3a950bf3da729d2cd74c6b49711734c7c))
+* **web:** render notebook Markdown with @lezer/markdown, adding GFM tables ([#237](https://github.com/recalcitrantsupplant/sqlib/issues/237)) ([46bbe87](https://github.com/recalcitrantsupplant/sqlib/commit/46bbe870e017cd5fb7235686bd6436529dc9b4ab))
+
+
+### Bug Fixes
+
+* **srl:** reject anything but FILTER inside NOT ([#245](https://github.com/recalcitrantsupplant/sqlib/issues/245)) ([343b698](https://github.com/recalcitrantsupplant/sqlib/commit/343b69888e526bdd3817cf5fbd27fcbcca53cbd9)), closes [#241](https://github.com/recalcitrantsupplant/sqlib/issues/241)
+* **srl:** seed every GROUP key bound before it, inside the SET scope ([#266](https://github.com/recalcitrantsupplant/sqlib/issues/266)) ([d8c08fb](https://github.com/recalcitrantsupplant/sqlib/commit/d8c08fb09bd23d8ec059b6392fef023e79498aab))
+* **web:** go to the splash from the rail mark on MCP and Access ([#240](https://github.com/recalcitrantsupplant/sqlib/issues/240)) ([52f89bf](https://github.com/recalcitrantsupplant/sqlib/commit/52f89bfb5a58dc7c99bffe543fb169486be253c2))
+* **web:** let an open expectation scroll, and keep the results table at the panel edge ([#269](https://github.com/recalcitrantsupplant/sqlib/issues/269)) ([f4e9675](https://github.com/recalcitrantsupplant/sqlib/commit/f4e96756d25f78f7ddebd90009b259305386aa56))
+* **web:** open the new library's first entity after a library switch ([#243](https://github.com/recalcitrantsupplant/sqlib/issues/243)) ([dfc01aa](https://github.com/recalcitrantsupplant/sqlib/commit/dfc01aaa44e610c2bd1bb85e446500533cc6e8a7))
+* **web:** show a read-only run only under the benchmark that made it ([#239](https://github.com/recalcitrantsupplant/sqlib/issues/239)) ([7d7e66e](https://github.com/recalcitrantsupplant/sqlib/commit/7d7e66e2dd9bbf98bb4943d2a1a13ce171f14cc9))
+* **web:** show the first 10 rows under every tag heading ([#236](https://github.com/recalcitrantsupplant/sqlib/issues/236)) ([dbc8a86](https://github.com/recalcitrantsupplant/sqlib/commit/dbc8a86a50956a15a40edbdb53020d19f2fa56fe))
+
 ## [0.2.0](https://github.com/recalcitrantsupplant/sqlib/compare/v0.1.0...v0.2.0) (2026-11-19)
 
 
