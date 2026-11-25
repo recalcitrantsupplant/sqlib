@@ -5,7 +5,7 @@
  * point the module at a different environment.
  */
 import path from 'node:path';
-import type { AuthMode } from './types.js';
+import { readsBearerTokens, type AuthMode } from './types.js';
 
 export interface IssuerConfig {
   issuer: string;
@@ -72,12 +72,14 @@ function parseMode(raw: string | undefined): AuthMode {
       return 'dry-run';
     case 'anonymous':
       return 'anonymous';
+    case 'optional':
+      return 'optional';
     case 'disabled':
     case '':
       return 'disabled';
     default:
       throw new Error(
-        `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required, anonymous.`
+        `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required, anonymous, optional.`
       );
   }
 }
@@ -147,7 +149,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
 
   // `anonymous` reads no token, so it has no use for an issuer: every caller is
   // the anonymous principal and the grants on it are the whole decision.
-  const readsTokens = mode === 'dry-run' || mode === 'required';
+  const readsTokens = readsBearerTokens(mode);
 
   if (readsTokens && issuers.length === 0) {
     throw new Error(

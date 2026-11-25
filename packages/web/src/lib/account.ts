@@ -65,6 +65,7 @@ export function accountStateOf(input: {
   if (input.mode === 'anonymous') return input.demoPerson ? 'demo' : 'guest';
   if (input.signedIn) return 'signed-in';
   if (input.lapsed) return 'expired';
+  if (input.mode === 'optional') return 'guest';
   return 'none';
 }
 

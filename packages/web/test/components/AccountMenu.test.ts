@@ -22,6 +22,7 @@ const state = {
 const login = vi.fn();
 const logout = vi.fn();
 const signedIn = ref(false);
+const authMode = ref<string>('required');
 const freshAccessToken = vi.fn();
 const push = vi.fn();
 const demoPeople = ref<Array<{ id: string; name: string; groups: string[]; admin: boolean }>>([]);
@@ -37,6 +38,7 @@ vi.mock('@/composables/useAuth', () => ({
   useAuth: () => ({
     account: computed(() => state.account.value),
     me: computed(() => state.me.value),
+    mode: computed(() => authMode.value),
     login,
     logout,
     isAuthenticated: computed(() => signedIn.value),
@@ -80,6 +82,7 @@ beforeEach(() => {
   login.mockClear();
   logout.mockClear();
   signedIn.value = false;
+  authMode.value = 'required';
   freshAccessToken.mockReset();
   push.mockClear();
   demoPeople.value = [];
@@ -155,6 +158,19 @@ describe('AccountMenu', () => {
     expect(menu.querySelector('[data-testid="account-access"]')!.textContent).toContain('Finance queries');
     expect(menu.querySelector('[data-testid="account-sign-out"]')).toBeNull();
     expect(menu.querySelector('[data-testid="account-sign-in"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it('offers a guest the sign-in item when sign-in is optional', async () => {
+    authMode.value = 'optional';
+    state.account.value = { state: 'guest', identity: { name: null, email: null } };
+    state.me.value = me({ authMode: 'optional', authenticated: false, issuer: null, groups: [] });
+    const wrapper = await open();
+
+    const item = document.body.querySelector<HTMLElement>('[data-testid="account-sign-in"]')!;
+    expect(item).not.toBeNull();
+    item.click();
+    expect(login).toHaveBeenCalledOnce();
     wrapper.unmount();
   });
 

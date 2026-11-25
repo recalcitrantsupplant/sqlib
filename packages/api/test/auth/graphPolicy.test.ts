@@ -34,6 +34,7 @@ const ALICE = 'urn:sqlib:principal:user:alice';
 const BOB = 'urn:sqlib:principal:user:bob';
 const TEAM_A = 'urn:sqlib:principal:group:team-a';
 const ADMIN = 'urn:sqlib:principal:user:admin';
+const GUEST = 'urn:sqlib:principal:anonymous';
 const DATA = 'urn:sqlib:backend:data';
 const AUTH = 'urn:sqlib:backend:auth';
 const POLICY = 'urn:sqlib:query-version:policy';
@@ -116,6 +117,7 @@ beforeEach(async () => {
     @prefix ex: <${EX}> .
     [] acl:group <${TEAM_A}> ; acl:graph ex:g1 .
     [] acl:user <${BOB}> ; acl:graph ex:g3 .
+    [] acl:user <${GUEST}> ; acl:graph ex:g2 .
   `, { format: 'text/turtle' });
   authExecutor = new OxigraphSparqlExecutor(authStore);
 
@@ -218,6 +220,37 @@ describe('graph policy reads', () => {
     clearGraphPolicyCache();
     await read(guarded([ALICE, TEAM_A]));
     expect(runner).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('graph policy reads for a caller who also holds guest access', () => {
+  beforeEach(async () => {
+    await grants.createGrant({ principal: GUEST, resourceKind: 'backend', resource: DATA, modes: ['query:adhoc'] });
+  });
+
+  it('gives a guest the graphs the policy names for the anonymous principal', async () => {
+    expect(await read(guarded([GUEST], { mode: 'optional' }))).toEqual(['two']);
+  });
+
+  it('gives a signed-in caller in optional mode their own graphs and the guest graphs', async () => {
+    expect(await read(guarded([ALICE, TEAM_A, GUEST], { mode: 'optional' }))).toEqual(['one', 'two']);
+    expect(await read(guarded([BOB, GUEST], { mode: 'optional' }))).toEqual(['three', 'two']);
+  });
+
+  it('gives a signed-in caller with no rule of their own the guest graphs, never fewer', async () => {
+    expect(await read(guarded([ALICE, GUEST], { mode: 'optional' }))).toEqual(['two']);
+  });
+
+  it('does not add the guest graphs to a caller who does not hold the anonymous principal', async () => {
+    expect(await read(guarded([ALICE, TEAM_A]))).toEqual(['one']);
+  });
+
+  it('fails closed when the guest half of the policy cannot run', async () => {
+    setGraphPolicyRunner(async (_backend, text) => {
+      if (text.includes(GUEST)) throw new Error('auth backend down');
+      return (await authExecutor.selectQueryParsed(text)).result;
+    });
+    await expect(read(guarded([ALICE, TEAM_A, GUEST], { mode: 'optional' }))).rejects.toBeInstanceOf(GraphPolicyError);
   });
 });
 

@@ -45,7 +45,7 @@ import type { SparqlDataset } from '../server/ISparqlExecutor.js';
 import type { PersistedBackend } from '../persistence/schemas/BackendSchema.js';
 import { getAuthConfig } from './config.js';
 import { isGroupPrincipal } from './principals.js';
-import type { AuthContext } from './types.js';
+import { PRINCIPAL_ANONYMOUS, type AuthContext } from './types.js';
 
 // The slot names are the runtime's: every saved query reads the caller through
 // the same two slots (`auth/caller.ts`), and a policy is one such query.
@@ -87,6 +87,29 @@ export function policySubjectOf(context: AuthContext): PolicySubject {
   return {
     user: context.subject,
     groups: context.principals.filter(isGroupPrincipal),
+  };
+}
+
+/** The subject a policy sees for a guest: the anonymous principal, no groups. */
+export const GUEST_POLICY_SUBJECT: PolicySubject = { user: PRINCIPAL_ANONYMOUS, groups: [] };
+
+/**
+ * True when a signed-in caller also holds what a guest holds: a caller in
+ * `optional` mode, or a demo person. Their policy dataset is then their own
+ * graphs and the guest's graphs, so signing in never shows fewer graphs.
+ */
+export function holdsGuestAccess(context: AuthContext): boolean {
+  return context.subject !== PRINCIPAL_ANONYMOUS && context.principals.includes(PRINCIPAL_ANONYMOUS);
+}
+
+/** The graphs in either dataset, each part merged without repeats. */
+export function unionDatasets(
+  a: Required<SparqlDataset>,
+  b: Required<SparqlDataset>,
+): Required<SparqlDataset> {
+  return {
+    defaultGraphs: [...new Set([...a.defaultGraphs, ...b.defaultGraphs])],
+    namedGraphs: [...new Set([...a.namedGraphs, ...b.namedGraphs])],
   };
 }
 
@@ -296,7 +319,9 @@ export async function graphPolicyDataset(
 ): Promise<Required<SparqlDataset> | undefined> {
   const policy = graphPolicyForBackend(backendId);
   if (!policy) return undefined;
-  return evaluateGraphPolicy(backendId, policy, policySubjectOf(context));
+  const own = await evaluateGraphPolicy(backendId, policy, policySubjectOf(context));
+  if (!holdsGuestAccess(context)) return own;
+  return unionDatasets(own, await evaluateGraphPolicy(backendId, policy, GUEST_POLICY_SUBJECT));
 }
 
 /**

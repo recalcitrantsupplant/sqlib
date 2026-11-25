@@ -53,12 +53,22 @@ export function modesSatisfying(mode: BackendMode): BackendMode[] {
  * one principal `PRINCIPAL_ANONYMOUS`, and the grants on that principal decide
  * what a visitor may do. It enforces like `required`. Unlike `disabled`, which
  * mints a full-access context, it gives a visitor nothing a grant did not.
+ *
+ * `optional` serves both (#238). A request with no token is the anonymous
+ * principal, as in `anonymous`. A request with a token is verified as in
+ * `required`: a valid token adds the caller's own principals to the anonymous
+ * principal, and an invalid or expired token gets a 401.
  */
-export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
+export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous' | 'optional';
 
 /** The modes in which a refused check is refused, rather than audited and allowed. */
 export function isEnforcingMode(mode: AuthMode): boolean {
-  return mode === 'required' || mode === 'anonymous';
+  return mode === 'required' || mode === 'anonymous' || mode === 'optional';
+}
+
+/** The modes that verify a bearer token against an issuer. */
+export function readsBearerTokens(mode: AuthMode): boolean {
+  return mode === 'dry-run' || mode === 'required' || mode === 'optional';
 }
 
 /** The one principal every caller is in `anonymous` mode. */
@@ -147,11 +157,15 @@ export function createFullAccessContext(mode: AuthMode = 'disabled'): AuthContex
 }
 
 /**
- * The context every caller gets in `anonymous` mode: the anonymous principal
- * alone, with whatever grants name it. Not the authenticated sentinel — a
- * visitor has not authenticated, so "everyone signed in" does not reach them.
+ * The context every caller gets in `anonymous` mode, and a caller with no
+ * token gets in `optional` mode: the anonymous principal alone, with whatever
+ * grants name it. Not the authenticated sentinel: a visitor has not
+ * authenticated, so "everyone signed in" does not reach them.
  */
-export function createAnonymousContext(grants: EffectiveGrants): AuthContext {
+export function createAnonymousContext(
+  grants: EffectiveGrants,
+  mode: 'anonymous' | 'optional' = 'anonymous'
+): AuthContext {
   return {
     subject: PRINCIPAL_ANONYMOUS,
     principals: [PRINCIPAL_ANONYMOUS],
@@ -160,7 +174,7 @@ export function createAnonymousContext(grants: EffectiveGrants): AuthContext {
     grants,
     claims: {},
     fullAccess: false,
-    mode: 'anonymous',
+    mode,
   };
 }
 
