@@ -1,0 +1,12 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?time ?towardsName WHERE {
+  GRAPH <https://example.org/rail/timetable/weekday> {
+    ?departure :from :central ;
+               :line :red ;
+               :towards ?towards ;
+               :time ?time .
+  }
+  ?towards :name ?towardsName .
+}
+ORDER BY ?time

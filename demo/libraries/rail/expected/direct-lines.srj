@@ -1,0 +1,50 @@
+{
+  "head": {
+    "vars": [
+      "from",
+      "to",
+      "line",
+      "lineName"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "to": {
+          "type": "uri",
+          "value": "https://example.org/rail/market"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        }
+      },
+      {
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "to": {
+          "type": "uri",
+          "value": "https://example.org/rail/museum"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        }
+      }
+    ]
+  }
+}

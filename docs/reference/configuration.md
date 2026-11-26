@@ -352,6 +352,9 @@ Read-only is a separate setting from the auth mode, and needs no auth mode:
 list of people, with no sign-in, to see how grants and graph policies change
 what they see.
 
+`just demo` runs demo mode on the Rail library in [`demo/`](../../demo/README.md).
+`Dockerfile.demo` builds an image with that library already in its store.
+
 | Name | Default | Effect |
 | --- | --- | --- |
 | `SQLIB_DEMO` | `false` | Exactly `true` turns it on. The server refuses to start unless `SQLIB_READ_ONLY=true` and `SQLIB_AUTH_MODE=anonymous`. |

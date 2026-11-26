@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?thing ?name WHERE {
+  { ?thing a :Station }
+  UNION
+  { ?thing a :Line }
+  ?thing :name ?name .
+}
+ORDER BY ?name

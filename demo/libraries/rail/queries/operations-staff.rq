@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?role ?basedAt WHERE {
+  GRAPH <https://example.org/rail/graph/public> {
+    ?person a :StaffMember ; :name ?name ; :role ?role ; :basedAt ?basedAt .
+  }
+}
+ORDER BY ?name

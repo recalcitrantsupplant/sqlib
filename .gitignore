@@ -112,3 +112,4 @@ tmp/auth-demo/
 
 # Playwright MCP session artifacts (console log dumps, screenshots).
 .playwright-mcp/
+tmp/demo/

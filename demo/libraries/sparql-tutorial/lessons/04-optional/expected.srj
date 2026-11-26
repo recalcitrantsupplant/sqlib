@@ -1,0 +1,29 @@
+{
+  "head": {
+    "vars": [
+      "name"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Southbank"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      }
+    ]
+  }
+}

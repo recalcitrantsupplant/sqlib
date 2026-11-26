@@ -1,0 +1,15 @@
+PREFIX : <https://example.org/rail/>
+
+RULE { ?station a :Interchange ; :lineCount ?n }
+WHERE {
+  ?station a :Station .
+  GROUP BY ?station { ?station :onLine ?line }
+  [ ?n := COUNT(DISTINCT ?line) ]
+  FILTER(?n >= 2)
+}
+
+RULE { ?station a :SingleLineStop }
+WHERE {
+  ?station a :Station
+  NOT { ?station a :Interchange }
+}

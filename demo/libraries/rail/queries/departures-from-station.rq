@@ -1,0 +1,16 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?dayType ?time ?lineName ?towardsName WHERE {
+  VALUES ?station { UNDEF }
+  ?day :timetable ?timetable ;
+       :name ?dayType .
+  GRAPH ?timetable {
+    ?departure :from ?station ;
+               :line ?line ;
+               :towards ?towards ;
+               :time ?time .
+  }
+  ?line :name ?lineName .
+  ?towards :name ?towardsName .
+}
+ORDER BY ?dayType ?time ?lineName

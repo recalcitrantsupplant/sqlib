@@ -1,0 +1,12 @@
+@prefix : <https://example.org/rail/> .
+@prefix staff: <https://example.org/rail/staff/> .
+
+:red :name "Red line" .
+:blue :name "Blue line" .
+:green :name "Green line" .
+:yellow :name "Yellow line" .
+
+staff:alice a :StaffMember ; :name "Alice" ; :role "Planning analyst" ; :basedAt :central ; :signsInAs <{{user:alice}}> .
+staff:bob a :StaffMember ; :name "Bob" ; :role "Rostering officer" ; :basedAt :central ; :signsInAs <{{user:bob}}> .
+staff:carol a :StaffMember ; :name "Carol" ; :role "Signal engineer" ; :basedAt :museum ; :signsInAs <{{user:carol}}> .
+staff:dana a :StaffMember ; :name "Dana" ; :role "Operations administrator" ; :basedAt :central ; :signsInAs <{{user:dana}}> .

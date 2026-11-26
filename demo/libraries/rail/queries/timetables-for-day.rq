@@ -1,0 +1,6 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?timetable WHERE {
+  VALUES ?day { UNDEF }
+  ?day :timetable ?timetable .
+}

@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?station ?name WHERE {
+  VALUES ?line { UNDEF }
+  ?station :onLine ?line ;
+           :name ?name .
+}
+ORDER BY ?name

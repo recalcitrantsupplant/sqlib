@@ -1,0 +1,45 @@
+{
+  "head": {
+    "vars": [
+      "name",
+      "opened"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Lakeside"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "2028",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Stadium"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "2018",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Docklands"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "2011",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?station ?name ?zone WHERE {
+  VALUES ?station { :central :museum :airport }
+  ?station :name ?name ;
+           :zone ?zone .
+}

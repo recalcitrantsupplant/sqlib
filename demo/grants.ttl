@@ -1,0 +1,71 @@
+# Who may do what. Seeded into the auth store at boot by SQLIB_AUTH_SEED_GRANTS.
+#
+# The deployment runs SQLIB_AUTH_MODE=anonymous with SQLIB_DEMO=true. A guest
+# is the anonymous principal. A visitor who switches to a demo person
+# (people.json) holds that person's user and group principals as well, and
+# still holds everything a guest holds.
+#
+# Graph access inside Rail operations is not a grant: it is the graph policy on
+# that backend (libraries/rail-admin/queries/policy.rq), which reads the
+# caller's user and groups. A guest and Alice hold the same grants on Rail,
+# and see different graphs.
+#
+# Nothing here grants `write`, `delete` or `control`, or any `update:*` mode:
+# the deployment is read-only, and these grants say so a second time.
+
+@prefix auth: <https://sparql-query-lib/auth#> .
+
+# ── Everyone, signed in or not ──────────────────────────────────────────────
+# Read and run the public libraries' saved queries.
+
+<urn:sqlib:grant:visitor-rail> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onLibrary <urn:sqlib:library:rail> ;
+  auth:mode auth:Read, auth:Execute .
+
+# The two SPARQL tutorials. Their queries run on the Rail store.
+<urn:sqlib:grant:visitor-sparql-tutorial> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onLibrary <urn:sqlib:library:sparql-tutorial> ;
+  auth:mode auth:Read, auth:Execute .
+
+<urn:sqlib:grant:visitor-sqlib-tutorial> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onLibrary <urn:sqlib:library:sqlib-tutorial> ;
+  auth:mode auth:Read, auth:Execute .
+
+<urn:sqlib:grant:visitor-rail-store> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onBackend <urn:sqlib:backend:rail-store> ;
+  auth:mode auth:QuerySaved .
+
+<urn:sqlib:grant:visitor-rail-operations> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onBackend <urn:sqlib:backend:rail-operations> ;
+  auth:mode auth:QuerySaved .
+
+<urn:sqlib:grant:visitor-rail-features> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onBackend <urn:sqlib:backend:rail-features> ;
+  auth:mode auth:QuerySaved .
+
+# Run what an environment points to.
+<urn:sqlib:grant:visitor-rail-prod> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onEnvironment <urn:sqlib:environment:rail-prod> ;
+  auth:mode auth:Execute .
+
+# Write and run their own SPARQL on the demo stores. On Rail operations the
+# graph policy still decides which graphs that text reads. These stores are in
+# memory, and SQLIB_QUERY_WORKERS in server.env runs each query in a worker
+# thread that stops at SQLIB_EXECUTION_TIMEOUT_MS.
+
+<urn:sqlib:grant:visitor-rail-store-adhoc> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onBackend <urn:sqlib:backend:rail-store> ;
+  auth:mode auth:QueryAdhoc .
+
+<urn:sqlib:grant:visitor-rail-operations-adhoc> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onBackend <urn:sqlib:backend:rail-operations> ;
+  auth:mode auth:QueryAdhoc .

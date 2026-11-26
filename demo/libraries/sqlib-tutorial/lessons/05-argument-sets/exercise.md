@@ -1,0 +1,1 @@
+The argument set *Step-free stations in zone 3* fills two parameters, `?zone` and `?stepFree`, each with one value. **Declare both parameters** in this query, so that the set applies. Return `?name`, `?zone` and `?stepFree`.

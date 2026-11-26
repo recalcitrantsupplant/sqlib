@@ -1,0 +1,62 @@
+{
+  "head": {
+    "vars": [
+      "station",
+      "name"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Hillcrest"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/market"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Market Street"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/museum"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Museum"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/northgate"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Northgate"
+        }
+      }
+    ]
+  }
+}

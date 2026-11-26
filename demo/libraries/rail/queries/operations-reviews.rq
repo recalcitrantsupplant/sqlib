@@ -1,0 +1,10 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?review ?leaveBalance WHERE {
+  GRAPH <https://example.org/rail/graph/public> { ?person :name ?name . }
+  GRAPH <https://example.org/rail/graph/staff> {
+    ?person :review ?review .
+    OPTIONAL { ?person :leaveBalance ?leaveBalance }
+  }
+}
+ORDER BY ?name

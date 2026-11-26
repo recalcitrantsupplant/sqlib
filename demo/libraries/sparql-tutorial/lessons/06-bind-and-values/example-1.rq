@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?label WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :zone ?zone .
+  BIND(CONCAT(?name, " (zone ", STR(?zone), ")") AS ?label)
+}
+ORDER BY ?label

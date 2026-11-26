@@ -1,0 +1,69 @@
+{
+  "head": {
+    "vars": [
+      "line",
+      "name",
+      "colour"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "colour": {
+          "type": "literal",
+          "value": "#d62828"
+        }
+      },
+      {
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "colour": {
+          "type": "literal",
+          "value": "#1d4ed8"
+        }
+      },
+      {
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Green line"
+        },
+        "colour": {
+          "type": "literal",
+          "value": "#15803d"
+        }
+      },
+      {
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Yellow line"
+        },
+        "colour": {
+          "type": "literal",
+          "value": "#ca8a04"
+        }
+      }
+    ]
+  }
+}

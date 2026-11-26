@@ -1,0 +1,640 @@
+{
+  "library": {
+    "id": "urn:sqlib:library:sqlib-tutorial",
+    "name": "SPARQL in sqlib",
+    "author": "alice",
+    "descriptionFile": "library.md",
+    "defaultBackend": "urn:sqlib:backend:rail-store"
+  },
+  "tags": [
+    {
+      "id": "urn:sqlib:tag:sqlib-tutorial-01",
+      "name": "1. Parameters with VALUES and UNDEF",
+      "descriptionFile": "lessons/01-parameters/lesson.md",
+      "color": "#2563eb"
+    },
+    {
+      "id": "urn:sqlib:tag:sqlib-tutorial-02",
+      "name": "2. Several parameters",
+      "descriptionFile": "lessons/02-several-parameters/lesson.md",
+      "color": "#0891b2"
+    },
+    {
+      "id": "urn:sqlib:tag:sqlib-tutorial-03",
+      "name": "3. LIMIT and OFFSET parameters",
+      "descriptionFile": "lessons/03-limit-and-offset/lesson.md",
+      "color": "#059669"
+    },
+    {
+      "id": "urn:sqlib:tag:sqlib-tutorial-04",
+      "name": "4. Saved queries and versions",
+      "descriptionFile": "lessons/04-versions/lesson.md",
+      "color": "#ca8a04"
+    },
+    {
+      "id": "urn:sqlib:tag:sqlib-tutorial-05",
+      "name": "5. Argument sets",
+      "descriptionFile": "lessons/05-argument-sets/lesson.md",
+      "color": "#dc2626"
+    }
+  ],
+  "queries": [
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-01-1",
+      "name": "1.1 Stations on a line",
+      "descriptionFile": "lessons/01-parameters/example.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-01"
+      ],
+      "file": "lessons/01-parameters/example.rq",
+      "comment": "Worked example.",
+      "browserDefaultArgumentSet": "red"
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-01-exercise",
+      "name": "1.2 Stations in the zones you choose",
+      "descriptionFile": "lessons/01-parameters/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-01"
+      ],
+      "starterFile": "lessons/01-parameters/starter.rq",
+      "file": "lessons/01-parameters/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-02-1",
+      "name": "2.1 Direct lines between two stations",
+      "descriptionFile": "lessons/02-several-parameters/example.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-02"
+      ],
+      "file": "lessons/02-several-parameters/example.rq",
+      "comment": "Worked example.",
+      "browserDefaultArgumentSet": "airport-central-before-1950"
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-02-exercise",
+      "name": "2.2 Weekday departures by station and line",
+      "descriptionFile": "lessons/02-several-parameters/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-02"
+      ],
+      "starterFile": "lessons/02-several-parameters/starter.rq",
+      "file": "lessons/02-several-parameters/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-03-1",
+      "name": "3.1 A page of stations",
+      "descriptionFile": "lessons/03-limit-and-offset/example.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-03"
+      ],
+      "file": "lessons/03-limit-and-offset/example.rq",
+      "comment": "Worked example.",
+      "browserDefaultArgumentSet": "second-page"
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-03-exercise",
+      "name": "3.2 The newest stations, as many as you ask for",
+      "descriptionFile": "lessons/03-limit-and-offset/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-03"
+      ],
+      "starterFile": "lessons/03-limit-and-offset/starter.rq",
+      "file": "lessons/03-limit-and-offset/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-04-1",
+      "name": "4.1 Departures from a station",
+      "descriptionFile": "lessons/04-versions/example.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-04"
+      ],
+      "file": "lessons/04-versions/example.rq",
+      "comment": "Makes the station a parameter.",
+      "history": [
+        {
+          "file": "lessons/04-versions/example-v1.rq",
+          "comment": "Departures from Central."
+        },
+        {
+          "file": "lessons/04-versions/example-v2.rq",
+          "comment": "Adds the name of each line."
+        }
+      ]
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-05-1",
+      "name": "5.1 Departures by station and timetable",
+      "descriptionFile": "lessons/05-argument-sets/example.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-05"
+      ],
+      "file": "lessons/05-argument-sets/example.rq",
+      "comment": "Worked example.",
+      "browserDefaultArgumentSet": "central-weekday"
+    },
+    {
+      "id": "urn:sqlib:query:sqlib-tutorial-05-exercise",
+      "name": "5.2 Write the query that fits the arguments",
+      "descriptionFile": "lessons/05-argument-sets/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-05"
+      ],
+      "starterFile": "lessons/05-argument-sets/starter.rq",
+      "file": "lessons/05-argument-sets/solution.rq",
+      "comment": "Solution."
+    }
+  ],
+  "argumentSets": [
+    {
+      "key": "red",
+      "name": "Red line",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-01-1",
+      "scope": "query",
+      "description": "?line is the Red line.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/red"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "red-and-green",
+      "name": "Red and Green lines",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-01-1",
+      "scope": "query",
+      "description": "?line is the Red line or the Green line: two rows in one argument.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/red"
+                }
+              }
+            },
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/green"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "zones-1-2",
+      "name": "Zones 1 and 2",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-01-exercise",
+      "scope": "query",
+      "description": "?zone is 1 or 2.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "zone"
+          ],
+          "rows": [
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "1",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            },
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "2",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "airport-central-before-1950",
+      "name": "Airport to Central, lines before 1950",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-02-1",
+      "scope": "query",
+      "description": "(?from ?to) is Airport to Central, and ?before is 1950.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "from",
+            "to"
+          ],
+          "rows": [
+            {
+              "values": {
+                "from": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/airport"
+                },
+                "to": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "before"
+          ],
+          "rows": [
+            {
+              "values": {
+                "before": {
+                  "type": "literal",
+                  "value": "1950",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "central-red",
+      "name": "Central, Red line",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-02-exercise",
+      "scope": "query",
+      "description": "?station is Central and ?line is the Red line.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/red"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "hillcrest",
+      "name": "Hillcrest, any line",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-02-exercise",
+      "scope": "query",
+      "description": "?station is Hillcrest. ?line has no argument.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/hillcrest"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "second-page",
+      "name": "Second page of five",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-03-1",
+      "scope": "query",
+      "description": "A limit of 5 and an offset of 5.",
+      "scalarBindings": [
+        {
+          "parameterKind": "limit",
+          "parameterName": "1",
+          "numericValue": 5
+        },
+        {
+          "parameterKind": "offset",
+          "parameterName": "2",
+          "numericValue": 5
+        }
+      ]
+    },
+    {
+      "key": "three",
+      "name": "Three stations",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-03-exercise",
+      "scope": "query",
+      "description": "A limit of 3.",
+      "scalarBindings": [
+        {
+          "parameterKind": "limit",
+          "parameterName": "1",
+          "numericValue": 3
+        }
+      ]
+    },
+    {
+      "key": "departures-central",
+      "name": "Central",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-04-1",
+      "scope": "query",
+      "description": "?station is Central.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "central-weekday",
+      "name": "Central, weekday, first six",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-05-1",
+      "scope": "query",
+      "description": "?station is Central, ?timetable is the weekday timetable, and the limit is 6.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "timetable"
+          ],
+          "rows": [
+            {
+              "values": {
+                "timetable": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/timetable/weekday"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "scalarBindings": [
+        {
+          "parameterKind": "limit",
+          "parameterName": "1",
+          "numericValue": 6
+        }
+      ]
+    },
+    {
+      "key": "hillcrest-weekend",
+      "name": "Hillcrest, weekend, first four",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-05-1",
+      "scope": "query",
+      "description": "?station is Hillcrest, ?timetable is the weekend timetable, and the limit is 4.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/hillcrest"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "timetable"
+          ],
+          "rows": [
+            {
+              "values": {
+                "timetable": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/timetable/weekend"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "scalarBindings": [
+        {
+          "parameterKind": "limit",
+          "parameterName": "1",
+          "numericValue": 4
+        }
+      ]
+    },
+    {
+      "key": "zone-3-step-free",
+      "name": "Step-free stations in zone 3",
+      "targetId": "urn:sqlib:query:sqlib-tutorial-05-exercise",
+      "scope": "query",
+      "description": "?zone is 3 and ?stepFree is true.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "zone"
+          ],
+          "rows": [
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "3",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "stepFree"
+          ],
+          "rows": [
+            {
+              "values": {
+                "stepFree": {
+                  "type": "literal",
+                  "value": "true",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "key": "01-parameters-exercise",
+      "name": "1.2 Stations in the zones you choose",
+      "descriptionFile": "lessons/01-parameters/exercise.md",
+      "subject": "urn:sqlib:query:sqlib-tutorial-01-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-01"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Zones 1 and 2",
+          "expectedFile": "lessons/01-parameters/expected-1.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false,
+          "argumentSet": "zones-1-2"
+        },
+        {
+          "name": "No argument",
+          "expectedFile": "lessons/01-parameters/expected-2.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "02-several-parameters-exercise",
+      "name": "2.2 Weekday departures by station and line",
+      "descriptionFile": "lessons/02-several-parameters/exercise.md",
+      "subject": "urn:sqlib:query:sqlib-tutorial-02-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-02"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Central, Red line",
+          "expectedFile": "lessons/02-several-parameters/expected-1.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false,
+          "argumentSet": "central-red"
+        },
+        {
+          "name": "Hillcrest, any line",
+          "expectedFile": "lessons/02-several-parameters/expected-2.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false,
+          "argumentSet": "hillcrest"
+        }
+      ]
+    },
+    {
+      "key": "03-limit-and-offset-exercise",
+      "name": "3.2 The newest stations, as many as you ask for",
+      "descriptionFile": "lessons/03-limit-and-offset/exercise.md",
+      "subject": "urn:sqlib:query:sqlib-tutorial-03-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-03"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Three stations",
+          "expectedFile": "lessons/03-limit-and-offset/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true,
+          "argumentSet": "three"
+        }
+      ]
+    },
+    {
+      "key": "05-argument-sets-exercise",
+      "name": "5.2 Write the query that fits the arguments",
+      "descriptionFile": "lessons/05-argument-sets/exercise.md",
+      "subject": "urn:sqlib:query:sqlib-tutorial-05-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sqlib-tutorial-05"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Step-free stations in zone 3",
+          "expectedFile": "lessons/05-argument-sets/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false,
+          "argumentSet": "zone-3-step-free"
+        }
+      ]
+    }
+  ]
+}

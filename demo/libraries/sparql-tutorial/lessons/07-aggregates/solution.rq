@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name (COUNT(?line) AS ?lines) WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :onLine ?line .
+}
+GROUP BY ?name
+HAVING (COUNT(?line) >= 2)

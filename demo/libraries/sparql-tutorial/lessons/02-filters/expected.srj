@@ -1,0 +1,56 @@
+{
+  "head": {
+    "vars": [
+      "name",
+      "opened"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Market Street"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "1889",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Harbour"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "1897",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Parkside"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "1912",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Hillcrest"
+        },
+        "opened": {
+          "type": "literal",
+          "value": "1925",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      }
+    ]
+  }
+}

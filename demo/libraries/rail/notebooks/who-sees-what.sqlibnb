@@ -1,0 +1,62 @@
+{
+  "format": "sqlib-notebook/1",
+  "title": "Who sees what",
+  "library": "urn:sqlib:library:rail",
+  "cells": [
+    {
+      "kind": "markdown",
+      "id": "md1",
+      "source": "# Who sees what\n\nRail operations holds three graphs: public, finance and staff. Run these cells, switch to someone else in the account menu, and run them again."
+    },
+    {
+      "kind": "query",
+      "id": "c1",
+      "label": "Graphs I can read",
+      "query": "urn:sqlib:query:rail-operations-graphs",
+      "out": "graphs",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-operations"
+    },
+    {
+      "kind": "query",
+      "id": "c2",
+      "label": "Fare revenue by line",
+      "query": "urn:sqlib:query:rail-operations-fare-revenue",
+      "out": "revenue",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-operations"
+    },
+    {
+      "kind": "query",
+      "id": "c3",
+      "label": "Salaries",
+      "query": "urn:sqlib:query:rail-operations-salaries",
+      "out": "salaries",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-operations"
+    },
+    {
+      "kind": "query",
+      "id": "c4",
+      "label": "Staff reviews",
+      "query": "urn:sqlib:query:rail-operations-reviews",
+      "out": "reviews",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-operations"
+    },
+    {
+      "kind": "markdown",
+      "id": "md2",
+      "source": "| Person | Groups | Graphs |\n| --- | --- | --- |\n| Guest | | public |\n| Alice | analysts | public, finance |\n| Bob | hr | public, finance, staff |\n| Carol | | public, staff |\n| Dana | admins | all |"
+    },
+    {
+      "kind": "query",
+      "id": "c5",
+      "label": "Who am I",
+      "query": "urn:sqlib:query:rail-operations-who-am-i",
+      "out": "me",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-operations"
+    }
+  ]
+}

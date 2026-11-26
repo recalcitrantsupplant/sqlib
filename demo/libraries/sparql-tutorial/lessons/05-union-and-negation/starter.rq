@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?lineName WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :onLine ?line .
+  ?line :name ?lineName .
+}

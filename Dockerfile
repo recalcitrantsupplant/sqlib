@@ -210,6 +210,11 @@ COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
 RUN litestream version && test -f /app/packages/api/dist/replication/main.js
 
+# The Rail demo: its library manifests, people, grants and seeder. The server
+# does not read them. Dockerfile.demo seeds a store from them, and so can an
+# image built on this one.
+COPY demo /app/demo
+
 # Remove pnpm files to reduce image size
 RUN rm -rf pnpm-lock.yaml pnpm-workspace.yaml
 

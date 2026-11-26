@@ -1,0 +1,12 @@
+@prefix : <https://example.org/rail/> .
+@prefix staff: <https://example.org/rail/staff/> .
+
+:red :weeklyFareRevenue 182000 .
+:blue :weeklyFareRevenue 151000 .
+:green :weeklyFareRevenue 97000 .
+:yellow :weeklyFareRevenue 64000 .
+
+staff:alice :salary 120000 .
+staff:bob :salary 95000 .
+staff:carol :salary 105000 .
+staff:dana :salary 130000 .

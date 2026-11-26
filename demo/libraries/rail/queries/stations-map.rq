@@ -1,0 +1,11 @@
+PREFIX : <https://example.org/rail/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+
+SELECT ?station ?name ?zone ?stepFree ?wkt WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :zone ?zone ;
+           :stepFree ?stepFree ;
+           geo:hasGeometry/geo:asWKT ?wkt .
+}
+ORDER BY ?name

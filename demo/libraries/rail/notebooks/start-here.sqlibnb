@@ -1,0 +1,178 @@
+{
+  "format": "sqlib-notebook/1",
+  "title": "Start here",
+  "library": "urn:sqlib:library:rail",
+  "cells": [
+    {
+      "kind": "markdown",
+      "id": "md1",
+      "source": "# Start here\n\nThe Rail library is a small city network: sixteen stations on four lines. Each cell below runs a saved query, group or rule set. Run them in order."
+    },
+    {
+      "kind": "markdown",
+      "id": "md2",
+      "source": "## A query with a parameter\n\n`VALUES ?line { UNDEF }` in the text makes `?line` a parameter. The argument is a table of rows."
+    },
+    {
+      "kind": "query",
+      "id": "c1",
+      "label": "Stations on the Red line",
+      "query": "urn:sqlib:query:rail-stations-on-line",
+      "out": "red",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "line": {
+                "type": "uri",
+                "value": "https://example.org/rail/red"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "markdown",
+      "id": "md3",
+      "source": "Two rows in the argument is still one call."
+    },
+    {
+      "kind": "query",
+      "id": "c2",
+      "label": "Stations on the Red and Green lines",
+      "query": "urn:sqlib:query:rail-stations-on-line",
+      "out": "redGreen",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "line": {
+                "type": "uri",
+                "value": "https://example.org/rail/red"
+              }
+            },
+            {
+              "line": {
+                "type": "uri",
+                "value": "https://example.org/rail/green"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "markdown",
+      "id": "md4",
+      "source": "## One cell feeds the next\n\nThe first cell finds the lines through Central. The second takes those rows as its argument."
+    },
+    {
+      "kind": "query",
+      "id": "c3",
+      "label": "Lines through Central",
+      "query": "urn:sqlib:query:rail-lines-through-station",
+      "out": "lines",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "station": {
+                "type": "uri",
+                "value": "https://example.org/rail/central"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "query",
+      "id": "c4",
+      "label": "Stations on those lines",
+      "query": "urn:sqlib:query:rail-stations-on-line",
+      "out": "oneChange",
+      "slots": [
+        {
+          "from": "value",
+          "ref": "lines",
+          "whenEmpty": "stop"
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "markdown",
+      "id": "md5",
+      "source": "## The same chain, saved as a group\n\nA query group keeps the chain on the server, so an app or an agent runs it in one call."
+    },
+    {
+      "kind": "group",
+      "id": "c5",
+      "label": "Stations one change away from Central",
+      "group": "urn:sqlib:group:rail-one-change-away",
+      "out": "group",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "station": {
+                "type": "uri",
+                "value": "https://example.org/rail/central"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "markdown",
+      "id": "md6",
+      "source": "## Rules\n\nThe Reachability rule set infers `:reaches` from the links between neighbouring stations. Its result is a graph."
+    },
+    {
+      "kind": "ruleset",
+      "id": "c6",
+      "label": "Reachability",
+      "ruleSet": "{{reachability}}",
+      "out": "reach",
+      "inputGraph": {
+        "from": "dataGraph",
+        "dataGraphId": "{{network}}"
+      }
+    },
+    {
+      "kind": "markdown",
+      "id": "md7",
+      "source": "A property path gives the same stations without rules. The benchmark *Property path or rules* times the two."
+    },
+    {
+      "kind": "query",
+      "id": "c7",
+      "label": "Reachable from Central, by a property path",
+      "query": "urn:sqlib:query:rail-reachable-by-path",
+      "out": "path",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "from": {
+                "type": "uri",
+                "value": "https://example.org/rail/central"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    }
+  ]
+}

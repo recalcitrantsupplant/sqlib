@@ -54,6 +54,13 @@
   }
   .toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); cursor: pointer; user-select: none; }
   .toggle input { height: auto; margin: 0; }
+  .run-options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+  .run-options label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); font-size: 12px; }
+  .run-options select { max-width: 260px; }
+  .run-options input[type="number"] { width: 72px; }
+  .run-options .param { font-family: var(--font-mono); }
+  /* A display rule outranks the hidden attribute, so restate it for these. */
+  .toggle[hidden], .run-options [hidden], .run-options[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -88,6 +95,12 @@
 
     <div class="editor-host" id="editor-host"></div>
     <div class="analysis" id="analysis"></div>
+
+    <div class="run-options" id="run-options" hidden>
+      <label id="version-label" hidden>Version <select id="version-select"></select></label>
+      <label id="arguments-label" hidden>Arguments <select id="arguments-select"></select></label>
+      <span class="run-options" id="scalar-inputs"></span>
+    </div>
 
     <div class="row" style="margin-top: var(--space-2)">
       <button class="primary" id="run" type="button" title="Run (Ctrl/⌘ + Enter)">Run</button>
@@ -124,6 +137,9 @@
  *   solution; its cases hold the data and the expected answer.
  * - PREFIX lines in the library description are the course's prologue, which
  *   rule sets need because they are stored with their IRIs expanded.
+ * - A query's saved argument sets are what it can run with. An example opens
+ *   on its browser default set, and an exercise's case runs with the argument
+ *   set version it names.
  *
  * **It keeps no state.** Which exercises passed lives in this frame and dies
  * with it; the server is read-only as far as this View is concerned, and
@@ -188,6 +204,12 @@
     hint: document.getElementById('hint'),
     convert: document.getElementById('convert'),
     convertLabel: document.getElementById('convert-label'),
+    runOptions: document.getElementById('run-options'),
+    versionLabel: document.getElementById('version-label'),
+    versionSelect: document.getElementById('version-select'),
+    argumentsLabel: document.getElementById('arguments-label'),
+    argumentsSelect: document.getElementById('arguments-select'),
+    scalarInputs: document.getElementById('scalar-inputs'),
     status: document.getElementById('status'),
     output: document.getElementById('output'),
   };
@@ -619,6 +641,8 @@
     nodes.solution.hidden = true;
     nodes.reset.hidden = false;
     nodes.dataPanel.hidden = true;
+    nodes.runOptions.hidden = true;
+    item.parameters = null;
 
     var target = ensureEditor(item.kind === 'query' ? 'sparql' : 'srl');
     if (!target) return;
@@ -652,6 +676,7 @@
       item.shown = true;
       nodes.solution.hidden = !(item.role === 'exercise' && item.solution && item.solution !== item.starter);
       renderData(item);
+      renderRunOptions(item);
       setStatus(item.role === 'exercise' ? 'edit, then Check answer' : 'Run it, then change it', null);
       analyseNow();
     } catch (err) {
@@ -707,7 +732,16 @@
     if (item.loaded) return;
     if (item.role === 'example') {
       item.subjectId = idOf(item.entity);
-      item.starter = await subjectText(item.kind, item.subjectId, null);
+      if (item.kind === 'query') {
+        item.versions = asList(await call('queries.listVersions', { id: item.subjectId }))
+          .slice().sort(function (a, b) { return (a.version || 0) - (b.version || 0); });
+        var current = item.versions.filter(function (v) { return idOf(v) === item.entity.currentVersion; })[0] ||
+          item.versions[item.versions.length - 1];
+        item.starter = current ? current.queryString || '' : await subjectText(item.kind, item.subjectId, null);
+        item.version = current ? current.version : null;
+      } else {
+        item.starter = await subjectText(item.kind, item.subjectId, null);
+      }
       item.solution = null;
       item.cases = [];
     } else {
@@ -722,9 +756,23 @@
       var version = versions.filter(function (v) { return idOf(v) === item.entity.currentVersion; })[0] || versions[versions.length - 1];
       item.cases = version ? asList(version.cases).slice().sort(function (a, b) { return (a.position || 0) - (b.position || 0); }) : [];
       item.expectationKind = version && version.expectationKind;
+      item.backend = version && version.backend;
       await Promise.all(item.cases.map(function (testCase) {
         return testCase.dataGraphVersion ? graphVersion(testCase.dataGraphVersion) : null;
       }));
+    }
+    if (item.kind === 'query') {
+      // Saved arguments for the query: the sets an example can run with, and
+      // for an exercise the sets its cases are checked with.
+      item.argumentSets = asList(await call('queries.listArgumentSets', { id: item.subjectId }).catch(function () { return []; }))
+        .slice().sort(function (a, b) { return naturalCompare(a.name, b.name); });
+      item.scalarValues = {};
+      // An example opens with the set the web application would select.
+      if (item.role === 'example' && item.argumentSets.length) {
+        var defaults = await call('queries.getBrowserDefaults', { id: item.subjectId }).catch(function () { return null; });
+        var preferred = defaults && (idOf(defaults.argumentSet) || defaults.argumentSet);
+        if (preferred && item.argumentSets.some(function (set) { return idOf(set) === preferred; })) item.argumentSetId = preferred;
+      }
     }
     item.loaded = true;
   }
@@ -838,8 +886,12 @@
           nodes.analysis.appendChild(el('div', 'status error', String(body.error || 'does not parse')));
           editor.flagLines(linesIn(body.error));
         } else {
-          nodes.analysis.appendChild(el('div', 'status ok', 'parses'));
+          var parameters = await detectParameters(text);
+          if (seq !== analysisSeq) return;
+          item.parameters = parameters;
+          nodes.analysis.appendChild(el('div', 'status ok', 'parses' + describeParameters(parameters)));
           editor.flagLines([]);
+          renderScalarInputs(item);
         }
       } else {
         var report = await call('srl.analyze', { srl: text });
@@ -930,6 +982,142 @@
       nodes.analysis.appendChild(chips);
     }
     editor.flagLines(flagged);
+  }
+
+  // --- parameters, arguments and versions (queries) -----------------------
+
+  async function detectParameters(text) {
+    try {
+      var found = await call('detection.detectInputs', { query: text });
+      return {
+        values: asList(found.valuesInputs),
+        limits: asList(found.limitParameters).map(String),
+        offsets: asList(found.offsetParameters).map(String),
+      };
+    } catch (err) {
+      return { values: [], limits: [], offsets: [] };
+    }
+  }
+
+  function zeros(name) {
+    return '000' + name;
+  }
+
+  function describeParameters(parameters) {
+    if (!parameters) return '';
+    var names = parameters.values.map(function (group) {
+      var vars = asList(group).map(function (v) { return '?' + v; });
+      return vars.length === 1 ? vars[0] : '(' + vars.join(' ') + ')';
+    })
+      .concat(parameters.limits.map(function (name) { return 'LIMIT ' + zeros(name); }))
+      .concat(parameters.offsets.map(function (name) { return 'OFFSET ' + zeros(name); }));
+    return names.length ? ' · parameters: ' + names.join(', ') : '';
+  }
+
+  function selectedArgumentSet(item) {
+    var id = nodes.argumentsSelect.value;
+    return asList(item.argumentSets).filter(function (set) { return idOf(set) === id; })[0] || null;
+  }
+
+  /** A LIMIT or OFFSET value the selected argument set already gives. */
+  function scalarFromSet(set, kind, name) {
+    var found = asList(set && set.scalarBindings).filter(function (binding) {
+      return binding.parameterKind === kind && String(binding.parameterName) === String(name);
+    })[0];
+    return found ? found.numericValue : null;
+  }
+
+  /*
+   * What a query runs with, under the editor: a version picker for an
+   * example with more than one version, the saved argument sets of the query,
+   * and a value for each LIMIT or OFFSET parameter the text declares.
+   */
+  function renderRunOptions(item) {
+    if (item.kind !== 'query') {
+      nodes.runOptions.hidden = true;
+      return;
+    }
+    var versions = asList(item.versions);
+    nodes.versionSelect.textContent = '';
+    versions.forEach(function (version) {
+      var option = el('option', null, 'v' + version.version + (version.comment ? ': ' + version.comment : ''));
+      option.value = String(version.version);
+      nodes.versionSelect.appendChild(option);
+    });
+    nodes.versionLabel.hidden = versions.length < 2;
+    if (item.version) nodes.versionSelect.value = String(item.version);
+
+    var sets = asList(item.argumentSets);
+    nodes.argumentsSelect.textContent = '';
+    var none = el('option', null, 'None');
+    none.value = '';
+    nodes.argumentsSelect.appendChild(none);
+    sets.forEach(function (set) {
+      var option = el('option', null, set.name || idOf(set));
+      option.value = idOf(set);
+      if (set.description) option.title = set.description;
+      nodes.argumentsSelect.appendChild(option);
+    });
+    nodes.argumentsLabel.hidden = sets.length === 0;
+    nodes.argumentsSelect.value = item.argumentSetId || '';
+    renderScalarInputs(item);
+    nodes.runOptions.hidden = nodes.versionLabel.hidden && nodes.argumentsLabel.hidden && !nodes.scalarInputs.childNodes.length;
+  }
+
+  function renderScalarInputs(item) {
+    if (!item || item.kind !== 'query' || state.current !== item) return;
+    nodes.scalarInputs.textContent = '';
+    var parameters = item.parameters || { limits: [], offsets: [] };
+    var set = selectedArgumentSet(item);
+    [['limit', parameters.limits], ['offset', parameters.offsets]].forEach(function (pair) {
+      pair[1].forEach(function (name) {
+        var key = pair[0] + ':' + name;
+        var label = el('label');
+        label.appendChild(el('span', 'param', pair[0].toUpperCase() + ' ' + zeros(name)));
+        var input = el('input');
+        input.type = 'number';
+        input.min = '0';
+        var fromSet = scalarFromSet(set, pair[0], name);
+        if (fromSet !== null) {
+          input.value = String(fromSet);
+          input.disabled = true;
+          input.title = 'From ' + set.name;
+        } else {
+          input.value = item.scalarValues[key] || '';
+          input.placeholder = name;
+          input.addEventListener('input', function () { item.scalarValues[key] = input.value; });
+        }
+        label.appendChild(input);
+        nodes.scalarInputs.appendChild(label);
+      });
+    });
+    nodes.runOptions.hidden = nodes.versionLabel.hidden && nodes.argumentsLabel.hidden && !nodes.scalarInputs.childNodes.length;
+    app.reportSize();
+  }
+
+  /** The request body for one run of the editor's text, with its arguments. */
+  function queryRequest(item, text) {
+    var body = { query: text, backendId: (item.entity.defaultBackend) || (state.library && state.library.defaultBackend) };
+    var set = selectedArgumentSet(item);
+    if (set) body.argumentSetIds = [idOf(set)];
+    var parameters = item.parameters || { limits: [], offsets: [] };
+    [['limit', 'limits', parameters.limits], ['offset', 'offsets', parameters.offsets]].forEach(function (entry) {
+      entry[2].forEach(function (name) {
+        var value = item.scalarValues && item.scalarValues[entry[0] + ':' + name];
+        if (value === undefined || value === '' || scalarFromSet(set, entry[0], name) !== null) return;
+        (body[entry[1]] || (body[entry[1]] = [])).push({ name: String(name), value: Number(value) });
+      });
+    });
+    return body;
+  }
+
+  function describeRequest(body) {
+    var parts = [];
+    var set = state.current && selectedArgumentSet(state.current);
+    if (set) parts.push('the argument set "' + set.name + '"');
+    asList(body.limits).forEach(function (l) { parts.push('LIMIT ' + zeros(l.name) + ' = ' + l.value); });
+    asList(body.offsets).forEach(function (o) { parts.push('OFFSET ' + zeros(o.name) + ' = ' + o.value); });
+    return parts.length ? ' with ' + parts.join(', ') : ' with no arguments';
   }
 
   // --- running -------------------------------------------------------------
@@ -1046,9 +1234,9 @@
   }
 
   async function runQuery(item, text) {
-    var backendId = (item.entity.defaultBackend) || (state.library && state.library.defaultBackend);
-    if (!backendId) throw new Error('This library names no default backend to run queries against.');
-    var envelope = await app.callTool('sparql.proxyQuery', { query: text, backendId: backendId });
+    var request = queryRequest(item, text);
+    if (!request.backendId) throw new Error('This library names no default backend to run queries against.');
+    var envelope = await app.callTool('sparql.proxyQuery', request);
     var body = readSparqlBody(unwrap(envelope, 'sparql.proxyQuery'));
     var summary;
     if (body.kind === 'graph') {
@@ -1061,7 +1249,7 @@
       summary = kit.summariseResults(kit.renderResults(holder, body.value));
     }
     setStatus(summary, 'ok');
-    app.updateModelContext('Tutorial: the user ran the query "' + item.entity.name + '": ' + summary + '.');
+    app.updateModelContext('Tutorial: the user ran the query "' + item.entity.name + '"' + describeRequest(request) + ': ' + summary + '.');
   }
 
   // --- checking ------------------------------------------------------------
@@ -1099,7 +1287,7 @@
       var verdicts = [];
       for (var i = 0; i < item.cases.length; i += 1) {
         var testCase = item.cases[i];
-        verdicts.push(item.kind === 'query' ? await checkQueryCase(text, testCase) : await checkRuleCase(text, testCase));
+        verdicts.push(item.kind === 'query' ? await checkQueryCase(item, text, testCase) : await checkRuleCase(text, testCase));
       }
       if (!verdicts.length) throw new Error('This exercise has no cases to check against.');
       var passed = verdicts.every(function (v) { return v.passed; });
@@ -1138,8 +1326,11 @@
     if (result.status === 'failed') {
       return { name: testCase.name, passed: false, summary: 'the run failed', error: result.error || 'The rule set could not run.' };
     }
-    var produced = parseTriples(result.finalGraphNQuads);
-    var expected = parseTriples(testCase.expected);
+    return Object.assign({ name: testCase.name }, compareTriples(parseTriples(result.finalGraphNQuads), parseTriples(testCase.expected)));
+  }
+
+  /** Two graphs as sets of triples, with blank nodes compared by count. */
+  function compareTriples(produced, expected) {
     var counts = new Map();
     produced.forEach(function (t) { var k = tripleKey(t); counts.set(k, (counts.get(k) || 0) + 1); });
     var missing = [];
@@ -1157,7 +1348,6 @@
     });
     var passed = !missing.length && !extra.length;
     return {
-      name: testCase.name,
       passed: passed,
       missing: missing,
       extra: extra,
@@ -1172,13 +1362,36 @@
     }));
   }
 
-  async function checkQueryCase(text, testCase) {
-    var backendId = state.library && state.library.defaultBackend;
-    var envelope = await app.callTool('sparql.proxyQuery', { query: text, backendId: backendId });
+  /**
+   * A query's answer, as the test runner judges it: rows for `bindings`
+   * (ordered when the case says so), true or false for `boolean`, and a set of
+   * triples for `graph`. Each case runs with its own argument set version, so
+   * an exercise on parameters is checked with the arguments it names.
+   */
+  async function checkQueryCase(item, text, testCase) {
+    var request = { query: text, backendId: item.backend || (state.library && state.library.defaultBackend) };
+    if (testCase.argumentSetVersion) request.argumentSetIds = [testCase.argumentSetVersion];
+    var envelope = await app.callTool('sparql.proxyQuery', request);
     if (envelope.statusCode >= 400) {
-      return { name: testCase.name, passed: false, summary: 'the query failed', error: JSON.stringify(envelope.body) };
+      var failure = envelope.body && envelope.body.error ? envelope.body.error : JSON.stringify(envelope.body);
+      return { name: testCase.name, passed: false, summary: 'the query failed', error: failure };
     }
     var read = readSparqlBody(envelope.body);
+    var kind = item.expectationKind || 'bindings';
+    if (kind === 'graph') {
+      if (read.kind !== 'graph') {
+        return { name: testCase.name, passed: false, summary: 'this exercise wants a graph, from CONSTRUCT; the query returned rows', payload: read.value };
+      }
+      return Object.assign({ name: testCase.name }, compareTriples(read.value, parseTriples(testCase.expected)));
+    }
+    if (kind === 'boolean') {
+      var answer = read.value && read.value.boolean;
+      if (typeof answer !== 'boolean') {
+        return { name: testCase.name, passed: false, summary: 'this exercise wants true or false, from ASK' };
+      }
+      var wanted = String(testCase.expected || '').trim() === 'true';
+      return { name: testCase.name, passed: answer === wanted, summary: answer === wanted ? 'matches' : 'returned ' + answer + ', expected ' + wanted };
+    }
     if (read.kind !== 'results') {
       return { name: testCase.name, passed: false, summary: 'this exercise wants a SELECT; the query returned a graph' };
     }
@@ -1262,7 +1475,7 @@
     var fence = item.kind === 'query' ? 'sparql' : 'srl';
     nodes.hint.disabled = true;
     app.sendMessage(
-      'I am on lesson ' + lesson.number + ' ("' + lesson.title + '") of the SPARQL rules tutorial, ' +
+      'I am on lesson ' + lesson.number + ' ("' + lesson.title + '") of the tutorial "' + ((state.library && state.library.name) || 'SPARQL rules') + '", ' +
       (item.role === 'exercise' ? 'working on the exercise' : 'looking at the example') + ' "' + item.entity.name + '".' +
       (verdict === false ? ' My last check did not pass.' : '') +
       ' Here is what I have:\n\n```' + fence + '\n' + editor.getValue() + '\n```\n\n' +
@@ -1320,6 +1533,24 @@
     }
   });
   nodes.check.addEventListener('click', check);
+  nodes.argumentsSelect.addEventListener('change', function () {
+    if (!state.current) return;
+    state.current.argumentSetId = nodes.argumentsSelect.value;
+    renderScalarInputs(state.current);
+  });
+  nodes.versionSelect.addEventListener('change', function () {
+    var item = state.current;
+    if (!item || !editor) return;
+    var version = asList(item.versions).filter(function (v) { return String(v.version) === nodes.versionSelect.value; })[0];
+    if (!version) return;
+    item.version = version.version;
+    item.starter = version.queryString || '';
+    state.drafts.delete(item.key);
+    editor.setValue(item.starter);
+    nodes.output.textContent = '';
+    setStatus('version ' + version.version, null);
+    analyseNow();
+  });
   nodes.reset.addEventListener('click', reset);
   nodes.solution.addEventListener('click', showSolution);
   nodes.hint.addEventListener('click', askForHint);

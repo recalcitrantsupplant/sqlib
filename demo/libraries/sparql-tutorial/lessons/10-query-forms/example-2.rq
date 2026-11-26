@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+CONSTRUCT {
+  ?a :neighbour ?b .
+  ?b :neighbour ?a .
+}
+WHERE {
+  ?a :next ?b .
+}

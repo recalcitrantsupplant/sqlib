@@ -1,0 +1,56 @@
+{
+  "head": {
+    "vars": [
+      "time",
+      "towardsName"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      }
+    ]
+  }
+}

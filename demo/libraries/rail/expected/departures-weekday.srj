@@ -1,0 +1,1230 @@
+{
+  "head": {
+    "vars": [
+      "time",
+      "from",
+      "line",
+      "towards"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/green"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/red"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/stadium"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/yellow"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/hillcrest"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "from": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "line": {
+          "type": "uri",
+          "value": "https://example.org/rail/blue"
+        },
+        "towards": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        }
+      }
+    ]
+  }
+}

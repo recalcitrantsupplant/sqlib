@@ -1,0 +1,93 @@
+{
+  "head": {
+    "vars": [
+      "name",
+      "zone",
+      "stepFree"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Airport"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Westfield"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Docklands"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Stadium"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Lakeside"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      }
+    ]
+  }
+}

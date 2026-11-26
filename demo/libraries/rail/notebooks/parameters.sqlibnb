@@ -1,0 +1,193 @@
+{
+  "format": "sqlib-notebook/1",
+  "title": "Parameters",
+  "library": "urn:sqlib:library:rail",
+  "cells": [
+    {
+      "kind": "markdown",
+      "id": "md1",
+      "source": "# Parameters\n\nEvery form of parameter sqlib reads from query text, on the Rail network."
+    },
+    {
+      "kind": "markdown",
+      "id": "md2",
+      "source": "## Two variables in one parameter\n\n`VALUES (?from ?to) { (UNDEF UNDEF) }` takes pairs. A second `VALUES ?before { UNDEF }` is a second parameter."
+    },
+    {
+      "kind": "query",
+      "id": "c1",
+      "label": "Central to Museum, Northgate to Parkside, before 1950",
+      "query": "urn:sqlib:query:rail-direct-lines-between",
+      "out": "pairs",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "from": {
+                "type": "uri",
+                "value": "https://example.org/rail/central"
+              },
+              "to": {
+                "type": "uri",
+                "value": "https://example.org/rail/museum"
+              }
+            },
+            {
+              "from": {
+                "type": "uri",
+                "value": "https://example.org/rail/northgate"
+              },
+              "to": {
+                "type": "uri",
+                "value": "https://example.org/rail/parkside"
+              }
+            }
+          ]
+        },
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "before": {
+                "type": "literal",
+                "value": "1950",
+                "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "markdown",
+      "id": "md3",
+      "source": "Leave the year out and every line counts."
+    },
+    {
+      "kind": "query",
+      "id": "c2",
+      "label": "Central to Museum, Northgate to Parkside, any year",
+      "query": "urn:sqlib:query:rail-direct-lines-between",
+      "out": "pairsAny",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "from": {
+                "type": "uri",
+                "value": "https://example.org/rail/central"
+              },
+              "to": {
+                "type": "uri",
+                "value": "https://example.org/rail/museum"
+              }
+            },
+            {
+              "from": {
+                "type": "uri",
+                "value": "https://example.org/rail/northgate"
+              },
+              "to": {
+                "type": "uri",
+                "value": "https://example.org/rail/parkside"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "markdown",
+      "id": "md4",
+      "source": "## Named LIMIT and OFFSET\n\n`LIMIT 0001` and `OFFSET 0002` are numbers called 1 and 2."
+    },
+    {
+      "kind": "query",
+      "id": "c3",
+      "label": "The second page of five stations",
+      "query": "urn:sqlib:query:rail-stations-page",
+      "out": "page2",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-store",
+      "limits": {
+        "1": 5
+      },
+      "offsets": {
+        "2": 5
+      }
+    },
+    {
+      "kind": "markdown",
+      "id": "md5",
+      "source": "## ASK\n\nA parameter works the same in an ASK query."
+    },
+    {
+      "kind": "query",
+      "id": "c4",
+      "label": "Is Museum step-free?",
+      "query": "urn:sqlib:query:rail-station-is-step-free",
+      "out": "museum",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "station": {
+                "type": "uri",
+                "value": "https://example.org/rail/museum"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "markdown",
+      "id": "md6",
+      "source": "## VALUES or FILTER\n\nThe same question two ways. The benchmark *VALUES or FILTER* times them."
+    },
+    {
+      "kind": "query",
+      "id": "c5",
+      "label": "Stations in zones 1 and 2 (VALUES)",
+      "query": "urn:sqlib:query:rail-stations-in-zones",
+      "out": "zonesValues",
+      "slots": [
+        {
+          "from": "typed",
+          "bindings": [
+            {
+              "zone": {
+                "type": "literal",
+                "value": "1",
+                "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+              }
+            },
+            {
+              "zone": {
+                "type": "literal",
+                "value": "2",
+                "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+              }
+            }
+          ]
+        }
+      ],
+      "backend": "urn:sqlib:backend:rail-store"
+    },
+    {
+      "kind": "query",
+      "id": "c6",
+      "label": "Stations in zones 1 and 2 (FILTER)",
+      "query": "urn:sqlib:query:rail-stations-in-zones-filter",
+      "out": "zonesFilter",
+      "slots": [],
+      "backend": "urn:sqlib:backend:rail-store"
+    }
+  ]
+}

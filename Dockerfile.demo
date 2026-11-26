@@ -1,0 +1,34 @@
+# The sqlib API in demo mode, with the Rail library already in its store.
+#
+# The seed stage runs demo/scripts/seed.sh against the base image's own API and
+# keeps library.sqlite and the ETL output. The runtime stage starts from that
+# store, read-only, with the settings in demo/server.env. See demo/README.md.
+#
+#   just build-docker
+#   docker build -f Dockerfile.demo -t sqlib-demo:latest .
+#   docker run --rm -p 127.0.0.1:3005:3000 sqlib-demo:latest
+
+ARG SQLIB_IMAGE=sparql-query-lib:latest
+
+FROM ${SQLIB_IMAGE} AS seed
+USER root
+RUN mkdir -p /opt/sqlib-demo/store /opt/sqlib-demo/etl-output && chown -R node:node /opt/sqlib-demo
+USER node
+# The ETL output is named by its path in the store, so the seed stage writes it
+# at the path the runtime stage reads it from.
+RUN LIBRARY_STORAGE_DIR=/opt/sqlib-demo/store \
+    ETL_OUTPUT_DIR=/opt/sqlib-demo/etl-output \
+    sh /app/demo/scripts/seed.sh
+
+FROM ${SQLIB_IMAGE}
+USER root
+# SQLite keeps its -wal and -shm files beside the store, so the directory stays
+# writable. The auth store is made at boot from grants.ttl.
+RUN mkdir -p /opt/sqlib-demo/store /opt/sqlib-demo/auth \
+    && cp /app/demo/people.json /app/demo/grants.ttl /opt/sqlib-demo/ \
+    && chown -R node:node /opt/sqlib-demo
+COPY --from=seed --chown=node:node /opt/sqlib-demo/store/library.sqlite /opt/sqlib-demo/store/library.sqlite
+COPY --from=seed --chown=node:node /opt/sqlib-demo/etl-output /opt/sqlib-demo/etl-output
+USER node
+EXPOSE 3000
+CMD ["sh", "-c", "set -a && . /app/demo/server.env && set +a && cd /app/packages/mcp-server && MCP_TRANSPORT=dual-http exec node dist/cli.js"]

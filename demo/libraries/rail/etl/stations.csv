@@ -1,0 +1,17 @@
+slug,name,zone,step_free,opened,lat,long
+airport,Airport,3,yes,2004,-31.94,115.967
+northgate,Northgate,2,yes,1992,-31.92,115.88
+central,Central,1,yes,1889,-31.951,115.86
+market,Market Street,1,no,1889,-31.956,115.852
+harbour,Harbour,2,no,1897,-31.985,115.84
+southbank,Southbank,2,yes,1968,-32.01,115.845
+westfield,Westfield,3,yes,1979,-31.94,115.79
+parkside,Parkside,2,no,1912,-31.935,115.825
+museum,Museum,1,yes,1931,-31.948,115.872
+university,University,2,yes,1965,-31.978,115.818
+eastwood,Eastwood,3,no,1954,-31.962,115.92
+hillcrest,Hillcrest,2,no,1925,-31.915,115.9
+riverside,Riverside,2,yes,1999,-31.97,115.88
+docklands,Docklands,3,yes,2011,-31.995,115.9
+stadium,Stadium,3,yes,2018,-31.93,115.77
+lakeside,Lakeside,3,yes,2028,-32.015,115.915

@@ -1,0 +1,9 @@
+PREFIX acl: <https://example.org/acl#>
+
+SELECT DISTINCT ?graph WHERE {
+  { ?rule acl:anyone true ; acl:graph ?graph . }
+  UNION
+  { VALUES ?authGroup { UNDEF } ?rule acl:group ?authGroup ; acl:graph ?graph . }
+  UNION
+  { VALUES ?authUser { UNDEF } ?rule acl:user ?authUser ; acl:graph ?graph . }
+}

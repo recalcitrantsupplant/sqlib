@@ -1,0 +1,22 @@
+PREFIX : <https://example.org/rail/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+
+SELECT ?feature ?geom ?name ?colour ?opened WHERE {
+  VALUES ?feature { UNDEF }
+  VALUES (?minx ?miny ?maxx ?maxy) { (UNDEF UNDEF UNDEF UNDEF) }
+  VALUES ?name { UNDEF }
+  VALUES ?skip { UNDEF }
+  ?feature a :Line ;
+           :name ?name ;
+           :colour ?colour ;
+           :opened ?opened ;
+           :minLon ?x0 ; :minLat ?y0 ; :maxLon ?x1 ; :maxLat ?y1 .
+  OPTIONAL {
+    ?feature :route/geo:asWKT ?geom .
+    FILTER(!BOUND(?skip) || !?skip)
+  }
+  FILTER(!BOUND(?minx) || (?x1 >= ?minx && ?x0 <= ?maxx && ?y1 >= ?miny && ?y0 <= ?maxy))
+}
+ORDER BY ?feature
+LIMIT 0001
+OFFSET 0002
