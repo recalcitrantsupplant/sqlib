@@ -20,6 +20,10 @@ just
 Open <http://localhost:3001>. The first run installs the dependencies and
 builds the packages the API needs, which takes a few minutes.
 
+To see every feature on example data, run `just demo` instead. It starts
+sqlib read-only with the Rail library and four demo people to switch between.
+See [demo/README.md](demo/README.md).
+
 With Docker only, build the image and run it:
 
 ```bash

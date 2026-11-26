@@ -1,0 +1,112 @@
+{
+  "head": {
+    "vars": [
+      "other",
+      "name"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/harbour"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Harbour"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/market"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Market Street"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/museum"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Museum"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/northgate"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Northgate"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/parkside"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Parkside"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Southbank"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/university"
+        },
+        "name": {
+          "type": "literal",
+          "value": "University"
+        }
+      },
+      {
+        "other": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Westfield"
+        }
+      }
+    ]
+  }
+}

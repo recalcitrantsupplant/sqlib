@@ -1,0 +1,7 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?line ?weeklyFareRevenue WHERE {
+  GRAPH <https://example.org/rail/graph/public> { ?l :name ?line . }
+  GRAPH <https://example.org/rail/graph/finance> { ?l :weeklyFareRevenue ?weeklyFareRevenue . }
+}
+ORDER BY DESC(?weeklyFareRevenue)

@@ -1,0 +1,10 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT DISTINCT ?station ?name ?zone ?stepFree WHERE {
+  VALUES ?line { UNDEF }
+  ?station :onLine ?line ;
+           :name ?name ;
+           :zone ?zone ;
+           :stepFree ?stepFree .
+}
+ORDER BY ?name

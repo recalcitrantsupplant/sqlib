@@ -1,0 +1,17 @@
+PREFIX : <https://example.org/rail/>
+
+DATA {
+  :zone1 :zoneNumber 1 ; :fare 3.20 .
+  :zone2 :zoneNumber 2 ; :fare 4.50 .
+  :zone3 :zoneNumber 3 ; :fare 5.80 .
+}
+
+RULE { ?station :fare ?fare }
+WHERE { ?station a :Station ; :zone ?n . ?band :zoneNumber ?n ; :fare ?fare }
+
+RULE { ?line :lowestFare ?lowest }
+WHERE {
+  ?line a :Line .
+  GROUP BY ?line { ?station :onLine ?line ; :fare ?fare }
+  [ ?lowest := MIN(?fare) ]
+}

@@ -1,0 +1,6 @@
+PREFIX : <https://example.org/rail/>
+
+DESCRIBE ?station WHERE {
+  VALUES ?station { UNDEF }
+  ?station a :Station .
+}

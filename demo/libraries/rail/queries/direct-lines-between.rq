@@ -1,0 +1,12 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?from ?to ?line ?lineName WHERE {
+  VALUES (?from ?to) { (UNDEF UNDEF) }
+  ?from :onLine ?line .
+  ?to :onLine ?line .
+  ?line :name ?lineName ;
+        :opened ?opened .
+  VALUES ?before { UNDEF }
+  FILTER(!BOUND(?before) || ?opened < ?before)
+}
+ORDER BY ?from ?to ?lineName

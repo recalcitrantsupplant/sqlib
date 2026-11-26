@@ -1,0 +1,104 @@
+{
+  "library": {
+    "id": "urn:sqlib:library:rail-admin",
+    "name": "Rail operations (administrators)",
+    "author": "dana",
+    "description": "The private side of Rail operations: the graphs, the backend that serves them, and the policy that decides who reads which graph."
+  },
+  "tags": [],
+  "dataGraphs": [
+    {
+      "key": "public",
+      "name": "Operations: public",
+      "description": "Line names, and the staff: name, role, home station and the demo person each one signs in as.",
+      "file": "graphs/public.ttl",
+      "contentFormat": "text/turtle"
+    },
+    {
+      "key": "finance",
+      "name": "Operations: finance",
+      "description": "Weekly fare revenue by line, and salaries.",
+      "file": "graphs/finance.ttl",
+      "contentFormat": "text/turtle"
+    },
+    {
+      "key": "staff",
+      "name": "Operations: staff",
+      "description": "Performance reviews and leave balances.",
+      "file": "graphs/staff.ttl",
+      "contentFormat": "text/turtle"
+    },
+    {
+      "key": "access-rules",
+      "name": "Access rules",
+      "description": "Who may read which graph of Rail operations. Anyone reads public. The analysts group reads finance. The hr group reads finance and staff. Carol, by name, reads staff.",
+      "file": "graphs/access-rules.ttl",
+      "contentFormat": "text/turtle"
+    }
+  ],
+  "backends": [
+    {
+      "id": "urn:sqlib:backend:rail-operations-access-rules",
+      "name": "Rail operations access rules",
+      "description": "The rules the graph policy reads.",
+      "backendType": "oxigraphMemory",
+      "authBackend": true,
+      "oxigraphConfig": {
+        "storeType": "ephemeral",
+        "mode": "ephemeral",
+        "sources": [
+          {
+            "dataGraphId": "access-rules"
+          }
+        ]
+      }
+    },
+    {
+      "id": "urn:sqlib:backend:rail-operations",
+      "name": "Rail operations",
+      "description": "Three named graphs: public, finance and staff. Each caller sees only the graphs the policy allows.",
+      "backendType": "oxigraphMemory",
+      "oxigraphConfig": {
+        "storeType": "ephemeral",
+        "mode": "ephemeral",
+        "sources": [
+          {
+            "dataGraphId": "public",
+            "namedGraph": "https://example.org/rail/graph/public"
+          },
+          {
+            "dataGraphId": "finance",
+            "namedGraph": "https://example.org/rail/graph/finance"
+          },
+          {
+            "dataGraphId": "staff",
+            "namedGraph": "https://example.org/rail/graph/staff"
+          }
+        ]
+      },
+      "graphPolicy": {
+        "query": "urn:sqlib:query:rail-operations-policy",
+        "backend": "urn:sqlib:backend:rail-operations-access-rules"
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "urn:sqlib:query:rail-operations-policy",
+      "name": "Who reads which graph",
+      "description": "The graph policy for Rail operations: the graphs the caller may read. Anyone reads public; groups and named users read more. ?authUser and ?authGroup come from the demo person, and a guest has neither.",
+      "defaultBackend": "urn:sqlib:backend:rail-operations-access-rules",
+      "file": "queries/policy.rq",
+      "comment": "First version."
+    }
+  ],
+  "ruleSets": [],
+  "tupleSets": [],
+  "queryGroups": [],
+  "argumentSets": [],
+  "tests": [],
+  "benchmarks": [],
+  "etlJobs": [],
+  "notebooks": [],
+  "environments": []
+}

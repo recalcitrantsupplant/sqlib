@@ -1,0 +1,12 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?time ?from ?line ?towards WHERE {
+  VALUES ?timetable { UNDEF }
+  GRAPH ?timetable {
+    ?departure :from ?from ;
+               :line ?line ;
+               :towards ?towards ;
+               :time ?time .
+  }
+}
+ORDER BY ?time ?from ?line ?towards

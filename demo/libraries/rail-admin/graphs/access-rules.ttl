@@ -1,0 +1,6 @@
+@prefix acl: <https://example.org/acl#> .
+
+[] acl:anyone true ; acl:graph <https://example.org/rail/graph/public> .
+[] acl:group <{{group:analysts}}> ; acl:graph <https://example.org/rail/graph/finance> .
+[] acl:group <{{group:hr}}> ; acl:graph <https://example.org/rail/graph/staff>, <https://example.org/rail/graph/finance> .
+[] acl:user <{{user:carol}}> ; acl:graph <https://example.org/rail/graph/staff> .

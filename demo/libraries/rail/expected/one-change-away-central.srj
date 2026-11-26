@@ -1,0 +1,234 @@
+{
+  "head": {
+    "vars": [
+      "station",
+      "name",
+      "zone",
+      "stepFree"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/airport"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Airport"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/central"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Central"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "1",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/eastwood"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Eastwood"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "false",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/harbour"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Harbour"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "false",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/market"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Market Street"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "1",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "false",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/museum"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Museum"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "1",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/northgate"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Northgate"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/parkside"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Parkside"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "false",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/southbank"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Southbank"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/university"
+        },
+        "name": {
+          "type": "literal",
+          "value": "University"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      },
+      {
+        "station": {
+          "type": "uri",
+          "value": "https://example.org/rail/westfield"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Westfield"
+        },
+        "zone": {
+          "type": "literal",
+          "value": "3",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        },
+        "stepFree": {
+          "type": "literal",
+          "value": "true",
+          "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+        }
+      }
+    ]
+  }
+}

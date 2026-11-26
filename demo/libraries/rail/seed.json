@@ -1,0 +1,1745 @@
+{
+  "library": {
+    "id": "urn:sqlib:library:rail",
+    "name": "Rail network",
+    "author": "alice",
+    "slug": "rail",
+    "publishAll": true,
+    "description": "A small city rail network: sixteen stations on four lines, with timetables, fares and an operations store. Parameterised queries, query groups, rules, tests, benchmarks, ETL, notebooks and per-person graph access, all over the same data.",
+    "defaultBackend": "urn:sqlib:backend:rail-store"
+  },
+  "tags": [
+    {
+      "id": "urn:sqlib:tag:rail-parameters",
+      "name": "parameters",
+      "description": "Declares a parameter in its query text.",
+      "color": "#2563eb"
+    },
+    {
+      "id": "urn:sqlib:tag:rail-groups",
+      "name": "query groups",
+      "description": "Several steps run in order, results passed between them.",
+      "color": "#0891b2"
+    },
+    {
+      "id": "urn:sqlib:tag:rail-rules",
+      "name": "rules",
+      "description": "SHACL 1.2 inference rules, written in SRL.",
+      "color": "#059669"
+    },
+    {
+      "id": "urn:sqlib:tag:rail-map",
+      "name": "map",
+      "description": "Returns geometry.",
+      "color": "#ea580c"
+    },
+    {
+      "id": "urn:sqlib:tag:rail-benchmarks",
+      "name": "benchmarks",
+      "description": "Used by a benchmark.",
+      "color": "#64748b"
+    },
+    {
+      "id": "urn:sqlib:tag:rail-known-gap",
+      "name": "known gap",
+      "description": "Fails on purpose: the data has a case the query does not handle yet.",
+      "color": "#dc2626"
+    },
+    {
+      "id": "urn:sqlib:tag:rail-access",
+      "name": "access",
+      "description": "Runs on Rail operations, where the graph policy decides which graphs each person reads.",
+      "color": "#7c3aed"
+    }
+  ],
+  "dataGraphs": [
+    {
+      "key": "network",
+      "name": "Network",
+      "description": "Sixteen stations on four lines: names, zones, step-free access, opening years, map points and the links between neighbouring stops.",
+      "file": "graphs/network.ttl",
+      "contentFormat": "text/turtle"
+    },
+    {
+      "key": "timetable-weekday",
+      "name": "Timetable: weekday",
+      "description": "Departures on a weekday morning.",
+      "file": "graphs/timetable-weekday.ttl",
+      "contentFormat": "text/turtle"
+    },
+    {
+      "key": "timetable-weekend",
+      "name": "Timetable: weekend",
+      "description": "Departures on a weekend morning.",
+      "file": "graphs/timetable-weekend.ttl",
+      "contentFormat": "text/turtle"
+    },
+    {
+      "key": "features",
+      "name": "Map features",
+      "description": "Envelopes for every station and line, and each line's route as a line string.",
+      "file": "graphs/features.ttl",
+      "contentFormat": "text/turtle"
+    }
+  ],
+  "backends": [
+    {
+      "id": "urn:sqlib:backend:rail-store",
+      "name": "Rail store",
+      "author": "dana",
+      "description": "An in-process Oxigraph store: the network in the default graph, and one named graph per timetable.",
+      "backendType": "oxigraphMemory",
+      "oxigraphConfig": {
+        "storeType": "ephemeral",
+        "mode": "ephemeral",
+        "sources": [
+          {
+            "dataGraphId": "network"
+          },
+          {
+            "dataGraphId": "timetable-weekday",
+            "namedGraph": "https://example.org/rail/timetable/weekday"
+          },
+          {
+            "dataGraphId": "timetable-weekend",
+            "namedGraph": "https://example.org/rail/timetable/weekend"
+          }
+        ]
+      }
+    },
+    {
+      "id": "urn:sqlib:backend:rail-features",
+      "name": "Rail features",
+      "author": "dana",
+      "description": "The network and its map features, for the OGC API Features collections.",
+      "backendType": "oxigraphMemory",
+      "oxigraphConfig": {
+        "storeType": "ephemeral",
+        "mode": "ephemeral",
+        "sources": [
+          {
+            "dataGraphId": "network"
+          },
+          {
+            "dataGraphId": "features"
+          }
+        ]
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "urn:sqlib:query:rail-stations-on-line",
+      "name": "Stations on a line",
+      "description": "Every station on the given lines, in name order. One parameter of one variable, ?line. Two rows in one argument is still one call.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/stations-on-line.rq",
+      "comment": "Adds the zone and step-free columns, and DISTINCT.",
+      "history": [
+        {
+          "file": "history/stations-on-line-v1.rq",
+          "comment": "Names only.",
+          "author": "carol"
+        }
+      ],
+      "browserDefaultArgumentSet": "red"
+    },
+    {
+      "id": "urn:sqlib:query:rail-stations-on-line-step-free",
+      "name": "Stations on a line, step-free or not",
+      "description": "Two parameters, ?line and ?stepFree, matched by variable name.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/stations-on-line-step-free.rq",
+      "comment": "Two table parameters."
+    },
+    {
+      "id": "urn:sqlib:query:rail-direct-lines-between",
+      "name": "Direct lines between two stations",
+      "description": "(?from ?to) is one parameter of two variables, so a pair is one row. ?before is a second parameter, a year: only lines opened before it count.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/direct-lines-between.rq",
+      "comment": "A pair, and a year."
+    },
+    {
+      "id": "urn:sqlib:query:rail-stations-page",
+      "name": "A page of stations",
+      "description": "LIMIT 0001 and OFFSET 0002 are parameters named 1 and 2. With nothing bound, it skips two rows and returns one.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/stations-page.rq",
+      "comment": "Named LIMIT and OFFSET."
+    },
+    {
+      "id": "urn:sqlib:query:rail-departures-from-station",
+      "name": "Departures from a station",
+      "description": "Reads the timetable graphs. The station is required, so a run without one is refused and does not return every departure in every timetable.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/departures-from-station.rq",
+      "comment": "Adds line and destination names; the station is required.",
+      "history": [
+        {
+          "file": "history/departures-from-station-v1.rq",
+          "comment": "First version.",
+          "author": "carol"
+        }
+      ],
+      "inputPolicies": [
+        {
+          "vars": [
+            "station"
+          ],
+          "whenEmpty": "require"
+        }
+      ],
+      "tool": {
+        "name": "departures",
+        "description": "The departures from one station, weekday and weekend.",
+        "params": {
+          "station": {
+            "kind": "iri",
+            "required": true,
+            "description": "A station IRI, such as https://example.org/rail/central"
+          }
+        }
+      },
+      "browserDefaultArgumentSet": "central"
+    },
+    {
+      "id": "urn:sqlib:query:rail-station-is-step-free",
+      "name": "Is a station step-free?",
+      "description": "An ASK query: the answer is true or false.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/station-is-step-free.rq",
+      "comment": "ASK."
+    },
+    {
+      "id": "urn:sqlib:query:rail-describe-station",
+      "name": "Describe a station",
+      "description": "A DESCRIBE query: everything the store says about the station.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/describe-station.rq",
+      "comment": "DESCRIBE."
+    },
+    {
+      "id": "urn:sqlib:query:rail-lines-through-station",
+      "name": "Lines through a station",
+      "description": "(?station) in, (?line) out. The first step of the groups that start from a station.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters",
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "file": "queries/lines-through-station.rq",
+      "comment": "One in, one out."
+    },
+    {
+      "id": "urn:sqlib:query:rail-other-stations-on-line",
+      "name": "Other stations on a line",
+      "description": "Stations on the given lines, without the given station.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters",
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "file": "queries/other-stations-on-line.rq",
+      "comment": "Adds the zone and step-free columns, and DISTINCT."
+    },
+    {
+      "id": "urn:sqlib:query:rail-network-graph",
+      "name": "Network as a graph",
+      "description": "A CONSTRUCT of the given lines, or of the whole network when ?line is left out. The rules read it.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters",
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "file": "queries/network-graph.rq",
+      "comment": "RDF out."
+    },
+    {
+      "id": "urn:sqlib:query:rail-timetables-for-day",
+      "name": "Timetables for a day",
+      "description": "The timetable graph of each given day, as ?timetable rows. In the group Departures for a day, these rows are the second step's argument.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "file": "queries/timetables-for-day.rq",
+      "comment": "Day rows in, graph name rows out.",
+      "tool": false
+    },
+    {
+      "id": "urn:sqlib:query:rail-departures-in-timetables",
+      "name": "Departures in timetables",
+      "description": "The departures in each given ?timetable graph. In the group Departures for a day, the rows come from Timetables for a day.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "file": "queries/departures-in-timetables.rq",
+      "comment": "Timetable graph rows in.",
+      "tool": false
+    },
+    {
+      "id": "urn:sqlib:query:rail-lines-affected-by-closures",
+      "name": "Lines affected by closures",
+      "description": "Takes station rows, one per closed station, such as the Closed this week tuple set.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "file": "queries/lines-affected-by-closures.rq",
+      "comment": "Station rows in."
+    },
+    {
+      "id": "urn:sqlib:query:rail-stations-in-zones",
+      "name": "Stations in zones",
+      "description": "Zones as a table parameter. Compare with the FILTER version in the benchmarks.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters",
+        "urn:sqlib:tag:rail-benchmarks"
+      ],
+      "file": "queries/stations-in-zones-values.rq",
+      "comment": "VALUES."
+    },
+    {
+      "id": "urn:sqlib:query:rail-stations-in-zones-filter",
+      "name": "Stations in zones 1 and 2 (FILTER)",
+      "description": "The same question as Stations in zones, with the zones written into a FILTER.",
+      "tags": [
+        "urn:sqlib:tag:rail-benchmarks"
+      ],
+      "file": "queries/stations-in-zones-filter.rq",
+      "comment": "FILTER.",
+      "tool": false
+    },
+    {
+      "id": "urn:sqlib:query:rail-reachable-by-path",
+      "name": "Reachable stations (property path)",
+      "description": "Every station reachable from the given one, by a property path. The Reachability rule set infers the same.",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters",
+        "urn:sqlib:tag:rail-benchmarks"
+      ],
+      "file": "queries/reachable-by-path.rq",
+      "comment": "Property path."
+    },
+    {
+      "id": "urn:sqlib:query:rail-stations-map",
+      "name": "Stations on a map",
+      "description": "Every station with its point.",
+      "tags": [
+        "urn:sqlib:tag:rail-map"
+      ],
+      "file": "queries/stations-map.rq",
+      "comment": "WKT points."
+    },
+    {
+      "id": "urn:sqlib:query:rail-stations-features",
+      "name": "Stations (OGC)",
+      "description": "The Stations collection of OGC API Features: a point per station.",
+      "tags": [
+        "urn:sqlib:tag:rail-map"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-features",
+      "file": "queries/stations-features.rq",
+      "ogcFile": "ogc/stations.json",
+      "comment": "Points, bbox, name and paging.",
+      "tool": false
+    },
+    {
+      "id": "urn:sqlib:query:rail-lines-features",
+      "name": "Lines (OGC)",
+      "description": "The Lines collection of OGC API Features: a line string per line, through its stops in order.",
+      "tags": [
+        "urn:sqlib:tag:rail-map"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-features",
+      "file": "queries/lines-features.rq",
+      "ogcFile": "ogc/lines.json",
+      "comment": "Line strings, bbox, name and paging.",
+      "tool": false
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-graphs",
+      "name": "Graphs I can read",
+      "author": "bob",
+      "description": "Each graph of Rail operations you may read, and how many triples it holds.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-graphs.rq",
+      "comment": "First version."
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-who-am-i",
+      "name": "Who am I",
+      "author": "bob",
+      "description": "Your name, role and home station, from the person you act as. ?authUser comes from that person, and no argument can set it.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-who-am-i.rq",
+      "comment": "First version."
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-staff",
+      "name": "Staff",
+      "author": "bob",
+      "description": "Staff, their roles and home stations, from the public graph.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-staff.rq",
+      "comment": "First version."
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-fare-revenue",
+      "name": "Fare revenue by line",
+      "author": "bob",
+      "description": "Weekly fare revenue by line, from the finance graph by name. Without access to that graph, no rows.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-fare-revenue.rq",
+      "comment": "First version."
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-salaries",
+      "name": "Salaries",
+      "author": "bob",
+      "description": "Salaries by person, from the finance graph by name. Without access to that graph, no rows.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-salaries.rq",
+      "comment": "First version."
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-reviews",
+      "name": "Staff reviews",
+      "author": "bob",
+      "description": "Performance reviews and leave balances by person, from the staff graph by name. Without access to that graph, no rows.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-reviews.rq",
+      "comment": "First version."
+    },
+    {
+      "id": "urn:sqlib:query:rail-operations-everything",
+      "name": "Everything I can read",
+      "author": "bob",
+      "description": "Every triple in every graph of Rail operations you may read. Switch to someone else and compare.",
+      "tags": [
+        "urn:sqlib:tag:rail-access"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-operations",
+      "file": "queries/operations-everything.rq",
+      "comment": "First version."
+    }
+  ],
+  "ruleSets": [
+    {
+      "key": "reachability",
+      "name": "Reachability",
+      "author": "carol",
+      "description": "Links run both ways; a station reaches its neighbours and whatever they reach; step-free travel only over links with step-free stations at both ends.",
+      "tags": [
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "file": "rules/reachability.srl",
+      "comment": "Recursion.",
+      "browserDefaultDataGraph": "network"
+    },
+    {
+      "key": "interchanges",
+      "name": "Interchanges",
+      "author": "carol",
+      "description": "A station on two or more lines is an interchange (GROUP and COUNT). Every other station is a single-line stop (NOT).",
+      "tags": [
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "file": "rules/interchanges.srl",
+      "comment": "Aggregates, then negation.",
+      "browserDefaultDataGraph": "network"
+    },
+    {
+      "key": "fares",
+      "name": "Fares",
+      "author": "carol",
+      "description": "A fixed fare for each zone, in a DATA block. Each station gets the fare of its zone, and each line its lowest fare (GROUP and MIN).",
+      "tags": [
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "file": "rules/fares.srl",
+      "comment": "Fixed facts, then aggregates.",
+      "browserDefaultDataGraph": "network"
+    }
+  ],
+  "tupleSets": [
+    {
+      "id": "urn:sqlib:tuple-set:rail-closed-this-week",
+      "name": "Closed this week",
+      "description": "Stations closed for works. Feeds Lines affected by closures.",
+      "file": "tuples/closures.csv",
+      "sourceFormat": "csv",
+      "columnTypes": {
+        "station": "uri"
+      }
+    }
+  ],
+  "queryGroups": [
+    {
+      "id": "urn:sqlib:group:rail-one-change-away",
+      "name": "Stations one change away",
+      "author": "carol",
+      "description": "Lines through a station, then every station on those lines. Central is on two lines, so the station itself comes back too.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "start": {
+        "node": "lines",
+        "input": "station"
+      },
+      "end": {
+        "mediaType": "application/sparql-results+json"
+      },
+      "nodes": [
+        {
+          "key": "lines",
+          "query": "urn:sqlib:query:rail-lines-through-station",
+          "backend": "urn:sqlib:backend:rail-store"
+        },
+        {
+          "key": "stations",
+          "query": "urn:sqlib:query:rail-stations-on-line",
+          "backend": "urn:sqlib:backend:rail-store"
+        }
+      ],
+      "edges": [
+        {
+          "from": "start",
+          "to": "lines",
+          "input": "station"
+        },
+        {
+          "from": "lines",
+          "to": "stations",
+          "input": "line",
+          "whenEmpty": "propagateEmpty"
+        },
+        {
+          "from": "stations",
+          "to": "end"
+        }
+      ],
+      "browserDefaultArgumentSet": "central-group"
+    },
+    {
+      "id": "urn:sqlib:group:rail-one-change-away-elsewhere",
+      "name": "Stations one change away, not counting this one",
+      "author": "carol",
+      "description": "The start's ?station goes to both steps. The second step uses it to leave the station out.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "start": {
+        "node": "lines",
+        "input": "station"
+      },
+      "end": {
+        "mediaType": "application/sparql-results+json"
+      },
+      "nodes": [
+        {
+          "key": "lines",
+          "query": "urn:sqlib:query:rail-lines-through-station",
+          "backend": "urn:sqlib:backend:rail-store"
+        },
+        {
+          "key": "stations",
+          "query": "urn:sqlib:query:rail-other-stations-on-line",
+          "backend": "urn:sqlib:backend:rail-store"
+        }
+      ],
+      "edges": [
+        {
+          "from": "start",
+          "to": "lines",
+          "input": "station"
+        },
+        {
+          "from": "start",
+          "to": "stations",
+          "input": "station"
+        },
+        {
+          "from": "lines",
+          "to": "stations",
+          "input": "line"
+        },
+        {
+          "from": "stations",
+          "to": "end"
+        }
+      ],
+      "browserDefaultArgumentSet": "central-group"
+    },
+    {
+      "id": "urn:sqlib:group:rail-reachability-over-construct",
+      "name": "Reachability over a CONSTRUCT",
+      "author": "carol",
+      "description": "A CONSTRUCT hands its graph to the Reachability rule set.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups",
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "end": {
+        "mediaType": "application/n-triples"
+      },
+      "nodes": [
+        {
+          "key": "graph",
+          "query": "urn:sqlib:query:rail-network-graph",
+          "backend": "urn:sqlib:backend:rail-store"
+        },
+        {
+          "key": "rules",
+          "ruleSet": "reachability"
+        }
+      ],
+      "edges": [
+        {
+          "from": "start",
+          "to": "graph"
+        },
+        {
+          "from": "graph",
+          "to": "rules"
+        },
+        {
+          "from": "rules",
+          "to": "end"
+        }
+      ]
+    },
+    {
+      "id": "urn:sqlib:group:rail-interchanges-near-station",
+      "name": "Interchanges on the lines through a station",
+      "author": "carol",
+      "description": "Rows, then RDF, then rules: the lines through a station, those lines as a graph, then the Interchanges rules.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups",
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "start": {
+        "node": "lines",
+        "input": "station"
+      },
+      "end": {
+        "mediaType": "application/n-triples"
+      },
+      "nodes": [
+        {
+          "key": "lines",
+          "query": "urn:sqlib:query:rail-lines-through-station",
+          "backend": "urn:sqlib:backend:rail-store"
+        },
+        {
+          "key": "graph",
+          "query": "urn:sqlib:query:rail-network-graph",
+          "backend": "urn:sqlib:backend:rail-store"
+        },
+        {
+          "key": "rules",
+          "ruleSet": "interchanges"
+        }
+      ],
+      "edges": [
+        {
+          "from": "start",
+          "to": "lines",
+          "input": "station"
+        },
+        {
+          "from": "lines",
+          "to": "graph",
+          "input": "line",
+          "whenEmpty": "require"
+        },
+        {
+          "from": "graph",
+          "to": "rules"
+        },
+        {
+          "from": "rules",
+          "to": "end"
+        }
+      ],
+      "browserDefaultArgumentSet": "central-group"
+    },
+    {
+      "id": "urn:sqlib:group:rail-departures-for-day",
+      "name": "Departures for a day",
+      "author": "carol",
+      "description": "The first step finds the day's timetable graphs. Its ?timetable rows choose the graphs the second step reads.",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "start": {
+        "node": "timetables",
+        "input": "day"
+      },
+      "end": {
+        "mediaType": "application/sparql-results+json"
+      },
+      "nodes": [
+        {
+          "key": "timetables",
+          "query": "urn:sqlib:query:rail-timetables-for-day",
+          "backend": "urn:sqlib:backend:rail-store"
+        },
+        {
+          "key": "departures",
+          "query": "urn:sqlib:query:rail-departures-in-timetables",
+          "backend": "urn:sqlib:backend:rail-store"
+        }
+      ],
+      "edges": [
+        {
+          "from": "start",
+          "to": "timetables",
+          "input": "day"
+        },
+        {
+          "from": "timetables",
+          "to": "departures",
+          "input": "timetable",
+          "whenEmpty": "propagateEmpty"
+        },
+        {
+          "from": "departures",
+          "to": "end"
+        }
+      ],
+      "browserDefaultArgumentSet": "weekday"
+    }
+  ],
+  "argumentSets": [
+    {
+      "key": "red",
+      "name": "Red line",
+      "targetId": "urn:sqlib:query:rail-stations-on-line",
+      "scope": "query",
+      "description": "?line is the Red line.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/red"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "yellow",
+      "name": "Yellow line",
+      "targetId": "urn:sqlib:query:rail-stations-on-line",
+      "scope": "query",
+      "description": "?line is the Yellow line.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/yellow"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "red-and-green",
+      "name": "Red and Green lines",
+      "targetId": "urn:sqlib:query:rail-stations-on-line",
+      "scope": "query",
+      "description": "Two rows in one argument: one call, not two.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/red"
+                }
+              }
+            },
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/green"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "green",
+      "name": "Green line",
+      "targetId": "urn:sqlib:query:rail-stations-on-line",
+      "scope": "query",
+      "description": "?line is the Green line.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/green"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "red-step-free",
+      "name": "Red line, step-free",
+      "targetId": "urn:sqlib:query:rail-stations-on-line-step-free",
+      "scope": "query",
+      "description": "One argument per parameter.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "line"
+          ],
+          "rows": [
+            {
+              "values": {
+                "line": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/red"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "stepFree"
+          ],
+          "rows": [
+            {
+              "values": {
+                "stepFree": {
+                  "type": "literal",
+                  "value": "true",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#boolean"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "airport-central-before-1950",
+      "name": "Airport to Market Street, Central to Museum, lines before 1950",
+      "targetId": "urn:sqlib:query:rail-direct-lines-between",
+      "scope": "query",
+      "description": "Two pairs in one argument, and a year in the other.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "from",
+            "to"
+          ],
+          "rows": [
+            {
+              "values": {
+                "from": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/airport"
+                },
+                "to": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/market"
+                }
+              }
+            },
+            {
+              "values": {
+                "from": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                },
+                "to": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/museum"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "variables": [
+            "before"
+          ],
+          "rows": [
+            {
+              "values": {
+                "before": {
+                  "type": "literal",
+                  "value": "1950",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "second-page",
+      "name": "The second page of five",
+      "targetId": "urn:sqlib:query:rail-stations-page",
+      "scope": "query",
+      "description": "A limit of 5 and an offset of 5, by parameter name.",
+      "scalarBindings": [
+        {
+          "parameterKind": "limit",
+          "parameterName": "1",
+          "numericValue": 5
+        },
+        {
+          "parameterKind": "offset",
+          "parameterName": "2",
+          "numericValue": 5
+        }
+      ]
+    },
+    {
+      "key": "central",
+      "name": "Central",
+      "targetId": "urn:sqlib:query:rail-departures-from-station",
+      "scope": "query",
+      "description": "?station is Central. Fits every query and group that takes a station.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "central-group",
+      "name": "Central (group)",
+      "targetId": "urn:sqlib:group:rail-one-change-away",
+      "scope": "queryGroup",
+      "description": "?station is Central.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "weekday",
+      "name": "Weekday",
+      "targetId": "urn:sqlib:group:rail-departures-for-day",
+      "scope": "queryGroup",
+      "description": "?day is a weekday.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "day"
+          ],
+          "rows": [
+            {
+              "values": {
+                "day": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/weekday"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "weekend",
+      "name": "Weekend",
+      "targetId": "urn:sqlib:group:rail-departures-for-day",
+      "scope": "queryGroup",
+      "description": "?day is a weekend.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "day"
+          ],
+          "rows": [
+            {
+              "values": {
+                "day": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/weekend"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "zone-1",
+      "name": "Zone 1",
+      "targetId": "urn:sqlib:query:rail-stations-in-zones",
+      "scope": "query",
+      "description": "One row.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "zone"
+          ],
+          "rows": [
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "1",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "zones-1-2",
+      "name": "Zones 1 and 2",
+      "targetId": "urn:sqlib:query:rail-stations-in-zones",
+      "scope": "query",
+      "description": "Two rows.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "zone"
+          ],
+          "rows": [
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "1",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            },
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "2",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "zones-1-2-3",
+      "name": "Zones 1, 2 and 3",
+      "targetId": "urn:sqlib:query:rail-stations-in-zones",
+      "scope": "query",
+      "description": "Three rows.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "zone"
+          ],
+          "rows": [
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "1",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            },
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "2",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            },
+            {
+              "values": {
+                "zone": {
+                  "type": "literal",
+                  "value": "3",
+                  "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "from-central",
+      "name": "From Central",
+      "targetId": "urn:sqlib:query:rail-reachable-by-path",
+      "scope": "query",
+      "description": "?from is Central.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "from"
+          ],
+          "rows": [
+            {
+              "values": {
+                "from": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/central"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "museum-is-step-free",
+      "name": "Museum",
+      "targetId": "urn:sqlib:query:rail-station-is-step-free",
+      "scope": "query",
+      "description": "?station is Museum.",
+      "tupleBindings": [
+        {
+          "variables": [
+            "station"
+          ],
+          "rows": [
+            {
+              "values": {
+                "station": {
+                  "type": "uri",
+                  "value": "https://example.org/rail/museum"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "key": "stations-on-line",
+      "name": "Stations on a line",
+      "author": "carol",
+      "description": "Two cases, each hermetic: the query runs on a store holding only the Network graph.",
+      "subject": "urn:sqlib:query:rail-stations-on-line",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Red line",
+          "argumentSet": "red",
+          "dataGraph": "network",
+          "expectedFile": "expected/stations-on-line-red.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        },
+        {
+          "name": "Yellow line",
+          "argumentSet": "yellow",
+          "dataGraph": "network",
+          "expectedFile": "expected/stations-on-line-yellow.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "open-green",
+      "name": "Green line, open stations only",
+      "author": "carol",
+      "description": "Lakeside opens in 2028, but the query lists it. Fails on purpose, until the query checks the opening year.",
+      "subject": "urn:sqlib:query:rail-stations-on-line",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:rail-known-gap"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Green line",
+          "argumentSet": "green",
+          "dataGraph": "network",
+          "expectedFile": "expected/stations-on-line-green-open.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "direct-lines",
+      "name": "Direct lines between two stations",
+      "author": "carol",
+      "description": "Pairs as rows of one parameter.",
+      "subject": "urn:sqlib:query:rail-direct-lines-between",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Two pairs before 1950",
+          "argumentSet": "airport-central-before-1950",
+          "dataGraph": "network",
+          "expectedFile": "expected/direct-lines.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "stations-page",
+      "name": "A page of stations",
+      "author": "carol",
+      "description": "Rows six to ten of the name order.",
+      "subject": "urn:sqlib:query:rail-stations-page",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Second page of five",
+          "argumentSet": "second-page",
+          "dataGraph": "network",
+          "expectedFile": "expected/stations-page.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "departures-central",
+      "name": "Departures from Central",
+      "author": "carol",
+      "description": "Runs on the Rail store rather than a data graph, because the timetables are named graphs there.",
+      "subject": "urn:sqlib:query:rail-departures-from-station",
+      "subjectKind": "query",
+      "backend": "urn:sqlib:backend:rail-store",
+      "tags": [
+        "urn:sqlib:tag:rail-parameters"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Central",
+          "argumentSet": "central",
+          "expectedFile": "expected/departures-central.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "reachability",
+      "name": "Reachability",
+      "author": "carol",
+      "description": "The rule set over the Network graph, compared as a graph.",
+      "subject": "reachability",
+      "subjectKind": "ruleSet",
+      "tags": [
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "expectationKind": "graph",
+      "cases": [
+        {
+          "name": "Network",
+          "dataGraph": "network",
+          "expectedFile": "expected/reachability.nt",
+          "expectedFormat": "application/n-triples"
+        }
+      ]
+    },
+    {
+      "key": "interchanges",
+      "name": "Interchanges",
+      "author": "carol",
+      "description": "Six interchanges and ten single-line stops.",
+      "subject": "interchanges",
+      "subjectKind": "ruleSet",
+      "tags": [
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "expectationKind": "graph",
+      "cases": [
+        {
+          "name": "Network",
+          "dataGraph": "network",
+          "expectedFile": "expected/interchanges.nt",
+          "expectedFormat": "application/n-triples"
+        }
+      ]
+    },
+    {
+      "key": "fares",
+      "name": "Fares",
+      "author": "carol",
+      "description": "Sixteen station fares and four lowest fares. Only the Yellow line has no zone 1 station.",
+      "subject": "fares",
+      "subjectKind": "ruleSet",
+      "tags": [
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "expectationKind": "graph",
+      "cases": [
+        {
+          "name": "Network",
+          "dataGraph": "network",
+          "expectedFile": "expected/fares.nt",
+          "expectedFormat": "application/n-triples"
+        }
+      ]
+    },
+    {
+      "key": "one-change-away",
+      "name": "Stations one change away",
+      "author": "carol",
+      "description": "From Central.",
+      "subject": "urn:sqlib:group:rail-one-change-away",
+      "subjectKind": "queryGroup",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Central",
+          "argumentSet": "central-group",
+          "expectedFile": "expected/one-change-away-central.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "one-change-away-elsewhere",
+      "name": "Stations one change away, not counting this one",
+      "author": "carol",
+      "description": "From Central: Central itself is left out.",
+      "subject": "urn:sqlib:group:rail-one-change-away-elsewhere",
+      "subjectKind": "queryGroup",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Central",
+          "argumentSet": "central-group",
+          "expectedFile": "expected/one-change-away-elsewhere-central.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "reachability-over-construct",
+      "name": "Reachability over a CONSTRUCT",
+      "author": "carol",
+      "description": "The group infers what the rule set infers over the Network graph directly.",
+      "subject": "urn:sqlib:group:rail-reachability-over-construct",
+      "subjectKind": "queryGroup",
+      "tags": [
+        "urn:sqlib:tag:rail-groups",
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "expectationKind": "graph",
+      "cases": [
+        {
+          "name": "Whole network",
+          "expectedFile": "expected/reachability-over-construct.nt",
+          "expectedFormat": "application/n-triples"
+        }
+      ]
+    },
+    {
+      "key": "interchanges-near-central",
+      "name": "Interchanges on the lines through Central",
+      "author": "carol",
+      "description": "Red and Blue lines only.",
+      "subject": "urn:sqlib:group:rail-interchanges-near-station",
+      "subjectKind": "queryGroup",
+      "tags": [
+        "urn:sqlib:tag:rail-groups",
+        "urn:sqlib:tag:rail-rules"
+      ],
+      "expectationKind": "graph",
+      "cases": [
+        {
+          "name": "Central",
+          "argumentSet": "central-group",
+          "expectedFile": "expected/interchanges-near-central.nt",
+          "expectedFormat": "application/n-triples"
+        }
+      ]
+    },
+    {
+      "key": "departures-weekday",
+      "name": "Departures for a day",
+      "author": "carol",
+      "description": "Weekday and weekend: the first step's rows decide which timetable the second step reads.",
+      "subject": "urn:sqlib:group:rail-departures-for-day",
+      "subjectKind": "queryGroup",
+      "tags": [
+        "urn:sqlib:tag:rail-groups"
+      ],
+      "expectationKind": "bindings",
+      "cases": [
+        {
+          "name": "Weekday",
+          "argumentSet": "weekday",
+          "expectedFile": "expected/departures-weekday.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        },
+        {
+          "name": "Weekend",
+          "argumentSet": "weekend",
+          "expectedFile": "expected/departures-weekend.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "urn:sqlib:benchmark-experiment:rail-values-vs-filter",
+      "name": "VALUES or FILTER",
+      "author": "dana",
+      "description": "The same question two ways: zones as a table parameter, and zones written into a FILTER. 20 runs each after 2 warm-up runs.",
+      "repeats": 20,
+      "warmupRuns": 2,
+      "subjects": [
+        {
+          "query": "urn:sqlib:query:rail-stations-in-zones",
+          "argumentSets": [
+            "zones-1-2"
+          ],
+          "backends": [
+            "urn:sqlib:backend:rail-store"
+          ]
+        },
+        {
+          "query": "urn:sqlib:query:rail-stations-in-zones-filter",
+          "includeNoArguments": true,
+          "backends": [
+            "urn:sqlib:backend:rail-store"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "urn:sqlib:benchmark-experiment:rail-path-vs-rules",
+      "name": "Property path or rules",
+      "author": "dana",
+      "description": "Reachability from Central by a property path, against the Reachability rule set over the whole network.",
+      "repeats": 15,
+      "warmupRuns": 2,
+      "subjects": [
+        {
+          "query": "urn:sqlib:query:rail-reachable-by-path",
+          "argumentSets": [
+            "from-central"
+          ],
+          "backends": [
+            "urn:sqlib:backend:rail-store"
+          ]
+        },
+        {
+          "ruleSet": "reachability",
+          "dataGraphs": [
+            "network"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "urn:sqlib:benchmark-experiment:rail-rows-per-call",
+      "name": "Rows in one argument",
+      "author": "dana",
+      "description": "One, two and three zones in one argument: still one call each.",
+      "repeats": 20,
+      "warmupRuns": 2,
+      "subjects": [
+        {
+          "query": "urn:sqlib:query:rail-stations-in-zones",
+          "argumentSets": [
+            "zone-1",
+            "zones-1-2",
+            "zones-1-2-3"
+          ],
+          "backends": [
+            "urn:sqlib:backend:rail-store"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "urn:sqlib:benchmark-experiment:rail-group-per-node",
+      "name": "A group, step by step",
+      "author": "dana",
+      "description": "Interchanges on the lines through Central, timed per step.",
+      "repeats": 10,
+      "warmupRuns": 1,
+      "subjects": [
+        {
+          "group": "urn:sqlib:group:rail-interchanges-near-station",
+          "argumentSets": [
+            "central-group"
+          ]
+        }
+      ]
+    }
+  ],
+  "etlJobs": [
+    {
+      "key": "stations-from-csv",
+      "name": "Stations from a CSV",
+      "author": "dana",
+      "description": "Builds one station per row of stations.csv, with a map point. The rows are a VALUES table in the SQL.",
+      "sql": "SELECT\n  slug,\n  name,\n  zone,\n  step_free = 'yes' AS stepFree,\n  opened,\n  'POINT(' || long || ' ' || lat || ')' AS wkt\nFROM {{csv:etl/stations.csv}}\nWHERE slug IS NOT NULL\n  AND name IS NOT NULL\n  AND zone IS NOT NULL\n  AND step_free IS NOT NULL\nORDER BY slug",
+      "sparqlTemplate": "PREFIX : <https://example.org/rail/>\nPREFIX geo: <http://www.opengis.net/ont/geosparql#>\n\nCONSTRUCT {\n  ?station a :Station ;\n    :name ?name ;\n    :zone ?zone ;\n    :stepFree ?stepFree ;\n    :opened ?opened ;\n    geo:hasGeometry [ geo:asWKT ?wkt ] .\n}\nWHERE {\n  VALUES (?slug ?name ?zone ?stepFree ?opened ?wkt) {\n    (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)\n  }\n  BIND(IRI(CONCAT(\"https://example.org/rail/\", ENCODE_FOR_URI(?slug))) AS ?station)\n}",
+      "backendId": "urn:sqlib:backend:rail-store",
+      "chunkSize": 8,
+      "columnMapping": {
+        "name": "Station columns",
+        "columns": [
+          {
+            "columnName": "slug",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "name",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "zone",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#integer"
+          },
+          {
+            "columnName": "stepFree",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#boolean"
+          },
+          {
+            "columnName": "opened",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#integer"
+          },
+          {
+            "columnName": "wkt",
+            "termType": "literal",
+            "datatypeIri": "http://www.opengis.net/ont/geosparql#wktLiteral"
+          }
+        ]
+      }
+    },
+    {
+      "key": "departures-from-csv",
+      "name": "Departures from two CSVs",
+      "author": "dana",
+      "description": "Joins departures.csv to stations.csv in DuckDB, so each departure carries its station's name. The rows are VALUES tables in the SQL.",
+      "sql": "SELECT\n  d.station || '-' || d.line || '-' || d.day_type || '-' || replace(CAST(d.time AS VARCHAR), ':', '') AS departureId,\n  d.station AS stationId,\n  s.name AS stationName,\n  d.line AS lineId,\n  d.towards AS towardsId,\n  d.day_type AS dayTypeId,\n  CAST(d.time AS VARCHAR) AS time\nFROM {{csv:etl/departures.csv}} AS d\nJOIN {{csv:etl/stations.csv}} AS s ON s.slug = d.station\nWHERE d.line IS NOT NULL\n  AND d.towards IS NOT NULL\n  AND d.day_type IS NOT NULL\n  AND d.time IS NOT NULL\nORDER BY d.day_type, d.time, d.station",
+      "sparqlTemplate": "PREFIX : <https://example.org/rail/>\n\nCONSTRUCT {\n  ?departure a :Departure ;\n    :from ?station ;\n    :fromName ?stationName ;\n    :line ?line ;\n    :towards ?towards ;\n    :dayType ?dayType ;\n    :time ?time .\n}\nWHERE {\n  VALUES (?departureId ?stationId ?stationName ?lineId ?towardsId ?dayTypeId ?time) {\n    (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)\n  }\n  BIND(IRI(CONCAT(\"https://example.org/rail/departure/\", ENCODE_FOR_URI(?departureId))) AS ?departure)\n  BIND(IRI(CONCAT(\"https://example.org/rail/\", ENCODE_FOR_URI(?stationId))) AS ?station)\n  BIND(IRI(CONCAT(\"https://example.org/rail/\", ENCODE_FOR_URI(?lineId))) AS ?line)\n  BIND(IRI(CONCAT(\"https://example.org/rail/\", ENCODE_FOR_URI(?towardsId))) AS ?towards)\n  BIND(IRI(CONCAT(\"https://example.org/rail/\", ENCODE_FOR_URI(?dayTypeId))) AS ?dayType)\n}",
+      "backendId": "urn:sqlib:backend:rail-store",
+      "chunkSize": 25,
+      "columnMapping": {
+        "name": "Departure columns",
+        "columns": [
+          {
+            "columnName": "departureId",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "stationId",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "stationName",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "lineId",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "towardsId",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "dayTypeId",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          {
+            "columnName": "time",
+            "termType": "literal",
+            "datatypeIri": "http://www.w3.org/2001/XMLSchema#time"
+          }
+        ]
+      }
+    }
+  ],
+  "notebooks": [
+    {
+      "key": "rail-start-here",
+      "name": "Start here",
+      "description": "A tour: a parameter, a chain of cells, a group and a rule set.",
+      "file": "notebooks/start-here.sqlibnb",
+      "comment": "First version."
+    },
+    {
+      "key": "rail-parameters",
+      "name": "Parameters",
+      "description": "Every form of parameter: pairs, years, named LIMIT and OFFSET, ASK, VALUES and FILTER.",
+      "file": "notebooks/parameters.sqlibnb",
+      "comment": "First version."
+    },
+    {
+      "key": "rail-who-sees-what",
+      "name": "Who sees what",
+      "author": "bob",
+      "description": "The same operations queries, run as a guest and as each person.",
+      "file": "notebooks/who-sees-what.sqlibnb",
+      "comment": "First version."
+    }
+  ],
+  "environments": [
+    {
+      "id": "urn:sqlib:environment:rail-dev",
+      "name": "dev",
+      "author": "dana",
+      "description": "Every entity at its current version.",
+      "position": 0
+    },
+    {
+      "id": "urn:sqlib:environment:rail-test",
+      "name": "test",
+      "author": "dana",
+      "description": "Matches dev.",
+      "position": 1
+    },
+    {
+      "id": "urn:sqlib:environment:rail-prod",
+      "name": "prod",
+      "author": "dana",
+      "description": "Two queries are still at their first version here.",
+      "position": 2,
+      "pointers": [
+        {
+          "query": "urn:sqlib:query:rail-stations-on-line",
+          "version": 1
+        },
+        {
+          "query": "urn:sqlib:query:rail-departures-from-station",
+          "version": 1
+        }
+      ]
+    }
+  ]
+}

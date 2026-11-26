@@ -1,0 +1,43 @@
+{
+  "collectionId": "lines",
+  "title": "Lines",
+  "description": "Every line, as a line through its stops, with its colour and opening year.",
+  "mode": "values",
+  "feature": {
+    "var": "feature",
+    "base": "https://example.org/rail/"
+  },
+  "geometry": "geom",
+  "params": {
+    "limit": "1",
+    "offset": "2",
+    "bbox": [
+      "minx",
+      "miny",
+      "maxx",
+      "maxy"
+    ],
+    "skipGeometry": "skip"
+  },
+  "queryables": {
+    "name": {
+      "var": "name",
+      "type": "string",
+      "title": "Name"
+    }
+  },
+  "pageSize": {
+    "default": 10,
+    "max": 100
+  },
+  "extent": {
+    "spatial": [
+      [
+        115.76,
+        -32.025,
+        115.977,
+        -31.905
+      ]
+    ]
+  }
+}

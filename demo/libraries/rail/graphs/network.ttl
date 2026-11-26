@@ -1,0 +1,84 @@
+@prefix : <https://example.org/rail/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+
+:red a :Line ; :name "Red line" ; :colour "#d62828" ; :opened 1889 ;
+  :stops ( :airport :northgate :central :market :harbour :southbank ) .
+:blue a :Line ; :name "Blue line" ; :colour "#1d4ed8" ; :opened 1931 ;
+  :stops ( :westfield :parkside :central :museum :university :eastwood ) .
+:green a :Line ; :name "Green line" ; :colour "#15803d" ; :opened 1925 ;
+  :stops ( :hillcrest :museum :market :riverside :docklands :lakeside ) .
+:yellow a :Line ; :name "Yellow line" ; :colour "#ca8a04" ; :opened 2018 ;
+  :stops ( :stadium :parkside :northgate :hillcrest ) .
+
+:airport a :Station ; :name "Airport" ; :zone 3 ; :stepFree true ; :opened 2004 ;
+  :onLine :red ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.967 -31.94)"^^geo:wktLiteral ] .
+:northgate a :Station ; :name "Northgate" ; :zone 2 ; :stepFree true ; :opened 1992 ;
+  :onLine :red, :yellow ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.88 -31.92)"^^geo:wktLiteral ] .
+:central a :Station ; :name "Central" ; :zone 1 ; :stepFree true ; :opened 1889 ;
+  :onLine :red, :blue ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.86 -31.951)"^^geo:wktLiteral ] .
+:market a :Station ; :name "Market Street" ; :zone 1 ; :stepFree false ; :opened 1889 ;
+  :onLine :red, :green ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.852 -31.956)"^^geo:wktLiteral ] .
+:harbour a :Station ; :name "Harbour" ; :zone 2 ; :stepFree false ; :opened 1897 ;
+  :onLine :red ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.84 -31.985)"^^geo:wktLiteral ] .
+:southbank a :Station ; :name "Southbank" ; :zone 2 ; :stepFree true ; :opened 1968 ;
+  :onLine :red ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.845 -32.01)"^^geo:wktLiteral ] .
+:westfield a :Station ; :name "Westfield" ; :zone 3 ; :stepFree true ; :opened 1979 ;
+  :onLine :blue ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.79 -31.94)"^^geo:wktLiteral ] .
+:parkside a :Station ; :name "Parkside" ; :zone 2 ; :stepFree false ; :opened 1912 ;
+  :onLine :blue, :yellow ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.825 -31.935)"^^geo:wktLiteral ] .
+:museum a :Station ; :name "Museum" ; :zone 1 ; :stepFree true ; :opened 1931 ;
+  :onLine :blue, :green ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.872 -31.948)"^^geo:wktLiteral ] .
+:university a :Station ; :name "University" ; :zone 2 ; :stepFree true ; :opened 1965 ;
+  :onLine :blue ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.818 -31.978)"^^geo:wktLiteral ] .
+:eastwood a :Station ; :name "Eastwood" ; :zone 3 ; :stepFree false ; :opened 1954 ;
+  :onLine :blue ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.92 -31.962)"^^geo:wktLiteral ] .
+:hillcrest a :Station ; :name "Hillcrest" ; :zone 2 ; :stepFree false ; :opened 1925 ;
+  :onLine :green, :yellow ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.9 -31.915)"^^geo:wktLiteral ] .
+:riverside a :Station ; :name "Riverside" ; :zone 2 ; :stepFree true ; :opened 1999 ;
+  :onLine :green ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.88 -31.97)"^^geo:wktLiteral ] .
+:docklands a :Station ; :name "Docklands" ; :zone 3 ; :stepFree true ; :opened 2011 ;
+  :onLine :green ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.9 -31.995)"^^geo:wktLiteral ] .
+:stadium a :Station ; :name "Stadium" ; :zone 3 ; :stepFree true ; :opened 2018 ;
+  :onLine :yellow ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.77 -31.93)"^^geo:wktLiteral ] .
+:lakeside a :Station ; :name "Lakeside" ; :zone 3 ; :stepFree true ; :opened 2028 ;
+  :onLine :green ;
+  geo:hasGeometry [ geo:asWKT "POINT(115.915 -32.015)"^^geo:wktLiteral ] .
+
+# One link per pair of neighbouring stops, in line order. The rules make it two-way.
+:airport :next :northgate .
+:northgate :next :central .
+:central :next :market .
+:market :next :harbour .
+:harbour :next :southbank .
+:westfield :next :parkside .
+:parkside :next :central .
+:central :next :museum .
+:museum :next :university .
+:university :next :eastwood .
+:hillcrest :next :museum .
+:museum :next :market .
+:market :next :riverside .
+:riverside :next :docklands .
+:docklands :next :lakeside .
+:stadium :next :parkside .
+:parkside :next :northgate .
+:northgate :next :hillcrest .
+
+:weekday a :DayType ; :name "Weekday" ; :timetable <https://example.org/rail/timetable/weekday> .
+:weekend a :DayType ; :name "Weekend" ; :timetable <https://example.org/rail/timetable/weekend> .

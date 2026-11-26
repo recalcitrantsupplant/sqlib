@@ -533,6 +533,64 @@ uat-patch-demo API_URL="http://localhost:3005" WEB_URL="http://localhost:3001":
 clean-local-patch-demo:
     rm -rf packages/api/tmp/patch-demo-store
 
+# The Rail demo in demo mode: read-only, with no sign-in. Pick Alice, Bob,
+# Carol or Dana under "Switch user" in the account menu. The first start seeds
+# tmp/demo/store/library.sqlite from demo/libraries, in about 10 s. Later
+# starts reuse it. `just clean-demo` deletes it. See demo/README.md.
+#
+# Run the Rail demo in demo mode (web UI on :3001)
+[group('demos')]
+demo: _build-deps _free-dev-ports
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$PWD"
+    state="$root/tmp/demo"
+    if [ ! -s "$state/store/library.sqlite" ]; then
+        rm -rf "$state"
+        LIBRARY_STORAGE_DIR="$state/store" ETL_OUTPUT_DIR="$state/etl-output" \
+        DEMO_API_DIR="$root/packages/api" DEMO_API_CMD="node_modules/.bin/tsx src/index.ts" \
+            sh demo/scripts/seed.sh
+    fi
+    # The auth store is built from grants.ttl on each start.
+    rm -rf "$state/auth"
+    set -a; . demo/server.env; set +a
+    export NODE_ENV=development HTTP_PORT=3005 MCP_TRANSPORT=dual-http \
+        LIBRARY_STORAGE_DIR="$state/store" ETL_OUTPUT_DIR="$state/etl-output" \
+        OXIGRAPH_STORAGE_DIR="$state/oxigraph" SQLIB_AUTH_STORE_DIR="$state/auth" \
+        SQLIB_DEMO_PEOPLE="$root/demo/people.json" SQLIB_AUTH_SEED_GRANTS="$root/demo/grants.ttl"
+    pnpm --filter @sparql-query-lib/api exec tsx ../mcp-server/src/cli.ts &
+    api_pid=$!
+    NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
+        pnpm --filter @sparql-query-lib/web exec nuxt dev --port 3001 --strictPort &
+    web_pid=$!
+    trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
+    echo
+    echo "The sqlib demo is starting. Web UI: http://localhost:3001"
+    echo "  API: http://localhost:3005  MCP: http://localhost:3005/mcp"
+    echo
+    if (( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 403 )); then wait -n "$api_pid" "$web_pid"; else wait "$api_pid" "$web_pid"; fi
+
+# Delete the demo store, so the next `just demo` seeds it again
+[group('demos')]
+clean-demo:
+    rm -rf tmp/demo
+
+# Dockerfile.demo seeds the store at image build, on top of sparql-query-lib:TAG
+# from `just build-docker`. The image is the API only; run the web UI with
+# `just run-frontend http://localhost:PORT`.
+#
+# Build the demo API image, tagged sqlib-demo:TAG
+[group('demos')]
+build-demo-docker TAG="latest":
+    docker build --network=host --build-arg SQLIB_IMAGE=sparql-query-lib:{{TAG}} -f Dockerfile.demo -t sqlib-demo:{{TAG}} .
+
+# Run the demo API image on :PORT
+[group('demos')]
+run-demo-docker TAG="latest" PORT="3005":
+    docker run -it --rm -p 127.0.0.1:{{PORT}}:3000 \
+        -e SQLIB_CORS_ORIGINS=http://localhost:3001,http://127.0.0.1:3001 \
+        sqlib-demo:{{TAG}}
+
 # Who may read which graphs, with Rauthy in front (docs/design/auth-architecture.md).
 # Rauthy runs in Docker on :8080; sqlib runs on the host in `required` auth mode,
 # seeded with the "Graph access demo" library. Web UI: http://localhost:3001.

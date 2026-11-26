@@ -1,0 +1,242 @@
+{
+  "head": {
+    "vars": [
+      "dayType",
+      "time",
+      "lineName",
+      "towardsName"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "07:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "07:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "07:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "07:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "08:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "08:05:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "08:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekday"
+        },
+        "time": {
+          "type": "literal",
+          "value": "08:35:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekend"
+        },
+        "time": {
+          "type": "literal",
+          "value": "09:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekend"
+        },
+        "time": {
+          "type": "literal",
+          "value": "09:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekend"
+        },
+        "time": {
+          "type": "literal",
+          "value": "10:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Eastwood"
+        }
+      },
+      {
+        "dayType": {
+          "type": "literal",
+          "value": "Weekend"
+        },
+        "time": {
+          "type": "literal",
+          "value": "10:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Airport"
+        }
+      }
+    ]
+  }
+}

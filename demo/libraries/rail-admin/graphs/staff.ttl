@@ -1,0 +1,6 @@
+@prefix : <https://example.org/rail/> .
+@prefix staff: <https://example.org/rail/staff/> .
+
+staff:alice :review "Exceeds expectations" ; :leaveBalance 4 .
+staff:bob :review "Meets expectations" .
+staff:carol :review "New starter" ; :leaveBalance 12 .

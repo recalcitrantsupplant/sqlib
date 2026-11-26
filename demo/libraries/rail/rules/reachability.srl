@@ -1,0 +1,11 @@
+PREFIX : <https://example.org/rail/>
+
+RULE { ?b :linkedTo ?a . ?a :linkedTo ?b } WHERE { ?a :next ?b }
+
+RULE { ?a :reaches ?b } WHERE { ?a :linkedTo ?b }
+RULE { ?a :reaches ?c } WHERE { ?a :reaches ?b . ?b :linkedTo ?c FILTER(?a != ?c) }
+
+RULE { ?a :reachesStepFree ?b }
+WHERE { ?a :linkedTo ?b . ?a :stepFree true . ?b :stepFree true }
+RULE { ?a :reachesStepFree ?c }
+WHERE { ?a :reachesStepFree ?b . ?b :linkedTo ?c . ?c :stepFree true FILTER(?a != ?c) }

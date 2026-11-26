@@ -1,0 +1,6 @@
+{ "people": [
+  { "id": "alice", "name": "Alice", "groups": ["analysts"] },
+  { "id": "bob", "name": "Bob", "groups": ["hr"] },
+  { "id": "carol", "name": "Carol" },
+  { "id": "dana", "name": "Dana", "groups": ["admins"], "admin": true }
+] }

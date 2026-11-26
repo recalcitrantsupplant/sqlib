@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?role ?basedAt WHERE {
+  VALUES ?authUser { UNDEF }
+  GRAPH <https://example.org/rail/graph/public> {
+    ?person :signsInAs ?authUser ; :name ?name ; :role ?role ; :basedAt ?basedAt .
+  }
+}

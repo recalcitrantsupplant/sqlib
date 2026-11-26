@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?station ?name WHERE {
+  ?station a :Station ;
+           :name ?name .
+}
+ORDER BY ?name
+LIMIT 0001
+OFFSET 0002

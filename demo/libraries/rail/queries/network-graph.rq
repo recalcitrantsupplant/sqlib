@@ -1,0 +1,18 @@
+PREFIX : <https://example.org/rail/>
+
+CONSTRUCT {
+  ?station a :Station ;
+           :name ?name ;
+           :onLine ?line ;
+           :stepFree ?stepFree .
+  ?station :next ?neighbour .
+} WHERE {
+  VALUES ?line { UNDEF }
+  ?station :onLine ?line ;
+           :name ?name ;
+           :stepFree ?stepFree .
+  OPTIONAL {
+    ?station :next ?neighbour .
+    ?neighbour :onLine ?line .
+  }
+}

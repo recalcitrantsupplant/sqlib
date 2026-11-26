@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT DISTINCT ?to WHERE {
+  VALUES ?from { UNDEF }
+  ?from (:next|^:next)+ ?to .
+  FILTER(?to != ?from)
+}
+ORDER BY ?to
