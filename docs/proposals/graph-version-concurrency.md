@@ -2,6 +2,11 @@
 
 Status: proposed, 2026-11-26. Nothing in this note is built.
 
+[query-defined-preconditions.md](query-defined-preconditions.md) proposes the
+general mechanism: a CONSTRUCT result as the precondition, checked in one
+transaction with the update. This note is the pattern that works now on any
+backend that runs one operation atomically.
+
 ## Decision
 
 A stored update guards its own write. It reads an expected token and writes a
