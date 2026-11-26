@@ -160,6 +160,36 @@ transaction.
   fingerprint as `ETag`. `packages/api/src/lib/rdfCanonicalizer.ts` already
   gives the canonical form for the patch `contentHash`.
 
+## Where to implement it
+
+The check and the update must run in one transaction, so the code must run
+where the transaction is.
+
+| Place | Change | Assessment |
+| --- | --- | --- |
+| Fuseki with TDB2 | a Fuseki module that adds one operation to a dataset endpoint. It runs the CONSTRUCT, the hash and the update inside one `Txn.executeWrite`. | No fork. TDB2 has one writer at a time, so the check is exact. Jena has no RDFC-1.1 in its core, I think, so the module needs a library for it. |
+| Oxigraph server | a patch to the HTTP server in `cli`, with `Store::transaction` around both steps | A fork or an upstream pull request. I do not know if two concurrent transactions can both pass the check. A test must show it first. |
+| sqlib, in-process Oxigraph | a sqlib route, with `Store.query` and `Store.update` called with no `await` between them | No new store code. Exact, because JavaScript runs one call at a time. |
+| Browser, to a remote endpoint | none possible | The browser reaches the endpoint over HTTP, as the sqlib server does. It has the same gap between the two requests. |
+| Browser, Oxigraph in WebAssembly | as for in-process Oxigraph | Exact, but the store is local to one page, so there are no other writers to guard against. |
+
+I recommend the Fuseki module first, then the in-process Oxigraph route in
+sqlib.
+
+## Modes
+
+A write runs in one of two modes:
+
+- **Unsafe.** A plain SPARQL Update, as sqlib sends it now. Any backend.
+- **Safe.** The update with a precondition. A request selects it by sending
+  `If-Match` or a fingerprint.
+
+A backend that cannot run the safe mode refuses a safe request with `501`. It
+does not run the update without the check, because the caller would believe
+that a check ran. A backend setting can require the safe mode for every write.
+This stops unguarded writes through sqlib. It cannot stop a writer that goes
+to the store directly.
+
 ## Limits and open questions
 
 - The cost of evaluating and canonicalising a large result again on each write.
