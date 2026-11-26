@@ -13,10 +13,12 @@ moved.
 - The guard and the write are one SPARQL Update request. On a store that runs
   one request as one transaction, nothing can land between the check and the
   write.
-- A guarded update goes through the patch path (`packages/rdf-delta`). sqlib
-  derives the ground patch, then sends one `DELETE`/`INSERT … WHERE` that holds
-  the patch quads and the guard. The text of the caller's update is not
-  rewritten.
+- sqlib injects the guard into the caller's update. A first operation moves the
+  token and writes a receipt. Each operation of the caller gets one guard
+  pattern in its `WHERE` clause. Query authors write no guard code.
+- When the text does not name the graphs it writes (`GRAPH ?g` in a template),
+  sqlib uses the patch path (`packages/rdf-delta`) instead. "The patch path"
+  describes it.
 - The token is a fresh opaque value for each write. A counter cannot tell a
   writer whether its own write landed (see "Read the outcome back").
 - The unit of conflict is the named graph. Data with one record in each graph
@@ -36,8 +38,8 @@ sequenceDiagram
   S->>B: SELECT token of g, then CONSTRUCT g
   S-->>C: content, ETag "t1"
   C->>S: update, If-Match "t1"
-  S->>B: CONSTRUCTs: derive patch P
-  S->>B: DELETE {token t1, P-} INSERT {token t2, receipt t2, P+} WHERE {token t1}
+  S->>B: op 1: DELETE {token t1} INSERT {token t2, receipt t2} WHERE {token t1}
+  S->>B: op 2: the caller's DELETE/INSERT, WHERE {... token t2}
   S->>B: ASK receipt t2
   alt receipt found
     S-->>C: 200, ETag "t2"
@@ -116,19 +118,93 @@ with a policy that hides one graph.
 
 1. Take the expected tokens from the request: `If-Match` for one graph, or a
    body field `expectedVersions` (a map from graph IRI to token) for more.
-2. Derive the patch of the update with `derivePatch`, as `previewUpdate` does.
-   The patch lists the graphs it writes (`graphScope`).
-3. Refuse with `428` when the patch writes a graph that has no expected token.
+2. Find the graphs that the update writes, from the parsed text: each
+   `GRAPH <g>` in a template, `WITH <g>`, and the graph of each quad in
+   `INSERT DATA` and `DELETE DATA`. A template that writes the default graph
+   with no `WITH` writes the default graph, which has no token.
+3. Use the patch path when a template has `GRAPH ?g` with a variable. The text
+   then does not say which graphs it writes.
+4. Refuse with `428` when the update writes a graph that has no expected token.
    A guard that covers only some written graphs gives a false promise.
-4. Mint one new token for the request.
-5. Send one update to the backend (below).
-6. Read the outcome back (below).
-7. Store the `Patch` entity, and publish a `data-changed` frame that names each
-   graph and its new token.
+5. Mint one new token for the request.
+6. Send the rewritten update to the backend (below), as one request.
+7. Read the outcome back (below).
+8. Publish a `data-changed` frame that names each graph and its new token.
 
 ### The update text
 
-For expected tokens `t1` on graph `g`, new token `t2`, and patch `P`:
+For expected token `t1` on graph `g` and new token `t2`, sqlib puts one
+operation in front of the caller's operations:
+
+```sparql
+DELETE { GRAPH <urn:sqlib:graph-versions> { <g> sqlib:version "t1" } }
+INSERT {
+  GRAPH <urn:sqlib:graph-versions> {
+    <g> sqlib:version "t2" .
+    <urn:sqlib:rev:t2> a sqlib:Revision ; sqlib:revisionOf <g> ; sqlib:previous "t1" .
+  }
+}
+WHERE { GRAPH <urn:sqlib:graph-versions> { <g> sqlib:version "t1" } } ;
+```
+
+Then sqlib adds the pattern `GRAPH <urn:sqlib:graph-versions> { <g>
+sqlib:version "t2" }` to the `WHERE` clause of each operation of the caller.
+For several graphs, each part holds one pattern for each graph.
+
+```sparql
+DELETE { GRAPH <g> { ?s ex:status "draft" } }
+INSERT { GRAPH <g> { ?s ex:status "live" } }
+WHERE {
+  GRAPH <g> { ?s ex:status "draft" }
+  GRAPH <urn:sqlib:graph-versions> { <g> sqlib:version "t2" }
+}
+```
+
+The guard pattern shares no variable with the caller's pattern, so it joins
+as one row or as none. `t2` is unique to this request. A caller's operation
+therefore finds a solution only when the first operation ran.
+
+The bump is a separate operation for this reason. A bump in the caller's
+templates is instantiated once for each solution of the caller's `WHERE`. A
+`WHERE` with no solution would then leave the token and the receipt
+unwritten, and the read-back would report `412` for a token that was current.
+With the separate operation, an update that matches nothing still moves the
+token. Other holders of `t1` then get a `412` for a write that changed no
+triple. I accept this cost, because the alternative gives a wrong answer.
+
+Each update form needs this treatment:
+
+| Form | Rewrite |
+| --- | --- |
+| `DELETE`/`INSERT … WHERE`, `DELETE WHERE` | add the guard pattern to `WHERE`. `DELETE WHERE { P }` becomes `DELETE { P } WHERE { P guard }`. |
+| `INSERT DATA { Q }`, `DELETE DATA { Q }` | becomes `INSERT { Q } WHERE { guard }` or `DELETE { Q } WHERE { guard }` |
+| `USING NAMED`, or `using-named-graph-uri` in the request | add `urn:sqlib:graph-versions` to the named graphs, or the guard pattern matches nothing |
+| `USING` with no `USING NAMED` | add `USING NAMED <urn:sqlib:graph-versions>`. A `USING` clause empties the named graphs of the dataset. |
+| `CLEAR`, `DROP`, `LOAD`, `CREATE`, `ADD`, `MOVE`, `COPY` | refuse with `422`. These forms have no `WHERE` clause. |
+
+The rewrite needs one property from the store: all operations of one request
+apply together or not at all. "Backend behaviour" gives the evidence for each
+backend.
+
+### Options considered
+
+- **Authors write the guard.** A stored update could carry the check itself,
+  as a `refusals` flag such as `?ok_current` on an expected-token parameter
+  ([publishing-tools.md](../guides/publishing-tools.md#refusals-why-an-update-wrote-nothing)).
+  sqlib still has to mint the token, write the receipt and read back. The guard
+  is sound only when every write to the graph moves the token. One stored update
+  without the check breaks the guard for every caller. sqlib would have to
+  refuse such updates, which is the same parse that the injection needs.
+- **Always use the patch path.** It costs two or more read queries for each
+  write (see below). It handles `GRAPH ?g` templates, which the injection
+  cannot.
+
+### The patch path
+
+sqlib derives the ground patch `P` of the update with `derivePatch`, as
+`previewUpdate` does. The patch lists the graphs that it writes
+(`graphScope`). sqlib then sends one operation that holds the patch quads and
+the guard:
 
 ```sparql
 DELETE {
@@ -147,36 +223,27 @@ WHERE {
 }
 ```
 
-For several graphs, the `WHERE` clause holds one pattern for each graph. The
-`WHERE` clause has one solution when every token holds, and none otherwise. With
-no solution, the update writes nothing.
-
-This shape has these properties:
-
-- It is one operation. The question of whether a store runs several operations
-  of one request atomically does not arise.
-- It works for every update form that `derivePatch` supports, including
-  `INSERT DATA`, `DELETE WHERE` and a program of several operations. sqlib
-  does not have to add a guard to each operation of the caller's text.
+- The `WHERE` clause has one solution when every token holds, and none
+  otherwise. It is one operation, so it needs no multi-operation atomicity.
 - A patch with blank nodes in its deletions cannot be sent as SPARQL.
-  `applyDelta` already refuses it with `422` for an HTTP backend. The guard
-  keeps that refusal.
+  `applyDelta` already refuses it with `422` for an HTTP backend.
 - A patch with an unenumerated graph operation (`CLEAR`, `DROP`, `LOAD`) gives
   `422`, as `applyDelta` does now. With `enumerateGraphOps` it becomes quads and
   can be guarded.
+- `POST /patches/:id/apply` uses this path. The guard replaces the hash
+  re-check there for the written graphs.
 
-### Derivation and the guard
+The derivation reads the store before the guarded write. A write to `g`
+between the two moves the token, and the guard fails.
 
-The derivation reads the store before the guarded write. The token makes this
-safe for the written graphs. A write to `g` between the derivation and the
-guarded update moves the token, and the guard fails.
+### Graphs that the update reads
 
 The update can also read graphs that it does not write. A `WHERE` clause can
-copy values from graph `h` into graph `g`. A change to `h` after the derivation
-does not fail a guard on `g`. A caller that depends on `h` adds `h` to
-`expectedVersions`. sqlib could add every graph in the update dataset by
-default. I recommend the explicit form, because a default guard on a large
-reference graph would refuse most writes.
+copy values from graph `h` into graph `g`. A change to `h` does not fail a guard
+on `g`. A caller that depends on `h` adds `h` to `expectedVersions`. sqlib then
+checks the token of `h` and does not move it. sqlib could add every graph in the
+update dataset by default. I recommend the explicit form, because a default
+guard on a large reference graph would refuse most writes.
 
 ### Read the outcome back
 
@@ -211,7 +278,7 @@ between.
 | `POST /sparql` with a `backendId` | `If-Match` header, or `expectedVersions` in the body |
 | `POST /execute` on an update | the same |
 | `POST /tools/{slug}/{name}` | the same |
-| `POST /patches/:id/apply` | the same. The guard replaces the hash re-check for the written graphs. |
+| `POST /patches/:id/apply` | the same, on the patch path |
 | MCP tools that run an update | an `expectedVersions` argument |
 
 A request without expected tokens behaves as it does now. It still bumps the
@@ -330,6 +397,11 @@ Test with Oxigraph 0.5.13 in Node, in one store:
   held 0 triples after it. The first operation was rolled back.
 - Two guarded updates that both expected token `"v1"` ran one after the other.
   The store held the token and the triple of the first writer only.
+- The injected shape, two requests that both expected `"t1"`, one after the
+  other: the first left receipt `tA` and changed the triple. The second left no
+  receipt and changed nothing.
+- The injected shape, with a caller operation that matched nothing: the
+  receipt was written, so the read-back reports success.
 
 Before sqlib enables the guard for a backend type, a conformance test must run
 it. The test starts N concurrent guarded writes with the same expected token,
@@ -348,9 +420,9 @@ for it. Until a backend type passes, sqlib refuses `If-Match` on it with `400`.
   the quads that a patch deletes, and sqlib can keep that check as a second
   guard.
 - **Coarse unit.** See "The unit of conflict".
-- **Cost.** A guarded write adds the derivation queries, one update and one
-  `ASK`. The derivation already runs for `?record=patch` and for a patch
-  preview, so the extra cost is the `ASK`.
+- **Cost.** An injected guard adds one operation to the request and one `ASK`.
+  The patch path adds the derivation queries too. The derivation already runs
+  for `?record=patch` and for a patch preview.
 - **Read-only backends.** An `oxigraphMemory` backend in `readOnly` mode has no
   writes. Its token can be the data graph version it was built from.
 
@@ -368,7 +440,7 @@ These need an answer from the maintainer:
 
 ## Phases
 
-1. Per-graph tokens, the guarded write, and the read-back on in-process Oxigraph
+1. Per-graph tokens, the injected guard, the patch path, and the read-back on in-process Oxigraph
    and Fuseki. The conformance test. The `graph-versions` route with `304`.
 2. Tokens in the `data-changed` frame, and the client merge of unsaved edits in
    the web app.
