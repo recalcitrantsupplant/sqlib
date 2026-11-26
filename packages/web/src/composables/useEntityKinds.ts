@@ -97,8 +97,14 @@ export function useEntityKinds() {
   return { entitiesOfKind, loadKind };
 }
 
-/** `isPartOf` is an array on most entities and a bare string on query groups. */
-export function isInLibrary(entity: { isPartOf?: string | string[] | null }, libraryId: string): boolean {
-  const value = entity.isPartOf;
+/**
+ * `isPartOf` is an array on most entities and a bare string on query groups.
+ * An argument set summary names its library as `libraryId` and has no `isPartOf`.
+ */
+export function isInLibrary(
+  entity: { isPartOf?: string | string[] | null; libraryId?: string | null },
+  libraryId: string,
+): boolean {
+  const value = entity.isPartOf ?? entity.libraryId;
   return Array.isArray(value) ? value.includes(libraryId) : value === libraryId;
 }

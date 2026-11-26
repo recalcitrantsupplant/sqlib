@@ -260,6 +260,7 @@ import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useBackendProbes, type BackendHealth } from '../composables/useBackendProbes';
 import { useTestsStore } from '../composables/useTestsStore';
 import { isInLibrary } from '../composables/useEntityKinds';
+import { useApiClient } from '@/composables/useApiClient';
 import type { ListSection } from '../lib/sections';
 
 const emit = defineEmits<{
@@ -331,16 +332,34 @@ const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis
   benchmarks: 'evidence',
 };
 
+/*
+ * Notebooks are saved entities, but not a list section, so the inventory does
+ * not count them. A failed list leaves the card without a number.
+ */
+const apiClient = useApiClient();
+const notebookCount = ref<number | null>(null);
+
+async function loadNotebookCount() {
+  const library = activeLibraryId.value;
+  if (!library || !isEnabled('notebook')) {
+    notebookCount.value = null;
+    return;
+  }
+  try {
+    const notebooks = await apiClient.listNotebooks({ library });
+    if (activeLibraryId.value === library) notebookCount.value = notebooks.length;
+  } catch {
+    notebookCount.value = null;
+  }
+}
+
+watch(activeLibraryId, () => { void loadNotebookCount(); });
+
 const cards = computed(() =>
   CARD_ORDER.map((section) => {
     const entry = RAIL_ENTRIES.find((candidate) => candidate.section === section)!;
     const enabled = entry.feature === null || isEnabled(entry.feature);
-    /*
-     * The Notebook has no count of its own: notebooks are drafts held in this
-     * browser, not entities the library stores, so a number under it would
-     * count something other than what every other card counts.
-     */
-    const count = counts.value[section] ?? null;
+    const count = section === 'notebooks' ? notebookCount.value : counts.value[section] ?? null;
     return {
       section,
       label: entry.label,
@@ -502,6 +521,7 @@ onMounted(() => {
   void ensureLoaded();
   void ensureDeploymentMode();
   void loadInventory();
+  void loadNotebookCount();
   void loadProbes();
   if (backendsStore.backends.value.length === 0) void backendsStore.loadBackends();
 });

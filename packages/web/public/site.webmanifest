@@ -1,6 +1,6 @@
 {
-  "name": "SPARQL Query Library",
-  "short_name": "sparql-query-lib",
+  "name": "sqlib",
+  "short_name": "sqlib",
   "icons": [
     {
       "src": "./favicon.svg",

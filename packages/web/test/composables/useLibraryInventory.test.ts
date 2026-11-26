@@ -95,6 +95,19 @@ describe('useLibraryInventory', () => {
     expect(totalItems.value).toBe(2);
   });
 
+  it('counts argument sets, which name their library as libraryId', async () => {
+    kinds({
+      argumentSet: [
+        entity({ id: 'urn:sqlib:argument-set:a', isPartOf: undefined, libraryId: LIBRARY }),
+        entity({ id: 'urn:sqlib:argument-set:b', isPartOf: undefined, libraryId: OTHER }),
+      ],
+    });
+
+    const { counts } = await inventory();
+
+    expect(counts.value.argumentSets).toBe(1);
+  });
+
   it('counts backends account-wide, and leaves them out of the library total', async () => {
     backends.value = [{ id: 'urn:sqlib:backend:a' }, { id: 'urn:sqlib:backend:b' }];
     kinds({ query: [entity()] });

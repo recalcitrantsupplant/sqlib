@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   getLibrary: vi.fn(),
   updateLibrary: vi.fn(),
   listBackends: vi.fn(),
+  listNotebooks: vi.fn(),
 }));
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -98,6 +99,7 @@ describe('AppSplash default backend', () => {
     vi.clearAllMocks();
     resetDeploymentMode();
     api.listBackends.mockResolvedValue(BACKENDS);
+    api.listNotebooks.mockResolvedValue([]);
     api.updateLibrary.mockImplementation(async (id: string, input: Record<string, unknown>) => ({
       data: { id, ...input },
       etag: '"l2"',
@@ -109,6 +111,15 @@ describe('AppSplash default backend', () => {
     wrapper = null;
     await tick();
     resetDeploymentMode();
+  });
+
+  it('counts the library\'s saved notebooks on the Notebook card', async () => {
+    api.listNotebooks.mockResolvedValue([{ id: 'n:1' }, { id: 'n:2' }, { id: 'n:3' }]);
+    const splash = await mountSplash(null);
+
+    expect(api.listNotebooks).toHaveBeenCalledWith({ library: 'lib:qa' });
+    const card = splash.findComponent('[data-testid="splash-section-notebooks"]');
+    expect(card.props('count')).toBe(3);
   });
 
   it('shows the current default in the picker, without the in-memory store as an option', async () => {
