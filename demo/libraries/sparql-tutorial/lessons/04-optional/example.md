@@ -1,0 +1,1 @@
+Every station, with the stop after it where there is one. Southbank has no stop after it, so its `?afterName` is empty. Move the `:next` pattern out of the `OPTIONAL` and run it again: Southbank is not in the result.

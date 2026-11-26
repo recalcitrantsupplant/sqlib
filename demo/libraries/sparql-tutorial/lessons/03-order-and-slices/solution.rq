@@ -1,0 +1,10 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?opened WHERE {
+  ?line a :Line ;
+        :name ?name ;
+        :opened ?opened .
+}
+ORDER BY ?opened
+OFFSET 1
+LIMIT 2

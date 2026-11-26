@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?lineName (COUNT(?station) AS ?stations) WHERE {
+  ?station :onLine ?line .
+  ?line :name ?lineName .
+}
+GROUP BY ?lineName
+ORDER BY ?lineName

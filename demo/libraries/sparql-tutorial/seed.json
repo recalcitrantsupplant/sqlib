@@ -1,0 +1,554 @@
+{
+  "library": {
+    "id": "urn:sqlib:library:sparql-tutorial",
+    "name": "Learn SPARQL",
+    "author": "alice",
+    "descriptionFile": "library.md",
+    "defaultBackend": "urn:sqlib:backend:rail-store"
+  },
+  "tags": [
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-01",
+      "name": "1. Triple patterns",
+      "descriptionFile": "lessons/01-triple-patterns/lesson.md",
+      "color": "#2563eb"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-02",
+      "name": "2. Filters",
+      "descriptionFile": "lessons/02-filters/lesson.md",
+      "color": "#0891b2"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-03",
+      "name": "3. Order, DISTINCT, LIMIT and OFFSET",
+      "descriptionFile": "lessons/03-order-and-slices/lesson.md",
+      "color": "#059669"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-04",
+      "name": "4. OPTIONAL",
+      "descriptionFile": "lessons/04-optional/lesson.md",
+      "color": "#65a30d"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-05",
+      "name": "5. UNION and negation",
+      "descriptionFile": "lessons/05-union-and-negation/lesson.md",
+      "color": "#ca8a04"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-06",
+      "name": "6. BIND and VALUES",
+      "descriptionFile": "lessons/06-bind-and-values/lesson.md",
+      "color": "#ea580c"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-07",
+      "name": "7. Aggregates",
+      "descriptionFile": "lessons/07-aggregates/lesson.md",
+      "color": "#dc2626"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-08",
+      "name": "8. Property paths",
+      "descriptionFile": "lessons/08-property-paths/lesson.md",
+      "color": "#db2777"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-09",
+      "name": "9. Named graphs",
+      "descriptionFile": "lessons/09-named-graphs/lesson.md",
+      "color": "#9333ea"
+    },
+    {
+      "id": "urn:sqlib:tag:sparql-tutorial-10",
+      "name": "10. ASK, CONSTRUCT and DESCRIBE",
+      "descriptionFile": "lessons/10-query-forms/lesson.md",
+      "color": "#0d9488"
+    }
+  ],
+  "queries": [
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-01-1",
+      "name": "1.1 Every station",
+      "descriptionFile": "lessons/01-triple-patterns/example.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-01"
+      ],
+      "file": "lessons/01-triple-patterns/example.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-01-exercise",
+      "name": "1.2 Lines and their colours",
+      "descriptionFile": "lessons/01-triple-patterns/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-01"
+      ],
+      "starterFile": "lessons/01-triple-patterns/starter.rq",
+      "file": "lessons/01-triple-patterns/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-02-1",
+      "name": "2.1 Step-free stations in zone 1",
+      "descriptionFile": "lessons/02-filters/example-1.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-02"
+      ],
+      "file": "lessons/02-filters/example-1.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-02-2",
+      "name": "2.2 Names that contain a word",
+      "descriptionFile": "lessons/02-filters/example-2.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-02"
+      ],
+      "file": "lessons/02-filters/example-2.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-02-exercise",
+      "name": "2.3 Old stations without step-free access",
+      "descriptionFile": "lessons/02-filters/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-02"
+      ],
+      "starterFile": "lessons/02-filters/starter.rq",
+      "file": "lessons/02-filters/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-03-1",
+      "name": "3.1 The five newest stations",
+      "descriptionFile": "lessons/03-order-and-slices/example-1.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-03"
+      ],
+      "file": "lessons/03-order-and-slices/example-1.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-03-2",
+      "name": "3.2 Zones on the Green line",
+      "descriptionFile": "lessons/03-order-and-slices/example-2.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-03"
+      ],
+      "file": "lessons/03-order-and-slices/example-2.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-03-exercise",
+      "name": "3.3 The second and third oldest lines",
+      "descriptionFile": "lessons/03-order-and-slices/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-03"
+      ],
+      "starterFile": "lessons/03-order-and-slices/starter.rq",
+      "file": "lessons/03-order-and-slices/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-04-1",
+      "name": "4.1 Each station and the stop after it",
+      "descriptionFile": "lessons/04-optional/example.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-04"
+      ],
+      "file": "lessons/04-optional/example.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-04-exercise",
+      "name": "4.2 Stations with no stop after them",
+      "descriptionFile": "lessons/04-optional/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-04"
+      ],
+      "starterFile": "lessons/04-optional/starter.rq",
+      "file": "lessons/04-optional/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-05-1",
+      "name": "5.1 Every station and every line",
+      "descriptionFile": "lessons/05-union-and-negation/example-1.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-05"
+      ],
+      "file": "lessons/05-union-and-negation/example-1.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-05-2",
+      "name": "5.2 Stations off the Red line",
+      "descriptionFile": "lessons/05-union-and-negation/example-2.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-05"
+      ],
+      "file": "lessons/05-union-and-negation/example-2.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-05-exercise",
+      "name": "5.3 Stations on one line only",
+      "descriptionFile": "lessons/05-union-and-negation/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-05"
+      ],
+      "starterFile": "lessons/05-union-and-negation/starter.rq",
+      "file": "lessons/05-union-and-negation/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-06-1",
+      "name": "6.1 A label for each station",
+      "descriptionFile": "lessons/06-bind-and-values/example-1.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-06"
+      ],
+      "file": "lessons/06-bind-and-values/example-1.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-06-2",
+      "name": "6.2 Only the stations you list",
+      "descriptionFile": "lessons/06-bind-and-values/example-2.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-06"
+      ],
+      "file": "lessons/06-bind-and-values/example-2.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-06-exercise",
+      "name": "6.3 Inner and outer stations",
+      "descriptionFile": "lessons/06-bind-and-values/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-06"
+      ],
+      "starterFile": "lessons/06-bind-and-values/starter.rq",
+      "file": "lessons/06-bind-and-values/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-07-1",
+      "name": "7.1 Stations per line",
+      "descriptionFile": "lessons/07-aggregates/example.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-07"
+      ],
+      "file": "lessons/07-aggregates/example.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-07-exercise",
+      "name": "7.2 Interchanges",
+      "descriptionFile": "lessons/07-aggregates/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-07"
+      ],
+      "starterFile": "lessons/07-aggregates/starter.rq",
+      "file": "lessons/07-aggregates/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-08-1",
+      "name": "8.1 Stations after Central",
+      "descriptionFile": "lessons/08-property-paths/example-1.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-08"
+      ],
+      "file": "lessons/08-property-paths/example-1.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-08-2",
+      "name": "8.2 The stops of the Red line",
+      "descriptionFile": "lessons/08-property-paths/example-2.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-08"
+      ],
+      "file": "lessons/08-property-paths/example-2.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-08-exercise",
+      "name": "8.3 Everywhere from Southbank",
+      "descriptionFile": "lessons/08-property-paths/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-08"
+      ],
+      "starterFile": "lessons/08-property-paths/starter.rq",
+      "file": "lessons/08-property-paths/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-09-1",
+      "name": "9.1 Departures in each timetable",
+      "descriptionFile": "lessons/09-named-graphs/example.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-09"
+      ],
+      "file": "lessons/09-named-graphs/example.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-09-exercise",
+      "name": "9.2 Weekend departures from Central",
+      "descriptionFile": "lessons/09-named-graphs/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-09"
+      ],
+      "starterFile": "lessons/09-named-graphs/starter.rq",
+      "file": "lessons/09-named-graphs/solution.rq",
+      "comment": "Solution."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-10-1",
+      "name": "10.1 Is Museum step-free?",
+      "descriptionFile": "lessons/10-query-forms/example-1.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-10"
+      ],
+      "file": "lessons/10-query-forms/example-1.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-10-2",
+      "name": "10.2 Neighbours as a graph",
+      "descriptionFile": "lessons/10-query-forms/example-2.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-10"
+      ],
+      "file": "lessons/10-query-forms/example-2.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-10-3",
+      "name": "10.3 Describe Central",
+      "descriptionFile": "lessons/10-query-forms/example-3.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-10"
+      ],
+      "file": "lessons/10-query-forms/example-3.rq",
+      "comment": "Worked example."
+    },
+    {
+      "id": "urn:sqlib:query:sparql-tutorial-10-exercise",
+      "name": "10.4 Lines that serve each station",
+      "descriptionFile": "lessons/10-query-forms/exercise.md",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-10"
+      ],
+      "starterFile": "lessons/10-query-forms/starter.rq",
+      "file": "lessons/10-query-forms/solution.rq",
+      "comment": "Solution."
+    }
+  ],
+  "tests": [
+    {
+      "key": "01-triple-patterns-exercise",
+      "name": "1.2 Lines and their colours",
+      "descriptionFile": "lessons/01-triple-patterns/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-01-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-01"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/01-triple-patterns/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "02-filters-exercise",
+      "name": "2.3 Old stations without step-free access",
+      "descriptionFile": "lessons/02-filters/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-02-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-02"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/02-filters/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "03-order-and-slices-exercise",
+      "name": "3.3 The second and third oldest lines",
+      "descriptionFile": "lessons/03-order-and-slices/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-03-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-03"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/03-order-and-slices/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": true
+        }
+      ]
+    },
+    {
+      "key": "04-optional-exercise",
+      "name": "4.2 Stations with no stop after them",
+      "descriptionFile": "lessons/04-optional/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-04-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-04"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/04-optional/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "05-union-and-negation-exercise",
+      "name": "5.3 Stations on one line only",
+      "descriptionFile": "lessons/05-union-and-negation/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-05-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-05"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/05-union-and-negation/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "06-bind-and-values-exercise",
+      "name": "6.3 Inner and outer stations",
+      "descriptionFile": "lessons/06-bind-and-values/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-06-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-06"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/06-bind-and-values/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "07-aggregates-exercise",
+      "name": "7.2 Interchanges",
+      "descriptionFile": "lessons/07-aggregates/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-07-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-07"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/07-aggregates/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "08-property-paths-exercise",
+      "name": "8.3 Everywhere from Southbank",
+      "descriptionFile": "lessons/08-property-paths/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-08-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-08"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/08-property-paths/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "09-named-graphs-exercise",
+      "name": "9.2 Weekend departures from Central",
+      "descriptionFile": "lessons/09-named-graphs/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-09-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-09"
+      ],
+      "expectationKind": "bindings",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/09-named-graphs/expected.srj",
+          "expectedFormat": "application/sparql-results+json",
+          "ordered": false
+        }
+      ]
+    },
+    {
+      "key": "10-query-forms-exercise",
+      "name": "10.4 Lines that serve each station",
+      "descriptionFile": "lessons/10-query-forms/exercise.md",
+      "subject": "urn:sqlib:query:sparql-tutorial-10-exercise",
+      "subjectKind": "query",
+      "tags": [
+        "urn:sqlib:tag:sparql-tutorial-10"
+      ],
+      "expectationKind": "graph",
+      "backend": "urn:sqlib:backend:rail-store",
+      "cases": [
+        {
+          "name": "Rail store",
+          "expectedFile": "lessons/10-query-forms/expected.nt",
+          "expectedFormat": "application/n-triples"
+        }
+      ]
+    }
+  ]
+}

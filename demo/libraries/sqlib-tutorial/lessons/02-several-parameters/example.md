@@ -1,0 +1,1 @@
+Which lines go straight from one station to another. `(?from ?to)` is one parameter, and `?before` is a second one that limits the lines by their opening year. Run it with *Airport to Central, lines before 1950*. Then run it with no arguments: every pair of stations on a shared line.

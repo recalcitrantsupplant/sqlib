@@ -118,7 +118,7 @@ done
 
 # Rail's access queries run on a backend that Rail operations administrators
 # declares, so that library comes first.
-for name in rail-admin rail; do
+for name in rail-admin rail sparql-tutorial sqlib-tutorial; do
   node "${demo_dir}/scripts/seed-library.mjs" \
     --api "http://127.0.0.1:${port}" \
     --library "${demo_dir}/libraries/${name}" \

@@ -1,0 +1,112 @@
+{
+  "head": {
+    "vars": [
+      "name",
+      "lineName"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Airport"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Harbour"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Southbank"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Westfield"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "University"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Eastwood"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Riverside"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Green line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Docklands"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Green line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Stadium"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Yellow line"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Lakeside"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Green line"
+        }
+      }
+    ]
+  }
+}

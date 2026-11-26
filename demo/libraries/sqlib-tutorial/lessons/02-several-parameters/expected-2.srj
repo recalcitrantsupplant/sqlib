@@ -1,0 +1,188 @@
+{
+  "head": {
+    "vars": [
+      "time",
+      "towardsName"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "06:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "07:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "08:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:00:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Lakeside"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:30:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "towardsName": {
+          "type": "literal",
+          "value": "Stadium"
+        }
+      }
+    ]
+  }
+}

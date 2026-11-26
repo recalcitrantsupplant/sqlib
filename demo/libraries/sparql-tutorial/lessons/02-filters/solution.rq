@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?opened WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :opened ?opened ;
+           :stepFree ?stepFree .
+  FILTER(?opened < 1930 && !?stepFree)
+}

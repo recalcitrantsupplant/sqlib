@@ -1001,9 +1001,9 @@ export const tools: ToolDefinition[] = [
   // numbered tags; see docs/guides/mcp-app.md.
   defineTool({
     name: 'app.tutorial.open',
-    title: 'Open a rules tutorial',
+    title: 'Open a tutorial',
     description:
-      'Open the interactive tutorial for a library laid out as lessons (numbered tags such as "1. Your first rule"): each lesson\'s objectives, worked examples and exercises, with an SRL/SPARQL editor that runs, analyses and checks the user\'s answer. Pass `lesson` (a number or tag id) to open on one. Use it when the user wants to learn SPARQL rules (SRL) by doing; it needs a client that renders MCP Apps. The tutorial keeps no progress — you are the tutor, and it tells you when the user runs or checks something.',
+      'Open the interactive tutorial for a library laid out as lessons (numbered tags such as "1. Your first rule"): each lesson\'s objectives, worked examples and exercises, with an SRL/SPARQL editor that runs, analyses and checks the user\'s answer, and runs a query with its saved argument sets and LIMIT/OFFSET values. Pass `lesson` (a number or tag id) to open on one. Use it when the user wants to learn SPARQL, sqlib\'s parameters and argument sets, or SPARQL rules (SRL) by doing; it needs a client that renders MCP Apps. The tutorial keeps no progress — you are the tutor, and it tells you when the user runs or checks something.',
     readOnly: true,
     inputSchema: tutorialOpenArg,
     ui: { resourceUri: VIEW_URI.tutorial },

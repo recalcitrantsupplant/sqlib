@@ -1,0 +1,78 @@
+{
+  "head": {
+    "vars": [
+      "name",
+      "lines"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Parkside"
+        },
+        "lines": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Northgate"
+        },
+        "lines": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Hillcrest"
+        },
+        "lines": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Central"
+        },
+        "lines": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Market Street"
+        },
+        "lines": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Museum"
+        },
+        "lines": {
+          "type": "literal",
+          "value": "2",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      }
+    ]
+  }
+}

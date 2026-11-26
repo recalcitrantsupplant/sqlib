@@ -1,0 +1,56 @@
+{
+  "head": {
+    "vars": [
+      "time",
+      "lineName"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "09:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "10:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Red line"
+        }
+      },
+      {
+        "time": {
+          "type": "literal",
+          "value": "10:10:00",
+          "datatype": "http://www.w3.org/2001/XMLSchema#time"
+        },
+        "lineName": {
+          "type": "literal",
+          "value": "Blue line"
+        }
+      }
+    ]
+  }
+}

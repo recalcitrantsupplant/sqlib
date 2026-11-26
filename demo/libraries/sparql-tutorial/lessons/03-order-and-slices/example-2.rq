@@ -1,0 +1,7 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT DISTINCT ?zone WHERE {
+  ?station :onLine :green ;
+           :zone ?zone .
+}
+ORDER BY ?zone

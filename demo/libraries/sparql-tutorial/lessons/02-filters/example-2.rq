@@ -1,0 +1,7 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name WHERE {
+  ?station a :Station ;
+           :name ?name .
+  FILTER(CONTAINS(?name, "side"))
+}

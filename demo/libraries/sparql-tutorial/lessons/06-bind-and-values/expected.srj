@@ -1,0 +1,172 @@
+{
+  "head": {
+    "vars": [
+      "name",
+      "area"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Airport"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Northgate"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Central"
+        },
+        "area": {
+          "type": "literal",
+          "value": "inner"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Market Street"
+        },
+        "area": {
+          "type": "literal",
+          "value": "inner"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Harbour"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Southbank"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Westfield"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Parkside"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Museum"
+        },
+        "area": {
+          "type": "literal",
+          "value": "inner"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "University"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Eastwood"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Hillcrest"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Riverside"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Docklands"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Stadium"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      },
+      {
+        "name": {
+          "type": "literal",
+          "value": "Lakeside"
+        },
+        "area": {
+          "type": "literal",
+          "value": "outer"
+        }
+      }
+    ]
+  }
+}

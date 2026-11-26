@@ -1,0 +1,1 @@
+A query with three versions. Version 1 returns the departures from Central. Version 2 adds the line's name. Version 3 makes the station a parameter, so it returns every station's departures until you choose *Central* under **Arguments**. Open each version, and run it.
