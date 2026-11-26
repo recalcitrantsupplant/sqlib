@@ -34,7 +34,7 @@ the only way that a View reads or writes data.
 | --- | --- | --- |
 | `ui://sqlib/bench` | `app.bench.open` | Edits SPARQL, finds its parameters as you type, fills arguments, runs against a backend, saves a version, makes toy data |
 | `ui://sqlib/result` | `execute.run`, `sparql.proxyQuery` | Shows the result as a table, with each RDF term rendered by kind |
-| `ui://sqlib/tutorial` | `app.tutorial.open` | Shows a library as a course: lessons, examples and exercises, in a CodeMirror editor that analyses, runs and checks SRL and SPARQL. See [The rules tutorial](#the-rules-tutorial) |
+| `ui://sqlib/tutorial` | `app.tutorial.open` | Shows a library as a course: lessons, examples and exercises, in a CodeMirror editor that analyses, runs and checks SRL and SPARQL. See [The tutorial](#the-tutorial) |
 
 The model opens the bench with a tool call:
 
@@ -92,18 +92,37 @@ writes a `Query`. Each save writes a `QueryVersion`. Both are ordinary library
 entities, with the usual history, export and immutability. The bench makes no
 new kind of entity. A library exported after a session holds all of its output.
 
-## The rules tutorial
+## The tutorial
 
-`app.tutorial.open` opens a library as a course in SPARQL rules (SRL). Each
-lesson shows its objectives, its worked examples and its exercises. The learner
-edits in a CodeMirror editor, with the SRL, SPARQL and Turtle grammars of the web
-app. As the learner types, the View shows the three answers that the W3C suite
-asks of a document: does it parse, is it well-formed, and does it stratify. It
-also shows the stratum of each rule.
+`app.tutorial.open` opens a library as a course, in SPARQL queries, in SPARQL
+rules (SRL), or in both. Each lesson shows its objectives, its worked examples
+and its exercises. The learner edits in a CodeMirror editor, with the SRL,
+SPARQL and Turtle grammars of the web app.
+
+As the learner types a rule set, the View shows the three answers that the W3C
+suite asks of a document: does it parse, is it well-formed, and does it
+stratify. It also shows the stratum of each rule. As the learner types a query,
+the View shows whether it parses and which parameters it declares.
+
+Under the editor, a query has these controls:
+
+| Control | Shown when | What it does |
+| --- | --- | --- |
+| **Version** | An example has two or more versions | Loads the text of that version |
+| **Arguments** | The query has saved argument sets | Runs with that set (`argumentSetIds`) |
+| **LIMIT 000n**, **OFFSET 000n** | The text declares that parameter | Runs with that value (`limits`, `offsets`). A value that the selected set gives is shown and cannot be changed |
 
 ```json
 { "name": "app_tutorial_open", "arguments": { "libraryId": "urn:sqlib:library:srl-tutorial", "lesson": "3" } }
 ```
+
+The Rail demo (`demo/`, see [demo/README.md](../../demo/README.md)) has two
+courses in queries:
+
+| Library | Lessons |
+| --- | --- |
+| `urn:sqlib:library:sparql-tutorial`, *Learn SPARQL* | Ten lessons on SPARQL 1.1: triple patterns, filters, solution modifiers, `OPTIONAL`, `UNION` and negation, `BIND` and `VALUES`, aggregates, property paths, named graphs, and the query forms |
+| `urn:sqlib:library:sqlib-tutorial`, *SPARQL in sqlib* | Five lessons on what sqlib adds: `VALUES … { UNDEF }` parameters, several parameters, `LIMIT 0001` and `OFFSET 0002` parameters, saved queries and versions, and argument sets |
 
 ### The course is the library
 
@@ -136,9 +155,12 @@ so the View checks it itself, in two steps:
 2. `srl.run` over the data graph version of each case, and a comparison with
    the expectation of the case. For a rule set, the comparison is of the
    inference graph as a set of N-Triples lines, with blank nodes compared by
-   count. For a query, it is of the rows as a set, or in order when the case
-   says `ordered`. The View lists the differences as missing triples and
-   unexpected triples.
+   count. For a query, `sparql.proxyQuery` runs the text on the backend of
+   the test version, or the default backend of the library, with the argument
+   set version of the case. The comparison follows the expectation kind of the
+   test: rows as a set, or in order when the case says `ordered` (`bindings`);
+   true or false (`boolean`); or a set of N-Triples lines (`graph`). The View
+   lists the differences as missing triples and unexpected triples.
 
 The tests of the course stay the authority. CI runs them to show that each
 solution still passes.

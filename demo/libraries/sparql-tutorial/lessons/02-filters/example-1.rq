@@ -1,0 +1,9 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?zone ?stepFree WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :zone ?zone ;
+           :stepFree ?stepFree .
+  FILTER(?zone = 1 && ?stepFree)
+}

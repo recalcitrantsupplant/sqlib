@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+CONSTRUCT {
+  ?line :serves ?station .
+}
+WHERE {
+  ?station :onLine ?line .
+}

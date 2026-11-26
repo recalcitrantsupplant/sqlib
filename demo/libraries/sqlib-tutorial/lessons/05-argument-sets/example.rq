@@ -1,0 +1,16 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?time ?lineName ?towardsName WHERE {
+  VALUES ?station { UNDEF }
+  VALUES ?timetable { UNDEF }
+  GRAPH ?timetable {
+    ?departure :from ?station ;
+               :line ?line ;
+               :towards ?towards ;
+               :time ?time .
+  }
+  ?line :name ?lineName .
+  ?towards :name ?towardsName .
+}
+ORDER BY ?time ?lineName
+LIMIT 0001

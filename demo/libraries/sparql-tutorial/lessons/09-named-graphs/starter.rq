@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?time ?lineName WHERE {
+  ?departure :from :central ;
+             :line ?line ;
+             :time ?time .
+  ?line :name ?lineName .
+}

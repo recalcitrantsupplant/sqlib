@@ -1,0 +1,8 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name ?area WHERE {
+  ?station a :Station ;
+           :name ?name ;
+           :zone ?zone .
+  BIND(IF(?zone = 1, "inner", "outer") AS ?area)
+}

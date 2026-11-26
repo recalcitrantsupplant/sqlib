@@ -1,0 +1,6 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?name WHERE {
+  :southbank :next+ ?station .
+  ?station :name ?name .
+}

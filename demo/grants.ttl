@@ -23,6 +23,17 @@
   auth:onLibrary <urn:sqlib:library:rail> ;
   auth:mode auth:Read, auth:Execute .
 
+# The two SPARQL tutorials. Their queries run on the Rail store.
+<urn:sqlib:grant:visitor-sparql-tutorial> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onLibrary <urn:sqlib:library:sparql-tutorial> ;
+  auth:mode auth:Read, auth:Execute .
+
+<urn:sqlib:grant:visitor-sqlib-tutorial> a auth:Grant ;
+  auth:principal <urn:sqlib:principal:anonymous> ;
+  auth:onLibrary <urn:sqlib:library:sqlib-tutorial> ;
+  auth:mode auth:Read, auth:Execute .
+
 <urn:sqlib:grant:visitor-rail-store> a auth:Grant ;
   auth:principal <urn:sqlib:principal:anonymous> ;
   auth:onBackend <urn:sqlib:backend:rail-store> ;

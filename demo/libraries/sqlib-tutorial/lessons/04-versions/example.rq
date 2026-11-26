@@ -1,0 +1,12 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?time ?lineName WHERE {
+  VALUES ?station { UNDEF }
+  GRAPH <https://example.org/rail/timetable/weekday> {
+    ?departure :from ?station ;
+               :line ?line ;
+               :time ?time .
+  }
+  ?line :name ?lineName .
+}
+ORDER BY ?time ?lineName

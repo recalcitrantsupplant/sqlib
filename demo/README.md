@@ -23,6 +23,38 @@ image starts with it.
 | --- | --- |
 | **Rail network** (`libraries/rail/`) | 16 stations, 4 lines, weekday and weekend timetables, fares. 26 queries with every form of parameter, 5 query groups, a tuple set, 3 rule sets (recursion; `GROUP` and `NOT`; a `DATA` block), 13 tests (one fails on purpose), 4 benchmarks, 2 ETL jobs over CSV rows, 3 environments (prod keeps two queries at version 1), published tools, a map, 3 notebooks |
 | **Rail operations (administrators)** (`libraries/rail-admin/`) | The public, finance and staff graphs, their two backends and the graph policy behind Rail's *access* queries. Only Dana sees this library |
+| **Learn SPARQL** (`libraries/sparql-tutorial/`) | A course of ten lessons on SPARQL 1.1 queries, on the Rail store. Each lesson has worked examples and an exercise, which is a test |
+| **SPARQL in sqlib** (`libraries/sqlib-tutorial/`) | A course of five lessons on what sqlib adds: `VALUES … { UNDEF }` parameters, `LIMIT 0001` and `OFFSET 0002` parameters, saved queries and versions, and argument sets |
+
+## The tutorials
+
+The two courses open in the tutorial MCP App: call `app_tutorial_open` with
+`libraryId` set to `urn:sqlib:library:sparql-tutorial` or
+`urn:sqlib:library:sqlib-tutorial`, from a client that renders MCP Apps. The
+web UI shows the same lessons as tags, the exercises as tests, and each
+solution as the current version of a query.
+
+Each course is built from the files in its directory:
+
+| File | Contents |
+| --- | --- |
+| `library.md` | The course description |
+| `lessons/NN-*/lesson.md` | The objectives of the lesson: the description of its numbered tag |
+| `lessons/NN-*/example*.rq`, `example*.md` | A worked example and its description |
+| `lessons/NN-*/starter.rq`, `solution.rq` | Version 1 and the current version of the exercise query |
+| `lessons/NN-*/expected*.srj`, `expected.nt` | The expected result of each case of the exercise test |
+
+When you change a solution or an argument set, write the expected results
+again, and read the diff. A wrong solution writes a matching wrong expectation.
+
+```sh
+just demo   # in another terminal
+node demo/scripts/tutorial-expected.mjs http://localhost:3005 demo/libraries/sparql-tutorial demo/libraries/sqlib-tutorial
+```
+
+The `demo` CI job fails when an exercise does not pass with its solution.
+
+## Graph access
 
 The graph policy decides which graphs of Rail operations a caller reads. Run
 *Graphs I can read* in Rail as each person:
@@ -49,6 +81,7 @@ library. A visitor who can read a library can open its data graphs.
 | `scripts/seed.sh` | Starts an API with writes open, plays each manifest back and stops the API |
 | `scripts/seed-library.mjs` | Plays one manifest back over the API |
 | `scripts/demo-issuer.mjs` | Makes a token for each person while seeding, so each entity names the person who wrote it |
+| `scripts/tutorial-expected.mjs` | Writes the expected results of the tutorial exercises from their solutions |
 
 The store is built from these files and is not kept in git. A built store is
 about 1.7 MB. The text files are about 250 KB, and a change to a query is a
