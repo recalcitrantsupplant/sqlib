@@ -395,7 +395,7 @@ export default defineNuxtConfig({
   app: {
     baseURL,
     head: {
-      title: 'SPARQL Query Library',
+      title: 'sqlib',
       link: [
         /*
          * The font is otherwise only discovered after the stylesheet has been
