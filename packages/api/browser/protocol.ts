@@ -7,6 +7,8 @@ export interface WorkerInit {
   sqliteWasmUrl?: string;
   /** URL of Oxigraph's web_bg.wasm, when it is not beside the Worker script. */
   oxigraphWasmUrl?: string;
+  /** Directory URL of the duckdb-wasm files. Default: jsDelivr. */
+  duckdbBaseUrl?: string;
   /** Keep the library in OPFS. Default true. */
   persist?: boolean;
   /** Delete the stored library first, so it is seeded again. */

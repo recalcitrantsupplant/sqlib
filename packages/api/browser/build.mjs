@@ -74,7 +74,7 @@ const builtins = {
 /** Packages replaced outright. */
 const packages = {
   undici: shim('undici.mjs'),
-  '@duckdb/node-api': shim('throws.mjs'),
+  '@duckdb/node-api': shim('duckdb-loader.mjs'),
   '@opentelemetry/sdk-node': shim('throws.mjs'),
   '@opentelemetry/instrumentation-http': shim('throws.mjs'),
   '@opentelemetry/instrumentation-undici': shim('throws.mjs'),
@@ -168,7 +168,7 @@ function listFiles(p) {
 }
 
 const result = await esbuild.build({
-  entryPoints: { 'sqlib-api-worker': path.join(here, 'worker.ts') },
+  entryPoints: { 'sqlib-api-worker': path.join(here, 'worker.ts'), 'sqlib-duckdb': shim('duckdb.mjs') },
   outdir,
   bundle: true,
   format: 'esm',

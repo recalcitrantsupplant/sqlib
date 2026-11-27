@@ -10,9 +10,9 @@ const server = await serve(dir);
 const base = `http://127.0.0.1:${server.address().port}/`;
 const browser = await chromium.launch();
 const page = await browser.newPage();
-page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 400)); });
+page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().startsWith('│') ? m.text() : m.text().slice(0, 400)); });
 page.on('pageerror', e => console.log('[pageerror]', e.message));
-await page.goto(base + 'harness.html?persist=false');
+await page.goto(base + 'harness.html?persist=false&name=debug');
 const ready = await page.evaluate(() => window.sqlibReady.then(r => r, e => ({ error: e.message })));
 console.log('ready', JSON.stringify(ready).slice(0, 3000));
 if (!ready.error) {

@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <title>sqlib API worker harness</title>
 <script type="module">
-  const worker = new Worker('./sqlib-api-worker.js', { type: 'module' });
+  const worker = new Worker('./sqlib-api-worker.js', { type: 'module', name: new URLSearchParams(location.search).get('name') ?? 'sqlib-api' });
   let next = 1;
   const pending = new Map();
   let readyResolve, readyReject;
@@ -15,7 +15,7 @@
   };
   worker.onerror = e => readyReject(new Error(e.message));
   const params = new URLSearchParams(location.search);
-  worker.postMessage({ type: 'init', libraryUrl: './library.sqlite', persist: params.get('persist') !== 'false', reset: params.has('reset') });
+  worker.postMessage({ type: 'init', libraryUrl: new URL('./library.sqlite', location.href).href, sqliteWasmUrl: new URL('./sqlite3.wasm', location.href).href, duckdbBaseUrl: params.get('duckdb') ?? undefined, persist: params.get('persist') !== 'false', reset: params.has('reset') });
   window.sqlibCall = (method, url, body, headers = {}) => new Promise(resolve => {
     const id = next++;
     const t0 = performance.now();
