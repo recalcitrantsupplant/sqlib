@@ -58,7 +58,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   }
   try {
     const app = await ready;
-    const res = await app.inject({ method: message.method, url: message.url, headers: message.headers, payload: message.body ?? undefined });
+    // light-my-request sends a Buffer as bytes and serialises any other object as JSON.
+    const payload = message.body instanceof Uint8Array ? Buffer.from(message.body.buffer, message.body.byteOffset, message.body.byteLength) : message.body ?? undefined;
+    const res = await app.inject({ method: message.method, url: message.url, headers: message.headers, payload });
     const headers: Record<string, string> = {};
     for (const [k, v] of Object.entries(res.headers)) if (v !== undefined) headers[k] = Array.isArray(v) ? v.join(', ') : String(v);
     const bytes = res.rawPayload;

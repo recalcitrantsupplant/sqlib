@@ -36,7 +36,7 @@ const builtins = {
   'stream/web': shim('empty.mjs'),
   events: require.resolve('events/'),
   buffer: unenv('buffer'),
-  util: unenv('util'),
+  util: shim('util.mjs'),
   'util/types': unenv('util/types'),
   assert: unenv('assert'),
   'assert/strict': unenv('assert/strict'),
@@ -86,6 +86,12 @@ const packages = {
   pino: shim('pino.cjs'),
 };
 
+/** sqlib modules replaced in the browser build, by the path they are imported as. */
+const modules = {
+  './swagger.js': shim('no-swagger.mjs'),
+  '../assistant/ai-sdk-client.js': shim('no-assistant.mjs'),
+};
+
 const nodeShims = {
   name: 'sqlib-node-shims',
   setup(build) {
@@ -101,6 +107,7 @@ const nodeShims = {
       return undefined;
     });
     build.onResolve({ filter: /.*/ }, args => (packages[args.path] ? { path: packages[args.path] } : undefined));
+    build.onResolve({ filter: /^\.\.?\// }, args => (modules[args.path] && args.importer.includes(`${path.sep}packages${path.sep}api${path.sep}src${path.sep}`) ? { path: modules[args.path] } : undefined));
     // sqlib's own modules derive file paths from import.meta.url. Give each
     // one a file: URL like the server's, and leave dependencies such as
     // Oxigraph and sqlite-wasm their real URL, which they load WASM from.
@@ -147,9 +154,16 @@ function demoEnv() {
     SQLIB_LOG_LEVEL: 'warn',
     LOG_LEVEL: 'warn',
     OTEL_ENABLED: 'false',
+    ...(etlOutput ? { ETL_OUTPUT_DIR: etlOutput.split(path.sep).join('/') } : {}),
   });
   return env;
 }
+
+/**
+ * The ETL output files of the seeded library, at the absolute paths its
+ * recorded runs name: `SQLIB_BROWSER_ETL_OUTPUT=<dir>`.
+ */
+const etlOutput = process.env.SQLIB_BROWSER_ETL_OUTPUT ? path.resolve(process.env.SQLIB_BROWSER_ETL_OUTPUT) : null;
 
 const files = {
   '/opt/sqlib-demo/people.json': readFileSync(path.join(repo, 'demo/people.json'), 'utf8'),
@@ -160,6 +174,10 @@ for (const rel of ['packages/api/package.json', 'packages/api/system-store/asset
   for (const file of listFiles(path.join(repo, rel))) {
     files['/app/' + path.relative(repo, file).split(path.sep).join('/')] = readFileSync(file, 'utf8');
   }
+}
+
+if (etlOutput) {
+  for (const file of listFiles(etlOutput)) files[file.split(path.sep).join('/')] = readFileSync(file, 'utf8');
 }
 
 function listFiles(p) {
@@ -187,6 +205,7 @@ const result = await esbuild.build({
   legalComments: 'none',
 });
 
+if (process.env.SQLIB_BROWSER_META) (await import('node:fs/promises')).writeFile(process.env.SQLIB_BROWSER_META, JSON.stringify(result.metafile));
 const outputs = Object.entries(result.metafile.outputs).filter(([f]) => !f.endsWith('.map'));
 for (const [file, info] of outputs) console.log(`${path.relative(process.cwd(), file)}  ${(info.bytes / 1024).toFixed(0)} KiB`);
 

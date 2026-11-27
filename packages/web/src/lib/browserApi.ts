@@ -57,8 +57,9 @@ export function isBrowserApi(apiBaseUrl: string | undefined | null): boolean {
  *
  * @param assetBase URL of the directory that holds `sqlib-api-worker.js`.
  * @param baseUrl The API base the app will use. Requests under it go to the Worker.
+ * @param options.duckdbBaseUrl Where duckdb-wasm is loaded from on the first ETL run. Default: jsDelivr.
  */
-export function installBrowserApi(assetBase: string, baseUrl: string): BrowserApi {
+export function installBrowserApi(assetBase: string, baseUrl: string, options: { duckdbBaseUrl?: string } = {}): BrowserApi {
   const root = baseUrl.replace(/\/$/, '');
   const nativeFetch = globalThis.fetch.bind(globalThis);
   const pending = new Map<number, Pending>();
@@ -88,6 +89,7 @@ export function installBrowserApi(assetBase: string, baseUrl: string): BrowserAp
       libraryUrl: new URL('library.sqlite', assetBase).href,
       oxigraphWasmUrl: new URL('oxigraph.wasm', assetBase).href,
       sqliteWasmUrl: new URL('sqlite3.wasm', assetBase).href,
+      duckdbBaseUrl: options.duckdbBaseUrl,
       persist: false,
     });
   }

@@ -3,6 +3,7 @@
 // writes here is lost when the Worker stops; the library itself lives in
 // SQLite, which has its own storage.
 import { Buffer } from 'node:buffer';
+import { Readable } from 'node:stream';
 
 const files = new Map();
 const dirs = new Set(['/']);
@@ -68,7 +69,20 @@ export const realpath = (p, cb) => queueMicrotask(() => cb(null, realpathSync(p)
 export function chmodSync() {}
 export function utimesSync() {}
 export function watch() { return { close() {}, on() { return this; } }; }
-export function createReadStream() { throw new Error('createReadStream is not available in the browser build'); }
+export function createReadStream(p, opts = {}) {
+  const n = norm(p);
+  const f = files.get(n);
+  if (!f) {
+    const stream = new Readable({ read() {} });
+    queueMicrotask(() => stream.destroy(enoent(n, 'open')));
+    return stream;
+  }
+  const start = opts.start ?? 0;
+  const end = opts.end === undefined ? f.length : opts.end + 1;
+  const chunk = Buffer.from(f.subarray(start, end));
+  const encoding = typeof opts === 'string' ? opts : opts.encoding;
+  return Readable.from([encoding ? chunk.toString(encoding) : chunk], { objectMode: false });
+}
 export function createWriteStream() { throw new Error('createWriteStream is not available in the browser build'); }
 
 const cbify = fn => (...args) => { const cb = typeof args[args.length - 1] === 'function' ? args.pop() : null; try { const r = fn(...args); if (cb) queueMicrotask(() => cb(null, r)); } catch (e) { if (cb) queueMicrotask(() => cb(e)); else throw e; } };
@@ -87,7 +101,20 @@ export const promises = {
   readdir: pr(readdirSync), stat: pr(statSync), lstat: pr(statSync), access: pr(accessSync), unlink: pr(unlinkSync),
   rm: pr(rmSync), rmdir: pr(rmdirSync), rename: pr(renameSync), copyFile: pr(copyFileSync), realpath: pr(realpathSync),
   mkdtemp: pr(mkdtempSync), readlink: pr(readlinkSync), chmod: pr(chmodSync), utimes: pr(utimesSync),
-  open: async (p, flags) => { const fd = openSync(p, flags); return { fd, sync: async () => {}, close: async () => closeSync(fd), writeFile: async d => writeFileSync(fds.get(fd), d), write: async d => writeSync(fd, d) }; },
+  open: async (p, flags) => {
+    const fd = openSync(p, flags);
+    const file = fds.get(fd);
+    return {
+      fd,
+      sync: async () => {},
+      close: async () => closeSync(fd),
+      readFile: async opts => readFileSync(file, opts),
+      writeFile: async d => writeFileSync(file, d),
+      write: async d => writeSync(fd, d),
+      stat: async () => statSync(file),
+      createReadStream: opts => createReadStream(file, opts),
+    };
+  },
 };
 export const constants = { F_OK: 0, R_OK: 4, W_OK: 2, X_OK: 1, O_RDONLY: 0, O_WRONLY: 1, O_RDWR: 2, O_CREAT: 64, O_EXCL: 128, O_TRUNC: 512, O_APPEND: 1024 };
 export const F_OK = 0, R_OK = 4, W_OK = 2, X_OK = 1;
