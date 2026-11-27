@@ -3,12 +3,12 @@
 //   node parity.mjs <dist-browser> <server base URL>
 import { createRequire } from 'node:module';
 import { serve } from './serve.mjs';
-const { chromium } = createRequire(import.meta.url)('playwright');
+const { chromium } = createRequire(import.meta.url)('@playwright/test');
 const oxigraph = createRequire(import.meta.url)('oxigraph');
 
 const [dir, serverBase] = process.argv.slice(2);
 const server = await serve(dir);
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
 const page = await browser.newPage();
 await page.goto(`http://127.0.0.1:${server.address().port}/harness.html?persist=false`);
 const ready = await page.evaluate(() => window.sqlibReady.then(r => r, e => ({ error: e.message })));
@@ -93,3 +93,4 @@ const same = results.filter(r => r.same).length;
 console.log(`\n${same}/${results.length} calls gave the same status and body`);
 await browser.close();
 server.close();
+if (same !== results.length) process.exit(1);

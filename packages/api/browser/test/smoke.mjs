@@ -1,14 +1,14 @@
 // Starts the API Worker in headless Chromium and calls a few routes.
 //   node smoke.mjs <dist-browser> [route ...]
 import { createRequire } from 'node:module';
-const { chromium } = createRequire(import.meta.url)('playwright');
+const { chromium } = createRequire(import.meta.url)('@playwright/test');
 import { serve } from './serve.mjs';
 
 const dir = process.argv[2];
 const routes = process.argv.slice(3).length ? process.argv.slice(3) : ['/health', '/libraries', '/queries?limit=5'];
 const server = await serve(dir);
 const base = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
 const page = await browser.newPage();
 page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().startsWith('│') ? m.text() : m.text().slice(0, 400)); });
 page.on('pageerror', e => console.log('[pageerror]', e.message));

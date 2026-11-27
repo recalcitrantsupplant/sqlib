@@ -58,4 +58,14 @@ node -e '
   require("node:fs").writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
 ' "${out}/config.json" "${DUCKDB_BASE_URL:-}"
 
+# Cache rules for hosts that read a `_headers` file, such as Cloudflare static
+# assets. The `_nuxt` files have a content hash in their names. The API files
+# do not, so a browser checks them with the ETag on each load.
+cat > "${out}/_headers" <<'EOF'
+/_nuxt/*
+  Cache-Control: public, max-age=31536000, immutable
+/sqlib-api/*
+  Cache-Control: public, max-age=0, must-revalidate
+EOF
+
 echo "build-browser-site: wrote ${out}"

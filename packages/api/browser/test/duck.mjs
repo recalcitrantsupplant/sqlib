@@ -1,8 +1,10 @@
+// Runs one SQL query through the DuckDB adapter and prints the rows.
+//   node duck.mjs <dist-browser> <sql>
 import { createRequire } from 'node:module';
 import { serve } from './serve.mjs';
-const { chromium } = createRequire(import.meta.url)('playwright');
+const { chromium } = createRequire(import.meta.url)('@playwright/test');
 const server = await serve(process.argv[2]);
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
 const page = await browser.newPage();
 page.on('console', m => console.log('[c]', m.text().slice(0, 300)));
 await page.goto(`http://127.0.0.1:${server.address().port}/harness.html?persist=false`);

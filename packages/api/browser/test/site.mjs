@@ -1,15 +1,17 @@
 // Loads the browser-only site in headless Chromium, records the network, and
-// screenshots each route. node site.mjs <public dir> <out dir> [route ...]
+// screenshots each route. It exits 1 when the page logs an error or loads
+// anything from another origin.
+//   node site.mjs <public dir> <out dir> [route ...]
 import { createRequire } from 'node:module';
 import { mkdir } from 'node:fs/promises';
 import { serve } from './serve.mjs';
-const { chromium } = createRequire(import.meta.url)('playwright');
+const { chromium } = createRequire(import.meta.url)('@playwright/test');
 
 const [dir, out, ...routes] = process.argv.slice(2);
 await mkdir(out, { recursive: true });
 const server = await serve(dir, 0, { spaFallback: '200.html' });
 const base = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1400, height: 900 } });
 const page = await ctx.newPage();
 const errors = [];
@@ -28,3 +30,4 @@ for (const route of routes.length ? routes : ['/']) {
 console.log('outside origins', [...outside]);
 console.log('errors', errors.length); for (const e of errors.slice(0, 20)) console.log('  ', e);
 await browser.close(); server.close();
+if (errors.length || outside.size) process.exit(1);
