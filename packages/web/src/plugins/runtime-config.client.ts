@@ -3,6 +3,7 @@ import { defineNuxtPlugin, useRuntimeConfig } from '#imports';
 import type { FeatureFlags } from '@sparql-query-lib/types';
 import { debug } from '../lib/debug';
 import { withBase } from '../lib/basePath';
+import { installBrowserApi, isBrowserApi } from '../lib/browserApi';
 
 interface RuntimeConfigOverride {
   apiBaseUrl?: string;
@@ -29,8 +30,23 @@ interface RuntimeConfigOverride {
 export default defineNuxtPlugin({
   name: 'runtime-config',
   async setup() {
-  const runtimeConfig = useRuntimeConfig();
+    const runtimeConfig = useRuntimeConfig();
+    await loadRuntimeConfig(runtimeConfig);
 
+    // No API server: run the API in a Worker in this tab. See lib/browserApi.ts.
+    if (isBrowserApi(runtimeConfig.public.apiBaseUrl)) {
+      const base = runtimeConfig.app?.baseURL;
+      const api = installBrowserApi(
+        new URL(withBase('/sqlib-api/', base), window.location.href).href,
+        new URL(withBase('/api', base), window.location.href).href,
+      );
+      runtimeConfig.public.apiBaseUrl = api.baseUrl;
+      debug('runtime-config', 'API runs in this browser at', api.baseUrl);
+    }
+  },
+});
+
+async function loadRuntimeConfig(runtimeConfig: ReturnType<typeof useRuntimeConfig>): Promise<void> {
   // Beside the app rather than at the site root: a build served under a base
   // path shares that root with whatever else is hosted there, and `/config.json`
   // would be that site's file, not this app's.
@@ -91,5 +107,4 @@ export default defineNuxtPlugin({
   } catch (error) {
     console.warn('[runtime-config] Error loading runtime config, using build-time defaults:', error instanceof Error ? error.message : error);
   }
-  },
-});
+}
