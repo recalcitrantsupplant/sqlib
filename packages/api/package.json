@@ -26,6 +26,7 @@
     "smoke:throughput": "tsx scripts/throughput-smoke.ts",
     "it:replication-buckets": "tsx scripts/replication-it-buckets.ts",
     "build": "tsx scripts/generate-schemas.ts && tsc --project tsconfig.build.json",
+    "build:browser": "node browser/build.mjs",
     "export:bundle": "tsx scripts/export-bundle.ts",
     "export:library-store": "tsx scripts/export-library-store.ts",
     "import:library-store": "tsx scripts/import-library-store.ts",

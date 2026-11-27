@@ -36,7 +36,6 @@ async function start(init: WorkerInit): Promise<InjectApp> {
   const { app, configureApp } = await import('../src/index.js');
   await configureApp(app, { registerSwagger: false, enableCacheMonitoring: false });
   await app.ready();
-  if ((self as unknown as { name?: string }).name === 'debug') console.warn((app as unknown as { printRoutes(o?: unknown): string }).printRoutes({ commonPrefix: false }).split('\n').filter(l => /^│   [├└]── /.test(l)).join(' | '));
   post({ type: 'ready', persistent, startMs: performance.now() - t0 });
   return app as unknown as InjectApp;
 }
