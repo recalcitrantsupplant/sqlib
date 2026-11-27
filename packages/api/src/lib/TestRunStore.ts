@@ -251,6 +251,36 @@ export async function getTestRun(runId: string): Promise<StoredTestRun | null> {
 }
 
 /**
+ * The newest stored run of each named test, with its case rows.
+ *
+ * Reads the run and case tables once each. A test with no stored run has no
+ * entry in the answer.
+ */
+export async function latestTestRuns(testIds: Iterable<string>): Promise<StoredTestRun[]> {
+  const wanted = new Set(testIds);
+  if (wanted.size === 0) return [];
+  const newest = new Map<string, PersistedTestRun>();
+  for (const run of await findAllTestRuns()) {
+    if (!wanted.has(run.test)) continue;
+    const held = newest.get(run.test);
+    if (!held || byRanAt(run, held) > 0) newest.set(run.test, run);
+  }
+  if (newest.size === 0) return [];
+  const runIds = new Set([...newest.values()].map(run => run.$id));
+  const casesByRun = new Map<string, PersistedTestRunCase[]>();
+  for (const row of await findAllTestRunCases()) {
+    if (!runIds.has(row.isPartOf)) continue;
+    const rows = casesByRun.get(row.isPartOf) ?? [];
+    rows.push(row);
+    casesByRun.set(row.isPartOf, rows);
+  }
+  return [...newest.values()].map(run => ({
+    run,
+    cases: (casesByRun.get(run.$id) ?? []).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+  }));
+}
+
+/**
  * A stored run, back in the shape every report format is written against.
  *
  * This is what makes an export of a *past* run possible: the formats are pure

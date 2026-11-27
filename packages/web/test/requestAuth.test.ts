@@ -41,7 +41,8 @@ describe('API client authentication', () => {
   it('sends the token on every fetch', () => {
     const calls = fetchCalls(readFileSync(CLIENT, 'utf8'));
     const bare = calls
-      .filter(({ args }) => !/\bauthorized\(/.test(args) && !/\bauthorization\b/.test(args))
+      // `authorizedInit` is the result of `authorized()`, computed once in `request`.
+      .filter(({ args }) => !/\bauthorized\(/.test(args) && !/\bauthorization\b/.test(args) && !/\bauthorizedInit\b/.test(args))
       .map(({ line }) => `useApiClient.ts:${line}`);
     expect(bare, 'wrap the request in authorized(), as request() does').toEqual([]);
   });

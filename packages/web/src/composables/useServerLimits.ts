@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
+import { fetchHealth, resetHealth } from '../lib/health';
 
 /**
  * What the server will accept, read from the server.
@@ -48,9 +49,8 @@ export function useServerLimits() {
   const ensureLoaded = (): Promise<void> => {
     loading ??= (async () => {
       try {
-        const response = await fetch(`${apiBase()}/health`);
         // 503 is "cache not ready", which still carries the limits.
-        const payload = (await response.json()) as { limits?: Partial<ServerLimits> };
+        const payload = ((await fetchHealth(apiBase())).payload ?? {}) as { limits?: Partial<ServerLimits> };
         const answered = payload.limits ?? {};
         // Key by key, with the server's own default behind each: a build of the
         // SPA newer than the API it is talking to asks for a cap that API does
@@ -73,6 +73,7 @@ export function useServerLimits() {
 
 /** For tests: forgets the answer so the next call asks again. */
 export function resetServerLimits(): void {
+  resetHealth();
   loading = null;
   limits.value = { ...DEFAULTS };
 }

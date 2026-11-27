@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import { useRuntimeConfig } from '#imports';
+import { fetchHealth, resetHealth } from '../lib/health';
 
 /**
  * The round trip from this browser to the sqlib API.
@@ -9,8 +10,9 @@ import { useRuntimeConfig } from '#imports';
  * `SLOW_ROUND_TRIP_MS` or more, and Settings shows the number.
  *
  * The measurement times `GET /health`, which does no work on the server.
- * The first request also opens the connection, so it is discarded. The median
- * of the rest is the result. Server-Timing is not subtracted: a proxy in front
+ * It starts after the shared `/health` answer (`lib/health.ts`), which opens
+ * the connection and gives the location. The median of the samples is the
+ * result. Server-Timing is not subtracted: a proxy in front
  * of sqlib (such as the Cloudflare edge on the demo) reports its hop to the
  * container there, and that hop is part of the distance.
  *
@@ -20,7 +22,7 @@ import { useRuntimeConfig } from '#imports';
 /** Same-continent round trips are usually below this. */
 export const SLOW_ROUND_TRIP_MS = 100;
 
-/** Requests after the discarded first one. */
+/** Timed requests after the shared `/health` answer. */
 const SAMPLES = 3;
 
 const roundTripMs = ref<number | null>(null);
@@ -50,7 +52,7 @@ async function run(): Promise<void> {
   measuring.value = true;
   try {
     const url = `${apiBase()}/health`;
-    const first = await timeOne(url);
+    const first = await fetchHealth(apiBase());
     const times: number[] = [];
     for (let i = 0; i < SAMPLES; i++) times.push((await timeOne(url)).ms);
     roundTripMs.value = Math.round(median(times));
@@ -90,6 +92,7 @@ export function useServerLatency() {
 
 /** For tests, which must not inherit a previous file's answer. */
 export function resetServerLatency(): void {
+  resetHealth();
   roundTripMs.value = null;
   location.value = null;
   measuring.value = false;

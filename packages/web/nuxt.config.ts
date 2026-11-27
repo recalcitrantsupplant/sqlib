@@ -414,6 +414,14 @@ export default defineNuxtConfig({
           href: withBase('/assets/fonts/inter-variable-latin.woff2', baseURL),
           crossorigin: 'anonymous',
         },
+        // `plugins/runtime-config.client.ts` reads this before any API call.
+        // The hint fetches it while the scripts load.
+        {
+          rel: 'preload',
+          as: 'fetch',
+          href: withBase('/config.json', baseURL),
+          crossorigin: 'anonymous',
+        },
         // SVG first so modern browsers pick it; favicon.ico is the legacy fallback.
         { rel: 'icon', type: 'image/svg+xml', href: withBase('/favicon.svg', baseURL) },
         { rel: 'icon', type: 'image/x-icon', href: withBase('/favicon.ico', baseURL), sizes: '48x48' },

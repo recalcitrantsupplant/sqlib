@@ -1,6 +1,7 @@
 /**
- * The browser-to-sqlib round trip: the first request is discarded, the median
- * of the next three is the result, and 100 ms or more counts as slow.
+ * The browser-to-sqlib round trip: the first request is the shared `/health`
+ * answer and is not timed, the median of the next three is the result, and
+ * 100 ms or more counts as slow.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { median, resetServerLatency, useServerLatency, SLOW_ROUND_TRIP_MS } from '@/composables/useServerLatency';
@@ -51,8 +52,9 @@ describe('useServerLatency', () => {
     await latency.ensureMeasured();
     await latency.ensureMeasured();
     expect(fetchMock).toHaveBeenCalledTimes(4);
+    // The shared `/health` answer is not asked for again.
     await latency.measure();
-    expect(fetchMock).toHaveBeenCalledTimes(8);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it('reads the location the server reports', async () => {
