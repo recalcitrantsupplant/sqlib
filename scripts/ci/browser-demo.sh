@@ -33,6 +33,9 @@ fi
 log "browser-demo: building the workspace dependencies"
 pnpm --filter '@sparql-query-lib/api^...' --filter '@sparql-query-lib/web^...' run build
 
+log "browser-demo: testing the map page"
+(cd demo/ogc-map && pnpm install --frozen-lockfile && pnpm run typecheck && pnpm test)
+
 log "browser-demo: building the site"
 DEMO_STORE="$OUT/state/store/library.sqlite" DEMO_SEED_PORT="$(free_port)" \
   sh demo/scripts/build-browser-site.sh "$OUT/site"

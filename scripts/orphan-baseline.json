@@ -27,7 +27,6 @@
     "packages/api/scripts/min-test.ts",
     "packages/mcp-app/src/kit/bridge.js",
     "packages/mcp-app/src/kit/results.js",
-    "packages/ogc-map/src/main.ts",
     "packages/web/src/components/build/AssistantChat.vue",
     "packages/web/src/components/build/AssistantToolReceipt.vue",
     "packages/web/src/components/build/CallableCode.vue",

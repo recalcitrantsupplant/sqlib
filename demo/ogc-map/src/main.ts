@@ -10,7 +10,7 @@
  */
 import { OgcApiEndpoint, type OgcApiCollectionInfo } from '@camptocamp/ogc-client';
 import { Map as MapLibreMap, Popup, LngLatBounds, setWorkerUrl, type GeoJSONSource, type MapGeoJSONFeature, type StyleSpecification } from 'maplibre-gl';
-import { installBrowserApi } from '../../web/src/lib/browserApi';
+import { installBrowserApi } from '../../../packages/web/src/lib/browserApi';
 import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, withQueryables, type AppConfig, type Link, type MapConfig } from './service';
 
 type Geometry = { type: string; coordinates?: unknown; geometries?: Geometry[] };

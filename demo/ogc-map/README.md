@@ -5,7 +5,9 @@ collections, builds a filter form from each collection's queryables, and pages
 through the items by the `next` and `prev` links.
 
 The browser-only Rail demo serves it at `map/`
-(`demo/scripts/build-browser-site.sh`).
+(`demo/scripts/build-browser-site.sh`). The page is outside the pnpm
+workspace, so a `pnpm install` at the repository root does not fetch MapLibre
+or ogc-client. The site build installs them in this directory.
 
 ## Which service it opens
 
@@ -35,7 +37,11 @@ OpenFreeMap Positron style, which loads from `tiles.openfreemap.org`.
 ## Build
 
 ```sh
-pnpm --filter @sparql-query-lib/ogc-map build [outdir]   # default: dist/
+cd demo/ogc-map
+pnpm install
+pnpm build              # writes dist/
+node build.mjs <outdir>
+pnpm test
 ```
 
 | File | Size | Gzip |

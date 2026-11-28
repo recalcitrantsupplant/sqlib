@@ -14,7 +14,8 @@
 # | DUCKDB_BASE_URL | jsDelivr | Where the browser loads duckdb-wasm from, for ETL |
 #
 # The site has the map page at `map/`, which reads the Rail library's OGC API
-# Features service from the same Worker.
+# Features service from the same Worker. The page is in demo/ogc-map, outside
+# the pnpm workspace, so this script installs its dependencies.
 #
 # Serve the result with any static file server, for example
 # `node packages/api/browser/test/serve.mjs <out-dir> 3721 200.html`.
@@ -62,7 +63,7 @@ node -e '
 ' "${out}/config.json" "${DUCKDB_BASE_URL:-}"
 
 # The map page, a client of the Rail library's OGC API Features service.
-(cd "${root}/packages/ogc-map" && node build.mjs "${out}/map")
+(cd "${root}/demo/ogc-map" && pnpm install --frozen-lockfile && node build.mjs "${out}/map")
 printf '{\n  "service": "rail"\n}\n' > "${out}/map/config.json"
 
 # Cache rules for hosts that read a `_headers` file, such as Cloudflare static

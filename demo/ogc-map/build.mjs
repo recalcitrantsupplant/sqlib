@@ -41,7 +41,6 @@ await build({
   logLevel: 'warning',
 });
 
-(import.meta.url);
 const maplibreCss = readFileSync(require.resolve('maplibre-gl/dist/maplibre-gl.css'), 'utf8');
 writeFileSync(path.join(out, 'map.css'), `${maplibreCss}\n${readFileSync(path.join(here, 'src/style.css'), 'utf8')}`);
 copyFileSync(path.join(here, 'src/index.html'), path.join(out, 'index.html'));
