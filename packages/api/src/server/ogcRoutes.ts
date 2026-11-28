@@ -272,11 +272,11 @@ export async function registerOgcRoutes(
   };
 
   /**
-   * The values of each queryable, with their feature counts, from the
-   * `valuesQuery`: one row per value, with `?property`, `?value` and `?count`.
+   * The values of each queryable from the `valuesQuery`: one row per value,
+   * with `?property` and `?value`.
    */
-  const facetsOf = async (request: FastifyRequest, spec: OgcCollectionSpec): Promise<Map<string, Array<{ value: unknown; count: number }>>> => {
-    const facets = new Map<string, Array<{ value: unknown; count: number }>>();
+  const facetsOf = async (request: FastifyRequest, spec: OgcCollectionSpec): Promise<Map<string, unknown[]>> => {
+    const facets = new Map<string, unknown[]>();
     if (!spec.valuesTargetId) return facets;
     const response = await execute(request, {
       targetId: spec.valuesTargetId,
@@ -301,7 +301,7 @@ export async function registerOgcRoutes(
         continue;
       }
       const list = facets.get(name) ?? [];
-      list.push({ value, count: Number(row.count?.value ?? 0) });
+      list.push(value);
       facets.set(name, list);
     }
     return facets;
@@ -327,7 +327,7 @@ export async function registerOgcRoutes(
     }
     for (const [name, facet] of await facetsOf(request, spec)) {
       const property = properties[name] as Record<string, unknown> | undefined;
-      if (property) Object.assign(property, { enum: facet.map(f => f.value), 'x-counts': facet.map(f => f.count) });
+      if (property) property.enum = facet;
     }
     return reply.header('content-type', SCHEMA_TYPE).send({
       $schema: 'https://json-schema.org/draft/2020-12/schema',

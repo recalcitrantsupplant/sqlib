@@ -233,10 +233,10 @@ Any other operator gets `400`. A queryable in both the filter and a query
 parameter keeps the values that both allow. The service does not declare the
 CQL2 conformance classes for this subset.
 
-`valuesQuery` names a SELECT in the same library that returns `?property`,
-`?value` and `?count`: one row for each value of a queryable. The queryables
-route then gives each listed property an `enum` of its values and an
-`x-counts` list of the feature counts. The Rail Stations collection uses
+`valuesQuery` names a SELECT in the same library that returns `?property`
+and `?value`: one row for each value of a queryable. The queryables route then
+gives each listed property an `enum` of its values. Leave a queryable out of
+the query when its values are open, such as a date or a free-text name. The Rail Stations collection uses
 `queries/station-facets.rq`.
 
 ## Leaving geometry out
