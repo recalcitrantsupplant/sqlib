@@ -41,6 +41,11 @@ export function resetDatabase(file) {
   if (pool) pool.unlink(normalise(file));
 }
 
+/** Delete every stored database, so each one seeds again or starts empty. */
+export async function resetAllDatabases() {
+  if (pool) await pool.wipeFiles();
+}
+
 function normalise(file) {
   return '/' + String(file).replace(/^\.?\/+/, '');
 }
@@ -90,4 +95,4 @@ export class DatabaseSync {
   get isTransaction() { return !this.db.isAutocommit?.() ? false : false; }
 }
 
-export default { DatabaseSync, initSqlite, provideDatabase, resetDatabase };
+export default { DatabaseSync, initSqlite, provideDatabase, resetDatabase, resetAllDatabases };

@@ -15,7 +15,7 @@ import { callerIdentityOf } from '../../src/auth/caller.js';
 import { principalIri } from '../../src/auth/principals.js';
 import { demoAdminPrincipals, recordDemoPeople } from '../../src/auth/demoPeople.js';
 import { PRINCIPAL_ANONYMOUS, PRINCIPAL_AUTHENTICATED } from '../../src/auth/types.js';
-import { DEMO_ISSUER, parseDemoPeople, resetDemoMode, resolveDemoConfig } from '../../src/config/demoMode.js';
+import { DEMO_ISSUER, isOneVisitorDemo, parseDemoPeople, resetDemoMode, resolveDemoConfig } from '../../src/config/demoMode.js';
 
 const PEOPLE = {
   people: [
@@ -88,6 +88,20 @@ describe('starting in demo mode', () => {
 
   it('refuses to start on a writable deployment', () => {
     expect(() => resolveDemoConfig(demoEnv({ SQLIB_READ_ONLY: 'false' }))).toThrow(/SQLIB_READ_ONLY=true/);
+  });
+
+  it('starts writable when SQLIB_DEMO_WRITABLE=true says it serves one visitor', () => {
+    const config = resolveDemoConfig(demoEnv({ SQLIB_READ_ONLY: 'false', SQLIB_DEMO_WRITABLE: 'true' }));
+    expect(config.enabled).toBe(true);
+    expect(config.writable).toBe(true);
+  });
+
+  it('is a one-visitor demo only when writable', () => {
+    resetDemoMode(demoEnv({ SQLIB_READ_ONLY: 'false', SQLIB_DEMO_WRITABLE: 'true' }));
+    expect(isOneVisitorDemo()).toBe(true);
+    resetDemoMode(demoEnv({ SQLIB_DEMO_WRITABLE: 'true' }));
+    expect(isOneVisitorDemo()).toBe(false);
+    resetDemoMode({} as NodeJS.ProcessEnv);
   });
 
   it('refuses to start in any auth mode other than anonymous', () => {

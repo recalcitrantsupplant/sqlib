@@ -11,6 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writableGrants } from './demo-grants.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const apiDir = path.resolve(here, '..');
@@ -154,6 +155,7 @@ function demoEnv() {
     SQLIB_LOG_LEVEL: 'warn',
     LOG_LEVEL: 'warn',
     OTEL_ENABLED: 'false',
+    ...(writable ? { SQLIB_READ_ONLY: 'false', SQLIB_DEMO_WRITABLE: 'true', SQLIB_AUTH_ALLOW_LIBRARY_CREATE: 'all' } : {}),
     ...(etlOutput ? { ETL_OUTPUT_DIR: etlOutput.split(path.sep).join('/') } : {}),
   });
   return env;
@@ -165,10 +167,18 @@ function demoEnv() {
  */
 const etlOutput = process.env.SQLIB_BROWSER_ETL_OUTPUT ? path.resolve(process.env.SQLIB_BROWSER_ETL_OUTPUT) : null;
 
+/**
+ * Writable by default: the API serves one visitor, in their own tab, and the
+ * library is kept in that browser. `SQLIB_BROWSER_READ_ONLY=true` builds a
+ * read-only site, as the server demo is.
+ */
+const writable = process.env.SQLIB_BROWSER_READ_ONLY !== 'true';
+
 const files = {
   '/opt/sqlib-demo/people.json': readFileSync(path.join(repo, 'demo/people.json'), 'utf8'),
-  '/opt/sqlib-demo/grants.ttl': readFileSync(path.join(repo, 'demo/grants.ttl'), 'utf8'),
+  '/opt/sqlib-demo/grants.ttl': writable ? writableGrants(readFileSync(path.join(repo, 'demo/grants.ttl'), 'utf8')) : readFileSync(path.join(repo, 'demo/grants.ttl'), 'utf8'),
 };
+
 /** Files the API reads from its own package at run time, at the paths the server has. */
 for (const rel of ['packages/api/package.json', 'packages/api/system-store/assets']) {
   for (const file of listFiles(path.join(repo, rel))) {

@@ -40,10 +40,13 @@ log "browser-demo: starting the server on the same store"
 port="$(free_port)"
 (
   set -a; . demo/server.env; set +a
+  # Writable, with the browser build's grants, as the Worker runs.
+  node packages/api/browser/demo-grants.mjs demo/grants.ttl > "$OUT/grants.ttl"
   export NODE_ENV=production PORT="$port" \
+    SQLIB_READ_ONLY=false SQLIB_DEMO_WRITABLE=true SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all \
     LIBRARY_STORAGE_DIR="$OUT/state/store" ETL_OUTPUT_DIR="$OUT/state/etl-output" \
     OXIGRAPH_STORAGE_DIR="$OUT/state/oxigraph" SQLIB_AUTH_STORE_DIR="$OUT/state/auth" \
-    SQLIB_DEMO_PEOPLE="$REPO_ROOT/demo/people.json" SQLIB_AUTH_SEED_GRANTS="$REPO_ROOT/demo/grants.ttl"
+    SQLIB_DEMO_PEOPLE="$REPO_ROOT/demo/people.json" SQLIB_AUTH_SEED_GRANTS="$OUT/grants.ttl"
   cd packages/api
   exec node_modules/.bin/tsx src/index.ts
 ) > "$OUT/server.log" 2>&1 &

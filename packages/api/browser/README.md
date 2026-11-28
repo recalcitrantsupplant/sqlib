@@ -62,9 +62,22 @@ of the library and the WebAssembly. The Worker answers `ready` or `failed`.
 After that, each `request` gets one `response`, with the status, headers and
 body bytes. `packages/web/src/lib/browserApi.ts` is the client in the web app.
 
-Persistence is off in the demo (`persist: false`): each load starts from the
-library file. With `persist: true` the shim keeps the database in OPFS through
-the `opfs-sahpool` VFS.
+## Writable, and kept in the browser
+
+The build is writable. A visitor can edit any item and create libraries, and
+their changes stay in that browser. Nothing they change reaches another
+visitor.
+
+| Part | How |
+| --- | --- |
+| Writes | `build.mjs` sets `SQLIB_READ_ONLY=false` and `SQLIB_DEMO_WRITABLE=true` (see `src/config/demoMode.ts`), and `SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all` |
+| Grants | `demo-grants.mjs` adds write and delete on every library in `demo/grants.ttl`, and ad hoc updates on every backend in it |
+| ETL | Open to every visitor, because duckdb-wasm runs the SQL in their browser. On a server, ETL SQL stays administrator-only |
+| Storage | The Worker keeps its SQLite databases in OPFS (the `opfs-sahpool` VFS) |
+| A new library file | The Worker keeps the SHA-256 of the file the stored databases came from. When the site ships a different file, it deletes them and starts from the new one |
+| Reset | "Reset demo" in the account menu deletes them and reloads |
+
+`SQLIB_BROWSER_READ_ONLY=true` builds a read-only site instead.
 
 ## Limits
 
@@ -76,6 +89,11 @@ the `opfs-sahpool` VFS.
   not in this build.
 - Every graph in the library is downloaded to every visitor. Graph access
   rules are shown, but the data is in the visitor's browser.
+- OPFS is held by one tab at a time. A second tab of the same site runs on a
+  copy in memory, and its changes go when it closes. This is not tested.
+- ETL output files are in the Worker's in-memory file system, so a reload
+  loses them. The runs that name them stay.
+- A browser with no OPFS keeps nothing, and the account menu has no reset.
 
 ## Tests
 

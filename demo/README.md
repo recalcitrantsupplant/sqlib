@@ -11,7 +11,7 @@ sees more of the Rail operations store. Dana is an administrator.
 | --- | --- |
 | `just demo` | The API on :3005 and the web UI on :3001, from this checkout |
 | `just build-docker && just build-demo-docker && just run-demo-docker` | The demo API image on :3005. Run the web UI with `just run-frontend` |
-| `just build-browser-demo` | Builds a static site in `packages/web/.output/public`, with the API in a Worker in the visitor's browser, and serves it on :3721. See `packages/api/browser/README.md` |
+| `just build-browser-demo` | Builds a static site in `packages/web/.output/public`, with the API in a Worker in the visitor's browser, and serves it on :3721. This build is writable: each visitor's changes stay in their browser until "Reset demo". See `packages/api/browser/README.md` |
 
 The first `just demo` seeds `tmp/demo/store/library.sqlite`, in about 10 s.
 Later starts reuse it. Run `just clean-demo` to seed again, for example after
