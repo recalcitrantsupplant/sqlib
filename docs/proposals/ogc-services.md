@@ -379,7 +379,17 @@ a restart is the fallback, which David accepted.
   only, as Access does.
 - The sidebar lists services by name, with the path under each name.
 - The service screen shows the URL with a copy button, the backend, the
-  five query rows, the versions and an **Open map** link.
+  versions and an **Open map** link. Below them, the left side lists five
+  sections, one for each query slot: Collections, Collection, Items, Item
+  and Queryables. Each section shows its query and version, or a picker
+  when it is empty. David asked for this layout on 2026-11-28.
+- Selecting a section shows its config on the right side. The layout is
+  the same for each slot: the query and its version, the reserved names the
+  query uses, and the result of a test run. The parts that differ by slot:
+  - Collections and Collection: the collection rows it returns.
+  - Items and Item: the queryables, `bbox`, `datetime`, paging and
+    geometry that it declares.
+  - Queryables: each queryable with its type, title and `enum` size.
 - Each query row shows the query, its library, its version, and the roles
   that its reserved names give, as chips: `bbox`, `datetime`, `paging`,
   `geometry` and the queryable names. A role that the route needs and the
