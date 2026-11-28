@@ -2234,12 +2234,12 @@ function hydrateFromQuery(query: ApiQuery, options: { ifMatch?: string | null } 
 }
 
 /*
- * The library list and the backend list both arrive after the query can; when
- * they do, a run bar left empty — or pointed at a backend deleted since — gets
- * another chance to resolve.
+ * The library list and the backend list can arrive before or after the query.
+ * When either arrives, or the query finishes loading, a run bar left empty, or
+ * pointed at a backend deleted since, gets another chance to resolve.
  */
 watch(
-  [libraryDefaultBackend, () => availableBackends.value.length],
+  [libraryDefaultBackend, () => availableBackends.value.length, queryLoading],
   () => {
     if (queryLoading.value) return;
     if (!selectedBackend.value || !isBackendAvailable(selectedBackend.value)) {
