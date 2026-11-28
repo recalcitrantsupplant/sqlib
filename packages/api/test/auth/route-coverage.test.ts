@@ -199,6 +199,9 @@ const MANIFEST: Record<string, Protection> = {
   // the same as reading the test it judged.
   'GET /tests/:id/runs': 'read',
   'GET /tests/:id/runs/:runId': 'read',
+  // Names no entity in its path. The handler filters the tests to the ones
+  // the caller may read before it reads their runs.
+  'GET /tests/runs/latest': 'readable-listing',
   /*
    * Run-by-tag names no entity in its path. The guard reads the optional
    * `library` body key to narrow, and the handler then requires Execute on

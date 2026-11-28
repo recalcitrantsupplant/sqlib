@@ -12,7 +12,7 @@ import { computed, type MaybeRefOrGetter, reactive, toValue } from 'vue';
 import type { Test, TestUpdateInput } from '@sparql-query-lib/contracts';
 import { deriveIfMatchToken, sendGuarded } from './createVersionedEntityStore';
 import { loadRuns, pruneStaleRuns, saveRuns } from '../lib/testRunCache.js';
-import { testRunFromStored } from '../lib/recordedRuns.js';
+import { testRunFromStored, type StoredTestRun } from '../lib/recordedRuns.js';
 import { useDeploymentMode } from './useDeploymentMode.js';
 import {
   useApiClient,
@@ -94,12 +94,32 @@ export function useTestsStore() {
     await deployment.ensureLoaded();
     if (!deployment.isDemo?.value) return;
     const missing = state.tests.filter((test) => !state.lastRunByTest[test.id] && !recordedAsked.has(test.id));
-    await Promise.all(missing.map(async (test) => {
-      recordedAsked.add(test.id);
+    if (missing.length === 0) return;
+    for (const test of missing) recordedAsked.add(test.id);
+    const wanted = new Set(missing.map((test) => test.id));
+    let stored: StoredTestRun[];
+    try {
+      stored = await apiClient.latestRecordedTestRuns();
+    } catch (err: unknown) {
+      // A server older than `GET /tests/runs/latest` answers 404. Read each
+      // test's run the old way there.
+      if ((err as { statusCode?: number })?.statusCode !== 404) return;
+      await loadRecordedRunsOneByOne(missing.map((test) => test.id));
+      return;
+    }
+    const found: Record<string, TestRunResult> = {};
+    for (const run of stored) {
+      if (wanted.has(run.test) && !state.lastRunByTest[run.test]) found[run.test] = testRunFromStored(run);
+    }
+    if (Object.keys(found).length > 0) state.lastRunByTest = { ...state.lastRunByTest, ...found };
+  };
+
+  const loadRecordedRunsOneByOne = async (testIds: string[]) => {
+    await Promise.all(testIds.map(async (testId) => {
       try {
-        const stored = await apiClient.latestRecordedTestRun(test.id);
-        if (stored && !state.lastRunByTest[test.id]) {
-          state.lastRunByTest = { ...state.lastRunByTest, [test.id]: testRunFromStored(stored) };
+        const stored = await apiClient.latestRecordedTestRun(testId);
+        if (stored && !state.lastRunByTest[testId]) {
+          state.lastRunByTest = { ...state.lastRunByTest, [testId]: testRunFromStored(stored) };
         }
       } catch {
         // No recorded run to show; the test shows as not run.

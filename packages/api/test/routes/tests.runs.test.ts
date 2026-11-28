@@ -23,6 +23,7 @@ const hoisted = vi.hoisted(() => ({
   runDraft: vi.fn(),
   listTestRuns: vi.fn(),
   getTestRun: vi.fn(),
+  latestTestRuns: vi.fn(),
   recordTestRun: vi.fn(),
   recordTestRuns: vi.fn(),
 }));
@@ -49,6 +50,7 @@ vi.mock('../../src/lib/TestRunStore.js', async (importOriginal) => {
     ...actual,
     listTestRuns: hoisted.listTestRuns,
     getTestRun: hoisted.getTestRun,
+    latestTestRuns: hoisted.latestTestRuns,
     recordTestRun: hoisted.recordTestRun,
     recordTestRuns: hoisted.recordTestRuns,
   };
@@ -148,6 +150,40 @@ describe('Test run history (/tests/:id/runs)', () => {
     const neverRan = await app.inject({ method: 'GET', url: `/tests/${encoded(TEST_ID)}/runs` });
     expect(neverRan.statusCode).toBe(200);
     expect(neverRan.json()).toEqual([]);
+  });
+
+  it('returns the newest run of every test in one request', async () => {
+    hoisted.test.list.mockReturnValue([
+      { $id: TEST_ID, '@type': 'Test', name: 'A', subject: 'urn:sqlib:query:q1', isPartOf: ['urn:sqlib:library:l1'] },
+      { $id: 'urn:sqlib:test:t2', '@type': 'Test', name: 'B', subject: 'urn:sqlib:query:q1', isPartOf: ['urn:sqlib:library:l2'] },
+    ]);
+    hoisted.latestTestRuns.mockResolvedValue([{ run: storedRun, cases: [storedCase] }]);
+
+    const res = await app.inject({ method: 'GET', url: '/tests/runs/latest' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      expect.objectContaining({
+        id: RUN_ID,
+        test: TEST_ID,
+        cases: [expect.objectContaining({ id: storedCase.$id, outcome: 'failed' })],
+      }),
+    ]);
+    expect(hoisted.latestTestRuns).toHaveBeenCalledWith([TEST_ID, 'urn:sqlib:test:t2']);
+  });
+
+  it('narrows the newest runs to one library', async () => {
+    hoisted.test.list.mockReturnValue([
+      { $id: TEST_ID, '@type': 'Test', name: 'A', subject: 'urn:sqlib:query:q1', isPartOf: ['urn:sqlib:library:l1'] },
+      { $id: 'urn:sqlib:test:t2', '@type': 'Test', name: 'B', subject: 'urn:sqlib:query:q1', isPartOf: ['urn:sqlib:library:l2'] },
+    ]);
+    hoisted.latestTestRuns.mockResolvedValue([]);
+
+    const res = await app.inject({ method: 'GET', url: `/tests/runs/latest?library=${encoded('urn:sqlib:library:l2')}` });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
+    expect(hoisted.latestTestRuns).toHaveBeenCalledWith(['urn:sqlib:test:t2']);
   });
 
   it('returns a stored run with its case rows', async () => {

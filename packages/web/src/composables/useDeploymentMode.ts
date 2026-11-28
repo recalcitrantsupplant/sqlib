@@ -15,6 +15,7 @@
 import { computed, ref } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
+import { fetchHealth, resetHealth } from '../lib/health';
 
 /**
  * What one visitor's run may cost on a read-only deployment, as `/health`
@@ -60,9 +61,10 @@ export function useDeploymentMode() {
   const ensureLoaded = (): Promise<void> => {
     loading ??= (async () => {
       try {
-        const response = await fetch(`${apiBase()}/health`);
         // 503 is "cache not ready", which still carries the mode.
-        const payload = (await response.json()) as { readOnly?: unknown; readOnlyRunLimits?: unknown; demo?: unknown };
+        const answered = (await fetchHealth(apiBase())).payload;
+        if (!answered) throw new Error('/health answered without JSON');
+        const payload = answered as { readOnly?: unknown; readOnlyRunLimits?: unknown; demo?: unknown };
         readOnly.value = payload.readOnly === true;
         demo.value = Boolean(payload.demo) && typeof payload.demo === 'object';
         runLimits.value = parseRunLimits(payload.readOnlyRunLimits);
@@ -87,6 +89,7 @@ export function useDeploymentMode() {
 
 /** For tests, which must not inherit a previous file's answer. */
 export function resetDeploymentMode(): void {
+  resetHealth();
   readOnly.value = false;
   demo.value = false;
   resolved.value = false;

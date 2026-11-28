@@ -17,6 +17,7 @@
 import { computed, ref, useRuntimeConfig } from '#imports';
 import { InMemoryWebStorage, User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import { withBase } from '../lib/basePath';
+import { fetchHealth } from '../lib/health';
 import { accountStateOf, identityFrom, type AccountIdentity } from '../lib/account';
 import {
   currentDemoPersonId,
@@ -205,9 +206,9 @@ async function fetchResourceMetadata(): Promise<ResourceMetadata | null> {
 /** Reads the API's auth mode. A failure here must not block the whole app. */
 async function fetchMode(): Promise<AuthMode> {
   try {
-    const response = await fetch(`${apiBase()}/health`);
-    if (!response.ok) return 'disabled';
-    const payload = (await response.json()) as { auth?: { mode?: AuthMode } };
+    const answer = await fetchHealth(apiBase());
+    if (!answer.ok || !answer.payload) return 'disabled';
+    const payload = answer.payload as { auth?: { mode?: AuthMode } };
     demoPeople.value = demoPeopleFrom(payload);
     return payload.auth?.mode ?? 'disabled';
   } catch {
@@ -215,7 +216,47 @@ async function fetchMode(): Promise<AuthMode> {
   }
 }
 
-async function refreshMe(): Promise<void> {
+/** The auth mode this browser saw last, so the next load can ask `/auth/me` early. */
+const MODE_HINT_KEY = 'sqlib.authMode';
+
+function readModeHint(): AuthMode | null {
+  try {
+    return (window.localStorage.getItem(MODE_HINT_KEY) as AuthMode | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeModeHint(value: AuthMode): void {
+  try {
+    window.localStorage.setItem(MODE_HINT_KEY, value);
+  } catch {
+    // No storage: the next load asks in sequence.
+  }
+}
+
+/**
+ * A guest's `/auth/me`, sent at the same time as `/health`.
+ *
+ * Sent when the last mode seen served guests, or when no mode was seen yet.
+ * Its answer is used only when `/health` confirms such a mode and the demo
+ * person it was sent as is still listed.
+ */
+interface EarlyMe {
+  demoPerson: string | null;
+  response: Promise<Response>;
+}
+
+function sendEarlyMe(): EarlyMe | null {
+  const hint = readModeHint();
+  if (hint && hint !== 'anonymous' && hint !== 'trusted-header') return null;
+  const response = fetch(`${apiBase()}/auth/me`, { headers: { ...demoPersonHeaders() } });
+  // Unused or failed: the sequential path asks again.
+  response.catch(() => undefined);
+  return { demoPerson: currentDemoPersonId(), response };
+}
+
+async function refreshMe(early: EarlyMe | null = null): Promise<void> {
   const token = user.value?.access_token;
   // A deployment that serves guests answers `/auth/me` for everyone, and that
   // answer is the only thing that says which libraries and backends a guest holds.
@@ -224,9 +265,11 @@ async function refreshMe(): Promise<void> {
     return;
   }
   try {
-    const response = await fetch(`${apiBase()}/auth/me`, {
-      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...demoPersonHeaders() },
-    });
+    const response = early && !token && early.demoPerson === currentDemoPersonId()
+      ? await early.response
+      : await fetch(`${apiBase()}/auth/me`, {
+        headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...demoPersonHeaders() },
+      });
     // A demo person the server no longer lists: go back to being a guest.
     if (response.status === 401 && demoPersonId.value) {
       setDemoPersonId(null);
@@ -245,11 +288,13 @@ export function useAuth() {
     if (initializing.value) return initializing.value;
 
     initializing.value = (async () => {
+      const early = sendEarlyMe();
       mode.value = await fetchMode();
+      writeModeHint(mode.value);
 
       if (!signsIn()) {
         if (mode.value === 'trusted-header') {
-          await refreshMe();
+          await refreshMe(early);
         }
         if (mode.value === 'anonymous') {
           // Keep a stored demo person only while the server still lists them.
@@ -257,7 +302,7 @@ export function useAuth() {
           const listed = stored && demoPeople.value.some((person) => person.id === stored);
           if (stored && !listed) setDemoPersonId(null);
           demoPersonId.value = listed ? stored : null;
-          await refreshMe();
+          await refreshMe(early);
         }
         initialized.value = true;
         return;

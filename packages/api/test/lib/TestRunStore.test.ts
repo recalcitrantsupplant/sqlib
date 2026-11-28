@@ -15,6 +15,7 @@ import {
   RUN_HISTORY_LIMIT,
   TRANSITION_HISTORY_LIMIT,
   getTestRun,
+  latestTestRuns,
   listTestRuns,
   recordTestRun,
   recordTestRuns,
@@ -348,6 +349,25 @@ describe('reading history back', () => {
     expect(entry.result.cases[0]).toMatchObject({ passed: false, slow: true, maxDurationMs: 500 });
     expect(entry.result.slowCount).toBe(1);
     expect(toJUnitXml({ suite: TEST_ID, entries: [entry] })).toContain('type="slow"');
+  });
+
+  it('reads the newest run of each named test, with its cases', async () => {
+    for (let index = 0; index < 3; index += 1) {
+      await recordTestRun({
+        result: verdict({ ranAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString() }),
+        suite: TEST_ID,
+      });
+    }
+    await recordTestRun({ result: verdict({ testId: 'urn:sqlib:test:t2' }), suite: 'other' });
+    await recordTestRun({ result: verdict({ testId: 'urn:sqlib:test:t3' }), suite: 'other' });
+
+    const latest = await latestTestRuns([TEST_ID, 'urn:sqlib:test:t2', 'urn:sqlib:test:never-ran']);
+    const byTest = new Map(latest.map(entry => [entry.run.test, entry]));
+
+    expect([...byTest.keys()].sort()).toEqual([TEST_ID, 'urn:sqlib:test:t2']);
+    expect(byTest.get(TEST_ID)?.run.ranAt).toBe('2026-01-01T00:02:00.000Z');
+    expect(byTest.get(TEST_ID)?.cases.map(row => row.isPartOf)).toEqual([byTest.get(TEST_ID)?.run.$id]);
+    expect(await latestTestRuns([])).toEqual([]);
   });
 
   it('answers null for a run id that names nothing', async () => {

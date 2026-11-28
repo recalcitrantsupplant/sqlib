@@ -23,6 +23,7 @@ import { z } from 'zod';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 import { parseSseStream } from '../lib/sse';
+import { invalidateGetCache } from '../lib/getCache';
 import { clientId } from '../lib/clientId';
 import { useAuth } from './useAuth';
 import { useLibraryRefresh, type ChangedEntity } from './useLibraryRefresh';
@@ -117,6 +118,8 @@ export function useLibraryEvents(options: UseLibraryEventsOptions) {
     const batch = pending;
     pending = [];
     if (batch.length === 0 && !force) return;
+    // Another client wrote, or the gap is unknown: the shared lists are stale.
+    invalidateGetCache();
 
     const open = options.openEntity?.value ?? null;
     const changed: ChangedEntity[] = batch.map((event) => ({ entity: event.entity, id: event.id }));
@@ -137,6 +140,7 @@ export function useLibraryEvents(options: UseLibraryEventsOptions) {
   }
 
   function enqueue(event: LibraryChangeEvent) {
+    invalidateGetCache();
     lastEventAt.value = event.at;
     pending.push(event);
     if (batchTimer) return;

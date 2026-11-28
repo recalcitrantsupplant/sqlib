@@ -1,8 +1,9 @@
 import { applyListPageLocally } from '../lib/listPageLocal';
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig, createError } from '#imports';
-import { demoPersonHeaders } from '../lib/demoPerson';
+import { DEMO_PERSON_HEADER, demoPersonHeaders } from '../lib/demoPerson';
 import type { StoredTestRun } from '../lib/recordedRuns';
+import { invalidateGetCache, sharedGet } from '../lib/getCache';
 import { z } from 'zod';
 import { useAuth } from './useAuth';
 import { clientId } from '../lib/clientId';
@@ -845,6 +846,39 @@ export const graphPolicySummarySchema = z.object({
 });
 export type GraphPolicySummary = z.infer<typeof graphPolicySummarySchema>;
 
+/**
+ * The collection lists a page load reads from several places. Only these are
+ * shared through `lib/getCache.ts`. Other GETs, such as a run's status, are
+ * read again on purpose and always go to the server.
+ */
+const SHARED_LISTS = new Set([
+  'argument-sets', 'backends', 'benchmark-experiments', 'data-blocks', 'data-graphs',
+  'environments', 'etl-jobs', 'libraries', 'notebooks', 'queries', 'query-groups',
+  'rule-sets', 'rules', 'tags', 'tests', 'tuple-sets',
+]);
+
+function isSharedList(input: RequestInfo | URL): boolean {
+  try {
+    const url = new URL(input.toString(), 'http://localhost');
+    const last = url.pathname.replace(/\/+$/, '').split('/').pop() ?? '';
+    return SHARED_LISTS.has(last);
+  } catch {
+    return false;
+  }
+}
+
+/** The URL and the request headers that change the answer: who asks, and in what format. */
+function getCacheKey(method: string, input: RequestInfo | URL, init: RequestInit): string {
+  const headers = new Headers(init.headers);
+  return JSON.stringify([
+    method,
+    input.toString(),
+    headers.get('accept'),
+    headers.get('authorization'),
+    headers.get(DEMO_PERSON_HEADER),
+  ]);
+}
+
 export function useApiClient() {
   const auth = useAuth();
 
@@ -861,6 +895,16 @@ export function useApiClient() {
    * such responses; this stops the ones already holding one from answering
    * with it, so the fix does not wait for a stale entry to age out.
    */
+  /** A write makes every cached read stale, so the cache is dropped on both sides of it. */
+  const sendWrite = async (input: RequestInfo | URL, authorizedInit: RequestInit): Promise<Response> => {
+    invalidateGetCache();
+    try {
+      return await fetch(input, authorizedInit);
+    } finally {
+      invalidateGetCache();
+    }
+  };
+
   const authorized = async (init: RequestInit): Promise<RequestInit> => {
     const token = await auth.accessToken();
     return {
@@ -884,8 +928,15 @@ export function useApiClient() {
     schema?: (payload: unknown) => T
   ): Promise<ApiResult<T>> => {
     debug('useApiClient', 'request', { url: input.toString(), method: init.method });
+    const method = (init.method ?? 'GET').toUpperCase();
+    const reads = method === 'GET' || method === 'HEAD';
     try {
-      const response = await fetch(input, await authorized(init));
+      const authorizedInit = await authorized(init);
+      const response = !reads
+        ? await sendWrite(input, authorizedInit)
+        : init.body == null && isSharedList(input)
+          ? await sharedGet(getCacheKey(method, input, authorizedInit), () => fetch(input, authorizedInit))
+          : await fetch(input, authorizedInit);
       debug('useApiClient', 'response', {
         url: input.toString(),
         status: response.status,
@@ -2551,6 +2602,20 @@ export function useApiClient() {
     );
   };
 
+  /**
+   * The newest run the server recorded for each test it lets this caller
+   * read, with its cases. One request for the whole library.
+   */
+  const latestRecordedTestRuns = async (library?: string | null): Promise<StoredTestRun[]> => {
+    ensureFeatureEnabled('tests');
+    const query = library ? `?library=${encodeURIComponent(library)}` : '';
+    return requestData<StoredTestRun[]>(
+      buildUrl(`/tests/runs/latest${query}`),
+      { method: 'GET' },
+      (payload) => (Array.isArray(payload) ? payload : []) as StoredTestRun[],
+    );
+  };
+
   const exportTestRun = (
     testId: string,
     input: { accept: string; filename: string; version?: number | null },
@@ -3636,6 +3701,7 @@ export function useApiClient() {
     runTestsByTags,
     exportTestRun,
     latestRecordedTestRun,
+    latestRecordedTestRuns,
     exportTaggedTestRun,
     exportSelectedTestRun,
     listNotebooks,
