@@ -93,6 +93,8 @@ const props = withDefaults(defineProps<{
   // and shaped by RuleSetExecutionResults' own local interface.
   executionResult?: any;
   executedAt?: string | null;
+  /** The data the shown run read. */
+  executedOn?: string | null;
   /** CodeMirror extensions for the read-only views (Stratification, SPARQL). */
   editorExtensions?: Extension[];
   /** And the editable ones, for the Inputs tab — the read-only set would make
@@ -124,6 +126,7 @@ const props = withDefaults(defineProps<{
   codeDraftNote: null,
   codeUnavailable: null,
   executedAt: null,
+  executedOn: null,
   editorExtensions: () => [],
   inputEditorExtensions: () => [],
   tupleEditorExtensions: () => [],
@@ -371,6 +374,7 @@ const onTuplesChange = async (event: Event) => {
         <RuleSetExecutionResults
           :results="executionResult"
           :executed-at="executedAt"
+          :executed-on="executedOn"
           :tuples-enabled="tuplesInEffect"
         />
       </div>

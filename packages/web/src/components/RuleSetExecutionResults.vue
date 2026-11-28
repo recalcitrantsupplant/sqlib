@@ -311,6 +311,8 @@
         :table="viewMode === 'graph' ? graphTableState : null"
         row-noun="triple"
         :executed-at="executedAt"
+        :source="executedOn"
+        source-relation="on"
         :media-type="viewMode === 'graph' ? finalGraphContentType ?? 'application/n-triples' : null"
         :duration-ms="totalDurationMs"
       />
@@ -563,6 +565,8 @@
             :table="viewMode === 'graph' ? graphTableState : null"
             row-noun="triple"
             :executed-at="executedAt"
+            :source="executedOn"
+            source-relation="on"
             :media-type="viewMode === 'graph' ? finalGraphContentType ?? 'application/n-triples' : null"
             :duration-ms="totalDurationMs"
           />
@@ -662,6 +666,8 @@ interface ExecutionResults {
 interface Props {
   results: ExecutionResults | null;
   executedAt?: string | null;
+  /** The data the run read, by name. */
+  executedOn?: string | null;
   /**
    * Whether the rule set opted into the rule-tuples extension.
    *
@@ -681,6 +687,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   executedAt: null,
+  executedOn: null,
   tuplesEnabled: true,
   prefixSource: null,
 });

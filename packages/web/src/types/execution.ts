@@ -11,6 +11,8 @@ import type { SparqlResults } from '@sparql-query-lib/types';
  */
 export type QueryInspectorTab = 'details' | 'arguments' | 'results' | 'code' | 'tests';
 
+export const QUERY_INSPECTOR_TABS: readonly QueryInspectorTab[] = ['details', 'arguments', 'results', 'code', 'tests'];
+
 export type QueryExecutionResultPayload = {
   structured: SparqlResults | null;
   rawContent: string | null;
@@ -28,4 +30,7 @@ export type QueryExecutionResultPayload = {
     };
   };
   executedAt?: string | null;
+  /** The backend the run went to, by id and by its name at run time. */
+  backendId?: string | null;
+  backendName?: string | null;
 };

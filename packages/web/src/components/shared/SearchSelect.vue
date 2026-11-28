@@ -22,7 +22,13 @@
       @update:open="onOpenChange"
     >
       <ComboboxAnchor class="search-select__anchor">
+        <!--
+          Keyed by the chosen label: reka reads display-value when the value
+          changes, not when the options do. A value set before its options
+          arrive showed an empty box until the next change.
+        -->
         <ComboboxInput
+          :key="selectedLabel"
           v-model="searchTerm"
           class="search-select__input"
           :class="{ 'search-select__input--bare': variant === 'bare' }"
@@ -220,6 +226,7 @@ const labelFor = (value: unknown): string => {
   if (value === EMPTY_VALUE) return props.emptyLabel ?? '';
   return props.options.find((option) => option.value === value)?.label ?? '';
 };
+const selectedLabel = computed(() => labelFor(selectedValue.value));
 
 /**
  * Home and End belong to the text box, not to the list.

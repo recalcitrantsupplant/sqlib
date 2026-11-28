@@ -175,6 +175,7 @@
             :content-type="result?.contentType ?? null"
             :timing="result?.timing"
             :executed-at="result?.executedAt ?? null"
+            :backend-name="result?.backendName ?? null"
             :loading="queryLoading"
             :can-expand="true"
             :prefix-source="resultsPrefixSource ?? null"

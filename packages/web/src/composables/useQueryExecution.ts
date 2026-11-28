@@ -79,12 +79,16 @@ export interface UseQueryExecutionDeps {
    * environment, so the shown version always runs by its own id.
    */
   preferredVersion?: Ref<string | null>;
+  /** A backend's name, kept with the result so the result says where it came from. */
+  getBackendName?: (backendId: string) => string;
 }
 
 export function useQueryExecution(deps: UseQueryExecutionDeps) {
   const executionResult = ref<QueryExecutionResultPayload | null>(null);
   const isExecuting = ref(false);
   const noneBackendId = deps.noneBackendId ?? 'none';
+  /** The backend of the run in flight, taken when Run is pressed. */
+  let runBackendId: string | null = null;
 
   const resolveTargetId = () => {
     // Run what the editor shows. The query's id runs the version the active
@@ -112,6 +116,7 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
     }
 
     isExecuting.value = true;
+    runBackendId = deps.selectedBackend.value;
     executionResult.value = null;
     if (deps.activeResultsTab) deps.activeResultsTab.value = 'results';
     return true;
@@ -154,6 +159,8 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
       contentType: response.contentType ?? null,
       timing: response.timing,
       executedAt: new Date().toISOString(),
+      backendId: runBackendId,
+      backendName: runBackendId ? (deps.getBackendName?.(runBackendId) ?? runBackendId) : null,
     };
   };
 

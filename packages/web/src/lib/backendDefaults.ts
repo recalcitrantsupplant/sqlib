@@ -22,7 +22,13 @@
  *
  * The last pick is browser-local, one per entity, the same bargain
  * `lastRunCache.ts` makes. It is a convenience, never a setting: nothing else
- * reads it and nothing is lost when it is cleared.
+ * reads it and nothing is lost when it is cleared. A scratch query keeps its
+ * pick under its scratch id, and the pick moves to the query's id at save.
+ *
+ * A rule set runs on a data graph, so its last pick is a data graph. It is kept
+ * in the same store, under its own kind, and comes before the rule set's
+ * browser default when the rule set opens. The graph is kept, not the version,
+ * so the pick opens at the graph's current version, as a float default does.
  */
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 
@@ -32,6 +38,9 @@ const STORAGE_KEY = 'sqlib.lastBackends.v1';
 const MAX_ENTRIES = 500;
 
 export type BackendPickKind = 'query' | 'etlJob';
+
+/** What the store keeps picks for: backends, and a rule set's data graph. */
+type PickKind = BackendPickKind | 'ruleSetDataGraph';
 
 type PickMap = Record<string, { backendId: string; at: number }>;
 
@@ -80,8 +89,25 @@ function writeAll(picks: PickMap): void {
  * One pick per entity and environment: a pick made in dev must not follow the
  * query into prod. `latest` keeps the key it had before environments existed.
  */
-const keyFor = (kind: BackendPickKind, id: string, environment?: string | null) =>
+const keyFor = (kind: PickKind, id: string, environment?: string | null) =>
   environment && environment !== 'latest' ? `${kind}:${id}@${environment}` : `${kind}:${id}`;
+
+function getPick(kind: PickKind, id: string | null | undefined, environment?: string | null): string | null {
+  if (!id) return null;
+  return readAll()[keyFor(kind, id, environment)]?.backendId ?? null;
+}
+
+function setPick(kind: PickKind, id: string | null | undefined, value: string | null, environment?: string | null): void {
+  if (!id) return;
+  const picks = readAll();
+  const key = keyFor(kind, id, environment);
+  if (value) {
+    picks[key] = { backendId: value, at: Date.now() };
+  } else {
+    delete picks[key];
+  }
+  writeAll(picks);
+}
 
 /** The backend this browser last ran this entity on in this environment, if any. */
 export function getLastBackend(
@@ -89,8 +115,7 @@ export function getLastBackend(
   id: string | null | undefined,
   environment?: string | null,
 ): string | null {
-  if (!id) return null;
-  return readAll()[keyFor(kind, id, environment)]?.backendId ?? null;
+  return getPick(kind, id, environment);
 }
 
 /** Remember the backend a run was pointed at; an empty value forgets it. */
@@ -100,15 +125,17 @@ export function setLastBackend(
   backendId: string | null,
   environment?: string | null,
 ): void {
-  if (!id) return;
-  const picks = readAll();
-  const key = keyFor(kind, id, environment);
-  if (backendId) {
-    picks[key] = { backendId, at: Date.now() };
-  } else {
-    delete picks[key];
-  }
-  writeAll(picks);
+  setPick(kind, id, backendId, environment);
+}
+
+/** The data graph this browser last picked for this rule set, if any. */
+export function getLastDataGraph(ruleSetId: string | null | undefined): string | null {
+  return getPick('ruleSetDataGraph', ruleSetId);
+}
+
+/** Remember the data graph picked for a rule set; an empty value forgets it. */
+export function setLastDataGraph(ruleSetId: string | null | undefined, dataGraphId: string | null): void {
+  setPick('ruleSetDataGraph', ruleSetId, dataGraphId);
 }
 
 export interface QueryBackendSources {

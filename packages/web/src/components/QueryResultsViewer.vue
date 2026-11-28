@@ -54,6 +54,8 @@ const props = withDefaults(
     error?: string | null;
     timing?: QueryExecutionResultPayload['timing'];
     executedAt?: string | null;
+    /** The backend the run went to, shown beside when it ran. */
+    backendName?: string | null;
     /** Base name for the downloaded file; the extension follows the media type. */
     downloadBaseName?: string;
     /**
@@ -83,6 +85,7 @@ const props = withDefaults(
     loading: false,
     error: null,
     executedAt: null,
+    backendName: null,
     downloadBaseName: 'query-results',
     timingDetail: null,
     canExpand: false,
@@ -660,6 +663,7 @@ defineExpose({
       :table="activeTab === 'table' ? tableState : null"
       :row-noun="rowNoun"
       :executed-at="executedAtIso"
+      :source="backendName"
       :media-type="normalizedContentType"
       :media-relation="activeTab === 'table' ? 'rendered from' : 'as'"
       :duration-ms="durationMs"

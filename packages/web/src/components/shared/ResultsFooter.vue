@@ -41,6 +41,14 @@ const props = withDefaults(
     durationTitle?: string | null;
     /** The run's trace, in the deployment's observability tool. */
     traceUrl?: string | null;
+    /**
+     * What the run read: a query's backend, a rule set's data graph. A kept
+     * result is shown again after the run bar has moved on, so the result
+     * names its own source.
+     */
+    source?: string | null;
+    /** The word before the source: a query runs against a backend, a rule set on a graph. */
+    sourceRelation?: 'against' | 'on';
   }>(),
   {
     table: null,
@@ -51,6 +59,8 @@ const props = withDefaults(
     durationMs: null,
     durationTitle: null,
     traceUrl: null,
+    source: null,
+    sourceRelation: 'against',
   },
 );
 
@@ -74,7 +84,12 @@ const durationLabel = computed(() => {
 
 const hasAnything = computed(
   () =>
-    !!props.table || !!executedRelative.value || !!props.mediaType || !!durationLabel.value || !!props.traceUrl,
+    !!props.table
+      || !!executedRelative.value
+      || !!props.mediaType
+      || !!props.source
+      || !!durationLabel.value
+      || !!props.traceUrl,
 );
 </script>
 
@@ -94,6 +109,11 @@ const hasAnything = computed(
     <template v-if="mediaType">
       <span class="footer-label">{{ mediaRelation }}</span>
       <span class="footer-pill">{{ mediaType }}</span>
+    </template>
+
+    <template v-if="source">
+      <span class="footer-label">{{ sourceRelation }}</span>
+      <span class="footer-pill" data-testid="results-source">{{ source }}</span>
     </template>
 
     <template v-if="executedRelative">
