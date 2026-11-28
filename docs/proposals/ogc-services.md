@@ -97,6 +97,7 @@ David decided these on 2026-11-28:
 | The old `ogc` object | Remove it and the library services. No migration |
 | Query groups | Later |
 | Restart | Serve a saved service with no restart where there is a clean way |
+| JSON-LD | An opt-in context, served in a `Link` header |
 
 ## What is there now
 
@@ -138,7 +139,8 @@ default `sqlite` mode, that is the library SQLite file
 - `pageSize` and `pageSizeMax` are numbers, 10 and 1000 by default. The
   largest allowed is 10000.
 
-Every field is a plain RDF value or link. Nothing is stored as JSON.
+Every field is a plain RDF value or link, except the optional JSON-LD
+context (see [JSON-LD context](#json-ld-context-opt-in)).
 
 ### Reserved variable names
 
@@ -253,6 +255,32 @@ Some rules can only be checked at run time, with data:
 
 - Two collections with one `?collectionId` get `500` on `/collections`.
 - Two rows with one `?featureId` on one page get `500`, as today.
+
+### JSON-LD context (opt-in)
+
+David asked on 2026-11-28 for GeoJSON responses that a client can read back
+as RDF. The map thread proposed this form, and it fits the query model:
+
+- `OgcServiceVersion` gets an optional `jsonLdContext`: a JSON-LD 1.1
+  context object, stored as written. Each term maps an output variable name
+  to a full predicate IRI. A term can set `"@type": "@id"` for an IRI value,
+  or a datatype.
+- The server adds `"id": "@id"`, `"properties": "@nest"` and
+  `"geometry": { "@type": "@json" }`.
+- The server serves the result at `/context.jsonld` under the service path.
+  Items and item responses then carry a `Link` header with rel
+  `http://www.w3.org/ns/json-ld#context`. A service with no context sends no
+  header.
+- `?featureId` is a string, so `"id": "@id"` needs a base. The item query
+  can also return `?feature`, the feature IRI. When it does, the server
+  writes that IRI as `id` in place of `?featureId`.
+
+The JSON-LD context is the one place where the service stores JSON. It is
+served as written, so storing it as RDF would add a conversion and no use.
+
+Known gap: a term sets IRI or literal for a property, not for each value.
+A property that holds IRIs for some features and literals for others reads
+back with one form. I have not tested the context with a JSON-LD processor.
 
 ### Paths
 
