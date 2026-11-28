@@ -344,6 +344,9 @@ export default defineNuxtConfig({
   nitro: {
     prerender: {
       routes: ROUTED_SECTIONS.map((section) => `/${section}`),
+      // The deployment writes `config.json`. The crawler follows its preload
+      // hint, and would otherwise write a `config.json/` directory there.
+      ignore: ['/config.json'],
     },
   },
   alias: {
