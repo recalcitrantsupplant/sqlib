@@ -13,6 +13,11 @@ export interface WorkerInit {
   persist?: boolean;
   /** Delete the stored library first, so it is seeded again. */
   reset?: boolean;
+  /**
+   * The URL the page sends API calls to. OGC API Features links are built on
+   * it (`SQLIB_OGC_BASE_URL`), so a client can follow them back to this Worker.
+   */
+  apiBaseUrl?: string;
 }
 
 export interface WorkerRequest {

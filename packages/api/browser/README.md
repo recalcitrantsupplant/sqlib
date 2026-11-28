@@ -58,7 +58,9 @@ one file of that size is larger than some static hosts accept. Set
 ## The protocol
 
 `protocol.ts` defines the messages. The page sends `init` once, with the URLs
-of the library and the WebAssembly. The Worker answers `ready` or `failed`.
+of the library and the WebAssembly, and the API base URL that the page uses.
+The Worker sets `SQLIB_OGC_BASE_URL` from it, so OGC API Features links lead
+back to the Worker. The Worker answers `ready` or `failed`.
 After that, each `request` gets one `response`, with the status, headers and
 body bytes. `packages/web/src/lib/browserApi.ts` is the client in the web app.
 

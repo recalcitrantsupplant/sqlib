@@ -1,21 +1,28 @@
 PREFIX : <https://example.org/rail/>
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
 
 SELECT ?feature ?geom ?name ?zone ?stepFree WHERE {
   VALUES ?feature { UNDEF }
   VALUES (?minx ?miny ?maxx ?maxy) { (UNDEF UNDEF UNDEF UNDEF) }
-  VALUES ?name { UNDEF }
+  VALUES ?nameLike { UNDEF }
+  VALUES ?zoneIn { UNDEF }
+  VALUES ?stepFreeIn { UNDEF }
   VALUES ?skip { UNDEF }
   ?feature a :Station ;
            :name ?name ;
            :zone ?zone ;
            :stepFree ?stepFree ;
-           :minLon ?x0 ; :minLat ?y0 ; :maxLon ?x1 ; :maxLat ?y1 .
+           geo:hasGeometry/geo:asWKT ?wkt .
   OPTIONAL {
     ?feature geo:hasGeometry/geo:asWKT ?geom .
     FILTER(!BOUND(?skip) || !?skip)
   }
-  FILTER(!BOUND(?minx) || (?x1 >= ?minx && ?x0 <= ?maxx && ?y1 >= ?miny && ?y0 <= ?maxy))
+  FILTER(!BOUND(?nameLike) || REGEX(?name, ?nameLike, "i"))
+  FILTER(!BOUND(?zoneIn) || ?zone = ?zoneIn)
+  FILTER(!BOUND(?stepFreeIn) || ?stepFree = ?stepFreeIn)
+  BIND(STRDT(CONCAT("POLYGON((", STR(?minx), " ", STR(?miny), ", ", STR(?maxx), " ", STR(?miny), ", ", STR(?maxx), " ", STR(?maxy), ", ", STR(?minx), " ", STR(?maxy), ", ", STR(?minx), " ", STR(?miny), "))"), geo:wktLiteral) AS ?box)
+  FILTER(!BOUND(?minx) || geof:sfIntersects(?wkt, ?box))
 }
 ORDER BY ?feature
 LIMIT 0001

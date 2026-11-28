@@ -1,0 +1,28 @@
+{
+  "name": "@sparql-query-lib/demo-ogc-map",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The Rail demo map page. It reads an OGC API Features service: its collections, queryables and items. Only the browser demo build installs it.",
+  "scripts": {
+    "build": "tsc --noEmit --project tsconfig.json && node build.mjs",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@camptocamp/ogc-client": "2.0.2",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.44.2",
+    "@kurrawongai/codemirror-lang-sparql12": "0.9.0",
+    "maplibre-gl": "6.20.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.1"
+  },
+  "packageManager": "pnpm@11.1.2"
+}

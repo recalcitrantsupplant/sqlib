@@ -28,6 +28,7 @@ import {
   cqlBboxClause,
   cqlDatetimeClauses,
   cqlEqualsClause,
+  cqlQueryableValues,
   indexFieldSchema,
   localName,
   ogcCollectionBody,
@@ -49,6 +50,8 @@ import {
   type OgcObject,
   type OgcQueryable,
 } from '@sparql-query-lib/tools';
+import { EXPLAIN_HEADER, EXPLAIN_TOKEN, SPARQL_QUERY_TYPE } from '../lib/explainQuery.js';
+import { formatText } from '../lib/formatText.js';
 import type { PublishedCatalogue } from '../lib/publishedTools.js';
 import { publicOrigin } from '../config/publicUrl.js';
 
@@ -63,6 +66,8 @@ const CRS84_SPELLINGS = new Set([CRS84_URI, CRS84_URI.replace('http://', 'https:
 
 /** Headers worth passing back from `/execute`. */
 const FORWARDED_HEADERS = ['server-timing', 'cache-control'];
+/** `SQLIB_OGC_SPARQL=true` gives each collection a `sparql` route and link. */
+const showSparql = (): boolean => process.env.SQLIB_OGC_SPARQL === 'true';
 
 type Service = {
   slug: string;
@@ -208,6 +213,7 @@ export async function registerOgcRoutes(
       { rel: 'items', type: GEOJSON_MEDIA_TYPE, title: `${spec.ogc.title} features`, href: `${root}/items` },
       { rel: QUERYABLES_REL, type: SCHEMA_TYPE, title: 'Queryables', href: `${root}/queryables` },
     ];
+    if (showSparql()) links.push({ rel: 'describedby', type: SPARQL_QUERY_TYPE, title: 'SPARQL query', href: `${root}/sparql` });
     for (const source of spec.ogc.geometrySources ?? []) {
       links.push({ rel: 'alternate', href: source.href, ...(source.type ? { type: source.type } : {}), ...(source.title ? { title: source.title } : {}) });
     }
@@ -230,10 +236,11 @@ export async function registerOgcRoutes(
     return reply.header('content-type', JSON_TYPE).send(collectionDocument(request, service, spec));
   });
 
-  /** Run a body through `/execute` as the caller. */
-  const execute = async (request: FastifyRequest, payload: object) => {
+  /** Run a body through `/execute` as the caller. With `explain`, get the SPARQL text it would run. */
+  const execute = async (request: FastifyRequest, payload: object, explain = false) => {
     const headers: Record<string, string> = { 'content-type': JSON_TYPE, accept: SPARQL_JSON };
     if (typeof request.headers.authorization === 'string') headers.authorization = request.headers.authorization;
+    if (explain) headers[EXPLAIN_HEADER] = EXPLAIN_TOKEN;
     return app.inject({ method: 'POST', url: `${basePath}/execute`, headers, payload });
   };
 
@@ -264,6 +271,42 @@ export async function registerOgcRoutes(
     return fields;
   };
 
+  /**
+   * The values of each queryable from the `valuesQuery`: one row per value,
+   * with `?property` and `?value`.
+   */
+  const facetsOf = async (request: FastifyRequest, spec: OgcCollectionSpec): Promise<Map<string, unknown[]>> => {
+    const facets = new Map<string, unknown[]>();
+    if (!spec.valuesTargetId) return facets;
+    const response = await execute(request, {
+      targetId: spec.valuesTargetId,
+      ...(spec.tool.defaultBackendId ? { backendId: spec.tool.defaultBackendId } : {}),
+    });
+    if (response.statusCode !== 200) {
+      throw new OgcAnswer(
+        response.statusCode === 401 || response.statusCode === 403 ? response.statusCode : 502,
+        `The queryable values could not be read: ${errorText(response.body)}`,
+      );
+    }
+    const queryables = spec.ogc.queryables ?? {};
+    for (const row of (JSON.parse(response.body) as SelectResults).results.bindings) {
+      const name = row.property?.value;
+      const raw = row.value?.value;
+      const queryable = name === undefined ? undefined : queryables[name];
+      if (!name || raw === undefined || !queryable) continue;
+      let value: unknown;
+      try {
+        value = queryableValue(name, queryable, raw);
+      } catch {
+        continue;
+      }
+      const list = facets.get(name) ?? [];
+      list.push(value);
+      facets.set(name, list);
+    }
+    return facets;
+  };
+
   route('/ogc/:slug/collections/:collectionId/queryables', async (request, reply) => {
     const { service, spec } = collectionOf(request);
     checkJsonFormat(request);
@@ -282,6 +325,10 @@ export async function registerOgcRoutes(
       for (const [name, queryable] of Object.entries(ogc.queryables ?? {})) properties[name] = queryableSchema(queryable);
       if (ogc.mode === 'cql2' && geometryFieldOf(ogc, null)) properties.geometry = { format: 'geometry-any' };
     }
+    for (const [name, facet] of await facetsOf(request, spec)) {
+      const property = properties[name] as Record<string, unknown> | undefined;
+      if (property) property.enum = facet;
+    }
     return reply.header('content-type', SCHEMA_TYPE).send({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: url,
@@ -297,6 +344,13 @@ export async function registerOgcRoutes(
     return runItems(request, reply, service, spec, null);
   });
 
+  /** The SPARQL text that `items` runs for the same parameters, with its arguments substituted. */
+  route('/ogc/:slug/collections/:collectionId/sparql', async (request, reply) => {
+    if (!showSparql()) throw new OgcAnswer(404, 'This service does not show its SPARQL.');
+    const { service, spec } = collectionOf(request);
+    return runItems(request, reply, service, spec, null, true);
+  });
+
   route('/ogc/:slug/collections/:collectionId/items/:featureId', async (request, reply) => {
     const { service, spec } = collectionOf(request);
     const { featureId } = request.params as { featureId: string };
@@ -309,6 +363,7 @@ export async function registerOgcRoutes(
     service: Service,
     spec: OgcCollectionSpec,
     featureId: string | null,
+    explain = false,
   ) {
     const { ogc } = spec;
     const query = request.query as Query;
@@ -336,6 +391,7 @@ export async function registerOgcRoutes(
       .filter(([name]) => one(name) !== undefined)
       .map(([name, queryable]) => ({ name, queryable, value: queryableValue(name, queryable, one(name)!) }));
 
+    let matchesNothing = false;
     if (ogc.mode === 'values') {
       if (bbox) {
         if (!p.bbox) throw new OgcAnswer(400, 'bbox: this collection is not filtered by bbox.');
@@ -348,7 +404,10 @@ export async function registerOgcRoutes(
         if (datetime.start !== null) values[p.datetime[0]] = datetime.start;
         if (datetime.end !== null) values[p.datetime[1]] = datetime.end;
       }
-      for (const { name, queryable, value } of queryableValues) values[queryable.var ?? name] = value;
+      for (const [name, list] of chosenValues(ogc, queryableValues, one('filter'), one('filter-lang'))) {
+        if (list.length === 0) matchesNothing = true;
+        values[ogc.queryables![name]!.var ?? name] = list;
+      }
       if (p.limit) values[p.limit] = limit + 1;
       if (p.offset) values[p.offset] = offset;
     } else {
@@ -388,8 +447,15 @@ export async function registerOgcRoutes(
       if (p.cursor) values[p.cursor] = one('cursor') ?? '*';
     }
 
+    if (matchesNothing) {
+      if (explain) return reply.header('content-type', SPARQL_QUERY_TYPE).send('');
+      values[ogc.feature.var] = `${NOTHING_IRI}`;
+    }
     const body = buildPublishedExecuteBody(spec.tool, values);
-    const response = await execute(request, body);
+    const response = await execute(request, body, explain);
+    if (explain && response.statusCode === 200) {
+      return reply.header('content-type', SPARQL_QUERY_TYPE).send(readableSparql(response.body));
+    }
     for (const name of FORWARDED_HEADERS) {
       const value = response.headers[name];
       if (value !== undefined) reply.header(name, value);
@@ -582,4 +648,39 @@ function errorText(body: string): string {
   } catch {
     return body;
   }
+}
+
+/** The SPARQL text with blank lines dropped and its layout tidied. Text that does not parse comes back with only the blank lines dropped. */
+function readableSparql(text: string): string {
+  const compact = text.replace(/^[ \t]*\n/gm, '');
+  try {
+    return formatText(compact, 'sparql');
+  } catch {
+    return compact;
+  }
+}
+
+/** A feature IRI that no store holds, bound when the filter allows no value: the query then returns no rows. */
+const NOTHING_IRI = 'urn:sqlib:ogc:no-feature';
+
+/**
+ * values mode: the values of each queryable, from its URL parameter and from
+ * a CQL2-JSON `filter`. A queryable named in both keeps the values both allow.
+ */
+function chosenValues(
+  ogc: OgcObject,
+  fromParams: Array<{ name: string; value: unknown }>,
+  filterRaw: string | undefined,
+  lang: string | undefined,
+): Map<string, unknown[]> {
+  const chosen = new Map<string, unknown[]>(fromParams.map(({ name, value }) => [name, [value]]));
+  if (filterRaw === undefined) return chosen;
+  if (lang !== undefined && lang !== 'cql2-json') throw new OgcAnswer(400, 'filter-lang: this collection accepts filter-lang=cql2-json only.');
+  const queryables = ogc.queryables ?? {};
+  for (const [name, list] of cqlQueryableValues(parseCql2Json(filterRaw), queryables)) {
+    const typed = list.map(item => queryableValue(name, queryables[name]!, String(item)));
+    const before = chosen.get(name);
+    chosen.set(name, before ? before.filter(value => typed.some(other => other === value)) : typed);
+  }
+  return chosen;
 }

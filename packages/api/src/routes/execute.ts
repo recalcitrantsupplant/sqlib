@@ -19,6 +19,7 @@ import {meter} from '../lib/logger.js';
 import {recordQueryRun} from '../lib/slowQueryLog.js';
 import {ValueType} from '@opentelemetry/api';
 import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES, RDF_MEDIA_TYPES} from '../types/media-types.js';
+import {SPARQL_QUERY_TYPE, wantsExplain} from '../lib/explainQuery.js';
 import {previewUpdate, PatchTargetError, toRdfPatchDocument} from '../lib/patchService.js';
 import {UnsupportedUpdateError} from '@sparql-query-lib/rdf-delta';
 import {
@@ -874,6 +875,9 @@ export default async function (
                         return reply.code(400).send({error: applyError.message});
                     }
                 }
+                if (sparqlQueryString && wantsExplain(request.headers)) {
+                    return reply.header('Content-Type', SPARQL_QUERY_TYPE).send(sparqlQueryString);
+                }
 
             } else if (isQueryVersion(targetEntity)) {
                 sparqlQueryString = targetEntity.queryString as string;
@@ -913,6 +917,9 @@ export default async function (
                         request.log.error(applyError, `Error applying execution arguments to query version ${resolvedTargetId}`);
                         return reply.code(400).send({error: applyError.message});
                     }
+                }
+                if (sparqlQueryString && wantsExplain(request.headers)) {
+                    return reply.header('Content-Type', SPARQL_QUERY_TYPE).send(sparqlQueryString);
                 }
 
             } else if (targetEntity['@type'] === 'QueryGroup') {

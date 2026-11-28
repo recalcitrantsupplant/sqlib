@@ -342,6 +342,17 @@
       "comment": "WKT points."
     },
     {
+      "id": "urn:sqlib:query:rail-station-facets",
+      "name": "Station queryable values (OGC)",
+      "description": "Each zone and step-free value of the stations. The Stations collection lists these as the enum of its zone and stepFree queryables.",
+      "tags": [
+        "urn:sqlib:tag:rail-map"
+      ],
+      "defaultBackend": "urn:sqlib:backend:rail-features",
+      "file": "queries/station-facets.rq",
+      "tool": false
+    },
+    {
       "id": "urn:sqlib:query:rail-stations-features",
       "name": "Stations (OGC)",
       "description": "The Stations collection of OGC API Features: a point per station.",

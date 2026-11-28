@@ -91,6 +91,7 @@ export function installBrowserApi(assetBase: string, baseUrl: string, options: {
       sqliteWasmUrl: new URL('sqlite3.wasm', assetBase).href,
       duckdbBaseUrl: options.duckdbBaseUrl,
       persist: false,
+      apiBaseUrl: root,
     });
   }
 

@@ -21,9 +21,19 @@
   },
   "queryables": {
     "name": {
-      "var": "name",
+      "var": "nameLike",
       "type": "string",
       "title": "Name"
+    },
+    "zone": {
+      "var": "zoneIn",
+      "type": "integer",
+      "title": "Zone"
+    },
+    "stepFree": {
+      "var": "stepFreeIn",
+      "type": "boolean",
+      "title": "Step-free"
     }
   },
   "pageSize": {
@@ -39,5 +49,6 @@
         -31.905
       ]
     ]
-  }
+  },
+  "valuesQuery": "urn:sqlib:query:rail-station-facets"
 }

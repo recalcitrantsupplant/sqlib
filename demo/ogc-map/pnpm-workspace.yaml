@@ -1,0 +1,4 @@
+# The map page installs on its own, so the sqlib workspace does not fetch
+# MapLibre and ogc-client. demo/scripts/build-browser-site.sh installs it.
+allowBuilds:
+  esbuild: false

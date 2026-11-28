@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cqlQueryableValues,
   OgcRequestError,
   checkOgcObject,
   combineCql,
@@ -126,12 +127,38 @@ describe('ogcParamKinds', () => {
       '1': { kind: 'integer' },
       '2': { kind: 'integer' },
       skip: { kind: 'boolean' },
-      state: { kind: 'string' },
+      state: { kind: 'string', list: true },
     });
   });
 
   it('leaves cql2 queryables out: they go in the filter', () => {
     expect(Object.keys(ogcParamKinds(cqlOgc)).sort()).toEqual(['after', 'feature', 'filter', 'limit', 'skip']);
+  });
+});
+
+describe('cqlQueryableValues', () => {
+  const queryables = { zone: { type: 'integer' as const }, name: { type: 'string' as const } };
+
+  it('reads an and of = and in as the values of each queryable', () => {
+    const filter = { op: 'and', args: [
+      { op: 'in', args: [{ property: 'zone' }, [1, 2]] },
+      { op: '=', args: [{ property: 'name' }, 'Central'] },
+    ] };
+    expect([...cqlQueryableValues(filter, queryables)]).toEqual([['zone', [1, 2]], ['name', ['Central']]]);
+  });
+
+  it('keeps the values that both comparisons on one queryable allow', () => {
+    const filter = { op: 'and', args: [
+      { op: 'in', args: [{ property: 'zone' }, [1, 2]] },
+      { op: 'in', args: [{ property: 'zone' }, [2, 3]] },
+    ] };
+    expect(cqlQueryableValues(filter, queryables).get('zone')).toEqual([2]);
+  });
+
+  it('refuses or, other operators and unknown properties', () => {
+    expect(() => cqlQueryableValues({ op: 'or', args: [] }, queryables)).toThrow(OgcRequestError);
+    expect(() => cqlQueryableValues({ op: '<', args: [{ property: 'zone' }, 2] }, queryables)).toThrow(OgcRequestError);
+    expect(() => cqlQueryableValues({ op: '=', args: [{ property: 'colour' }, 'red'] }, queryables)).toThrow(/colour/);
   });
 });
 

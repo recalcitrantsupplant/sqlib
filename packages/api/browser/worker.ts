@@ -24,6 +24,7 @@ let ready: Promise<InjectApp> | null = null;
 async function start(init: WorkerInit): Promise<InjectApp> {
   const t0 = performance.now();
   (globalThis as { __SQLIB_DUCKDB__?: { baseUrl?: string } }).__SQLIB_DUCKDB__ = { baseUrl: init.duckdbBaseUrl };
+  if (init.apiBaseUrl) process.env.SQLIB_OGC_BASE_URL = init.apiBaseUrl;
   const { persistent } = await initSqlite({ opfs: init.persist !== false, wasmUrl: init.sqliteWasmUrl });
   if (init.reset) resetDatabase(LIBRARY_FILE);
   const seed = await fetch(init.libraryUrl);

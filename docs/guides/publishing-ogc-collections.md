@@ -144,6 +144,7 @@ POST /queries/{id}/versions
 | `pageSize` | The default and the largest page. The largest allowed is 10000 |
 | `extent` | The spatial extent in CRS84, and the temporal extent |
 | `omit` | Result columns that are not feature properties |
+| `valuesQuery` | `values` mode: a query that lists the values of each queryable. See [Facets](#facets) |
 
 The save checks the object against the version. A key that names a variable
 that the version does not declare gets `400`, with the name of the key. A save
@@ -182,7 +183,7 @@ The server skips a collection that it cannot serve, and logs the reason. With
 | `datetime` | An instant, or `start/end`. Either end can be `..` |
 | `skipGeometry` | `true` returns each feature with `"geometry": null` |
 | a queryable | One value, parsed by the `type` of the queryable |
-| `filter`, `filter-lang`, `filter-crs` | `cql2` mode only |
+| `filter`, `filter-lang` | `values` mode: see [Facets](#facets). `cql2` mode: any CQL2-JSON, and also `filter-crs` |
 | `f` | `geojson` or `json` |
 
 Any other parameter gets `400`, with the name of the parameter.
@@ -200,6 +201,43 @@ Each call runs the pinned version through `POST /execute`, with the
 `Authorization` header of the caller. The grants, graph policies and caller
 slots (`?authUser`, `?authGroup`) of the caller all apply. A collection can
 therefore show each caller only their own features.
+
+## Showing the SPARQL
+
+Set `SQLIB_OGC_SPARQL=true` to give each collection a `sparql` route. It takes
+the parameters of `items` and answers with the SPARQL text that `items` runs
+for them, as `application/sparql-query`. The collection links to it with
+`rel=describedby`. The demo map page shows this text in its Query tab.
+
+Anyone who can read the collection can then read its query. The setting is
+off by default for this reason.
+
+## Facets
+
+In `values` mode, each queryable takes several values. sqlib sends them as
+rows of the queryable's `VALUES` clause, so a feature matches when it matches
+any one of them. Each queryable has its own `VALUES` clause, so the conditions
+on different queryables must all hold.
+
+Send several values in a CQL2-JSON `filter`, with `filter-lang=cql2-json`.
+The filter is an `and` of `=` and `in` comparisons, each on a queryable:
+
+```json
+{ "op": "and", "args": [
+  { "op": "in", "args": [{ "property": "zone" }, [1, 3]] },
+  { "op": "=", "args": [{ "property": "stepFree" }, false] }
+] }
+```
+
+Any other operator gets `400`. A queryable in both the filter and a query
+parameter keeps the values that both allow. The service does not declare the
+CQL2 conformance classes for this subset.
+
+`valuesQuery` names a SELECT in the same library that returns `?property`
+and `?value`: one row for each value of a queryable. The queryables route then
+gives each listed property an `enum` of its values. Leave a queryable out of
+the query when its values are open, such as a date or a free-text name. The Rail Stations collection uses
+`queries/station-facets.rq`.
 
 ## Leaving geometry out
 
@@ -318,6 +356,10 @@ the index comes back as `/execute` sent it.
 
 Map libraries call the routes from another origin. Add the origin of the map
 to the CORS configuration of the server.
+
+`demo/ogc-map` is a map page for any OGC API Features service, built on
+MapLibre and `@camptocamp/ogc-client`. Open it with `?url=<landing page>`. The
+browser-only Rail demo serves it at `map/`.
 
 ## Conformance tests
 

@@ -1,31 +1,10 @@
 @prefix : <https://example.org/rail/> .
 @prefix geo: <http://www.opengis.net/ont/geosparql#> .
 
-# Envelopes and line geometry for the OGC API Features collections. Kept apart
+# Line geometry for the OGC API Features collections. Kept apart
 # from the network graph, which the tests read.
 
-:airport :minLon 115.967 ; :minLat -31.94 ; :maxLon 115.967 ; :maxLat -31.94 .
-:northgate :minLon 115.88 ; :minLat -31.92 ; :maxLon 115.88 ; :maxLat -31.92 .
-:central :minLon 115.86 ; :minLat -31.951 ; :maxLon 115.86 ; :maxLat -31.951 .
-:market :minLon 115.852 ; :minLat -31.956 ; :maxLon 115.852 ; :maxLat -31.956 .
-:harbour :minLon 115.84 ; :minLat -31.985 ; :maxLon 115.84 ; :maxLat -31.985 .
-:southbank :minLon 115.845 ; :minLat -32.01 ; :maxLon 115.845 ; :maxLat -32.01 .
-:westfield :minLon 115.79 ; :minLat -31.94 ; :maxLon 115.79 ; :maxLat -31.94 .
-:parkside :minLon 115.825 ; :minLat -31.935 ; :maxLon 115.825 ; :maxLat -31.935 .
-:museum :minLon 115.872 ; :minLat -31.948 ; :maxLon 115.872 ; :maxLat -31.948 .
-:university :minLon 115.818 ; :minLat -31.978 ; :maxLon 115.818 ; :maxLat -31.978 .
-:eastwood :minLon 115.92 ; :minLat -31.962 ; :maxLon 115.92 ; :maxLat -31.962 .
-:hillcrest :minLon 115.9 ; :minLat -31.915 ; :maxLon 115.9 ; :maxLat -31.915 .
-:riverside :minLon 115.88 ; :minLat -31.97 ; :maxLon 115.88 ; :maxLat -31.97 .
-:docklands :minLon 115.9 ; :minLat -31.995 ; :maxLon 115.9 ; :maxLat -31.995 .
-:stadium :minLon 115.77 ; :minLat -31.93 ; :maxLon 115.77 ; :maxLat -31.93 .
-:lakeside :minLon 115.915 ; :minLat -32.015 ; :maxLon 115.915 ; :maxLat -32.015 .
-
-:red :minLon 115.84 ; :minLat -32.01 ; :maxLon 115.967 ; :maxLat -31.92 ;
-  :route [ geo:asWKT "LINESTRING(115.967 -31.94, 115.88 -31.92, 115.86 -31.951, 115.852 -31.956, 115.84 -31.985, 115.845 -32.01)"^^geo:wktLiteral ] .
-:blue :minLon 115.79 ; :minLat -31.978 ; :maxLon 115.92 ; :maxLat -31.935 ;
-  :route [ geo:asWKT "LINESTRING(115.79 -31.94, 115.825 -31.935, 115.86 -31.951, 115.872 -31.948, 115.818 -31.978, 115.92 -31.962)"^^geo:wktLiteral ] .
-:green :minLon 115.852 ; :minLat -32.015 ; :maxLon 115.915 ; :maxLat -31.915 ;
-  :route [ geo:asWKT "LINESTRING(115.9 -31.915, 115.872 -31.948, 115.852 -31.956, 115.88 -31.97, 115.9 -31.995, 115.915 -32.015)"^^geo:wktLiteral ] .
-:yellow :minLon 115.77 ; :minLat -31.935 ; :maxLon 115.9 ; :maxLat -31.915 ;
-  :route [ geo:asWKT "LINESTRING(115.77 -31.93, 115.825 -31.935, 115.88 -31.92, 115.9 -31.915)"^^geo:wktLiteral ] .
+:red :route [ geo:asWKT "LINESTRING(115.967 -31.94, 115.88 -31.92, 115.86 -31.951, 115.852 -31.956, 115.84 -31.985, 115.845 -32.01)"^^geo:wktLiteral ] .
+:blue :route [ geo:asWKT "LINESTRING(115.79 -31.94, 115.825 -31.935, 115.86 -31.951, 115.872 -31.948, 115.818 -31.978, 115.92 -31.962)"^^geo:wktLiteral ] .
+:green :route [ geo:asWKT "LINESTRING(115.9 -31.915, 115.872 -31.948, 115.852 -31.956, 115.88 -31.97, 115.9 -31.995, 115.915 -32.015)"^^geo:wktLiteral ] .
+:yellow :route [ geo:asWKT "LINESTRING(115.77 -31.93, 115.825 -31.935, 115.88 -31.92, 115.9 -31.915)"^^geo:wktLiteral ] .

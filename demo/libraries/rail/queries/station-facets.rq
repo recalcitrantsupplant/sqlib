@@ -1,0 +1,13 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT DISTINCT ?property ?value WHERE {
+  ?station a :Station .
+  {
+    ?station :zone ?value .
+    BIND("zone" AS ?property)
+  } UNION {
+    ?station :stepFree ?value .
+    BIND("stepFree" AS ?property)
+  }
+}
+ORDER BY ?property ?value

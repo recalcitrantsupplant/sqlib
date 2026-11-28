@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Map</title>
+  <link rel="stylesheet" href="map.css">
+</head>
+<body>
+  <aside id="panel">
+    <header>
+      <h1 id="service-title">Map</h1>
+      <form id="service-form">
+        <input id="service-url" type="url" aria-label="Service URL" placeholder="https://example.org/ogc/features" required>
+        <button type="submit">Open</button>
+      </form>
+    </header>
+    <p id="status" hidden></p>
+    <ul id="collections"></ul>
+  </aside>
+  <main id="map"></main>
+  <aside id="inspect" hidden>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-query" aria-selected="true">Query</button>
+      <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
+    </div>
+    <p id="inspect-caption"></p>
+    <div id="inspect-code"></div>
+  </aside>
+  <script type="module" src="map.js"></script>
+</body>
+</html>

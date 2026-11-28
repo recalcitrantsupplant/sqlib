@@ -1564,6 +1564,10 @@ export const createQueryVersionSchema = {
               "additionalProperties": false
             }
           },
+          "valuesQuery": {
+            "type": "string",
+            "minLength": 1
+          },
           "pageSize": {
             "type": "object",
             "properties": {
@@ -4927,6 +4931,10 @@ const __createQueryVersionBodySchema = {
             },
             "additionalProperties": false
           }
+        },
+        "valuesQuery": {
+          "type": "string",
+          "minLength": 1
         },
         "pageSize": {
           "type": "object",

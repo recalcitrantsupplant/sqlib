@@ -12,6 +12,8 @@ source "$(dirname "$0")/lib.sh"
 #    anything from another origin.
 # 3. browser/test/runs.mjs presses Run on a query and a group. No error may
 #    be logged.
+# 4. browser/test/map.mjs opens the map page and reads the Rail OGC API
+#    Features collections: both lists, the next page and a name filter.
 
 free_port() { node -e 'const s=require("net").createServer().listen(0,()=>{console.log(s.address().port);s.close()})'; }
 OUT="${RUNNER_TEMP:-/tmp}/browser-demo-$$"
@@ -30,6 +32,9 @@ fi
 
 log "browser-demo: building the workspace dependencies"
 pnpm --filter '@sparql-query-lib/api^...' --filter '@sparql-query-lib/web^...' run build
+
+log "browser-demo: testing the map page"
+(cd demo/ogc-map && pnpm install --frozen-lockfile && pnpm run typecheck && pnpm test)
 
 log "browser-demo: building the site"
 DEMO_STORE="$OUT/state/store/library.sqlite" DEMO_SEED_PORT="$(free_port)" \
@@ -68,3 +73,6 @@ log "browser-demo: running a query and a group"
 node browser/test/runs.mjs "$OUT/site" "$OUT/shots" \
   /queries/urn%3Asqlib%3Aquery%3Arail-departures-from-station \
   /queryGroups/urn%3Asqlib%3Agroup%3Arail-one-change-away
+
+log "browser-demo: reading the OGC collections on the map page"
+node browser/test/map.mjs "$OUT/site" "$OUT/shots"

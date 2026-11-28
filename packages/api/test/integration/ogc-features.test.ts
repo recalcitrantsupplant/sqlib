@@ -236,6 +236,15 @@ describe('OGC API Features, against a real API instance', () => {
       expect(datetime.body.features.map((f: { id: string }) => f.id)).toEqual(['b2']);
       const name = await get('/ogc/survey/collections/buildings/items?name=Perth%20Hall');
       expect(name.body.features.map((f: { id: string }) => f.id)).toEqual(['a1']);
+      const filter = (cql: object) => `/ogc/survey/collections/buildings/items?filter-lang=cql2-json&filter=${encodeURIComponent(JSON.stringify(cql))}`;
+      const either = await get(filter({ op: 'in', args: [{ property: 'name' }, ['Perth Hall', 'Sydney Store']] }));
+      expect(either.body.features.map((f: { id: string }) => f.id)).toEqual(['a1', 'c3']);
+      const both = await get(`${filter({ op: 'in', args: [{ property: 'name' }, ['Perth Hall', 'Sydney Store']] })}&name=Sydney%20Store`);
+      expect(both.body.features.map((f: { id: string }) => f.id)).toEqual(['c3']);
+      const none = await get(`${filter({ op: '=', args: [{ property: 'name' }, 'Perth Hall'] })}&name=Sydney%20Store`);
+      expect(none.status).toBe(200);
+      expect(none.body.features).toEqual([]);
+      expect((await get(filter({ op: 'or', args: [] }))).status).toBe(400);
     });
 
     it('leaves the geometry out when asked', async () => {
@@ -253,6 +262,42 @@ describe('OGC API Features, against a real API instance', () => {
       expect((await get('/ogc/survey/collections/buildings/items?limit=0')).status).toBe(400);
       expect((await get('/ogc/survey/collections/buildings/items?filter=x')).status).toBe(400);
       expect((await get('/ogc/survey/collections/buildings/items?f=html')).status).toBe(400);
+    });
+
+    it('serves the SPARQL of a page only when SQLIB_OGC_SPARQL is true', async () => {
+      const one = await get('/ogc/survey/collections/buildings');
+      expect(one.body.links.map((link: { rel: string }) => link.rel)).not.toContain('describedby');
+      expect((await get('/ogc/survey/collections/buildings/sparql')).status).toBe(404);
+
+      setEnv('SQLIB_OGC_SPARQL', 'true');
+      try {
+        const linked = await get('/ogc/survey/collections/buildings');
+        const link = linked.body.links.find((l: { rel: string }) => l.rel === 'describedby');
+        expect(link).toMatchObject({ type: 'application/sparql-query; charset=utf-8', title: 'SPARQL query' });
+        expect(link.href).toBe('https://maps.example.org/ogc/survey/collections/buildings/sparql');
+
+        const text = await get('/ogc/survey/collections/buildings/sparql?name=Perth%20Hall&offset=2');
+        expect(text.status).toBe(200);
+        expect(text.headers['content-type']).toMatch(/^application\/sparql-query/);
+        expect(text.body).toContain('"Perth Hall"');
+        expect(text.body).toMatch(/LIMIT 3\b/);
+        expect(text.body).toMatch(/OFFSET 2\b/);
+        expect(text.body).not.toContain('LIMIT 0001');
+        expect((await get('/ogc/survey/collections/buildings/sparql?colour=red')).status).toBe(400);
+      } finally {
+        setEnv('SQLIB_OGC_SPARQL', undefined);
+      }
+    });
+
+    it('does not show the SPARQL to a caller of /execute who sends a wrong explain token', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/execute',
+        headers: { 'content-type': 'application/json', accept: 'application/sparql-results+json', 'x-sqlib-explain': 'guess' },
+        payload: { targetId: ids.query },
+      });
+      expect(String(response.headers['content-type'])).not.toMatch(/sparql-query/);
+      expect(response.body).not.toContain('SELECT');
     });
 
     it('serves one feature by its id, and 404 for none', async () => {

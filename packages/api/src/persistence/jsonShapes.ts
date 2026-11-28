@@ -188,6 +188,7 @@ export const OGC_COLLECTION: JsonShape = {
           additionalProperties: false,
         },
       },
+      valuesQuery: { type: 'string', minLength: 1 },
       pageSize: {
         type: 'object',
         properties: { default: { type: 'integer', minimum: 1 }, max: { type: 'integer', minimum: 1 } },
@@ -227,6 +228,7 @@ export const OGC_COLLECTION: JsonShape = {
           .strict(),
       )
       .optional(),
+    valuesQuery: z.string().min(1).optional(),
     pageSize: z.object({ default: z.number().int().min(1).optional(), max: z.number().int().min(1).optional() }).strict().optional(),
     extent: z.record(z.string(), z.unknown()).optional(),
     omit: z.array(z.string()).optional(),
