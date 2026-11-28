@@ -1,6 +1,6 @@
 PREFIX : <https://example.org/rail/>
 
-SELECT ?property ?value (COUNT(?station) AS ?count) WHERE {
+SELECT DISTINCT ?property ?value WHERE {
   ?station a :Station .
   {
     ?station :zone ?value .
@@ -10,5 +10,4 @@ SELECT ?property ?value (COUNT(?station) AS ?count) WHERE {
     BIND("stepFree" AS ?property)
   }
 }
-GROUP BY ?property ?value
 ORDER BY ?property ?value

@@ -72,7 +72,7 @@ export type OgcObject = {
   queryables?: Record<string, OgcQueryable>;
   /**
    * The id of a stored SELECT in the same library that returns
-   * `?property ?value ?count`: the values of each queryable, for the
+   * `?property ?value`: the values of each queryable, for the
    * queryables document's `enum`.
    */
   valuesQuery?: string;

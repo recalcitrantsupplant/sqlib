@@ -343,8 +343,8 @@
     },
     {
       "id": "urn:sqlib:query:rail-station-facets",
-      "name": "Station facets (OGC)",
-      "description": "Each zone and step-free value of the stations, with how many stations have it. The Stations collection lists these as the values of its queryables.",
+      "name": "Station queryable values (OGC)",
+      "description": "Each zone and step-free value of the stations. The Stations collection lists these as the enum of its zone and stepFree queryables.",
       "tags": [
         "urn:sqlib:tag:rail-map"
       ],

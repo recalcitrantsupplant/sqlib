@@ -187,9 +187,9 @@ PR #278 built the facets, and this change keeps them as they are:
   queryables combine with AND.
 - A client sends them as repeated query parameters or as a CQL2-JSON filter
   that is an `and` of `=` and `in`. Anything else gets `400`.
-- A collection's `valuesQuery` returns `?property ?value ?count`. The
-  queryables document lists the values as `enum`, with the counts in
-  `x-counts`, and the map page shows each such queryable as tick boxes.
+- A collection's `valuesQuery` returns `?property ?value`. The queryables
+  document lists the values as `enum`, and the map page shows each such
+  queryable as tick boxes.
 
 A query can take a string and convert it with `BIND(IRI(?text) AS ?x)`, but a
 queryable of type `uri` makes the server bind an IRI, which the store joins

@@ -101,7 +101,6 @@ button.link { margin-left: auto; padding: 0; border: 0; background: none; color:
 .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .facet { margin: 0; padding: 0; border: 0; display: grid; gap: 2px; }
 .facet legend { padding: 0; margin-bottom: 3px; font-size: 12px; color: var(--muted); }
-.facet .count { margin-left: auto; }
 .pager { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .pager span { flex: 1; text-align: center; color: var(--muted); font-size: 12px; }
 .pager button { width: 32px; padding: 2px 0; }
