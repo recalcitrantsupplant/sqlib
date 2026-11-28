@@ -63,6 +63,24 @@ if (!geojson) failures.push('GeoJSON of the page');
 await page.screenshot({ path: `${out}/map-result.png` });
 await page.click('#tab-query');
 await page.screenshot({ path: `${out}/map-query.png` });
+
+const width = async () => (await page.locator('#inspect').boundingBox())?.width ?? 0;
+const before = await width();
+const edge = await page.locator('#inspect-resizer').boundingBox();
+await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
+await page.mouse.down();
+await page.mouse.move(edge.x - 150, edge.y + 200, { steps: 5 });
+await page.mouse.up();
+const after = await width();
+const resized = after > before + 100;
+console.log(resized ? 'ok  ' : 'FAIL', 'drag the panel wider', `${before} -> ${after}`);
+if (!resized) failures.push('drag the panel wider');
+await page.click('#inspect-toggle');
+const collapsed = (await width()) < 60;
+await page.click('#inspect-toggle');
+const expanded = Math.abs((await width()) - after) < 2;
+console.log(collapsed && expanded ? 'ok  ' : 'FAIL', 'collapse and expand the panel');
+if (!(collapsed && expanded)) failures.push('collapse and expand the panel');
 await page.screenshot({ path: `${out}/map-filter.png` });
 
 await page.click('#service-form button[type="submit"]');

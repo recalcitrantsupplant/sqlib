@@ -34,6 +34,21 @@ OpenFreeMap Positron style, which loads from `tiles.openfreemap.org`.
 - A feature with a `colour` or `color` property is drawn in that colour.
   Other features take the colour of their collection.
 
+## The right-hand panel
+
+The panel shows the selected collection's current page in two tabs: Query,
+the SPARQL that ran (when the service links it with `rel=describedby`), and
+Result, the GeoJSON that came back. It follows the web app's inspector
+(`packages/web/src/components/shared/InspectorPanel.vue`):
+
+- The button beside the tabs collapses the panel to a strip, and expands it.
+- The left edge drags to resize the panel. A double-click resets the width.
+- Lines wrap by default. The wrap button turns wrapping off.
+- The copy button copies the open tab's text.
+
+The width, the collapsed state and the wrap setting are kept in the browser's
+`localStorage` under `sqlib.ogcMap.inspect.v1`.
+
 ## Build
 
 ```sh

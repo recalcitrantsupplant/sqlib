@@ -20,11 +20,18 @@
   </aside>
   <main id="map"></main>
   <aside id="inspect" hidden>
-    <div class="tabs" role="tablist">
-      <button type="button" role="tab" id="tab-query" aria-selected="true">Query</button>
-      <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
+    <div id="inspect-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the panel" title="Drag to resize · double-click to reset"></div>
+    <div class="inspect-bar">
+      <button type="button" id="inspect-toggle" class="icon" aria-expanded="true"></button>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-query" aria-selected="true">Query</button>
+        <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
+      </div>
+      <div class="inspect-actions">
+        <button type="button" id="inspect-wrap" class="icon" aria-pressed="true" title="Wrap lines"></button>
+        <button type="button" id="inspect-copy" class="icon" title="Copy"></button>
+      </div>
     </div>
-    <p id="inspect-caption"></p>
     <div id="inspect-code"></div>
   </aside>
   <script type="module" src="map.js"></script>

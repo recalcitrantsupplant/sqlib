@@ -133,7 +133,7 @@ async function start(): Promise<void> {
   await mapReady;
   for (const state of collections.values()) addLayers(state);
   fitToExtents();
-  initInspect([...collections.values()].some(state => state.sparqlHref !== null));
+  initInspect([...collections.values()].some(state => state.sparqlHref !== null), () => map.resize());
   selected = collections.keys().next().value ?? null;
   renderList();
   await Promise.all([...collections.values()].map(state => loadFirstPage(state)));
