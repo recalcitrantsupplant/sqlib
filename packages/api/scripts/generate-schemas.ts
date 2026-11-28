@@ -505,6 +505,10 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   Notebook: {
     operations: ['create', 'update']
   },
+  // The collections are on the version, whose body the route declares itself.
+  OgcService: {
+    operations: ['create', 'update']
+  },
   BenchmarkExperiment: {
     operations: [...CRUD_OPERATIONS]
   },

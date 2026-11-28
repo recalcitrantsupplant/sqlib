@@ -24,6 +24,8 @@ import type { PersistedTupleSet } from '../persistence/schemas/TupleSetSchema.js
 import type { PersistedTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
 import type { PersistedNotebook } from '../persistence/schemas/NotebookSchema.js';
 import type { PersistedNotebookVersion } from '../persistence/schemas/NotebookVersionSchema.js';
+import type { PersistedOgcService } from '../persistence/schemas/OgcServiceSchema.js';
+import type { PersistedOgcServiceVersion } from '../persistence/schemas/OgcServiceVersionSchema.js';
 import type { PersistedDuckDbEtlNode } from '../persistence/schemas/DuckDbEtlNodeSchema.js';
 import type { PersistedDynamicQueryNode } from '../persistence/schemas/DynamicQueryNodeSchema.js';
 import type { PersistedEndNode } from '../persistence/schemas/EndNodeSchema.js';
@@ -113,6 +115,7 @@ import { PointerMoves } from '../persistence/utils/PointerMoveUtils.js';
 import { Removals } from '../persistence/utils/RemovalUtils.js';
 import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
 import { Notebooks, NotebookVersions } from '../persistence/utils/NotebookUtils.js';
+import { OgcServices, OgcServiceVersions } from '../persistence/utils/OgcServiceUtils.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 
 export const LENS_BY_TYPE = {
@@ -173,6 +176,8 @@ export const LENS_BY_TYPE = {
   TupleSetVersion: TupleSetVersions,
   Notebook: Notebooks,
   NotebookVersion: NotebookVersions,
+  OgcService: OgcServices,
+  OgcServiceVersion: OgcServiceVersions,
 } as const satisfies Record<EntityTypeName, unknown>;
 
 export type EntityType = keyof typeof LENS_BY_TYPE;
@@ -235,6 +240,8 @@ export type EntityByType = {
   TupleSetVersion: PersistedTupleSetVersion;
   Notebook: PersistedNotebook;
   NotebookVersion: PersistedNotebookVersion;
+  OgcService: PersistedOgcService;
+  OgcServiceVersion: PersistedOgcServiceVersion;
 };
 
 export const TTL_MS: Partial<Record<EntityType, number>> = {
@@ -274,6 +281,8 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
   TupleSetVersion: Number.POSITIVE_INFINITY,
   Notebook: 15_000,
   NotebookVersion: Number.POSITIVE_INFINITY,
+  OgcService: 15_000,
+  OgcServiceVersion: Number.POSITIVE_INFINITY,
   // A patch is an event: once written, only its status ever changes, and that
   // happens through this process. Long, like the other write-once types — but
   // not infinite, because a revert elsewhere would otherwise never be seen.

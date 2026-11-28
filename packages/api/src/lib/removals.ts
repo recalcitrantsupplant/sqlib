@@ -27,6 +27,7 @@ export const REMOVAL_KINDS: ReadonlySet<EntityTypeName> = new Set<EntityTypeName
   'Test',
   'EtlJob',
   'Notebook',
+  'OgcService',
   'BenchmarkExperiment',
   'Tag',
   'Environment',

@@ -29,7 +29,7 @@ import type { RailSection } from './railSections';
 import type { Covers } from '@/composables/exhaustiveDomain';
 
 /** A saved entity kind a sidebar row can be, and the work area it opens. */
-export type SectionItemType = 'query' | 'queryGroup' | 'ruleSet' | 'benchmark' | 'etlJob' | 'test' | 'dataGraph' | 'tupleSet' | 'argumentSet';
+export type SectionItemType = 'query' | 'queryGroup' | 'ruleSet' | 'benchmark' | 'etlJob' | 'test' | 'dataGraph' | 'tupleSet' | 'argumentSet' | 'ogcService';
 
 /**
  * Every saved kind, for enumeration. See `exhaustiveDomain.ts`.
@@ -40,13 +40,13 @@ export type SectionItemType = 'query' | 'queryGroup' | 'ruleSet' | 'benchmark' |
  * section's `savedKinds` would list nowhere, and nothing would say so.
  */
 export const SECTION_ITEM_TYPES = [
-  'query', 'queryGroup', 'ruleSet', 'benchmark', 'etlJob', 'test', 'dataGraph', 'tupleSet', 'argumentSet',
+  'query', 'queryGroup', 'ruleSet', 'benchmark', 'etlJob', 'test', 'dataGraph', 'tupleSet', 'argumentSet', 'ogcService',
 ] as const satisfies readonly SectionItemType[];
 
 export const _sectionItemTypesCover: Covers<SectionItemType, (typeof SECTION_ITEM_TYPES)[number]> = true;
 
 /** Sections that render the flat sidebar. `mcp` and `backends` are not lists. */
-export type ListSection = Extract<RailSection, 'queries' | 'queryGroups' | 'rules' | 'etl' | 'benchmarks' | 'tests' | 'dataGraphs' | 'tupleSets' | 'argumentSets'>;
+export type ListSection = Extract<RailSection, 'queries' | 'queryGroups' | 'rules' | 'etl' | 'benchmarks' | 'tests' | 'dataGraphs' | 'tupleSets' | 'argumentSets' | 'ogcServices'>;
 
 export interface SavedKind {
   type: SectionItemType;
@@ -267,6 +267,19 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     blurb:
       'An argument set is one call\'s worth of input: a table for every VALUES clause the callable declares, and a number for every named limit or offset. Data graphs are a separate input. A version is immutable, so a test or an MCP call that pins one is reproducible.',
     docsAnchor: 'argumentset',
+  },
+  ogcServices: {
+    section: 'ogcServices',
+    feature: 'ogc',
+    label: 'OGC',
+    noun: 'OGC service',
+    nounPlural: 'OGC services',
+    draftSection: 'ogcService',
+    savedKinds: [{ type: 'ogcService', label: 'OGC services' }],
+    libraryScoped: true,
+    blurb:
+      'An OGC service publishes queries of the library as OGC API Features collections at /ogc/{slug}. Each collection maps one query\'s columns and parameters to features, geometry, paging and queryables.',
+    docsAnchor: 'ogcservice',
   },
   tests: {
     section: 'tests',

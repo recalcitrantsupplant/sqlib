@@ -9,8 +9,9 @@ Two collections with the same features and columns
 | [`plain`](plain) | `values` | any SPARQL backend, Oxigraph included |
 | [`jena`](jena) | `cql2` | Jena Fuseki with the Kurrawong Lucene index |
 
-Each folder has the query (`buildings.rq`) and its `ogc` object
-(`buildings.ogc.json`). `plain/buildings.ttl` is five buildings to load into a
+Each folder has the query (`buildings.rq`) and its collection mapping
+(`buildings.ogc.json`), which an OGC service version lists with the query's id
+in `query`. `plain/buildings.ttl` is five buildings to load into a
 store. CI serves the plain set to the OGC CITE suite
 (`scripts/ci/ogc-cite.sh`).
 

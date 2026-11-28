@@ -16,15 +16,41 @@
       </form>
     </header>
     <p id="status" hidden></p>
-    <ul id="collections"></ul>
+    <section id="collections-section" hidden>
+      <h2>Collections <a class="doc" href="https://docs.ogc.org/is/17-069r4/17-069r4.html#_collections_" target="_blank" rel="noopener" title="OGC API – Features, Part 1: feature collections">?</a></h2>
+      <ul id="collections"></ul>
+    </section>
+    <section id="queryables-section" hidden>
+      <h2>Queryables <span id="queryables-of" class="of"></span> <a class="doc" href="https://docs.ogc.org/is/19-079r2/19-079r2.html#queryables" target="_blank" rel="noopener" title="OGC API – Features, Part 3: queryables">?</a><button type="button" id="queryables-clear" class="link">Clear</button></h2>
+      <div id="queryables"></div>
+    </section>
+    <section id="features-section" hidden>
+      <h2>Features <a class="doc" href="https://docs.ogc.org/is/17-069r4/17-069r4.html#_items_" target="_blank" rel="noopener" title="OGC API – Features, Part 1: features">?</a></h2>
+      <div id="features"></div>
+    </section>
   </aside>
   <main id="map"></main>
   <aside id="inspect" hidden>
-    <div class="tabs" role="tablist">
-      <button type="button" role="tab" id="tab-query" aria-selected="true">Query</button>
-      <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
+    <div id="inspect-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the panel" title="Drag to resize · double-click to reset"></div>
+    <div class="inspect-bar">
+      <button type="button" id="inspect-toggle" class="icon" aria-expanded="true"></button>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-query" aria-selected="true">Query</button>
+        <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
+      </div>
+      <div class="inspect-actions">
+        <div id="query-view" class="segmented" role="group" aria-label="Query view" hidden>
+          <button type="button" id="query-template" aria-pressed="false" title="The query as stored, with its parameters">Template</button>
+          <button type="button" id="query-run" aria-pressed="true" title="The query with this page's arguments in place">As run</button>
+        </div>
+        <div id="result-format" class="segmented" role="group" aria-label="Result format" hidden>
+          <button type="button" id="format-geojson" aria-pressed="true">GeoJSON</button>
+          <button type="button" id="format-jsonld" aria-pressed="false" title="The page with the collection's JSON-LD context">GeoJSON-LD</button>
+        </div>
+        <button type="button" id="inspect-wrap" class="icon" aria-pressed="true" title="Wrap lines"></button>
+        <button type="button" id="inspect-copy" class="icon" title="Copy"></button>
+      </div>
     </div>
-    <p id="inspect-caption"></p>
     <div id="inspect-code"></div>
   </aside>
   <script type="module" src="map.js"></script>

@@ -16,12 +16,14 @@
  */
 import { findEnvironment, requestedEnvironment, resolveVersionIn } from './environments.js';
 import {
+  checkOgcContext,
   checkOgcObject,
   checkToolObject,
   defaultToolObject,
   ogcParamKinds,
   type DetectedInputs,
   type OgcCollectionSpec,
+  type OgcServiceCollection,
   type PublishedToolSpec,
   type ToolObject,
   type ToolTargetKind,
@@ -40,6 +42,8 @@ import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionS
 import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
 import type { PersistedRuleSet } from '../persistence/schemas/RuleSetSchema.js';
 import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedOgcService } from '../persistence/schemas/OgcServiceSchema.js';
+import type { PersistedOgcServiceVersion } from '../persistence/schemas/OgcServiceVersionSchema.js';
 
 export type PublishedLibrary = {
   id: string;
@@ -51,8 +55,9 @@ export type PublishedLibrary = {
 export type PublishedCatalogue = {
   specs: PublishedToolSpec[];
   /**
-   * The OGC API Features collections: query versions that carry an `ogc`
-   * object, pinned the same way. See `docs/proposals/ogc-api-features.md`.
+   * The OGC API Features collections of the OGC services, at startup. The
+   * OGC routes collect them again after a write (`server/ogcRoutes.ts`). See
+   * `docs/proposals/ogc-services.md`.
    */
   collections: OgcCollectionSpec[];
   /** The libraries that publish at least one tool, by slug. */
@@ -302,115 +307,159 @@ export function collectPublishedTools(): PublishedCatalogue {
 }
 
 /**
- * Every OGC collection in the store: the query versions, current in the
- * deployment's environment, that carry an `ogc` object. Each becomes a tool
- * spec the `items` route runs through `/execute`, with one param per variable
- * the `ogc` object fills. A collection is served under its library's slug, so
- * a library with none, or two collections with one id, is a problem.
+ * Every OGC collection in the store, from the OGC services
+ * (`docs/proposals/ogc-services.md`). Each service's version in the
+ * deployment's environment lists its collections, and each collection runs a
+ * query of the service's library: a pinned version, or the query's version in
+ * the environment. A collection that no longer fits its query, a slug two
+ * services share, or two collections with one id in a service, is a problem
+ * line, and that collection or service is left out.
  */
 export function collectOgcCollections(problems: string[]): OgcCollectionSpec[] {
   const cache = getCacheCoordinator();
   const collections: OgcCollectionSpec[] = [];
-  const queries = (cache.list('Query') as PersistedQuery[]).slice().sort((a, b) => a.$id.localeCompare(b.$id));
-  for (const query of queries) {
-    const libraryId = libraryOf(query);
-    const library = get<PersistedLibrary>(libraryId);
-    if (!library) continue;
-    const resolution = resolveVersionIn(query as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined));
+  const services = (cache.list('OgcService') as PersistedOgcService[]).slice().sort((a, b) => a.$id.localeCompare(b.$id));
+  const slugs = new Map<string, string>();
+  for (const service of services) {
+    const label = `OGC service "${service.name}" (${service.$id})`;
+    const libraryId = libraryOf(service as never);
+    if (!libraryId) continue;
+    const holder = slugs.get(service.slug);
+    if (holder) {
+      problems.push(`${label}: the slug "${service.slug}" is already used by ${holder}.`);
+      continue;
+    }
+    slugs.set(service.slug, service.$id);
+    const resolution = resolveVersionIn(service as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined));
     if (!resolution.ok) continue;
-    const version = get<PersistedQueryVersion>(resolution.version);
-    const ogc = version?.ogc;
-    if (!version || !ogc) continue;
-
-    const label = `Query "${query.name}" (${query.$id}), version ${version.version}`;
-    if (!library.slug) {
-      problems.push(`${label}: its library "${library.name}" has no slug, so its OGC collection "${ogc.collectionId}" has no URL.`);
-      continue;
-    }
-    const inputs = queryVersionInputs(version);
-    let outputs: string[] = [];
-    try {
-      outputs = parser.detectQueryOutputs(version.queryString) ?? [];
-    } catch {
-      // checkOgcObject reports the missing outputs.
-    }
-    const problem = checkOgcObject(ogc, {
-      inputs,
-      outputs,
-      isSelect: version.queryType === QueryTypeIri.select,
-    });
-    if (problem) {
-      problems.push(`${label}: ${problem}`);
-      continue;
-    }
-    const closed = closedSlots(version);
-    if (closed.length) {
-      problems.push(
-        `${label}: an OGC collection runs with its slots open, but ${closed.map(name => `?${name}`).join(', ')} ` +
-          'must not run open (whenEmpty "require" or "propagateEmpty").',
-      );
-      continue;
-    }
-    const clash = collections.find(c => c.slug === library.slug && c.ogc.collectionId === ogc.collectionId);
-    if (clash) {
-      problems.push(`${label}: library "${library.slug}" already has a collection "${ogc.collectionId}" (${clash.tool.targetId}).`);
-      continue;
-    }
-    const defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id), {
-      environment: requestedEnvironment(undefined),
-      findEnvironment,
-    })?.backendId;
-    if (!defaultBackendId || !backendExists(defaultBackendId)) {
-      problems.push(`${label}: the collection "${ogc.collectionId}" needs a default backend that exists.`);
-      continue;
-    }
-    let configTargetId: string | undefined;
-    if (ogc.mode === 'cql2' && ogc.cql?.configQuery) {
-      const configQuery = get<PersistedQuery>(ogc.cql.configQuery);
-      const configResolution = configQuery?.['@type'] === 'Query'
-        ? resolveVersionIn(configQuery as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined))
-        : null;
-      if (!configResolution?.ok || libraryOf(configQuery!) !== library.$id) {
-        problems.push(`${label}: ogc.cql.configQuery ${ogc.cql.configQuery} is not a query with a version in library "${library.slug}".`);
+    const version = get<PersistedOgcServiceVersion>(resolution.version);
+    if (!version) continue;
+    const seen = new Set<string>();
+    for (const entry of version.collections ?? []) {
+      const where = `${label}, version ${version.version}, collection "${entry.collectionId}"`;
+      if (seen.has(entry.collectionId)) {
+        problems.push(`${where}: the service already has a collection with this id.`);
         continue;
       }
-      configTargetId = configResolution.version;
-    }
-    let valuesTargetId: string | undefined;
-    if (ogc.valuesQuery) {
-      const valuesQuery = get<PersistedQuery>(ogc.valuesQuery);
-      const valuesResolution = valuesQuery?.['@type'] === 'Query'
-        ? resolveVersionIn(valuesQuery as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined))
-        : null;
-      if (!valuesResolution?.ok || libraryOf(valuesQuery!) !== library.$id) {
-        problems.push(`${label}: ogc.valuesQuery ${ogc.valuesQuery} is not a query with a version in library "${library.slug}".`);
+      const spec = resolveOgcCollection({ service, libraryId, entry });
+      if (typeof spec === 'string') {
+        problems.push(`${where}: ${spec}`);
         continue;
       }
-      valuesTargetId = valuesResolution.version;
+      seen.add(entry.collectionId);
+      collections.push(spec);
     }
-    collections.push({
-      slug: library.slug,
-      libraryId: library.$id,
-      libraryName: library.name,
-      libraryDescription: library.description,
-      ogc,
-      ...(configTargetId ? { configTargetId } : {}),
-      ...(valuesTargetId ? { valuesTargetId } : {}),
-      tool: {
-        slug: library.slug,
-        libraryId: library.$id,
-        name: `ogc-${ogc.collectionId}`,
-        description: ogc.title,
-        targetId: version.$id,
-        targetKind: 'query',
-        readOnly: true,
-        params: ogcParamKinds(ogc),
-        inputs,
-        defaultBackendId,
-      },
-    });
   }
   return collections;
+}
+
+/** The problems of each OGC service, by service id, from a fresh collection. */
+export function ogcServiceProblems(): Map<string, string[]> {
+  const problems: string[] = [];
+  collectOgcCollections(problems);
+  const byService = new Map<string, string[]>();
+  for (const line of problems) {
+    const id = /\((urn:[^)]+)\)/.exec(line)?.[1];
+    if (!id) continue;
+    byService.set(id, [...(byService.get(id) ?? []), line.replace(/^OGC service "[^"]*" \([^)]*\)(, )?/, '')]);
+  }
+  return byService;
+}
+
+/**
+ * One collection of a service, resolved to what the routes run: its query
+ * version, checked against the `ogc` object and the JSON-LD terms, with its
+ * default backend and its values and index-field queries. A string is the
+ * reason it cannot be served. Used when a service version is saved, and at
+ * every rebuild of the OGC routes.
+ */
+export function resolveOgcCollection(options: {
+  service: { $id: string; slug: string; name: string; description?: string | null };
+  libraryId: string;
+  entry: OgcServiceCollection;
+}): OgcCollectionSpec | string {
+  const { service, libraryId, entry } = options;
+  const cache = getCacheCoordinator();
+  const { query: queryId, queryVersion: pinnedId, context, ...ogc } = entry;
+  const query = get<PersistedQuery>(queryId);
+  if (!query || query['@type'] !== 'Query' || libraryOf(query) !== libraryId) {
+    return `query: ${queryId} is not a query in the service's library.`;
+  }
+  let version: PersistedQueryVersion | null;
+  if (pinnedId) {
+    version = get<PersistedQueryVersion>(pinnedId);
+    if (!version || version['@type'] !== 'QueryVersion' || version.isPartOf !== query.$id) {
+      return `queryVersion: ${pinnedId} is not a version of query "${query.name}".`;
+    }
+  } else {
+    const resolution = resolveVersionIn(query as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined));
+    if (!resolution.ok) return `query "${query.name}" has no version in this environment.`;
+    version = get<PersistedQueryVersion>(resolution.version);
+    if (!version) return `query "${query.name}" has no version in this environment.`;
+  }
+
+  const inputs = queryVersionInputs(version);
+  let outputs: string[] = [];
+  try {
+    outputs = parser.detectQueryOutputs(version.queryString) ?? [];
+  } catch {
+    // checkOgcObject reports the missing outputs.
+  }
+  const problem = checkOgcObject(ogc, { inputs, outputs, isSelect: version.queryType === QueryTypeIri.select });
+  if (problem) return `${problem} (query "${query.name}", version ${version.version}).`;
+  const omitted = new Set([ogc.feature.var, ...(typeof ogc.geometry === 'string' ? [ogc.geometry] : []), ...(ogc.omit ?? [])]);
+  const contextProblem = checkOgcContext(context, outputs.filter(name => !omitted.has(name)));
+  if (contextProblem) return `${contextProblem}.`;
+  const closed = closedSlots(version);
+  if (closed.length) {
+    return `an OGC collection runs with its slots open, but ${closed.map(name => `?${name}`).join(', ')} ` +
+      'must not run open (whenEmpty "require" or "propagateEmpty").';
+  }
+  const defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id), {
+    environment: requestedEnvironment(undefined),
+    findEnvironment,
+  })?.backendId;
+  if (!defaultBackendId || !backendExists(defaultBackendId)) return 'the query needs a default backend that exists.';
+
+  const versionOfQuery = (id: string, key: string): string => {
+    const other = get<PersistedQuery>(id);
+    const resolution = other?.['@type'] === 'Query'
+      ? resolveVersionIn(other as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined))
+      : null;
+    if (!resolution?.ok || libraryOf(other!) !== libraryId) throw new Error(`${key}: ${id} is not a query with a version in the service's library.`);
+    return resolution.version;
+  };
+  let configTargetId: string | undefined;
+  let valuesTargetId: string | undefined;
+  try {
+    if (ogc.mode === 'cql2' && ogc.cql?.configQuery) configTargetId = versionOfQuery(ogc.cql.configQuery, 'cql.configQuery');
+    if (ogc.valuesQuery) valuesTargetId = versionOfQuery(ogc.valuesQuery, 'valuesQuery');
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return {
+    slug: service.slug,
+    libraryId,
+    serviceId: service.$id,
+    serviceTitle: service.name,
+    serviceDescription: service.description,
+    ogc,
+    ...(context && Object.keys(context).length ? { context } : {}),
+    ...(configTargetId ? { configTargetId } : {}),
+    ...(valuesTargetId ? { valuesTargetId } : {}),
+    tool: {
+      slug: service.slug,
+      libraryId,
+      name: `ogc-${ogc.collectionId}`,
+      description: ogc.title,
+      targetId: version.$id,
+      targetKind: 'query',
+      readOnly: true,
+      params: ogcParamKinds(ogc),
+      inputs,
+      defaultBackendId,
+    },
+  };
 }
 
 /** The variables of a query version's slots that may not run open. */

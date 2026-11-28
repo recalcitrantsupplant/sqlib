@@ -78,6 +78,7 @@ const NOUNS: Noun[] = [
   { path: 'tuple-sets', plugin: () => import('../../src/routes/tuple-sets.js'), type: 'TupleSet', versionType: 'TupleSetVersion' },
   { path: 'tests', plugin: () => import('../../src/routes/tests.js'), type: 'Test', versionType: 'TestVersion' },
   { path: 'notebooks', plugin: () => import('../../src/routes/notebooks.js'), type: 'Notebook', versionType: 'NotebookVersion' },
+  { path: 'ogc-services', plugin: () => import('../../src/routes/ogc-services.js'), type: 'OgcService', versionType: 'OgcServiceVersion' },
 ];
 
 const LIBRARY = 'urn:sqlib:library:contract';
@@ -115,8 +116,8 @@ function seed(noun: Noun): { id: string; url: string; v1: string; v2: string } {
   store.set(id, {
     $id: id, '@type': noun.type, name: 'Seeded', isPartOf: noun.single ? LIBRARY : [LIBRARY],
     currentVersion: v2, dateModified: stamp(),
-    // A test's subject; ignored by every other noun.
-    subject: 'urn:sqlib:query:subject', subjectKind: 'query',
+    // A test's subject and an OGC service's slug; ignored by every other noun.
+    subject: 'urn:sqlib:query:subject', subjectKind: 'query', slug: 'seeded',
   });
   for (const [versionId, number] of [[v1, 1], [v2, 2]] as const) {
     store.set(versionId, {
@@ -125,7 +126,7 @@ function seed(noun: Noun): { id: string; url: string; v1: string; v2: string } {
       // The content field each noun's response schema requires; the others
       // are dropped by the serializer.
       queryString: 'SELECT * WHERE { ?s ?p ?o }', ruleString: '', dataString: '',
-      contentString: '', contentFormat: 'text/turtle', expectationKind: 'smoke',
+      contentString: '', contentFormat: 'text/turtle', expectationKind: 'smoke', collections: [],
     });
   }
   return { id, url: `/${noun.path}/${encodeURIComponent(id)}`, v1, v2 };
@@ -174,7 +175,7 @@ describe.each(NOUNS)('/$path', noun => {
       const extra = `urn:sqlib:${noun.path}:${name}`;
       store.set(extra, {
         $id: extra, '@type': noun.type, name, isPartOf: noun.single ? LIBRARY : [LIBRARY],
-        subject: 'urn:sqlib:query:subject', subjectKind: 'query',
+        subject: 'urn:sqlib:query:subject', subjectKind: 'query', slug: name.toLowerCase(),
       });
     }
     const names = (response: { json: () => Array<{ name: string }> }) => response.json().map(entity => entity.name);
@@ -197,7 +198,7 @@ describe.each(NOUNS)('/$path', noun => {
     store.set(OTHER, { $id: OTHER, '@type': 'Library', name: 'Other' });
     store.set(elsewhere, {
       $id: elsewhere, '@type': noun.type, name: 'Elsewhere', isPartOf: noun.single ? OTHER : [OTHER],
-      subject: 'urn:sqlib:query:subject', subjectKind: 'query',
+      subject: 'urn:sqlib:query:subject', subjectKind: 'query', slug: 'elsewhere',
     });
     const names = (response: { json: () => Array<{ name: string }> }) => response.json().map(entity => entity.name);
 

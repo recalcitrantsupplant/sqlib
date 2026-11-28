@@ -30,6 +30,7 @@ export const RAIL_SECTIONS = [
   'notebooks',
   'queries',
   'queryGroups',
+  'ogcServices',
   'rules',
   'etl',
   'benchmarks',
@@ -107,6 +108,7 @@ const SECTION_VISIBILITY: Record<Exclude<RailSection, ScreenSection>, TreeVisibi
   dataGraphs: { libraries: true, backends: false },
   tupleSets: { libraries: true, backends: false },
   argumentSets: { libraries: true, backends: false },
+  ogcServices: { libraries: true, backends: false },
   backends: { libraries: false, backends: true },
 };
 
@@ -128,6 +130,8 @@ const SECTION_CATEGORIES: Record<Exclude<RailSection, ScreenSection>, TreeCatego
    * navigator nobody reaches rather than keeping this map total.
    */
   argumentSets: [],
+  // Empty for the reason argument sets are: the tree predates OGC services.
+  ogcServices: [],
   backends: [],
 };
 
@@ -162,6 +166,8 @@ export function sectionForItemType(itemType: string | null | undefined): RailSec
       return 'tupleSets';
     case 'argumentSet':
       return 'argumentSets';
+    case 'ogcService':
+      return 'ogcServices';
     case 'etlJob':
       return 'etl';
     default:

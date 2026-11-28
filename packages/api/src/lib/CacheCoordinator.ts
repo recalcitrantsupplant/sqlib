@@ -258,6 +258,19 @@ export class CacheCoordinator {
 
   private recordWrite(id: string): void {
     this.lastWriteById.set(id, ++this.writeSeq);
+    for (const listener of this.writeListeners) listener(id);
+  }
+
+  private writeListeners = new Set<(id: string) => void>();
+
+  /**
+   * Call `listener` with the id of each entity this coordinator creates,
+   * updates or deletes. Returns the function that stops it. The OGC routes use
+   * it to collect their services again after a write (`server/ogcRoutes.ts`).
+   */
+  onWrite(listener: (id: string) => void): () => void {
+    this.writeListeners.add(listener);
+    return () => this.writeListeners.delete(listener);
   }
 
   private writtenSince(id: string, seq: number): boolean {

@@ -1,4 +1,5 @@
 {
+  "query": "urn:sqlib:query:rail-stations-features",
   "collectionId": "stations",
   "title": "Stations",
   "description": "Every station, as a point, with its zone and step-free access.",
@@ -50,5 +51,18 @@
       ]
     ]
   },
-  "valuesQuery": "urn:sqlib:query:rail-station-facets"
+  "valuesQuery": "urn:sqlib:query:rail-station-facets",
+  "context": {
+    "name": {
+      "@id": "https://example.org/rail/name"
+    },
+    "zone": {
+      "@id": "https://example.org/rail/zone",
+      "@type": "http://www.w3.org/2001/XMLSchema#integer"
+    },
+    "stepFree": {
+      "@id": "https://example.org/rail/stepFree",
+      "@type": "http://www.w3.org/2001/XMLSchema#boolean"
+    }
+  }
 }

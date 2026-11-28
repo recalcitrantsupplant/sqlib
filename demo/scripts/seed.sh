@@ -84,6 +84,7 @@ issuer_pid=$!
     FEATURE_BACKENDS=true \
     FEATURE_TUPLE_SETS=true \
     FEATURE_NOTEBOOK=true \
+    FEATURE_OGC="${DEMO_OGC:-false}" \
     FEATURE_RULE_AGGREGATES=true \
     FEATURE_RULE_TUPLES=false \
     FEATURE_ASSISTANT=false

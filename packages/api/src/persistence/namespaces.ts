@@ -464,6 +464,8 @@ export const sqlib = createNamespace({
     // content is the notebook document, as JSON, in `contentString`.
     "Notebook",
     "NotebookVersion",
+    "OgcService",
+    "OgcServiceVersion",
 
     // Tests — an invocation spec plus an expectation.
     "Test",
@@ -674,7 +676,8 @@ export const sqlib = createNamespace({
     "tool",
 
     // The OGC API Features collection a query version serves as
-    "ogc"
+    "ogc",
+    "ogcCollections"
   ]
 } as const);
 

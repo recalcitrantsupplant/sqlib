@@ -57,6 +57,13 @@ export type GeoJsonOptions = {
   noGeometry?: boolean;
   /** Columns left out of `properties`, such as a paging cursor. */
   omitVars?: string[];
+  /**
+   * Columns whose values stay their lexical form, as strings, so that a
+   * reader with a datatype for them reads them exactly. A JSON number such
+   * as 1.5 read as `xsd:decimal` by JSON-LD becomes `1.5E0`, which is not a
+   * decimal.
+   */
+  lexicalVars?: string[];
   /** Turn a feature IRI into the id the caller sees. Default: the IRI itself. */
   idFromIri?: (iri: string) => string | number;
 };

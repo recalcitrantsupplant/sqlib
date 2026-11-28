@@ -32,6 +32,8 @@ import {
   indexFieldSchema,
   localName,
   ogcCollectionBody,
+  ogcJsonLdContext,
+  ogcLexicalProperties,
   ogcConformance,
   ogcItemsParameters,
   ogcOpenApiDocument,
@@ -54,12 +56,17 @@ import { EXPLAIN_HEADER, EXPLAIN_TOKEN, SPARQL_QUERY_TYPE } from '../lib/explain
 import { formatText } from '../lib/formatText.js';
 import type { PublishedCatalogue } from '../lib/publishedTools.js';
 import { publicOrigin } from '../config/publicUrl.js';
+import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { collectOgcCollections } from '../lib/publishedTools.js';
 
 const JSON_TYPE = 'application/json';
 const OPENAPI_TYPE = 'application/vnd.oai.openapi+json;version=3.0';
 const SCHEMA_TYPE = 'application/schema+json';
 const SPARQL_JSON = 'application/sparql-results+json';
 const QUERYABLES_REL = 'http://www.opengis.net/def/rel/ogc/1.0/queryables';
+const JSON_LD_TYPE = 'application/ld+json';
+/** The link relation a JSON-LD processor follows to the context of a plain JSON document (JSON-LD 1.1 §6.1). */
+const JSON_LD_CONTEXT_REL = 'http://www.w3.org/ns/json-ld#context';
 /** The index's field for a hit's entity IRI, which finds one feature in cql2 mode. */
 const ENTITY_IRI_FIELD = 'entityIri';
 const CRS84_SPELLINGS = new Set([CRS84_URI, CRS84_URI.replace('http://', 'https://')]);
@@ -102,24 +109,49 @@ export async function registerOgcRoutes(
   },
 ): Promise<void> {
   const { catalogue, basePath, publicBasePath } = options;
-  const services = new Map<string, Service>();
-  for (const spec of catalogue.collections) {
-    let service = services.get(spec.slug);
-    if (!service) {
-      service = {
-        slug: spec.slug,
-        title: spec.libraryName,
-        description: spec.libraryDescription,
-        collections: new Map(),
-        conformance: [],
-      };
-      services.set(spec.slug, service);
+
+  /** The services by slug, from a list of collections. */
+  const buildServices = (collections: OgcCollectionSpec[]): Map<string, Service> => {
+    const built = new Map<string, Service>();
+    for (const spec of collections) {
+      let service = built.get(spec.slug);
+      if (!service) {
+        service = {
+          slug: spec.slug,
+          title: spec.serviceTitle,
+          description: spec.serviceDescription,
+          collections: new Map(),
+          conformance: [],
+        };
+        built.set(spec.slug, service);
+      }
+      service.collections.set(spec.ogc.collectionId, spec);
     }
-    service.collections.set(spec.ogc.collectionId, spec);
-  }
-  for (const service of services.values()) {
-    service.conformance = ogcConformance([...service.collections.values()].map(spec => spec.ogc));
-  }
+    for (const service of built.values()) {
+      service.conformance = ogcConformance([...service.collections.values()].map(spec => spec.ogc));
+    }
+    return built;
+  };
+
+  /**
+   * The services as served. A write to the store marks them stale, and the
+   * next OGC request collects them again, so a saved service, a new query
+   * version or a moved environment pointer is served without a restart. A
+   * request keeps the map it started with.
+   */
+  let services = buildServices(catalogue.collections);
+  let stale = false;
+  getCacheCoordinator().onWrite?.(() => {
+    stale = true;
+  });
+  const currentServices = (): Map<string, Service> => {
+    if (stale) {
+      stale = false;
+      services = buildServices(collectOgcCollections([]));
+      indexFields.clear();
+    }
+    return services;
+  };
 
   /** Index fields by collection, kept once read. A failed read is not kept. */
   const indexFields = new Map<OgcCollectionSpec, IndexField[]>();
@@ -132,7 +164,7 @@ export async function registerOgcRoutes(
 
   const serviceOf = (request: FastifyRequest): Service => {
     const { slug } = request.params as { slug: string };
-    const service = services.get(slug);
+    const service = currentServices().get(slug);
     if (!service) throw new OgcAnswer(404, `No OGC service "${slug}".`);
     return service;
   };
@@ -214,6 +246,7 @@ export async function registerOgcRoutes(
       { rel: QUERYABLES_REL, type: SCHEMA_TYPE, title: 'Queryables', href: `${root}/queryables` },
     ];
     if (showSparql()) links.push({ rel: 'describedby', type: SPARQL_QUERY_TYPE, title: 'SPARQL query', href: `${root}/sparql` });
+    if (spec.context) links.push({ rel: JSON_LD_CONTEXT_REL, type: JSON_LD_TYPE, title: 'JSON-LD context', href: `${root}/context.jsonld` });
     for (const source of spec.ogc.geometrySources ?? []) {
       links.push({ rel: 'alternate', href: source.href, ...(source.type ? { type: source.type } : {}), ...(source.title ? { title: source.title } : {}) });
     }
@@ -339,6 +372,17 @@ export async function registerOgcRoutes(
     });
   });
 
+  /**
+   * The JSON-LD context of a collection with JSON-LD terms. The `items`
+   * responses name it in a `Link` header, so a JSON-LD processor reads the
+   * GeoJSON as RDF and a GeoJSON client sees no change.
+   */
+  route('/ogc/:slug/collections/:collectionId/context.jsonld', async (request, reply) => {
+    const { spec } = collectionOf(request);
+    if (!spec.context) throw new OgcAnswer(404, `The collection "${spec.ogc.collectionId}" has no JSON-LD context.`);
+    return reply.header('content-type', JSON_LD_TYPE).send(ogcJsonLdContext(spec.ogc, spec.context));
+  });
+
   route('/ogc/:slug/collections/:collectionId/items', async (request, reply) => {
     const { service, spec } = collectionOf(request);
     return runItems(request, reply, service, spec, null);
@@ -349,6 +393,29 @@ export async function registerOgcRoutes(
     if (!showSparql()) throw new OgcAnswer(404, 'This service does not show its SPARQL.');
     const { service, spec } = collectionOf(request);
     return runItems(request, reply, service, spec, null, true);
+  });
+
+  /**
+   * The collection's query as stored: the template that `sparql` shows with
+   * a request's arguments in place. Read through `GET /queries/{id}/versions/{n}`
+   * as the caller, so a caller who may not read the query gets that answer.
+   */
+  route('/ogc/:slug/collections/:collectionId/sparql/template', async (request, reply) => {
+    if (!showSparql()) throw new OgcAnswer(404, 'This service does not show its SPARQL.');
+    const { spec } = collectionOf(request);
+    const version = getCacheCoordinator().get(spec.tool.targetId) as { isPartOf?: string; version?: number } | null;
+    if (!version?.isPartOf || version.version === undefined) throw new OgcAnswer(404, 'The collection\'s query version is not in the store.');
+    const headers: Record<string, string> = { accept: JSON_TYPE };
+    if (typeof request.headers.authorization === 'string') headers.authorization = request.headers.authorization;
+    const response = await app.inject({
+      method: 'GET',
+      url: `${basePath}/queries/${encodeURIComponent(version.isPartOf)}/versions/${version.version}`,
+      headers,
+    });
+    if (response.statusCode !== 200) throw new OgcAnswer(response.statusCode, `The query could not be read: ${errorText(response.body)}`);
+    const body = JSON.parse(response.body) as { queryString?: string; queryVersion?: { queryString?: string } };
+    const text = body.queryString ?? body.queryVersion?.queryString ?? '';
+    return reply.header('content-type', SPARQL_QUERY_TYPE).send(text);
   });
 
   route('/ogc/:slug/collections/:collectionId/items/:featureId', async (request, reply) => {
@@ -486,6 +553,7 @@ export async function registerOgcRoutes(
       ...(ogc.point ? { pointVars: ogc.point } : {}),
       noGeometry: ogc.geometry === null || skipGeometry || geometryColumnAbsent,
       omitVars: controlVars,
+      lexicalVars: ogcLexicalProperties(spec.context),
       idFromIri: iri => (base && iri.startsWith(base) && iri.length > base.length ? iri.slice(base.length) : iri),
     });
     // No rows: some stores then leave unbound columns out of `head.vars`, so there is nothing to check.
@@ -514,6 +582,7 @@ export async function registerOgcRoutes(
     ];
 
     reply.header('content-type', GEOJSON_MEDIA_TYPE);
+    if (spec.context) reply.header('link', `<${root}/context.jsonld>; rel="${JSON_LD_CONTEXT_REL}"; type="${JSON_LD_TYPE}"`);
     if (featureId !== null) {
       if (features.length === 0) throw new OgcAnswer(404, `No feature "${featureId}" in "${ogc.collectionId}".`);
       const feature = features[0]!;

@@ -22,7 +22,7 @@ import { xsd, sqlib, sdo } from '../namespaces.js';
 import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 /** The version kinds an environment may point to. */
-export const ENVIRONMENT_VERSION_TYPES = ['QueryVersion', 'QueryGroupVersion', 'RuleSetVersion'] as const;
+export const ENVIRONMENT_VERSION_TYPES = ['QueryVersion', 'QueryGroupVersion', 'RuleSetVersion', 'OgcServiceVersion'] as const;
 
 export const EnvironmentSchema = {
   '@type': sqlib.Environment,

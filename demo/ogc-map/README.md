@@ -34,6 +34,39 @@ OpenFreeMap Positron style, which loads from `tiles.openfreemap.org`.
 - A feature with a `colour` or `color` property is drawn in that colour.
   Other features take the colour of their collection.
 
+## The left-hand panel
+
+The panel has three sections, each with a link to its part of the OGC
+standard:
+
+- **Collections**: the service's feature collections. The checkbox shows a
+  collection on the map, and a click selects it for the two sections below.
+- **Queryables**: the selected collection's queryables. A queryable with an
+  `enum` in the queryables document is a list of checkboxes, with the counts
+  of `x-counts`. Values ticked in one list match any of them, and the lists
+  combine with AND. Other queryables are text fields. A change reloads the
+  first page at once. "In map view" adds the map's bounds as `bbox`, and
+  follows the map as it moves.
+- **Features**: the current page, with the `prev` and `next` links.
+
+## The right-hand panel
+
+The panel shows the selected collection's current page in two tabs: Query,
+the SPARQL that ran (when the service links it with `rel=describedby`), and
+Result, the GeoJSON that came back. Query switches between Template, the
+query as stored (`…/sparql/template`), and As run, with the page's arguments
+in place. Result switches between GeoJSON and GeoJSON-LD when the collection
+has a JSON-LD context. It follows the web app's inspector
+(`packages/web/src/components/shared/InspectorPanel.vue`):
+
+- The button beside the tabs collapses the panel to a strip, and expands it.
+- The left edge drags to resize the panel. A double-click resets the width.
+- Lines wrap by default. The wrap button turns wrapping off.
+- The copy button copies the open tab's text.
+
+The width, the collapsed state and the wrap setting are kept in the browser's
+`localStorage` under `sqlib.ogcMap.inspect.v1`.
+
 ## Build
 
 ```sh

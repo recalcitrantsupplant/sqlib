@@ -5,31 +5,36 @@ such as QGIS, and OGC tools such as OWSLib, then read it as GeoJSON features,
 with paging, `bbox`, `datetime` and attribute filters.
 
 The design and the reasons for it are in
-[proposals/ogc-api-features.md](../proposals/ogc-api-features.md). Two
-starter sets are in [`docs/examples/ogc`](../examples/ogc).
+[proposals/ogc-api-features.md](../proposals/ogc-api-features.md) and
+[proposals/ogc-services.md](../proposals/ogc-services.md). Two starter sets
+are in [`docs/examples/ogc`](../examples/ogc).
 
 ## What you get
 
-Each library slug is one OGC service, at `/ogc/{slug}`:
+An OGC service is an item of a library, listed under OGC in the web app. A
+library can have any number of services. Each service has a slug, and is
+served at `/ogc/{slug}`:
 
 | Route | Answers |
 | --- | --- |
 | `/ogc/{slug}/` | the landing page |
 | `/ogc/{slug}/conformance` | the conformance classes |
 | `/ogc/{slug}/api` | an OpenAPI 3.0.3 document |
-| `/ogc/{slug}/collections` | every collection of the library |
+| `/ogc/{slug}/collections` | every collection of the service |
 | `/ogc/{slug}/collections/{id}` | one collection |
 | `/ogc/{slug}/collections/{id}/queryables` | the filterable properties, as JSON Schema |
 | `/ogc/{slug}/collections/{id}/items` | a page of features, as GeoJSON |
 | `/ogc/{slug}/collections/{id}/items/{featureId}` | one feature |
+| `/ogc/{slug}/collections/{id}/context.jsonld` | the JSON-LD context, for a collection with JSON-LD terms. See [JSON-LD](#json-ld) |
 
 The service declares OGC API Features Part 1 (Core, GeoJSON, OpenAPI 3.0).
 A service with a `cql2` collection also declares Part 3 and CQL2-JSON.
 
 ## 1. Turn the routes on
 
-Set `FEATURE_OGC=true`. The server serves the routes only when
-`MCP_CATALOGUE` is also `both` (the default) or `published`.
+Set `FEATURE_OGC=true`. It turns on the OGC section of the web app and the
+`/ogc-services` routes that store services. The server serves the `/ogc/`
+routes only when `MCP_CATALOGUE` is also `both` (the default) or `published`.
 
 Links in each document are absolute. They start with
 `SQLIB_OGC_BASE_URL` when it is set, for example `https://maps.example.org`.
@@ -37,10 +42,17 @@ If it is not set, they start with the scheme and host of the request, and
 `APP_PUBLIC_BASE_PATH`. Set `SQLIB_OGC_BASE_URL` behind a proxy that does not
 send `X-Forwarded-*` headers.
 
-## 2. Give the library a slug
+## 2. Create a service
 
-Do this in the same way as for published tools. See
-[publishing-tools.md](publishing-tools.md#1-give-the-library-a-slug).
+In the web app, open OGC and create a service. Or send:
+
+```json
+POST /ogc-services
+{ "name": "Survey", "description": "Survey data.", "slug": "survey", "isPartOf": ["<library id>"] }
+```
+
+The slug is one path segment: lower-case letters, digits and `-`, at most 64.
+Two services cannot have the same slug.
 
 ## 3. Write the query
 
@@ -99,16 +111,19 @@ The `bbox` filter above reads a stored envelope, and scans each feature. This
 works for some thousands of features. For more, on a backend with GeoSPARQL,
 build a polygon from the four numbers, and use `geof:sfIntersects`.
 
-## 4. Add the `ogc` object to the version
+## 4. Add the query to the service
 
-Send `ogc` with the version, beside `queryString`:
+A service version lists the service's collections. Each collection names a
+query of the service's library and maps the query's variables to the OGC
+parameters. In the web app, add a collection on the service screen. Or send
+every collection of the new version:
 
 ```json
-POST /queries/{id}/versions
+POST /ogc-services/{id}/versions
 {
-  "queryVersion": {
-    "queryString": "…",
-    "ogc": {
+  "collections": [
+    {
+      "query": "<the query id>",
       "collectionId": "buildings",
       "title": "Buildings",
       "mode": "values",
@@ -125,13 +140,15 @@ POST /queries/{id}/versions
       "pageSize": { "default": 10, "max": 500 },
       "extent": { "spatial": [[115.8, -42.9, 151.3, -12.4]] }
     }
-  }
+  ]
 }
 ```
 
 | Key | Meaning |
 | --- | --- |
-| `collectionId` | The id in URLs. Letters, digits, `_` and `-`, at most 64. Unique in the library |
+| `query` | The query, in the service's library |
+| `queryVersion` | A version of that query to pin. Without it, the collection runs the query's version in the deployment's environment |
+| `collectionId` | The id in URLs. Letters, digits, `_` and `-`, at most 64. Unique in the service |
 | `title`, `description` | Shown to clients |
 | `mode` | `values` or `cql2` |
 | `feature.var` | The column that holds the feature IRI |
@@ -145,26 +162,34 @@ POST /queries/{id}/versions
 | `extent` | The spatial extent in CRS84, and the temporal extent |
 | `omit` | Result columns that are not feature properties |
 | `valuesQuery` | `values` mode: a query that lists the values of each queryable. See [Facets](#facets) |
+| `context` | JSON-LD terms for the properties. See [JSON-LD](#json-ld) |
 
-The save checks the object against the version. A key that names a variable
-that the version does not declare gets `400`, with the name of the key. A save
-with no `ogc` copies the object of the previous version, and checks it again.
-`"ogc": null` removes it.
+The save checks each collection against its query version. A key that names a
+variable that the version does not declare gets `400`, with the collection and
+the name of the key.
+
+A query version no longer carries an `ogc` object. A query version save that
+sends one gets `400`. At startup, a server with `FEATURE_OGC=true` makes one
+service for each library whose queries' current versions still carry `ogc`
+objects, with the library's slug, so that `/ogc/{library slug}` keeps working.
 
 A query can be a collection and a published tool at the same time.
 
-## 5. Restart the server
+## 5. Read the service
 
-The server reads the collections when it starts, as it does for published
-tools. Each collection pins the version that is current at that time, or the
-version of the environment in `SQLIB_DEFAULT_ENVIRONMENT`. A new version takes
-effect at the next start.
+The server serves a saved service version at the next OGC request, with no
+restart. It serves each service's version in the deployment's environment
+(`SQLIB_DEFAULT_ENVIRONMENT`), and each collection runs its pinned query
+version, or the query's version in that environment.
 
-The server skips a collection that it cannot serve, and logs the reason. With
-`MCP_CATALOGUE=published`, the server does not start. The causes are:
+A query version saved after the service can stop fitting a collection that
+follows the environment. The server then leaves that collection out, and the
+service's `problems` (on `GET /ogc-services/{id}` and on the service screen)
+say why. With `MCP_CATALOGUE=published`, the server does not start when a
+collection is left out at startup. The causes are:
 
-- the library has no slug;
-- two collections in one library have the same `collectionId`;
+- the collection no longer fits its query version;
+- two services have the same slug;
 - the query has no default backend;
 - a slot that the collection uses has `whenEmpty` set to `require` or
   `propagateEmpty`. The OGC parameters are optional, so the slot must run
@@ -209,8 +234,12 @@ the parameters of `items` and answers with the SPARQL text that `items` runs
 for them, as `application/sparql-query`. The collection links to it with
 `rel=describedby`. The demo map page shows this text in its Query tab.
 
-Anyone who can read the collection can then read its query. The setting is
-off by default for this reason.
+`/ogc/{slug}/collections/{id}/sparql/template` answers with the query as
+stored, with its parameters unfilled. It is read as the caller, so a caller
+who may not read the query gets `403`.
+
+Anyone who can read the collection can then read the SPARQL that `items`
+runs. The setting is off by default for this reason.
 
 ## Facets
 
@@ -319,7 +348,7 @@ The clauses are combined with `and`.
 library that reads `luc:config`
 ([`index-fields.rq`](../examples/ogc/jena/index-fields.rq)). The index must
 set `text:exposeConfig true`. sqlib runs the query once, as the first caller
-that needs it, and keeps the result until the server restarts. The result
+that needs it, and keeps the result until the next write to the store. The result
 gives:
 
 - the queryables, which are the index fields. When the `ogc` object lists
@@ -367,3 +396,55 @@ CI runs the OGC CITE suite for Part 1 (`ets-ogcapi-features10`) against the
 plain starter set. See `scripts/ci/ogc-cite.sh`. There is no CITE suite for
 Part 3 yet. The `cql2` mode is therefore tested only against a stand-in index
 (`packages/api/test/server/ogcRoutes.cql2.test.ts`).
+
+## JSON-LD
+
+A collection can carry JSON-LD terms for its properties, in `context`. Each
+term names the IRI of the predicate a property came from, and how its value is
+read:
+
+```json
+"context": {
+  "name":   { "@id": "https://example.org/ns#name" },
+  "height": { "@id": "https://example.org/ns#height", "@type": "http://www.w3.org/2001/XMLSchema#integer" },
+  "owner":  { "@id": "https://example.org/ns#owner", "@type": "@id" }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `@id` | The predicate IRI. Required |
+| `@type` | `@id` for a property whose values are IRIs, or a datatype IRI |
+| `@language` | A language tag for a string property |
+
+A key must be a property of the collection: an output column of the query
+other than the feature, the geometry and the `omit` columns. No other JSON-LD
+keyword is allowed.
+
+With terms, the collection document links
+`/ogc/{slug}/collections/{id}/context.jsonld` with
+`rel=http://www.w3.org/ns/json-ld#context`, and each `items` response sends:
+
+```
+Link: <…/context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+```
+
+A JSON-LD 1.1 processor that fetches the GeoJSON follows the header (JSON-LD
+1.1, section 6.1) and reads the page as RDF. A GeoJSON client reads the same
+body and ignores the header. The context is GeoJSON-LD's
+(https://geojson.org/geojson-ld/), with these additions:
+
+- `@base` is `feature.base`, so a feature id becomes the feature IRI again;
+- `properties` is `@nest`, so each property is a property of the feature;
+- `geometry` is a JSON literal (`rdf:JSON`);
+- `links`, `timeStamp`, `numberMatched` and `numberReturned` are left out.
+
+A property typed `xsd:decimal` or `xsd:float` is written as its lexical form,
+as a string, so that the processor reads the value exactly.
+
+Limits:
+
+- A term applies to every value of its property. A property whose values are
+  IRIs on some features and literals on others is read with the term's type.
+- A term has one `@language`.
+- A value built with `GROUP_CONCAT` is one string.

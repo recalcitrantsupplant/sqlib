@@ -26,6 +26,7 @@ export const PROMOTABLE_TYPES = {
   Query: 'QueryVersion',
   QueryGroup: 'QueryGroupVersion',
   RuleSet: 'RuleSetVersion',
+  OgcService: 'OgcServiceVersion',
 } as const;
 
 export type PromotableType = keyof typeof PROMOTABLE_TYPES;

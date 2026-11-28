@@ -237,6 +237,53 @@ export const OGC_COLLECTION: JsonShape = {
 };
 
 /**
+ * `OgcServiceVersion.collections` — the collections of an OGC service: each an
+ * `ogc` object, the query it runs, an optional pinned version of that query,
+ * and optional JSON-LD terms for its properties. Which variables each one
+ * names, and whether its query is in the service's library, is checked when
+ * the version is saved (`lib/ogcServices.ts`).
+ */
+const OGC_CONTEXT_TERM_SCHEMA = {
+  type: 'object',
+  properties: { '@id': { type: 'string', minLength: 1 }, '@type': { type: 'string', minLength: 1 }, '@language': { type: 'string', minLength: 1 } },
+  required: ['@id'],
+  additionalProperties: false,
+} as const;
+
+export const OGC_SERVICE_COLLECTIONS: JsonShape = {
+  jsonSchema: {
+    title: 'OgcServiceCollections',
+    type: 'array',
+    maxItems: 100,
+    items: {
+      ...(OGC_COLLECTION.jsonSchema as Record<string, unknown>),
+      title: 'OgcServiceCollection',
+      properties: {
+        ...((OGC_COLLECTION.jsonSchema as { properties: Record<string, unknown> }).properties),
+        query: { type: 'string', minLength: 1 },
+        queryVersion: { type: 'string', minLength: 1 },
+        context: { type: 'object', additionalProperties: OGC_CONTEXT_TERM_SCHEMA },
+      },
+      required: ['query', 'collectionId', 'title', 'mode', 'feature'],
+    },
+  },
+  zod: `z
+  .array(
+    ${OGC_COLLECTION.zod.replace(/^z\n  \.object\(\{/, `z
+  .object({
+    query: z.string().min(1),
+    queryVersion: z.string().min(1).optional(),
+    context: z
+      .record(
+        z.string(),
+        z.object({ '@id': z.string().min(1), '@type': z.string().min(1).optional(), '@language': z.string().min(1).optional() }).strict(),
+      )
+      .optional(),`)},
+  )
+  .max(100)`,
+};
+
+/**
  * `BenchmarkRun.context` — facts a client records with a run (issue #251),
  * such as page-cache state, peak CPU temperature or the store's build.
  *
@@ -264,6 +311,7 @@ export const JSON_SHAPES = {
   BenchmarkRunContext: BENCHMARK_RUN_CONTEXT,
   PublishedTool: PUBLISHED_TOOL,
   OgcCollection: OGC_COLLECTION,
+  OgcServiceCollections: OGC_SERVICE_COLLECTIONS,
 } as const;
 
 export type JsonShapeName = keyof typeof JSON_SHAPES;

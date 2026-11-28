@@ -53,6 +53,8 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   // flags above.
   FEATURE_NOTEBOOK: process.env.NUXT_PUBLIC_FEATURE_NOTEBOOK ?? process.env.FEATURE_NOTEBOOK,
   FEATURE_MCP: process.env.NUXT_PUBLIC_FEATURE_MCP ?? process.env.FEATURE_MCP,
+  // The OGC rail section. Off by default, like the API's `/ogc` routes it edits.
+  FEATURE_OGC: process.env.NUXT_PUBLIC_FEATURE_OGC ?? process.env.FEATURE_OGC,
 };
 
 const frontendFeatureFlags = buildFeatureFlags(frontendFeatureFlagEnv);

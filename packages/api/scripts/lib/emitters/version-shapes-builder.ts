@@ -134,6 +134,7 @@ export const VERSION_SHAPES: VersionShape[] = [
   { varName: 'dataGraphVersion', entityExport: 'datagraphversionSchema', typeName: 'DataGraphVersion' },
   { varName: 'tupleSetVersion', entityExport: 'tuplesetversionSchema', typeName: 'TupleSetVersion' },
   { varName: 'notebookVersion', entityExport: 'notebookversionSchema', typeName: 'NotebookVersion' },
+  { varName: 'ogcServiceVersion', entityExport: 'ogcserviceversionSchema', typeName: 'OgcServiceVersion' },
   { varName: 'testCase', entityExport: 'testcaseSchema', typeName: 'TestCase' },
   { varName: 'testVersion', entityExport: 'testversionSchema', typeName: 'TestVersion' },
 ];

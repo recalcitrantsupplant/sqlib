@@ -287,6 +287,18 @@ const MANIFEST: Record<string, Protection> = {
   'GET /notebooks/:id/versions/:version': 'read',
   'PATCH /notebooks/:id/versions/:version': 'write',
   'DELETE /notebooks/:id/versions/:version': 'delete',
+
+  /* OGC services: the versioned-entity routes, guarded like notebooks. */
+  'GET /ogc-services': 'readable-listing',
+  'POST /ogc-services': 'write-from-body',
+  'GET /ogc-services/:id': 'read',
+  'PUT /ogc-services/:id': 'write',
+  'DELETE /ogc-services/:id': 'delete',
+  'GET /ogc-services/:id/versions': 'read',
+  'POST /ogc-services/:id/versions': 'write',
+  'GET /ogc-services/:id/versions/:version': 'read',
+  'PATCH /ogc-services/:id/versions/:version': 'write',
+  'DELETE /ogc-services/:id/versions/:version': 'delete',
   /*
    * Exempt, and correctly: both parse a string from the body and store
    * nothing. They are the reason `exemptSuffixes` exists, and the contrast
@@ -855,6 +867,7 @@ const PLUGINS: ReadonlyArray<[specifier: string, prefix: string]> = [
   ['../../src/routes/data-blocks.js', '/data-blocks'],
   ['../../src/routes/data-graphs.js', '/data-graphs'],
   ['../../src/routes/notebooks.js', '/notebooks'],
+  ['../../src/routes/ogc-services.js', '/ogc-services'],
   ['../../src/routes/etl-jobs.js', '/etl-jobs'],
   ['../../src/routes/argument-sets.js', '/argument-sets'],
   ['../../src/routes/patches.js', '/patches'],

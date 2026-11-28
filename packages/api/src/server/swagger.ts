@@ -39,6 +39,10 @@ export async function registerSwaggerDocs(
     swaggerTags.push({ name: 'Notebook', description: 'Routes for managing notebooks' });
   }
 
+  if (featureFlags.ogc) {
+    swaggerTags.push({ name: 'OgcService', description: 'Routes for managing OGC API Features services' });
+  }
+
   if (featureFlags.benchmarks) {
     swaggerTags.push({ name: 'Benchmark', description: 'Routes for managing benchmarks' });
   }

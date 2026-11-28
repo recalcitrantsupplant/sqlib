@@ -36,7 +36,7 @@ export const HEADING_ROWS = 10;
 
 /** The kinds whose rail loads a page at a time. */
 export const RAIL_PAGED_KINDS: readonly PagedKind[] = [
-  'query', 'queryGroup', 'ruleSet', 'benchmark', 'dataGraph', 'tupleSet', 'argumentSet',
+  'query', 'queryGroup', 'ruleSet', 'benchmark', 'dataGraph', 'tupleSet', 'argumentSet', 'ogcService',
 ];
 
 /** The API's entity type for each paged kind that can carry tags. */

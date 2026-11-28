@@ -5,7 +5,7 @@ Runs on Jena Fuseki with the Kurrawong Lucene index.
 | File | What it is |
 | --- | --- |
 | `buildings.rq` | The query: a wrapper around `luc:query`, with properties from `luc:fields` |
-| `buildings.ogc.json` | The version's `ogc` object |
+| `buildings.ogc.json` | The collection's `ogc` mapping, which a service version lists with the query's id in `query` |
 | `index-fields.rq` | The `luc:config` query that lists the index fields |
 
 1. Set `text:exposeConfig true` on the index.

@@ -2880,6 +2880,332 @@ export const offsetparameterSchema = {
   ]
 } as const;
 
+export const ogcserviceSchema = {
+  "$id": "ogcservice",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "nullable": true
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 1
+    },
+    "currentVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "currentVersionNumber": {
+      "type": "integer",
+      "readOnly": true,
+      "nullable": true
+    },
+    "isPartOf": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "minItems": 1
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "slug",
+    "isPartOf"
+  ]
+} as const;
+
+export const ogcserviceversionSchema = {
+  "$id": "ogcserviceversion",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "immutable": {
+      "type": "boolean",
+      "nullable": true
+    },
+    "collections": {
+      "title": "OgcServiceCollections",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "title": "OgcServiceCollection",
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "values",
+              "cql2"
+            ]
+          },
+          "feature": {
+            "type": "object",
+            "properties": {
+              "var": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "var",
+              "base"
+            ],
+            "additionalProperties": false
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "geometrySources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "href": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "href"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "outputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "cql": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "queryables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "var": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "string",
+                    "number",
+                    "integer",
+                    "boolean",
+                    "date-time",
+                    "uri"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "valuesQuery": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pageSize": {
+            "type": "object",
+            "properties": {
+              "default": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "extent": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "omit": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "queryVersion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "@id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "@type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "@language": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "@id"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "query",
+          "collectionId",
+          "title",
+          "mode",
+          "feature"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "comment": {
+      "type": "string",
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "version",
+    "collections"
+  ]
+} as const;
+
 export const patchnodeSchema = {
   "$id": "patchnode",
   "type": "object",
@@ -5545,6 +5871,33 @@ export interface OffsetParameterRestApi {
   name: string;
   value?: number | null;
   defaultValue?: number | null;
+}
+
+export interface OgcServiceRestApi {
+  id: string;
+  name: string;
+  description?: string | null;
+  slug: string;
+  currentVersion?: string | null;
+  currentVersionNumber?: number | null;
+  isPartOf: string[];
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
+}
+
+export interface OgcServiceVersionRestApi {
+  id: string;
+  isPartOf: string;
+  version: number;
+  immutable?: boolean | null;
+  collections: string[];
+  comment?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface PatchNodeRestApi {

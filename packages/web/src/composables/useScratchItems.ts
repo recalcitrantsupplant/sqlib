@@ -33,6 +33,7 @@ const UNTITLED_PREFIX: Record<DraftSection, string> = {
   tupleSet: 'Untitled tuple set',
   argumentSet: 'Untitled argument set',
   notebook: 'Untitled notebook',
+  ogcService: 'Untitled OGC service',
 };
 
 function scratchId() {

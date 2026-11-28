@@ -259,6 +259,16 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
    * in `published` mode, where a broken release must fail here rather than at
    * a client's first call.
    */
+  // Collections configured on query versions become OGC services, once
+  // (`lib/ogcMigration.ts`). Before the catalogue, which collects services.
+  if (featureFlags.ogc) {
+    try {
+      const { migrateOgcObjects } = await import('./lib/ogcMigration.js');
+      await migrateOgcObjects(message => fastifyApp.log.info(message));
+    } catch (error) {
+      fastifyApp.log.error({ err: error }, 'The OGC migration failed; continuing without it');
+    }
+  }
   const publishedCatalogue = loadPublishedCatalogue();
   if (publishedCatalogue.problems.length > 0) {
     if (mode === 'published') {

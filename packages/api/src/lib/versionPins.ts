@@ -43,6 +43,7 @@ type HolderType =
   | 'QueryGroupVersion'
   | 'TestVersion'
   | 'EtlJobVersion'
+  | 'OgcServiceVersion'
   | 'Environment';
 
 type Entity = Record<string, unknown> & { $id: string; '@type'?: string };
@@ -53,6 +54,7 @@ const HOLDER_LABELS: Record<HolderType, [singular: string, plural: string]> = {
   QueryGroupVersion: ['query group', 'query groups'],
   TestVersion: ['test', 'tests'],
   EtlJobVersion: ['ETL job', 'ETL jobs'],
+  OgcServiceVersion: ['OGC service', 'OGC services'],
   Environment: ['environment', 'environments'],
 };
 
@@ -120,6 +122,15 @@ function* holdings(): Generator<{ heldBy: Entity; heldByType: HolderType; pinned
     const target = get(reference);
     const pinned = target?.['@type'] === 'Query' ? target.currentVersion : reference;
     for (const id of idsOf(pinned)) yield { heldBy: version, heldByType: 'EtlJobVersion', pinned: id };
+  }
+
+  // An OGC service version holds each query version a collection pins. A
+  // collection without a pin follows the environment, so it holds nothing.
+  for (const version of list('OgcServiceVersion')) {
+    const collections = Array.isArray(version.collections) ? (version.collections as Array<{ queryVersion?: unknown }>) : [];
+    for (const collection of collections) {
+      for (const pinned of idsOf(collection.queryVersion)) yield { heldBy: version, heldByType: 'OgcServiceVersion', pinned };
+    }
   }
 
   // An environment pointing at a version holds it the same way: deleting the

@@ -311,7 +311,7 @@ const librariesTitle = computed(() =>
  * contents.
  */
 const CARD_ORDER: RailSection[] = [
-  'notebooks', 'queries', 'queryGroups', 'rules', 'etl',
+  'notebooks', 'queries', 'queryGroups', 'ogcServices', 'rules', 'etl',
   'backends', 'dataGraphs', 'tupleSets', 'argumentSets',
   'tests', 'benchmarks',
 ];
@@ -322,6 +322,7 @@ const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis
   queryGroups: 'definition',
   rules: 'definition',
   etl: 'definition',
+  ogcServices: 'definition',
   mcp: 'definition',
   backends: 'axis',
   access: 'axis',

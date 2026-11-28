@@ -9,6 +9,8 @@ export * from './generated/datagraph.js';
 export * from './generated/tupleset.js';
 export * from './generated/notebook.js';
 export { notebookVersionSchema, type NotebookVersion } from './generated/version-shapes.js';
+export * from './generated/ogcservice.js';
+export { ogcServiceVersionSchema, type OgcServiceVersion } from './generated/version-shapes.js';
 export * from './generated/test.js';
 export * from './generated/tag.js';
 export * from './generated/query-version.js';

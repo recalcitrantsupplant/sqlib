@@ -16,6 +16,7 @@ const FROZEN_TYPES = new Set([
   'TestVersion',
   'TupleSetVersion',
   'NotebookVersion',
+  'OgcServiceVersion',
   'ArgumentSetVersion',
   'EtlJobVersion',
   'EtlColumnMappingVersion',

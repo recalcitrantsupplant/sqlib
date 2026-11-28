@@ -1,4 +1,5 @@
 {
+  "query": "urn:sqlib:query:rail-lines-features",
   "collectionId": "lines",
   "title": "Lines",
   "description": "Every line, as a line through its stops, with its colour and opening year.",
@@ -39,5 +40,17 @@
         -31.905
       ]
     ]
+  },
+  "context": {
+    "name": {
+      "@id": "https://example.org/rail/name"
+    },
+    "colour": {
+      "@id": "https://example.org/rail/colour"
+    },
+    "opened": {
+      "@id": "https://example.org/rail/opened",
+      "@type": "http://www.w3.org/2001/XMLSchema#integer"
+    }
   }
 }

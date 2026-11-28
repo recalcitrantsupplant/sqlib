@@ -37,6 +37,7 @@ await page.goto(`${base}/map/?basemap=none`, { waitUntil: 'load' });
 await page.waitForSelector('.features li', { timeout: 60_000 });
 console.log('first features', `${Date.now() - t0} ms`);
 await expectText('.collection-title', ['Lines', 'Stations'], 'collections');
+await expectText('h2', ['Collections ?', 'Queryables Lines ?Clear', 'Features ?'], 'section headings');
 await expectText('.features button', ['Blue line', 'Green line', 'Red line', 'Yellow line'], 'lines');
 await page.screenshot({ path: `${out}/map-lines.png` });
 
@@ -47,7 +48,6 @@ await page.waitForFunction(() => document.querySelector('.pager span')?.textCont
 await expectText('.features li', ['Parkside', 'Riverside', 'Southbank', 'Stadium', 'University', 'Westfield'], 'stations page 2');
 
 await page.fill('input[name="name"]', 'cENTr');
-await page.click('button:text("Search")');
 await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '1–1');
 await expectText('.features li', ['Central'], 'name filter, any case, part of the name');
 await page.click('#tab-query');
@@ -55,14 +55,45 @@ const sparql = (await page.locator('#inspect-code .cm-line').allTextContents()).
 const shown = /VALUES \?nameLike \{ "cENTr" \}/.test(sparql ?? '') && /REGEX/i.test(sparql ?? '') && !/LIMIT 0001/.test(sparql ?? '');
 console.log(shown ? 'ok  ' : 'FAIL', 'SPARQL of the page', shown ? '' : JSON.stringify(sparql?.slice(0, 400)));
 if (!shown) failures.push('SPARQL of the page');
+await page.click('#query-template');
+const template = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
+const stored = /VALUES \?nameLike \{ UNDEF \}/.test(template) && (await page.locator('#inspect-code .cm-lineNumbers').count()) > 0;
+console.log(stored ? 'ok  ' : 'FAIL', 'template of the query, with line numbers', stored ? '' : JSON.stringify(template.slice(0, 300)));
+if (!stored) failures.push('template of the query');
+await page.click('#query-run');
 await page.click('#tab-result');
 const result = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
 const geojson = result.includes('"FeatureCollection"') && result.includes('"Central"');
 console.log(geojson ? 'ok  ' : 'FAIL', 'GeoJSON of the page', geojson ? '' : JSON.stringify(result.slice(0, 300)));
 if (!geojson) failures.push('GeoJSON of the page');
+await page.click('#format-jsonld');
+const jsonld = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
+// CodeMirror draws only the lines in view, so check the top of the document.
+const withContext = jsonld.includes('"@context"') && jsonld.includes('"@base": "https://example.org/rail/"');
+console.log(withContext ? 'ok  ' : 'FAIL', 'GeoJSON-LD of the page', withContext ? '' : JSON.stringify(jsonld.slice(0, 300)));
+if (!withContext) failures.push('GeoJSON-LD of the page');
+await page.click('#format-geojson');
 await page.screenshot({ path: `${out}/map-result.png` });
 await page.click('#tab-query');
 await page.screenshot({ path: `${out}/map-query.png` });
+
+const width = async () => (await page.locator('#inspect').boundingBox())?.width ?? 0;
+const before = await width();
+const edge = await page.locator('#inspect-resizer').boundingBox();
+await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
+await page.mouse.down();
+await page.mouse.move(edge.x - 150, edge.y + 200, { steps: 5 });
+await page.mouse.up();
+const after = await width();
+const resized = after > before + 100;
+console.log(resized ? 'ok  ' : 'FAIL', 'drag the panel wider', `${before} -> ${after}`);
+if (!resized) failures.push('drag the panel wider');
+await page.click('#inspect-toggle');
+const collapsed = (await width()) < 60;
+await page.click('#inspect-toggle');
+const expanded = Math.abs((await width()) - after) < 2;
+console.log(collapsed && expanded ? 'ok  ' : 'FAIL', 'collapse and expand the panel');
+if (!(collapsed && expanded)) failures.push('collapse and expand the panel');
 await page.screenshot({ path: `${out}/map-filter.png` });
 
 await page.click('#service-form button[type="submit"]');

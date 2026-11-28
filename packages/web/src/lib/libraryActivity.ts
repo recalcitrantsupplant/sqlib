@@ -26,6 +26,7 @@ export const ENTITY_KIND_LABELS: Record<string, string> = {
   Test: 'test',
   EtlJob: 'ETL job',
   Notebook: 'notebook',
+  OgcService: 'OGC service',
   BenchmarkExperiment: 'benchmark',
   Tag: 'tag',
   Environment: 'environment',

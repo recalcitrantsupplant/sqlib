@@ -28,7 +28,11 @@ interface CollectionState {
   page: ItemsPage | null;
   error: string | null;
   sparqlHref: string | null;
+  /** The collection's JSON-LD context, when it has one. */
+  jsonLdContext: unknown;
   sparql: string | null;
+  /** The collection's query as stored, read once. */
+  template: string | null;
   facets: Facet[];
   chosen: Record<string, Array<string | number | boolean>>;
 }
@@ -101,6 +105,11 @@ async function start(): Promise<void> {
     // ogc-client drops the collection's links, so read them from the document.
     const docs = await Promise.all(ids.map(id => readJson<{ links?: Link[] }>(`${source.url.replace(/\/+$/, '')}/collections/${encodeURIComponent(id)}`)));
     // ogc-client keeps only each queryable's name and type, so read the values from the document.
+    // A collection with JSON-LD terms links its context; the Result tab can show the page as GeoJSON-LD.
+    const contexts = await Promise.all(docs.map(doc => {
+      const href = linkHref(doc?.links, 'http://www.w3.org/ns/json-ld#context', source.url);
+      return href ? readJson<{ '@context'?: unknown }>(href).then(body => body?.['@context'] ?? null) : Promise.resolve(null);
+    }));
     const queryableDocs = await Promise.all(docs.map(doc => {
       const href = linkHref(doc?.links, 'http://www.opengis.net/def/rel/ogc/1.0/queryables', source.url);
       return href ? readJson<Parameters<typeof facetsOf>[0]>(href) : Promise.resolve(null);
@@ -116,7 +125,9 @@ async function start(): Promise<void> {
         page: null,
         error: null,
         sparqlHref: linkHref(docs[index]?.links, 'describedby', source.url),
+        jsonLdContext: contexts[index] ?? null,
         sparql: null,
+        template: null,
         facets: facetsOf(queryableDocs[index] ?? null),
         chosen: {},
       });
@@ -132,8 +143,11 @@ async function start(): Promise<void> {
   showStatus(null);
   await mapReady;
   for (const state of collections.values()) addLayers(state);
+  map.on('moveend', () => {
+    for (const state of collections.values()) if (state.inView) void loadFirstPage(state);
+  });
   fitToExtents();
-  initInspect([...collections.values()].some(state => state.sparqlHref !== null));
+  initInspect([...collections.values()].some(state => state.sparqlHref !== null), () => map.resize());
   selected = collections.keys().next().value ?? null;
   renderList();
   await Promise.all([...collections.values()].map(state => loadFirstPage(state)));
@@ -200,8 +214,9 @@ async function loadPage(state: CollectionState, url: string): Promise<void> {
     state.error = (error as Error).message;
   }
   state.sparql = state.sparqlHref ? await readText(sparqlUrl(state.sparqlHref, url)) : null;
+  if (state.sparqlHref && state.template === null) state.template = await readText(`${new URL(state.sparqlHref, url).href.replace(/\/$/, '')}/template`);
   (map.getSource(state.info.id) as GeoJSONSource).setData({ type: 'FeatureCollection', features: (state.page?.features ?? []) as never });
-  renderList();
+  renderPage();
 }
 
 function facetLabel(value: string | number | boolean): string {
@@ -244,11 +259,32 @@ function placeOf(geometry: Geometry | null): { at: [number, number]; bounds: Lng
   return { at: [c.lng, c.lat], bounds };
 }
 
+/** Everything in the left panel: on a new service, or another collection selected. */
 function renderList(): void {
-  const list = $('collections');
-  list.replaceChildren(...[...collections.values()].map(state => renderCollection(state)));
-  const current = selected === null ? undefined : collections.get(selected);
-  showInspect(current?.page ? { query: current.sparql, result: current.page } : null);
+  renderCollections();
+  renderQueryables();
+  renderFeatures();
+}
+
+/** After a page loads: the counts and the features. The queryables keep their focus. */
+function renderPage(): void {
+  renderCollections();
+  renderFeatures();
+}
+
+function select(id: string): void {
+  if (selected === id) return;
+  selected = id;
+  renderList();
+}
+
+function current(): CollectionState | undefined {
+  return selected === null ? undefined : collections.get(selected);
+}
+
+function renderCollections(): void {
+  $('collections-section').hidden = collections.size === 0;
+  $('collections').replaceChildren(...[...collections.values()].map(state => renderCollection(state)));
 }
 
 function renderCollection(state: CollectionState): HTMLElement {
@@ -259,82 +295,97 @@ function renderCollection(state: CollectionState): HTMLElement {
   const swatch = el('span', { className: 'swatch' });
   swatch.style.background = state.colour;
   const count = el('span', { className: 'count' }, state.page ? pageRange(offsetOf(state.pageUrl ?? ''), state.page.features.length, state.page.numberMatched) : '');
-  const head = el('button', { type: 'button', className: 'collection-head' }, swatch, el('span', { className: 'collection-title' }, state.info.title || state.info.id), count);
-  head.setAttribute('aria-expanded', String(isSelected));
-  head.onclick = () => {
-    selected = isSelected ? null : state.info.id;
-    renderList();
-  };
-  const item = el('li', { className: `collection${isSelected ? ' selected' : ''}` }, el('div', { className: 'collection-row' }, toggle, head));
-  if (isSelected) item.append(renderDetail(state));
-  return item;
+  const head = el('button', { type: 'button', className: 'collection-head', title: state.info.description ?? '' }, swatch, el('span', { className: 'collection-title' }, state.info.title || state.info.id), count);
+  head.setAttribute('aria-pressed', String(isSelected));
+  head.onclick = () => select(state.info.id);
+  return el('li', { className: `collection${isSelected ? ' selected' : ''}` }, el('div', { className: 'collection-row' }, toggle, head));
 }
 
-function renderDetail(state: CollectionState): HTMLElement {
-  const detail = el('div', { className: 'detail' });
-  if (state.info.description) detail.append(el('p', { className: 'description' }, state.info.description));
+/** The selected collection's queryables. A change reloads the first page at once. */
+function renderQueryables(): void {
+  const state = current();
+  const section = $('queryables-section');
+  const body = $('queryables');
+  const textQueryables = state ? state.info.queryables.filter(q => !state.facets.some(f => f.name === q.name) && ['string', 'number', 'integer', 'date'].includes(q.type)) : [];
+  section.hidden = !state;
+  if (!state) return body.replaceChildren();
+  $('queryables-of').textContent = state.info.title || state.info.id;
 
-  const form = el('form', { className: 'filters' });
-  const facetNames = new Set(state.facets.map(facet => facet.name));
+  const reload = () => void loadFirstPage(state);
+  const groups: HTMLElement[] = [];
+  for (const queryable of textQueryables) {
+    const input = el('input', {
+      name: queryable.name,
+      type: queryable.type === 'date' ? 'date' : queryable.type === 'string' ? 'search' : 'number',
+      value: state.values[queryable.name] ?? '',
+    });
+    let timer = 0;
+    input.oninput = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        state.values = { ...state.values, [queryable.name]: input.value };
+        reload();
+      }, 300);
+    };
+    input.onkeydown = event => {
+      if (event.key !== 'Enter') return;
+      window.clearTimeout(timer);
+      state.values = { ...state.values, [queryable.name]: input.value };
+      reload();
+    };
+    groups.push(el('label', { className: 'field' }, el('span', {}, queryable.title ?? queryable.name), input));
+  }
   for (const facet of state.facets) {
     const group = el('fieldset', { className: 'facet' }, el('legend', {}, facet.title));
     for (const value of facet.values) {
       const box = el('input', { type: 'checkbox', checked: (state.chosen[facet.name] ?? []).includes(value) });
       box.onchange = () => {
         const others = (state.chosen[facet.name] ?? []).filter(v => v !== value);
-        state.chosen[facet.name] = box.checked ? [...others, value] : others;
-        void loadFirstPage(state);
+        state.chosen = { ...state.chosen, [facet.name]: box.checked ? [...others, value] : others };
+        reload();
       };
       group.append(el('label', { className: 'check' }, box, el('span', { className: 'facet-value' }, facetLabel(value))));
     }
-    form.append(group);
-  }
-  for (const queryable of state.info.queryables.filter(q => !facetNames.has(q.name) && ['string', 'number', 'integer', 'date'].includes(q.type))) {
-    const input = el('input', {
-      name: queryable.name,
-      type: queryable.type === 'date' ? 'date' : queryable.type === 'string' ? 'search' : 'number',
-      value: state.values[queryable.name] ?? '',
-    });
-    form.append(el('label', {}, el('span', {}, queryable.title ?? queryable.name), input));
+    groups.push(group);
   }
   const inView = el('input', { type: 'checkbox', checked: state.inView, name: 'in-view' });
-  form.append(
-    el('label', { className: 'check' }, inView, el('span', {}, 'In map view')),
-    el('div', { className: 'actions' }, el('button', { type: 'submit', className: 'primary' }, 'Search'), el('button', { type: 'reset' }, 'Clear')),
-  );
-  const read = () => {
-    const data = new FormData(form);
-    state.values = Object.fromEntries(state.info.queryables.map(q => [q.name, String(data.get(q.name) ?? '')]));
+  inView.onchange = () => {
     state.inView = inView.checked;
+    reload();
   };
-  form.onsubmit = event => {
-    event.preventDefault();
-    read();
-    void loadFirstPage(state);
-  };
-  form.onreset = event => {
-    event.preventDefault();
+  groups.push(el('label', { className: 'check' }, inView, el('span', {}, 'In map view')));
+  body.replaceChildren(...groups);
+
+  const clear = $('queryables-clear');
+  clear.onclick = () => {
     state.values = {};
     state.chosen = {};
     state.inView = false;
-    void loadFirstPage(state);
+    renderQueryables();
+    reload();
   };
-  detail.append(form);
+}
 
-  if (state.error) detail.append(el('p', { className: 'error' }, state.error));
+function renderFeatures(): void {
+  const state = current();
+  showInspect(state?.page ? { query: state.sparql, template: state.template, result: state.page, context: state.jsonLdContext } : null);
+  $('features-section').hidden = !state;
+  const body = $('features');
+  if (!state) return body.replaceChildren();
+
+  const parts: HTMLElement[] = [];
+  if (state.error) parts.push(el('p', { className: 'error' }, state.error));
   const base = state.pageUrl ?? window.location.href;
   const prev = linkHref(state.page?.links, 'prev', base);
   const next = linkHref(state.page?.links, 'next', base);
-  const pager = el('div', { className: 'pager' });
   const prevButton = el('button', { type: 'button', disabled: !prev, title: 'Previous page' }, '‹');
   const nextButton = el('button', { type: 'button', disabled: !next, title: 'Next page' }, '›');
   prevButton.onclick = () => prev && void loadPage(state, prev);
   nextButton.onclick = () => next && void loadPage(state, next);
-  pager.append(prevButton, el('span', {}, state.page ? pageRange(offsetOf(base), state.page.features.length, state.page.numberMatched) : ''), nextButton);
-  detail.append(pager);
+  parts.push(el('div', { className: 'pager' }, prevButton, el('span', {}, state.page ? pageRange(offsetOf(base), state.page.features.length, state.page.numberMatched) : ''), nextButton));
 
   const features = state.page?.features ?? [];
-  if (state.page && features.length === 0) detail.append(el('p', { className: 'empty' }, 'No features match.'));
+  if (state.page && features.length === 0) parts.push(el('p', { className: 'empty' }, 'No features match.'));
   const list = el('ol', { className: 'features' });
   for (const feature of features) {
     const button = el('button', { type: 'button' }, featureLabel(feature));
@@ -346,11 +397,11 @@ function renderDetail(state: CollectionState): HTMLElement {
     };
     list.append(el('li', {}, button));
   }
-  detail.append(list);
+  parts.push(list);
   if (state.pageUrl && !inTab) {
-    detail.append(el('a', { className: 'raw', href: state.pageUrl, target: '_blank', rel: 'noopener' }, 'GeoJSON'));
+    parts.push(el('a', { className: 'raw', href: state.pageUrl, target: '_blank', rel: 'noopener' }, 'GeoJSON'));
   }
-  return detail;
+  body.replaceChildren(...parts);
 }
 
 void start();

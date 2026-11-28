@@ -72,6 +72,8 @@ export const ENTITY_TYPE_NAMES = [
   'TupleSetVersion',
   'Notebook',
   'NotebookVersion',
+  'OgcService',
+  'OgcServiceVersion',
 ] as const;
 
 /** One of the entity types the system stores and resolves. */
