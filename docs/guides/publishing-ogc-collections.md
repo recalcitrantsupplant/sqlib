@@ -319,6 +319,10 @@ the index comes back as `/execute` sent it.
 Map libraries call the routes from another origin. Add the origin of the map
 to the CORS configuration of the server.
 
+`packages/ogc-map` is a map page for any OGC API Features service, built on
+MapLibre and `@camptocamp/ogc-client`. Open it with `?url=<landing page>`. The
+browser-only Rail demo serves it at `map/`.
+
 ## Conformance tests
 
 CI runs the OGC CITE suite for Part 1 (`ets-ogcapi-features10`) against the

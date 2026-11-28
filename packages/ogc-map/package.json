@@ -1,0 +1,22 @@
+{
+  "name": "@sparql-query-lib/ogc-map",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "A map page that reads an OGC API Features service: its collections, queryables and items.",
+  "scripts": {
+    "build": "tsc --noEmit --project tsconfig.json && node build.mjs",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@camptocamp/ogc-client": "2.0.2",
+    "maplibre-gl": "6.20.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.1"
+  }
+}

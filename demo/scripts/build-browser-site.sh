@@ -13,6 +13,9 @@
 # | DEMO_ETL_OUTPUT | etl-output beside the store | The seeded ETL runs' output files, which the site carries |
 # | DUCKDB_BASE_URL | jsDelivr | Where the browser loads duckdb-wasm from, for ETL |
 #
+# The site has the map page at `map/`, which reads the Rail library's OGC API
+# Features service from the same Worker.
+#
 # Serve the result with any static file server, for example
 # `node packages/api/browser/test/serve.mjs <out-dir> 3721 200.html`.
 set -eu
@@ -25,7 +28,7 @@ site_base="${SITE_BASE:-/}"
 if [ ! -s "${store}" ]; then
   state="$(dirname "$(dirname "${store}")")"
   rm -rf "${state}"
-  LIBRARY_STORAGE_DIR="$(dirname "${store}")" ETL_OUTPUT_DIR="${state}/etl-output" \
+  DEMO_OGC=true LIBRARY_STORAGE_DIR="$(dirname "${store}")" ETL_OUTPUT_DIR="${state}/etl-output" \
   DEMO_API_DIR="${root}/packages/api" DEMO_API_CMD="node_modules/.bin/tsx src/index.ts" \
     sh "${root}/demo/scripts/seed.sh"
 fi
@@ -57,6 +60,10 @@ node -e '
   const config = { apiBaseUrl: "browser", ...(duckdb ? { duckdbBaseUrl: duckdb } : {}) };
   require("node:fs").writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
 ' "${out}/config.json" "${DUCKDB_BASE_URL:-}"
+
+# The map page, a client of the Rail library's OGC API Features service.
+(cd "${root}/packages/ogc-map" && node build.mjs "${out}/map")
+printf '{\n  "service": "rail"\n}\n' > "${out}/map/config.json"
 
 # Cache rules for hosts that read a `_headers` file, such as Cloudflare static
 # assets. The `_nuxt` files have a content hash in their names. The API files
