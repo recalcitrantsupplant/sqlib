@@ -236,6 +236,15 @@ describe('OGC API Features, against a real API instance', () => {
       expect(datetime.body.features.map((f: { id: string }) => f.id)).toEqual(['b2']);
       const name = await get('/ogc/survey/collections/buildings/items?name=Perth%20Hall');
       expect(name.body.features.map((f: { id: string }) => f.id)).toEqual(['a1']);
+      const filter = (cql: object) => `/ogc/survey/collections/buildings/items?filter-lang=cql2-json&filter=${encodeURIComponent(JSON.stringify(cql))}`;
+      const either = await get(filter({ op: 'in', args: [{ property: 'name' }, ['Perth Hall', 'Sydney Store']] }));
+      expect(either.body.features.map((f: { id: string }) => f.id)).toEqual(['a1', 'c3']);
+      const both = await get(`${filter({ op: 'in', args: [{ property: 'name' }, ['Perth Hall', 'Sydney Store']] })}&name=Sydney%20Store`);
+      expect(both.body.features.map((f: { id: string }) => f.id)).toEqual(['c3']);
+      const none = await get(`${filter({ op: '=', args: [{ property: 'name' }, 'Perth Hall'] })}&name=Sydney%20Store`);
+      expect(none.status).toBe(200);
+      expect(none.body.features).toEqual([]);
+      expect((await get(filter({ op: 'or', args: [] }))).status).toBe(400);
     });
 
     it('leaves the geometry out when asked', async () => {

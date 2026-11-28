@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withQueryables } from '../src/service';
+import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withQueryables, facetsOf, withFacets } from '../src/service';
 
 describe('resolveService', () => {
   const page = 'https://demo.example.org/site/map/';
@@ -29,6 +29,25 @@ describe('resolveService', () => {
   it('gives null with no service or no API', () => {
     expect(resolveService(page, null, { apiBaseUrl: 'browser' })).toBeNull();
     expect(resolveService(page, { service: 'rail' }, null)).toBeNull();
+  });
+});
+
+describe('facets', () => {
+  it('reads the properties with an enum, with their counts', () => {
+    const doc = { properties: {
+      name: { title: 'Name', type: 'string' },
+      zone: { title: 'Zone', enum: [1, 2, 3], 'x-counts': [6, 5, 5] },
+    } };
+    expect(facetsOf(doc)).toEqual([{ name: 'zone', title: 'Zone', values: [{ value: 1, count: 6 }, { value: 2, count: 5 }, { value: 3, count: 5 }] }]);
+  });
+
+  it('puts the chosen values in one CQL2-JSON filter, and removes it with no choice', () => {
+    const one = new URL(withFacets('https://x.org/items?limit=10', { zone: [1, 2], stepFree: [] }));
+    expect(JSON.parse(one.searchParams.get('filter')!)).toEqual({ op: 'in', args: [{ property: 'zone' }, [1, 2]] });
+    expect(one.searchParams.get('filter-lang')).toBe('cql2-json');
+    const two = new URL(withFacets(one.href, { zone: [1], stepFree: [true] }));
+    expect(JSON.parse(two.searchParams.get('filter')!).op).toBe('and');
+    expect(withFacets(two.href, {})).toBe('https://x.org/items?limit=10');
   });
 });
 

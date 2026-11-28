@@ -653,6 +653,10 @@ export const queryversionSchema = {
             "additionalProperties": false
           }
         },
+        "valuesQuery": {
+          "type": "string",
+          "minLength": 1
+        },
         "pageSize": {
           "type": "object",
           "properties": {

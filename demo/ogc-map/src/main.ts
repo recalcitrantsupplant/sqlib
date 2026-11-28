@@ -12,7 +12,7 @@ import { OgcApiEndpoint, type OgcApiCollectionInfo } from '@camptocamp/ogc-clien
 import { Map as MapLibreMap, Popup, LngLatBounds, setWorkerUrl, type GeoJSONSource, type MapGeoJSONFeature, type StyleSpecification } from 'maplibre-gl';
 import { installBrowserApi } from '../../../packages/web/src/lib/browserApi';
 import { initInspect, showInspect } from './inspect';
-import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withQueryables, type AppConfig, type Link, type MapConfig } from './service';
+import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withFacets, withQueryables, facetsOf, type Facet, type AppConfig, type Link, type MapConfig } from './service';
 
 type Geometry = { type: string; coordinates?: unknown; geometries?: Geometry[] };
 type Feature = { type: 'Feature'; id?: string | number; geometry: Geometry | null; properties: Record<string, unknown> | null };
@@ -29,6 +29,8 @@ interface CollectionState {
   error: string | null;
   sparqlHref: string | null;
   sparql: string | null;
+  facets: Facet[];
+  chosen: Record<string, Array<string | number | boolean>>;
 }
 
 const PAGE_SIZE = 10;
@@ -98,6 +100,11 @@ async function start(): Promise<void> {
     const infos = await Promise.all(ids.map(id => endpoint.getCollectionInfo(id)));
     // ogc-client drops the collection's links, so read them from the document.
     const docs = await Promise.all(ids.map(id => readJson<{ links?: Link[] }>(`${source.url.replace(/\/+$/, '')}/collections/${encodeURIComponent(id)}`)));
+    // ogc-client keeps only each queryable's name and type, so read the values from the document.
+    const queryableDocs = await Promise.all(docs.map(doc => {
+      const href = linkHref(doc?.links, 'http://www.opengis.net/def/rel/ogc/1.0/queryables', source.url);
+      return href ? readJson<Parameters<typeof facetsOf>[0]>(href) : Promise.resolve(null);
+    }));
     infos.forEach((info, index) => {
       collections.set(info.id, {
         info,
@@ -110,6 +117,8 @@ async function start(): Promise<void> {
         error: null,
         sparqlHref: linkHref(docs[index]?.links, 'describedby', source.url),
         sparql: null,
+        facets: facetsOf(queryableDocs[index] ?? null),
+        chosen: {},
       });
     });
   } catch (error) {
@@ -175,7 +184,7 @@ async function loadFirstPage(state: CollectionState): Promise<void> {
     limit: PAGE_SIZE,
     ...(state.inView ? { extent: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] as [number, number, number, number] } : {}),
   });
-  await loadPage(state, withQueryables(url, state.values));
+  await loadPage(state, withFacets(withQueryables(url, state.values), state.chosen));
 }
 
 async function loadPage(state: CollectionState, url: string): Promise<void> {
@@ -193,6 +202,12 @@ async function loadPage(state: CollectionState, url: string): Promise<void> {
   state.sparql = state.sparqlHref ? await readText(sparqlUrl(state.sparqlHref, url)) : null;
   (map.getSource(state.info.id) as GeoJSONSource).setData({ type: 'FeatureCollection', features: (state.page?.features ?? []) as never });
   renderList();
+}
+
+function facetLabel(value: string | number | boolean): string {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  return String(value);
 }
 
 async function readText(url: string): Promise<string | null> {
@@ -260,7 +275,21 @@ function renderDetail(state: CollectionState): HTMLElement {
   if (state.info.description) detail.append(el('p', { className: 'description' }, state.info.description));
 
   const form = el('form', { className: 'filters' });
-  for (const queryable of state.info.queryables.filter(q => ['string', 'number', 'integer', 'date'].includes(q.type))) {
+  const facetNames = new Set(state.facets.map(facet => facet.name));
+  for (const facet of state.facets) {
+    const group = el('fieldset', { className: 'facet' }, el('legend', {}, facet.title));
+    for (const { value, count } of facet.values) {
+      const box = el('input', { type: 'checkbox', checked: (state.chosen[facet.name] ?? []).includes(value) });
+      box.onchange = () => {
+        const others = (state.chosen[facet.name] ?? []).filter(v => v !== value);
+        state.chosen[facet.name] = box.checked ? [...others, value] : others;
+        void loadFirstPage(state);
+      };
+      group.append(el('label', { className: 'check' }, box, el('span', { className: 'facet-value' }, facetLabel(value)), el('span', { className: 'count' }, count === null ? '' : String(count))));
+    }
+    form.append(group);
+  }
+  for (const queryable of state.info.queryables.filter(q => !facetNames.has(q.name) && ['string', 'number', 'integer', 'date'].includes(q.type))) {
     const input = el('input', {
       name: queryable.name,
       type: queryable.type === 'date' ? 'date' : queryable.type === 'string' ? 'search' : 'number',
@@ -286,6 +315,7 @@ function renderDetail(state: CollectionState): HTMLElement {
   form.onreset = event => {
     event.preventDefault();
     state.values = {};
+    state.chosen = {};
     state.inView = false;
     void loadFirstPage(state);
   };

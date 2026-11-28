@@ -70,6 +70,49 @@ export function withQueryables(itemsUrl: string, values: Record<string, string>)
   return url.href;
 }
 
+/** A queryable that lists its values: a facet. */
+export interface Facet {
+  name: string;
+  title: string;
+  values: Array<{ value: string | number | boolean; count: number | null }>;
+}
+
+/** The facets of a queryables document: each property with an `enum`, with the counts of `x-counts`. */
+export function facetsOf(doc: { properties?: Record<string, { title?: string; enum?: unknown[]; 'x-counts'?: unknown[] }> } | null): Facet[] {
+  return Object.entries(doc?.properties ?? {})
+    .filter(([, property]) => Array.isArray(property.enum) && property.enum.length > 0)
+    .map(([name, property]) => ({
+      name,
+      title: property.title ?? name,
+      values: property.enum!
+        .filter((value): value is string | number | boolean => ['string', 'number', 'boolean'].includes(typeof value))
+        .map((value, index) => {
+          const count = property['x-counts']?.[index];
+          return { value, count: typeof count === 'number' ? count : null };
+        }),
+    }));
+}
+
+/**
+ * The items URL with a CQL2-JSON filter for the chosen facet values: any of
+ * the values of one facet, and every facet with a choice. No choice removes
+ * the filter.
+ */
+export function withFacets(itemsUrl: string, chosen: Record<string, Array<string | number | boolean>>): string {
+  const url = new URL(itemsUrl);
+  const args = Object.entries(chosen)
+    .filter(([, values]) => values.length > 0)
+    .map(([name, values]) => ({ op: 'in', args: [{ property: name }, values] }));
+  if (args.length === 0) {
+    url.searchParams.delete('filter');
+    url.searchParams.delete('filter-lang');
+  } else {
+    url.searchParams.set('filter', JSON.stringify(args.length === 1 ? args[0] : { op: 'and', args }));
+    url.searchParams.set('filter-lang', 'cql2-json');
+  }
+  return url.href;
+}
+
 /** The collection's SPARQL link with the query parameters of an items URL. */
 export function sparqlUrl(sparqlHref: string, itemsUrl: string): string {
   const url = new URL(sparqlHref);

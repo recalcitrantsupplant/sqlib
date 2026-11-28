@@ -144,6 +144,7 @@ POST /queries/{id}/versions
 | `pageSize` | The default and the largest page. The largest allowed is 10000 |
 | `extent` | The spatial extent in CRS84, and the temporal extent |
 | `omit` | Result columns that are not feature properties |
+| `valuesQuery` | `values` mode: a query that lists the values of each queryable. See [Facets](#facets) |
 
 The save checks the object against the version. A key that names a variable
 that the version does not declare gets `400`, with the name of the key. A save
@@ -182,7 +183,7 @@ The server skips a collection that it cannot serve, and logs the reason. With
 | `datetime` | An instant, or `start/end`. Either end can be `..` |
 | `skipGeometry` | `true` returns each feature with `"geometry": null` |
 | a queryable | One value, parsed by the `type` of the queryable |
-| `filter`, `filter-lang`, `filter-crs` | `cql2` mode only |
+| `filter`, `filter-lang` | `values` mode: see [Facets](#facets). `cql2` mode: any CQL2-JSON, and also `filter-crs` |
 | `f` | `geojson` or `json` |
 
 Any other parameter gets `400`, with the name of the parameter.
@@ -206,10 +207,37 @@ therefore show each caller only their own features.
 Set `SQLIB_OGC_SPARQL=true` to give each collection a `sparql` route. It takes
 the parameters of `items` and answers with the SPARQL text that `items` runs
 for them, as `application/sparql-query`. The collection links to it with
-`rel=describedby`. The demo map page shows this text under each collection.
+`rel=describedby`. The demo map page shows this text in its Query tab.
 
 Anyone who can read the collection can then read its query. The setting is
 off by default for this reason.
+
+## Facets
+
+In `values` mode, each queryable takes several values. sqlib sends them as
+rows of the queryable's `VALUES` clause, so a feature matches when it matches
+any one of them. Each queryable has its own `VALUES` clause, so the conditions
+on different queryables must all hold.
+
+Send several values in a CQL2-JSON `filter`, with `filter-lang=cql2-json`.
+The filter is an `and` of `=` and `in` comparisons, each on a queryable:
+
+```json
+{ "op": "and", "args": [
+  { "op": "in", "args": [{ "property": "zone" }, [1, 3]] },
+  { "op": "=", "args": [{ "property": "stepFree" }, false] }
+] }
+```
+
+Any other operator gets `400`. A queryable in both the filter and a query
+parameter keeps the values that both allow. The service does not declare the
+CQL2 conformance classes for this subset.
+
+`valuesQuery` names a SELECT in the same library that returns `?property`,
+`?value` and `?count`: one row for each value of a queryable. The queryables
+route then gives each listed property an `enum` of its values and an
+`x-counts` list of the feature counts. The Rail Stations collection uses
+`queries/station-facets.rq`.
 
 ## Leaving geometry out
 

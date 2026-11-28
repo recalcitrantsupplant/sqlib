@@ -28,6 +28,7 @@ import {
   cqlBboxClause,
   cqlDatetimeClauses,
   cqlEqualsClause,
+  cqlQueryableValues,
   indexFieldSchema,
   localName,
   ogcCollectionBody,
@@ -270,6 +271,42 @@ export async function registerOgcRoutes(
     return fields;
   };
 
+  /**
+   * The values of each queryable, with their feature counts, from the
+   * `valuesQuery`: one row per value, with `?property`, `?value` and `?count`.
+   */
+  const facetsOf = async (request: FastifyRequest, spec: OgcCollectionSpec): Promise<Map<string, Array<{ value: unknown; count: number }>>> => {
+    const facets = new Map<string, Array<{ value: unknown; count: number }>>();
+    if (!spec.valuesTargetId) return facets;
+    const response = await execute(request, {
+      targetId: spec.valuesTargetId,
+      ...(spec.tool.defaultBackendId ? { backendId: spec.tool.defaultBackendId } : {}),
+    });
+    if (response.statusCode !== 200) {
+      throw new OgcAnswer(
+        response.statusCode === 401 || response.statusCode === 403 ? response.statusCode : 502,
+        `The queryable values could not be read: ${errorText(response.body)}`,
+      );
+    }
+    const queryables = spec.ogc.queryables ?? {};
+    for (const row of (JSON.parse(response.body) as SelectResults).results.bindings) {
+      const name = row.property?.value;
+      const raw = row.value?.value;
+      const queryable = name === undefined ? undefined : queryables[name];
+      if (!name || raw === undefined || !queryable) continue;
+      let value: unknown;
+      try {
+        value = queryableValue(name, queryable, raw);
+      } catch {
+        continue;
+      }
+      const list = facets.get(name) ?? [];
+      list.push({ value, count: Number(row.count?.value ?? 0) });
+      facets.set(name, list);
+    }
+    return facets;
+  };
+
   route('/ogc/:slug/collections/:collectionId/queryables', async (request, reply) => {
     const { service, spec } = collectionOf(request);
     checkJsonFormat(request);
@@ -287,6 +324,10 @@ export async function registerOgcRoutes(
     } else {
       for (const [name, queryable] of Object.entries(ogc.queryables ?? {})) properties[name] = queryableSchema(queryable);
       if (ogc.mode === 'cql2' && geometryFieldOf(ogc, null)) properties.geometry = { format: 'geometry-any' };
+    }
+    for (const [name, facet] of await facetsOf(request, spec)) {
+      const property = properties[name] as Record<string, unknown> | undefined;
+      if (property) Object.assign(property, { enum: facet.map(f => f.value), 'x-counts': facet.map(f => f.count) });
     }
     return reply.header('content-type', SCHEMA_TYPE).send({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -350,6 +391,7 @@ export async function registerOgcRoutes(
       .filter(([name]) => one(name) !== undefined)
       .map(([name, queryable]) => ({ name, queryable, value: queryableValue(name, queryable, one(name)!) }));
 
+    let matchesNothing = false;
     if (ogc.mode === 'values') {
       if (bbox) {
         if (!p.bbox) throw new OgcAnswer(400, 'bbox: this collection is not filtered by bbox.');
@@ -362,7 +404,10 @@ export async function registerOgcRoutes(
         if (datetime.start !== null) values[p.datetime[0]] = datetime.start;
         if (datetime.end !== null) values[p.datetime[1]] = datetime.end;
       }
-      for (const { name, queryable, value } of queryableValues) values[queryable.var ?? name] = value;
+      for (const [name, list] of chosenValues(ogc, queryableValues, one('filter'), one('filter-lang'))) {
+        if (list.length === 0) matchesNothing = true;
+        values[ogc.queryables![name]!.var ?? name] = list;
+      }
       if (p.limit) values[p.limit] = limit + 1;
       if (p.offset) values[p.offset] = offset;
     } else {
@@ -402,6 +447,10 @@ export async function registerOgcRoutes(
       if (p.cursor) values[p.cursor] = one('cursor') ?? '*';
     }
 
+    if (matchesNothing) {
+      if (explain) return reply.header('content-type', SPARQL_QUERY_TYPE).send('');
+      values[ogc.feature.var] = `${NOTHING_IRI}`;
+    }
     const body = buildPublishedExecuteBody(spec.tool, values);
     const response = await execute(request, body, explain);
     if (explain && response.statusCode === 200) {
@@ -609,4 +658,29 @@ function readableSparql(text: string): string {
   } catch {
     return compact;
   }
+}
+
+/** A feature IRI that no store holds, bound when the filter allows no value: the query then returns no rows. */
+const NOTHING_IRI = 'urn:sqlib:ogc:no-feature';
+
+/**
+ * values mode: the values of each queryable, from its URL parameter and from
+ * a CQL2-JSON `filter`. A queryable named in both keeps the values both allow.
+ */
+function chosenValues(
+  ogc: OgcObject,
+  fromParams: Array<{ name: string; value: unknown }>,
+  filterRaw: string | undefined,
+  lang: string | undefined,
+): Map<string, unknown[]> {
+  const chosen = new Map<string, unknown[]>(fromParams.map(({ name, value }) => [name, [value]]));
+  if (filterRaw === undefined) return chosen;
+  if (lang !== undefined && lang !== 'cql2-json') throw new OgcAnswer(400, 'filter-lang: this collection accepts filter-lang=cql2-json only.');
+  const queryables = ogc.queryables ?? {};
+  for (const [name, list] of cqlQueryableValues(parseCql2Json(filterRaw), queryables)) {
+    const typed = list.map(item => queryableValue(name, queryables[name]!, String(item)));
+    const before = chosen.get(name);
+    chosen.set(name, before ? before.filter(value => typed.some(other => other === value)) : typed);
+  }
+  return chosen;
 }

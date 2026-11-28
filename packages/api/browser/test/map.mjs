@@ -3,7 +3,8 @@
 // load, that the Stations pages follow the `next` link, that a name filter
 // matches part of a name in any case, that the side panel shows the SPARQL
 // that ran and the GeoJSON it returned,
-// and that Open with the service URL loads the service again. It exits 1 on a failed check, a logged error or a request
+// that Open with the service URL loads the service again, and that facets
+// match any value within a facet and every facet. It exits 1 on a failed check, a logged error or a request
 // to another origin.
 //   node map.mjs <public dir> <out dir>
 import { createRequire } from 'node:module';
@@ -68,6 +69,17 @@ await page.click('#service-form button[type="submit"]');
 await page.waitForURL(/[?&]url=/);
 await page.waitForSelector('.features li', { timeout: 60_000 });
 await expectText('.collection-title', ['Lines', 'Stations'], 'open the same service by URL');
+
+await page.click('.collection-title:text("Stations")');
+const facetBox = (legend, value) => page.locator('fieldset.facet', { has: page.locator(`legend:text-is("${legend}")`) })
+  .locator('label', { has: page.locator(`span.facet-value:text-is("${value}")`) }).locator('input');
+for (const [legend, value] of [['Zone', '1'], ['Zone', '3'], ['Step-free', 'No']]) {
+  await facetBox(legend, value).check();
+  await page.waitForTimeout(500);
+}
+await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '1–2');
+await expectText('.features li', ['Eastwood', 'Market Street'], 'facets: zone 1 or 3, and not step-free');
+await page.screenshot({ path: `${out}/map-facets.png` });
 
 console.log('outside origins', [...outside]);
 console.log('errors', errors.length); for (const e of errors.slice(0, 20)) console.log('  ', e);

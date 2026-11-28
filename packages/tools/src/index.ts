@@ -81,6 +81,7 @@ export {
   cqlDatetimeClauses,
   cqlEqualsClause,
   cqlProperties,
+  cqlQueryableValues,
   indexFieldSchema,
   localName,
   ogcCollectionBody,

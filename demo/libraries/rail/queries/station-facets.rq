@@ -1,0 +1,14 @@
+PREFIX : <https://example.org/rail/>
+
+SELECT ?property ?value (COUNT(?station) AS ?count) WHERE {
+  ?station a :Station .
+  {
+    ?station :zone ?value .
+    BIND("zone" AS ?property)
+  } UNION {
+    ?station :stepFree ?value .
+    BIND("stepFree" AS ?property)
+  }
+}
+GROUP BY ?property ?value
+ORDER BY ?property ?value

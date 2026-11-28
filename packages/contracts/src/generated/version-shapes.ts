@@ -153,6 +153,7 @@ export const queryVersionShape = {
             .strict(),
         )
         .optional(),
+      valuesQuery: z.string().min(1).optional(),
       pageSize: z.object({ default: z.number().int().min(1).optional(), max: z.number().int().min(1).optional() }).strict().optional(),
       extent: z.record(z.string(), z.unknown()).optional(),
       omit: z.array(z.string()).optional(),

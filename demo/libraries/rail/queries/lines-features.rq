@@ -1,5 +1,6 @@
 PREFIX : <https://example.org/rail/>
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
 
 SELECT ?feature ?geom ?name ?colour ?opened WHERE {
   VALUES ?feature { UNDEF }
@@ -10,13 +11,14 @@ SELECT ?feature ?geom ?name ?colour ?opened WHERE {
            :name ?name ;
            :colour ?colour ;
            :opened ?opened ;
-           :minLon ?x0 ; :minLat ?y0 ; :maxLon ?x1 ; :maxLat ?y1 .
+           :route/geo:asWKT ?wkt .
   OPTIONAL {
     ?feature :route/geo:asWKT ?geom .
     FILTER(!BOUND(?skip) || !?skip)
   }
   FILTER(!BOUND(?nameLike) || REGEX(?name, ?nameLike, "i"))
-  FILTER(!BOUND(?minx) || (?x1 >= ?minx && ?x0 <= ?maxx && ?y1 >= ?miny && ?y0 <= ?maxy))
+  BIND(STRDT(CONCAT("POLYGON((", STR(?minx), " ", STR(?miny), ", ", STR(?maxx), " ", STR(?miny), ", ", STR(?maxx), " ", STR(?maxy), ", ", STR(?minx), " ", STR(?maxy), ", ", STR(?minx), " ", STR(?miny), "))"), geo:wktLiteral) AS ?box)
+  FILTER(!BOUND(?minx) || geof:sfIntersects(?wkt, ?box))
 }
 ORDER BY ?feature
 LIMIT 0001

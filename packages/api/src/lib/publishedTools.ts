@@ -376,6 +376,18 @@ export function collectOgcCollections(problems: string[]): OgcCollectionSpec[] {
       }
       configTargetId = configResolution.version;
     }
+    let valuesTargetId: string | undefined;
+    if (ogc.valuesQuery) {
+      const valuesQuery = get<PersistedQuery>(ogc.valuesQuery);
+      const valuesResolution = valuesQuery?.['@type'] === 'Query'
+        ? resolveVersionIn(valuesQuery as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined))
+        : null;
+      if (!valuesResolution?.ok || libraryOf(valuesQuery!) !== library.$id) {
+        problems.push(`${label}: ogc.valuesQuery ${ogc.valuesQuery} is not a query with a version in library "${library.slug}".`);
+        continue;
+      }
+      valuesTargetId = valuesResolution.version;
+    }
     collections.push({
       slug: library.slug,
       libraryId: library.$id,
@@ -383,6 +395,7 @@ export function collectOgcCollections(problems: string[]): OgcCollectionSpec[] {
       libraryDescription: library.description,
       ogc,
       ...(configTargetId ? { configTargetId } : {}),
+      ...(valuesTargetId ? { valuesTargetId } : {}),
       tool: {
         slug: library.slug,
         libraryId: library.$id,

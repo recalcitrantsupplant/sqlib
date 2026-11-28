@@ -70,6 +70,12 @@ export type OgcObject = {
     fields?: Record<string, string>;
   };
   queryables?: Record<string, OgcQueryable>;
+  /**
+   * The id of a stored SELECT in the same library that returns
+   * `?property ?value ?count`: the values of each queryable, for the
+   * queryables document's `enum`.
+   */
+  valuesQuery?: string;
   pageSize?: { default?: number; max?: number };
   extent?: {
     spatial?: number[][];
@@ -267,6 +273,8 @@ export function checkOgcObject(ogc: unknown, context: OgcCheckContext): string |
     }
   }
 
+  if (o.valuesQuery !== undefined && !isName(o.valuesQuery)) return 'ogc.valuesQuery must be a query id';
+
   if (o.pageSize !== undefined) {
     const { default: def = 10, max = OGC_MAX_PAGE_SIZE } = o.pageSize;
     if (![def, max].every(n => Number.isInteger(n) && n >= 1) || def > max || max > OGC_MAX_PAGE_SIZE) {
@@ -304,8 +312,9 @@ export function ogcParamKinds(ogc: OgcObject): Record<string, ToolParamSpec> {
   set(p.filter, 'string');
   set(p.cursor, 'string');
   if (ogc.mode === 'values') {
+    // A list: several values of one queryable go as rows of its VALUES clause, which matches any of them.
     for (const [name, queryable] of Object.entries(ogc.queryables ?? {})) {
-      set(queryable.var ?? name, QUERYABLE_KIND[queryable.type ?? 'string']);
+      params[queryable.var ?? name] = { kind: QUERYABLE_KIND[queryable.type ?? 'string'], list: true };
     }
   }
   return params;
@@ -330,6 +339,8 @@ export type OgcCollectionSpec = {
   ogc: OgcObject;
   /** cql2 mode: the pinned version of `cql.configQuery`, which lists the index fields. */
   configTargetId?: string;
+  /** The pinned version of `valuesQuery`. */
+  valuesTargetId?: string;
   /** The synthesized tool: pinned target, backend, inputs and one param per variable the `ogc` object fills. */
   tool: PublishedToolSpec;
 };
@@ -449,6 +460,38 @@ export function parseCql2Json(raw: string): Cql2 {
   return parsed;
 }
 
+/**
+ * values mode: a CQL2-JSON filter as the values of each queryable. The filter
+ * is an `and` of `=` and `in` comparisons, each on a queryable name. Values
+ * of one queryable match any of them, and two queryables must both match.
+ * A queryable named twice keeps the values both comparisons allow.
+ */
+export function cqlQueryableValues(node: Cql2, queryables: Record<string, OgcQueryable>): Map<string, unknown[]> {
+  const usage = 'filter: this collection takes an "and" of "=" and "in" comparisons on its queryables';
+  const found = new Map<string, unknown[]>();
+  const add = (name: string, values: unknown[]) => {
+    const before = found.get(name);
+    found.set(name, before ? before.filter(value => values.some(other => other === value)) : values);
+  };
+  const visit = (value: unknown) => {
+    if (!isObject(value) || typeof value.op !== 'string' || !Array.isArray(value.args)) throw new OgcRequestError(usage);
+    const op = value.op.toLowerCase();
+    if (op === 'and') {
+      value.args.forEach(visit);
+      return;
+    }
+    const [left, right] = value.args as unknown[];
+    const name = isObject(left) && typeof left.property === 'string' ? left.property : null;
+    if (!name || value.args.length !== 2) throw new OgcRequestError(usage);
+    if (!Object.prototype.hasOwnProperty.call(queryables, name)) throw new OgcRequestError(`filter: "${name}" is not a queryable of this collection`);
+    const values = op === '=' ? [right] : op === 'in' && Array.isArray(right) ? right : null;
+    if (!values || !values.every(item => ['string', 'number', 'boolean'].includes(typeof item))) throw new OgcRequestError(usage);
+    add(name, values);
+  };
+  visit(node);
+  return found;
+}
+
 /** Every `{"property": name}` in a CQL2-JSON tree, in order. */
 export function cqlProperties(node: Cql2): string[] {
   const found: string[] = [];
@@ -555,6 +598,7 @@ export function ogcItemsParameters(ogc: OgcObject): string[] {
   if (p.skipGeometry) names.push('skipGeometry');
   if (ogc.mode === 'values') {
     if (p.offset) names.push('offset');
+    if (Object.keys(ogc.queryables ?? {}).length) names.push('filter', 'filter-lang');
   } else {
     names.push('filter', 'filter-lang', 'filter-crs');
     if (p.offset) names.push('offset');
