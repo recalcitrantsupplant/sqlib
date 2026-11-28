@@ -346,7 +346,9 @@ export default defineNuxtConfig({
       routes: ROUTED_SECTIONS.map((section) => `/${section}`),
       // The deployment writes `config.json`. The crawler follows its preload
       // hint, and would otherwise write a `config.json/` directory there.
-      ignore: ['/config.json'],
+      // The hint carries the base URL (`/demo/config.json` under
+      // SITE_BASE=/demo/), so the rule matches any path that ends in it.
+      ignore: [/\/config\.json$/],
     },
   },
   alias: {
