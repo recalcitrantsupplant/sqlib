@@ -468,8 +468,8 @@
       "description": "The Rail lines and stations as OGC API Features collections.",
       "slug": "rail",
       "collections": [
-        "ogc/stations.json",
-        "ogc/lines.json"
+        "ogc/lines.json",
+        "ogc/stations.json"
       ],
       "comment": "Stations and lines, with JSON-LD terms."
     }

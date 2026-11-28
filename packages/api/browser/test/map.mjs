@@ -62,7 +62,8 @@ console.log(geojson ? 'ok  ' : 'FAIL', 'GeoJSON of the page', geojson ? '' : JSO
 if (!geojson) failures.push('GeoJSON of the page');
 await page.click('#format-jsonld');
 const jsonld = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
-const withContext = jsonld.includes('"@context"') && jsonld.includes('https://example.org/rail/zone');
+// CodeMirror draws only the lines in view, so check the top of the document.
+const withContext = jsonld.includes('"@context"') && jsonld.includes('"@base": "https://example.org/rail/"');
 console.log(withContext ? 'ok  ' : 'FAIL', 'GeoJSON-LD of the page', withContext ? '' : JSON.stringify(jsonld.slice(0, 300)));
 if (!withContext) failures.push('GeoJSON-LD of the page');
 await page.click('#format-geojson');
