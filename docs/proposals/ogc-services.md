@@ -120,7 +120,7 @@ David decided these in the project on 2026-11-28:
 
 ### Entities
 
-Three new entity types, in the same store as the other entities. In the
+Four new entity types, in the same store as the other entities. In the
 default `sqlite` mode, that is the library SQLite file, one row for each
 entity (`docs/explanation/storage-and-caching.md`).
 
@@ -129,6 +129,7 @@ entity (`docs/explanation/storage-and-caching.md`).
 | `OgcService` | `name`, `description`, `path`, `currentVersion`. No `isPartOf` |
 | `OgcServiceVersion` | `version`, `comment`, `collections` (a list of `OgcCollection`), `isPartOf` (its service), authorship. Immutable |
 | `OgcCollection` | `collectionId`, `title`, `description`, `queryVersion`, `backend`, `valuesQuery`, `configQuery`, `mapping`, `isPartOf` (its service version), `position` |
+| `OgcCollectionSet` | `collectionsQuery`, `queryVersion` (the items query), `base`, `backend`, `valuesQuery`, `mapping`, `isPartOf` (its service version), `position`. See [Collection sets](#collection-sets-collections-from-a-query) |
 
 `OgcService` and `OgcServiceVersion` use `registerVersionedEntityRoutes`
 (`packages/api/src/routes/versionedEntity.ts`), as the other versioned types
@@ -155,6 +156,57 @@ no special code. I have not checked whether `versionPins.ts` reads
 
 `collectionId` is unique in the service. Two services may both have a
 `stations` collection.
+
+### Collection sets: collections from a query
+
+A service entry can also be a **collection set**. A query lists the
+collections, so a new `geo:FeatureCollection` in the store appears with no
+edit to the service. David asked for this on 2026-11-28.
+
+A collection set holds:
+
+- a **collections query**: a SELECT that returns `?collection`, `?title`, and
+  optionally `?description` and the extent columns `?minx ?miny ?maxx ?maxy`;
+- an **items query**: a SELECT that declares `VALUES ?collection { UNDEF }`;
+- a `base` IRI. The collection id is the collection IRI without it, as the
+  feature id is today;
+- one `mapping`, a `backend` and an optional values query. These apply to
+  every collection of the set.
+
+```sparql
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+SELECT ?collection ?title ?description WHERE {
+  ?collection a geo:FeatureCollection ; dcterms:title ?title .
+  OPTIONAL { ?collection dcterms:description ?description }
+}
+ORDER BY ?collection
+```
+
+The items query reads members with `?collection rdfs:member ?feature`, or
+whatever pattern the data uses.
+
+How the routes use it:
+
+- `/collections` runs each collections query as the caller, and lists the
+  rows after the stored collections. A caller sees only the collections that
+  their grants let them read.
+- `/collections/{id}` and its `items` and `queryables` bind `?collection` to
+  `base` + `{id}`, and run the items query.
+- A data change needs no service save and no reload.
+- An id that a stored collection already has is left out of the set's rows,
+  and the service screen shows a problem line.
+- The values query can declare `VALUES ?collection { UNDEF }` too. It then
+  gives the values of each collection. Without it, the values are the same
+  for every collection of the set.
+
+The mapping still needs storage, because it describes the items query text:
+which variable is the feature, which `VALUES` clause takes `bbox`. It does
+not depend on the data, so it is stored once for the set.
+
+The service screen shows a collection set as one row, with the number of
+collections it returned for the viewer. The collection editor gets a
+**One collection | Collections from a query** switch at the top.
 
 ### Paths
 
@@ -334,15 +386,19 @@ removes it with no compatibility code:
 
 ## Open questions
 
-1. **Storage of a collection.** The design makes a collection an entity, with
-   IRI triples for its links and one `rdf:JSON` literal for the variable
-   mapping. The other choices are all JSON in the version, or all RDF.
-2. **Paths.** One to three segments, with reserved words and a wildcard
+1. **Storage of a collection.** The design makes a collection, and a
+   collection set, an entity, with IRI triples for its links and one
+   `rdf:JSON` literal for the variable mapping. The other choices are all
+   JSON in the version, or all RDF.
+2. **Collection sets in step 1, or later.** They add one entity kind, the
+   collections query and the `?collection` binding. I think they fit in
+   step 1, because the routes change there anyway.
+3. **Paths.** One to three segments, with reserved words and a wildcard
    route. The other choice is one segment, such as `rail-2026`.
-3. **IRI values.** A `uri` queryable binds an IRI from the string the client
+4. **IRI values.** A `uri` queryable binds an IRI from the string the client
    sends. See [Queryable types and values](#queryable-types-and-values) for
    the other choice.
-4. **Values for anonymous callers.** The values query runs as the caller, so
+5. **Values for anonymous callers.** The values query runs as the caller, so
    an anonymous caller sees `enum` only when the anonymous principal may run
    it. The other choice makes the values public, with the rest of the
    metadata.
