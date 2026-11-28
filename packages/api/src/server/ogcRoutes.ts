@@ -50,6 +50,7 @@ import {
   type OgcQueryable,
 } from '@sparql-query-lib/tools';
 import { EXPLAIN_HEADER, EXPLAIN_TOKEN, SPARQL_QUERY_TYPE } from '../lib/explainQuery.js';
+import { formatText } from '../lib/formatText.js';
 import type { PublishedCatalogue } from '../lib/publishedTools.js';
 import { publicOrigin } from '../config/publicUrl.js';
 
@@ -404,7 +405,7 @@ export async function registerOgcRoutes(
     const body = buildPublishedExecuteBody(spec.tool, values);
     const response = await execute(request, body, explain);
     if (explain && response.statusCode === 200) {
-      return reply.header('content-type', SPARQL_QUERY_TYPE).send(response.body);
+      return reply.header('content-type', SPARQL_QUERY_TYPE).send(readableSparql(response.body));
     }
     for (const name of FORWARDED_HEADERS) {
       const value = response.headers[name];
@@ -597,5 +598,15 @@ function errorText(body: string): string {
     return String(parsed.error ?? parsed.message ?? body);
   } catch {
     return body;
+  }
+}
+
+/** The SPARQL text with blank lines dropped and its layout tidied. Text that does not parse comes back with only the blank lines dropped. */
+function readableSparql(text: string): string {
+  const compact = text.replace(/^[ \t]*\n/gm, '');
+  try {
+    return formatText(compact, 'sparql');
+  } catch {
+    return compact;
   }
 }

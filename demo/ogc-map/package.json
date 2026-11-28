@@ -12,6 +12,11 @@
   },
   "dependencies": {
     "@camptocamp/ogc-client": "2.0.2",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.44.2",
+    "@kurrawongai/codemirror-lang-sparql12": "0.9.0",
     "maplibre-gl": "6.20.0"
   },
   "devDependencies": {

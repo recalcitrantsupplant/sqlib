@@ -11,6 +11,7 @@
 import { OgcApiEndpoint, type OgcApiCollectionInfo } from '@camptocamp/ogc-client';
 import { Map as MapLibreMap, Popup, LngLatBounds, setWorkerUrl, type GeoJSONSource, type MapGeoJSONFeature, type StyleSpecification } from 'maplibre-gl';
 import { installBrowserApi } from '../../../packages/web/src/lib/browserApi';
+import { initInspect, showInspect } from './inspect';
 import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withQueryables, type AppConfig, type Link, type MapConfig } from './service';
 
 type Geometry = { type: string; coordinates?: unknown; geometries?: Geometry[] };
@@ -28,7 +29,6 @@ interface CollectionState {
   error: string | null;
   sparqlHref: string | null;
   sparql: string | null;
-  sparqlOpen: boolean;
 }
 
 const PAGE_SIZE = 10;
@@ -110,7 +110,6 @@ async function start(): Promise<void> {
         error: null,
         sparqlHref: linkHref(docs[index]?.links, 'describedby', source.url),
         sparql: null,
-        sparqlOpen: false,
       });
     });
   } catch (error) {
@@ -125,6 +124,7 @@ async function start(): Promise<void> {
   await mapReady;
   for (const state of collections.values()) addLayers(state);
   fitToExtents();
+  initInspect([...collections.values()].some(state => state.sparqlHref !== null));
   selected = collections.keys().next().value ?? null;
   renderList();
   await Promise.all([...collections.values()].map(state => loadFirstPage(state)));
@@ -232,6 +232,8 @@ function placeOf(geometry: Geometry | null): { at: [number, number]; bounds: Lng
 function renderList(): void {
   const list = $('collections');
   list.replaceChildren(...[...collections.values()].map(state => renderCollection(state)));
+  const current = selected === null ? undefined : collections.get(selected);
+  showInspect(current?.page ? { query: current.sparql, result: current.page } : null);
 }
 
 function renderCollection(state: CollectionState): HTMLElement {
@@ -315,11 +317,6 @@ function renderDetail(state: CollectionState): HTMLElement {
     list.append(el('li', {}, button));
   }
   detail.append(list);
-  if (state.sparql) {
-    const sparql = el('details', { className: 'sparql', open: state.sparqlOpen }, el('summary', {}, 'SPARQL'), el('pre', {}, el('code', {}, state.sparql)));
-    sparql.ontoggle = () => (state.sparqlOpen = sparql.open);
-    detail.append(sparql);
-  }
   if (state.pageUrl && !inTab) {
     detail.append(el('a', { className: 'raw', href: state.pageUrl, target: '_blank', rel: 'noopener' }, 'GeoJSON'));
   }

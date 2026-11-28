@@ -19,6 +19,14 @@
     <ul id="collections"></ul>
   </aside>
   <main id="map"></main>
+  <aside id="inspect" hidden>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-query" aria-selected="true">Query</button>
+      <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
+    </div>
+    <p id="inspect-caption"></p>
+    <div id="inspect-code"></div>
+  </aside>
   <script type="module" src="map.js"></script>
 </body>
 </html>

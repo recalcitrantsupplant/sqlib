@@ -1,7 +1,8 @@
 // Opens the map page of the browser-only site with no basemap, so that every
 // request stays on the site's origin. It checks that both Rail collections
 // load, that the Stations pages follow the `next` link, that a name filter
-// matches part of a name in any case, that the page shows the SPARQL it ran,
+// matches part of a name in any case, that the side panel shows the SPARQL
+// that ran and the GeoJSON it returned,
 // and that Open with the service URL loads the service again. It exits 1 on a failed check, a logged error or a request
 // to another origin.
 //   node map.mjs <public dir> <out dir>
@@ -48,11 +49,19 @@ await page.fill('input[name="name"]', 'cENTr');
 await page.click('button:text("Search")');
 await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '1–1');
 await expectText('.features li', ['Central'], 'name filter, any case, part of the name');
-await page.click('.sparql summary');
-const sparql = await page.locator('.sparql pre').textContent();
+await page.click('#tab-query');
+const sparql = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
 const shown = /VALUES \?nameLike \{ "cENTr" \}/.test(sparql ?? '') && /REGEX/i.test(sparql ?? '') && !/LIMIT 0001/.test(sparql ?? '');
 console.log(shown ? 'ok  ' : 'FAIL', 'SPARQL of the page', shown ? '' : JSON.stringify(sparql?.slice(0, 400)));
 if (!shown) failures.push('SPARQL of the page');
+await page.click('#tab-result');
+const result = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
+const geojson = result.includes('"FeatureCollection"') && result.includes('"Central"');
+console.log(geojson ? 'ok  ' : 'FAIL', 'GeoJSON of the page', geojson ? '' : JSON.stringify(result.slice(0, 300)));
+if (!geojson) failures.push('GeoJSON of the page');
+await page.screenshot({ path: `${out}/map-result.png` });
+await page.click('#tab-query');
+await page.screenshot({ path: `${out}/map-query.png` });
 await page.screenshot({ path: `${out}/map-filter.png` });
 
 await page.click('#service-form button[type="submit"]');

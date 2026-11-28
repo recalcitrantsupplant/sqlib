@@ -46,8 +46,8 @@ pnpm test
 
 | File | Size | Gzip |
 | --- | --- | --- |
-| `map.js` | 1.24 MB | 337 kB |
+| `map.js` (with CodeMirror) | 1.60 MB | 461 kB |
 | `map-worker.js` (MapLibre's Worker) | 0.56 MB | 162 kB |
-| `map.css` | 75 kB | 11 kB |
+| `map.css` | 76 kB | 12 kB |
 
 `packages/api/browser/test/map.mjs` checks the page against the Rail demo.
