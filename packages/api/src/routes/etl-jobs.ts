@@ -13,7 +13,7 @@ import {
 } from '@sparql-query-lib/contracts/schema';
 import { setupValidator } from '../lib/validator-setup.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { AuthorizationError, filterReadable, requireAdmin, requireLibraryMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireEtlSqlAccess, requireLibraryMode } from '../auth/enforce.js';
 import { toEntityUrn } from '../lib/id.js';
 import { applyListPage, parseListPageQuery, sendTotal, withListPage } from '../lib/listPage.js';
 
@@ -303,7 +303,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
     // A version is DuckDB SQL that `/:id/execute` and every test of the job
     // will run, so storing one is submitting SQL: administrator, like
     // `/preview`, rather than a library grant (docs/guides/etl.md).
-    requireAdmin(request, 'storing ETL SQL');
+    requireEtlSqlAccess(request, 'storing ETL SQL');
     const { id } = request.params;
     const body = request.body;
     const result = await etlService.createEtlJobVersion(id, body as Parameters<typeof etlService.createEtlJobVersion>[1]);
@@ -629,7 +629,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
     // redeployment, the run keeps nothing and is row-capped (`executeEtlJob`),
     // and the entity guard above has already required Execute on the job's
     // library. So a caller there runs exactly what the operator shipped.
-    if (!isReadOnlyDeployment()) requireAdmin(request, 'running ETL SQL');
+    if (!isReadOnlyDeployment()) requireEtlSqlAccess(request, 'running ETL SQL');
     try {
       const { id } = request.params;
       const config = request.body;

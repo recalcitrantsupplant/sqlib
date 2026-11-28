@@ -128,6 +128,13 @@
         </div>
       </template>
 
+      <template v-if="canReset">
+        <DropdownMenuSeparator />
+        <DropdownMenuItem class="account-action" data-testid="account-reset-demo" @select="resetOpen = true">
+          <RotateCcw :size="14" aria-hidden="true" />Reset demo
+        </DropdownMenuItem>
+      </template>
+
       <template v-if="state === 'guest' && canSignIn">
         <DropdownMenuSeparator />
         <DropdownMenuItem data-testid="account-sign-in" @select="login()">
@@ -156,11 +163,28 @@
       </template>
     </DropdownMenuContent>
   </DropdownMenu>
+
+  <AlertDialog v-model:open="resetOpen">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Reset demo?</AlertDialogTitle>
+        <AlertDialogDescription>
+          Every change you made in this browser is deleted, and the demo starts again from its original libraries.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel :disabled="resetting">Cancel</AlertDialogCancel>
+        <AlertDialogAction data-testid="account-reset-demo-confirm" :disabled="resetting" @click.prevent="resetDemo()">
+          Reset demo
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Check, KeyRound, LogIn, LogOut, Users } from '@lucide/vue';
+import { computed, onMounted, ref } from 'vue';
+import { Check, KeyRound, LogIn, LogOut, RotateCcw, Users } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -168,6 +192,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+import { browserApi } from '../../lib/browserApi';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 import Avatar from '../shared/Avatar.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { useAuth } from '../../composables/useAuth';
@@ -188,6 +224,34 @@ const { available: tokenAvailable, expiresLabel, copyToken } = useApiTokenCopy()
 const { libraries } = useActiveLibrary();
 const { backends } = useBackendsStore();
 const router = useRouter();
+const { isReadOnly } = useDeploymentMode();
+
+// The API runs in this tab and keeps the library in this browser: the visitor
+// can throw their changes away and start from the site's library again.
+const persistent = ref(false);
+onMounted(async () => {
+  const api = browserApi();
+  if (!api) return;
+  try {
+    persistent.value = (await api.ready).persistent;
+  } catch {
+    persistent.value = false;
+  }
+});
+const canReset = computed(() => persistent.value && !isReadOnly.value);
+const resetOpen = ref(false);
+const resetting = ref(false);
+
+async function resetDemo() {
+  const api = browserApi();
+  if (!api) return;
+  resetting.value = true;
+  try {
+    await api.reset();
+  } finally {
+    window.location.reload();
+  }
+}
 
 const state = computed(() => account.value.state);
 const identity = computed(() => account.value.identity);

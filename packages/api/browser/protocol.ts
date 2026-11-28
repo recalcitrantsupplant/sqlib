@@ -11,7 +11,7 @@ export interface WorkerInit {
   duckdbBaseUrl?: string;
   /** Keep the library in OPFS. Default true. */
   persist?: boolean;
-  /** Delete the stored library first, so it is seeded again. */
+  /** Delete the stored databases first, so they start again from the library file. */
   reset?: boolean;
 }
 

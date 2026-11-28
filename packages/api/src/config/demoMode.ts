@@ -12,6 +12,13 @@
  * visitor act as a person from a fixed list, with no sign-in, and that is safe
  * only when nobody can write and the list is the operator's own.
  *
+ * **One visitor's own copy.** `SQLIB_DEMO_WRITABLE=true` lifts the read-only
+ * requirement. It is for a server that serves one visitor and keeps nothing
+ * another visitor reads, such as the browser build (`packages/api/browser`),
+ * where the API runs in the visitor's own tab. Every caller may then also run
+ * and store ETL SQL, which is otherwise administrator-only. A shared server
+ * must not set it.
+ *
  * **Demo people.** `SQLIB_DEMO_PEOPLE` names a JSON file:
  *
  * ```json
@@ -53,6 +60,8 @@ export interface DemoPerson {
 export interface DemoConfig {
   enabled: boolean;
   people: DemoPerson[];
+  /** `SQLIB_DEMO_WRITABLE=true`: the server serves one visitor, who may change anything. */
+  writable?: boolean;
 }
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -99,30 +108,32 @@ export function parseDemoPeople(text: string, source = 'SQLIB_DEMO_PEOPLE'): Dem
 /**
  * Reads demo mode from an environment, and refuses an unsafe one.
  *
- * Throws when `SQLIB_DEMO=true` comes without `SQLIB_READ_ONLY=true` or
- * without `SQLIB_AUTH_MODE=anonymous`, or when the people file cannot be read.
+ * Throws when `SQLIB_DEMO=true` comes without `SQLIB_READ_ONLY=true` (unless
+ * `SQLIB_DEMO_WRITABLE=true`) or without `SQLIB_AUTH_MODE=anonymous`, or when the people file cannot be read.
  * The server calls it before it serves anything, so a mistake stops the start.
  */
 export function resolveDemoConfig(env: NodeJS.ProcessEnv = process.env): DemoConfig {
   if (!parseFlag(env.SQLIB_DEMO)) return { enabled: false, people: [] };
 
-  if (!parseFlag(env.SQLIB_READ_ONLY)) {
-    throw new Error('SQLIB_DEMO=true needs SQLIB_READ_ONLY=true: demo people sign in with no password.');
+  if (!parseFlag(env.SQLIB_READ_ONLY) && !parseFlag(env.SQLIB_DEMO_WRITABLE)) {
+    throw new Error('SQLIB_DEMO=true needs SQLIB_READ_ONLY=true: demo people sign in with no password. '
+      + 'SQLIB_DEMO_WRITABLE=true allows writes on a server that serves one visitor only.');
   }
   const authMode = (env.SQLIB_AUTH_MODE ?? '').trim().toLowerCase();
   if (authMode !== 'anonymous') {
     throw new Error(`SQLIB_DEMO=true needs SQLIB_AUTH_MODE=anonymous, not "${authMode || 'unset'}".`);
   }
 
+  const writable = !parseFlag(env.SQLIB_READ_ONLY) && parseFlag(env.SQLIB_DEMO_WRITABLE);
   const path = (env.SQLIB_DEMO_PEOPLE ?? '').trim();
-  if (!path) return { enabled: true, people: [] };
+  if (!path) return { enabled: true, people: [], ...(writable ? { writable } : {}) };
   let text: string;
   try {
     text = readFileSync(path, 'utf8');
   } catch (error) {
     throw new Error(`SQLIB_DEMO_PEOPLE: cannot read ${path}: ${(error as Error).message}`, { cause: error });
   }
-  return { enabled: true, people: parseDemoPeople(text, `SQLIB_DEMO_PEOPLE (${path})`) };
+  return { enabled: true, people: parseDemoPeople(text, `SQLIB_DEMO_PEOPLE (${path})`), ...(writable ? { writable } : {}) };
 }
 
 let current: DemoConfig = { enabled: false, people: [] };
@@ -135,6 +146,15 @@ export function resetDemoMode(env: NodeJS.ProcessEnv = process.env): DemoConfig 
 
 export function isDemoMode(): boolean {
   return current.enabled;
+}
+
+/**
+ * A writable demo that serves one visitor (`SQLIB_DEMO_WRITABLE=true`). ETL
+ * SQL, which is otherwise administrator-only because it runs on the host, is
+ * open to that visitor: the host is their own browser.
+ */
+export function isOneVisitorDemo(): boolean {
+  return current.enabled && current.writable === true;
 }
 
 export function demoPeople(): readonly DemoPerson[] {

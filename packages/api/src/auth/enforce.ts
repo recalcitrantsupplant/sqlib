@@ -8,6 +8,7 @@
  * mode — the enforced path and the open path are the same code.
  */
 import type { FastifyRequest } from 'fastify';
+import { isOneVisitorDemo } from '../config/demoMode.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { auditDecision } from './audit.js';
 import { getAuthConfig } from './config.js';
@@ -120,6 +121,16 @@ export function requireAdmin(request: FastifyRequest, what = 'this operation'): 
     message: `Administrator access is required for ${what}.`,
   });
   return context;
+}
+
+/**
+ * ETL SQL runs on the host, which no library grant describes, so storing or
+ * running it is administrator-only (docs/guides/etl.md). A one-visitor demo
+ * (`isOneVisitorDemo`) runs it in the visitor's own browser, so anyone may.
+ */
+export function requireEtlSqlAccess(request: FastifyRequest, what: string): void {
+  if (isOneVisitorDemo()) return;
+  requireAdmin(request, what);
 }
 
 export function isAdmin(request: FastifyRequest): boolean {

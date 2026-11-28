@@ -6,7 +6,7 @@
  * routing, hooks, validation and handlers as the server, with no socket.
  */
 import './prelude.mjs';
-import { initSqlite, provideDatabase, resetDatabase } from './shims/sqlite.mjs';
+import { initSqlite, provideDatabase, resetAllDatabases } from './shims/sqlite.mjs';
 import type { WorkerInit, WorkerMessage, WorkerReply } from './protocol.js';
 
 const LIBRARY_FILE = '/opt/sqlib-demo/store/library.sqlite';
@@ -25,10 +25,17 @@ async function start(init: WorkerInit): Promise<InjectApp> {
   const t0 = performance.now();
   (globalThis as { __SQLIB_DUCKDB__?: { baseUrl?: string } }).__SQLIB_DUCKDB__ = { baseUrl: init.duckdbBaseUrl };
   const { persistent } = await initSqlite({ opfs: init.persist !== false, wasmUrl: init.sqliteWasmUrl });
-  if (init.reset) resetDatabase(LIBRARY_FILE);
   const seed = await fetch(init.libraryUrl);
   if (!seed.ok) throw new Error(`The demo library could not be loaded: ${seed.status} ${init.libraryUrl}`);
-  provideDatabase(LIBRARY_FILE, new Uint8Array(await seed.arrayBuffer()));
+  const bytes = new Uint8Array(await seed.arrayBuffer());
+  // The stored databases start from one library file. When the site ships a
+  // different file, they start again from it, and the visitor's changes go.
+  const seedId = await sha256(bytes);
+  if (persistent && (init.reset || await storedSeedId() !== seedId)) {
+    await resetAllDatabases();
+    await storeSeedId(seedId);
+  }
+  provideDatabase(LIBRARY_FILE, bytes);
   const oxigraph = await import('oxigraph');
   await (oxigraph as unknown as { default: (opts: { module_or_path: string | URL }) => Promise<unknown> }).default({
     module_or_path: init.oxigraphWasmUrl ?? new URL('oxigraph.wasm', self.location.href),
@@ -38,6 +45,30 @@ async function start(init: WorkerInit): Promise<InjectApp> {
   await app.ready();
   post({ type: 'ready', persistent, startMs: performance.now() - t0 });
   return app as unknown as InjectApp;
+}
+
+async function sha256(bytes: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return Array.from(digest, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const SEED_ID_FILE = 'sqlib-seed.sha256';
+
+/** The hash of the library file the stored databases started from. */
+async function storedSeedId(): Promise<string | null> {
+  try {
+    const root = await navigator.storage.getDirectory();
+    return await (await (await root.getFileHandle(SEED_ID_FILE)).getFile()).text();
+  } catch {
+    return null;
+  }
+}
+
+async function storeSeedId(id: string): Promise<void> {
+  const root = await navigator.storage.getDirectory();
+  const writable = await (await root.getFileHandle(SEED_ID_FILE, { create: true })).createWritable();
+  await writable.write(id);
+  await writable.close();
 }
 
 function post(message: WorkerReply, transfer: Transferable[] = []): void {

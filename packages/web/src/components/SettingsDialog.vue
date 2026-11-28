@@ -106,7 +106,7 @@
         -->
         <section class="settings-section" data-testid="settings-connection">
           <SectionLabel as="h3">Connection</SectionLabel>
-          <div class="setting-row">
+          <div v-if="!apiInBrowser" class="setting-row">
             <span class="setting-text">
               <span class="setting-label">This browser to sqlib</span>
               <span v-if="serverLocation" class="setting-description">{{ serverLocation }}</span>
@@ -243,6 +243,7 @@ import { useBuildInfo } from '../composables/useBuildInfo';
 import { useTheme } from '../composables/useTheme';
 import { usePrefixManager } from '../composables/usePrefixManager';
 import { useServerLatency, SLOW_ROUND_TRIP_MS } from '../composables/useServerLatency';
+import { browserApi } from '../lib/browserApi';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useBackendsStore } from '../composables/useBackendsStore';
@@ -285,6 +286,8 @@ const buildTitle = computed(() => {
 type Tone = 'success' | 'warning' | 'danger' | 'neutral';
 
 const { roundTripMs, location: serverLocation, measuring, ensureMeasured, measure } = useServerLatency();
+// The API runs in this tab: there is no round trip to a server to show.
+const apiInBrowser = browserApi() !== null;
 const { probeFor, isProbing, probe, loadProbes } = useBackendProbes();
 const { libraries, activeLibraryId } = useActiveLibrary();
 const backendsStore = useBackendsStore();
@@ -321,7 +324,7 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return;
-    void ensureMeasured();
+    if (!apiInBrowser) void ensureMeasured();
     void loadProbes().catch(() => undefined);
   },
   { immediate: true },

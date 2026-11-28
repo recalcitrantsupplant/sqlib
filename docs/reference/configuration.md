@@ -357,7 +357,8 @@ what they see.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_DEMO` | `false` | Exactly `true` turns it on. The server refuses to start unless `SQLIB_READ_ONLY=true` and `SQLIB_AUTH_MODE=anonymous`. |
+| `SQLIB_DEMO` | `false` | Exactly `true` turns it on. The server refuses to start unless `SQLIB_READ_ONLY=true` (or `SQLIB_DEMO_WRITABLE=true`) and `SQLIB_AUTH_MODE=anonymous`. |
+| `SQLIB_DEMO_WRITABLE` | `false` | Exactly `true` lets demo mode start with `SQLIB_READ_ONLY=false`, and lets every caller store and run ETL SQL. It is for a server that serves one visitor, such as the browser build (`packages/api/browser`). Do not set it on a shared server. |
 | `SQLIB_DEMO_PEOPLE` | unset | A JSON file of demo people. Unset gives demo mode with no people. A file that cannot be read or parsed stops the start. |
 
 The people file:

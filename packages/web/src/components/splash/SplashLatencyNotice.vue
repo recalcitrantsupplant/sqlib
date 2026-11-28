@@ -35,6 +35,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Clock, X } from '@lucide/vue';
 import { useServerLatency } from '../../composables/useServerLatency';
 import { docUrl } from '../../lib/docs';
+import { browserApi } from '../../lib/browserApi';
 
 const DEPLOY_DOC_URL = docUrl('guides/deploying.md#where-to-run-sqlib');
 const HIDDEN_KEY = 'sqlib-latency-notice-hidden-band';
@@ -54,8 +55,11 @@ function readHiddenBand(): number | null {
 const hiddenBand = ref<number | null>(readHiddenBand());
 const band = computed(() => (roundTripMs.value === null ? null : Math.floor(roundTripMs.value / 100)));
 
+// The API runs in this tab, so there is no server to be far from.
+const apiInBrowser = browserApi() !== null;
+
 const visible = computed(
-  () => isSlow.value && band.value !== null && (hiddenBand.value === null || band.value > hiddenBand.value),
+  () => !apiInBrowser && isSlow.value && band.value !== null && (hiddenBand.value === null || band.value > hiddenBand.value),
 );
 
 function hide() {
@@ -69,7 +73,7 @@ function hide() {
 }
 
 onMounted(() => {
-  void ensureMeasured();
+  if (!apiInBrowser) void ensureMeasured();
 });
 </script>
 

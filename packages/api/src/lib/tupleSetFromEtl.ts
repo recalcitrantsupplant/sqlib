@@ -47,7 +47,7 @@
 import { createHash } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { requireAdmin, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { requireEtlSqlAccess, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { duckDbService } from './DuckDbService.js';
 import { EtlService } from './EtlService.js';
 import { RetiredColumnFieldError, toColumnDefinitions } from '@sparql-query-lib/runtime-etl';
@@ -155,7 +155,7 @@ export async function materializeTupleSetVersionFromEtl(
   // that runs ETL SQL (docs/guides/etl.md).
   if (authScope) {
     requireLibraryMode(authScope.request, resolveOwningLibrary(jobVersion), 'execute');
-    requireAdmin(authScope.request, 'running ETL SQL');
+    requireEtlSqlAccess(authScope.request, 'running ETL SQL');
   }
 
   const mappingVersionId = input.columnMappingVersionId ?? jobVersion.currentColumnMappingVersion;

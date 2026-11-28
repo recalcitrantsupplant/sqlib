@@ -26,7 +26,7 @@ import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import * as crypto from 'crypto';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { typedRoute } from './route-helpers.js';
-import { requireAdmin } from '../auth/enforce.js';
+import { requireEtlSqlAccess } from '../auth/enforce.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
 import {
   expandIris,
@@ -418,7 +418,7 @@ export default async function playgroundRoutes(
        * SQLIB_AUTH_MODE=disabled the context carries full access and this is a
        * no-op, which is why the ETL feature flag ships off. Issue #132 §4d.
        */
-      requireAdmin(request, 'executing ETL SQL');
+      requireEtlSqlAccess(request, 'executing ETL SQL');
 
       const body = request.body;
       const sql = String(body.sql ?? '');

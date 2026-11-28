@@ -49,7 +49,8 @@ function normalise(text) {
       }
       return out;
     }
-    if (typeof v === 'string') return v.replace(/urn:sqlib:(test-run|run|execution|benchmark-run|etl-run|observation)[:\w-]*/g, 'urn:run').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, 'T');
+    // A writable deployment stores each ETL run's output under a minted file name.
+    if (typeof v === 'string') return v.replace(/urn:sqlib:(test-run|run|execution|benchmark-run|etl-run|observation)[:\w-]*/g, 'urn:run').replace(/\/[0-9a-f]{32}\.(nq|nt|ttl|csv|json)$/, '/<file>.$1').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, 'T');
     return v;
   };
   return JSON.stringify(walk(value));

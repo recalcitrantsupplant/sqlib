@@ -8,7 +8,9 @@
  * request through the API's own routes with Fastify's `inject()`. The rest of
  * the app is unchanged: it builds the same URLs and reads the same responses.
  *
- * The library is the SQLite file the build put beside the Worker. Queries on
+ * The library is the SQLite file the build put beside the Worker. The Worker
+ * keeps it in this browser's origin storage (OPFS), so a visitor's changes
+ * stay after a reload, and `reset()` starts again from the file. Queries on
  * in-memory backends run on Oxigraph in the Worker. Queries on an endpoint go
  * from the Worker to the endpoint, so the endpoint must allow CORS.
  */
@@ -44,8 +46,17 @@ interface Pending {
 export interface BrowserApi {
   /** The origin and path the app uses as its API base. */
   baseUrl: string;
-  /** Resolves when the API has loaded the library. */
-  ready: Promise<{ startMs: number }>;
+  /** Resolves when the API has loaded the library. `persistent` is false when the browser offers no OPFS. */
+  ready: Promise<{ startMs: number; persistent: boolean }>;
+  /** Deletes this browser's copy of the library and starts again from the site's file. */
+  reset(): Promise<void>;
+}
+
+let installed: BrowserApi | null = null;
+
+/** The in-browser API this page installed, or null on a deployment with a server. */
+export function browserApi(): BrowserApi | null {
+  return installed;
 }
 
 export function isBrowserApi(apiBaseUrl: string | undefined | null): boolean {
@@ -65,14 +76,14 @@ export function installBrowserApi(assetBase: string, baseUrl: string, options: {
   const pending = new Map<number, Pending>();
   let nextId = 1;
   let worker: Worker;
-  let ready: Promise<{ startMs: number }>;
+  let ready: Promise<{ startMs: number; persistent: boolean }>;
 
-  function start(): void {
+  function start(reset = false): void {
     worker = new Worker(new URL('sqlib-api-worker.js', assetBase), { type: 'module', name: 'sqlib-api' });
     ready = new Promise((resolve, reject) => {
       worker.onmessage = (event: MessageEvent<WorkerReply>) => {
         const message = event.data;
-        if (message.type === 'ready') resolve({ startMs: message.startMs });
+        if (message.type === 'ready') resolve({ startMs: message.startMs, persistent: message.persistent });
         else if (message.type === 'failed') reject(new Error(message.message));
         else {
           const entry = pending.get(message.id);
@@ -90,19 +101,20 @@ export function installBrowserApi(assetBase: string, baseUrl: string, options: {
       oxigraphWasmUrl: new URL('oxigraph.wasm', assetBase).href,
       sqliteWasmUrl: new URL('sqlite3.wasm', assetBase).href,
       duckdbBaseUrl: options.duckdbBaseUrl,
-      persist: false,
+      persist: true,
+      reset,
     });
   }
 
   /** A query that never returns holds the Worker. Start a new one and fail what was waiting. */
-  function restart(reason: string): void {
+  function restart(reason: string, reset = false): void {
     worker.terminate();
     for (const [id, entry] of pending) {
       clearTimeout(entry.timer);
       entry.reject(new Error(reason));
       pending.delete(id);
     }
-    start();
+    start(reset);
   }
 
   function send(method: string, path: string, headers: Record<string, string>, body: Uint8Array | null, signal: AbortSignal | null): Promise<WorkerResponse> {
@@ -144,7 +156,15 @@ export function installBrowserApi(assetBase: string, baseUrl: string, options: {
 
   start();
   globalThis.fetch = browserFetch as typeof fetch;
-  return { baseUrl: root, get ready() { return ready; } };
+  installed = {
+    baseUrl: root,
+    get ready() { return ready; },
+    async reset() {
+      restart('The library was reset', true);
+      await ready;
+    },
+  };
+  return installed;
 }
 
 function silentStream(signal: AbortSignal): Response {
