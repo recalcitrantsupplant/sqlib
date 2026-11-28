@@ -278,14 +278,14 @@ function renderDetail(state: CollectionState): HTMLElement {
   const facetNames = new Set(state.facets.map(facet => facet.name));
   for (const facet of state.facets) {
     const group = el('fieldset', { className: 'facet' }, el('legend', {}, facet.title));
-    for (const { value, count } of facet.values) {
+    for (const value of facet.values) {
       const box = el('input', { type: 'checkbox', checked: (state.chosen[facet.name] ?? []).includes(value) });
       box.onchange = () => {
         const others = (state.chosen[facet.name] ?? []).filter(v => v !== value);
         state.chosen[facet.name] = box.checked ? [...others, value] : others;
         void loadFirstPage(state);
       };
-      group.append(el('label', { className: 'check' }, box, el('span', { className: 'facet-value' }, facetLabel(value)), el('span', { className: 'count' }, count === null ? '' : String(count))));
+      group.append(el('label', { className: 'check' }, box, el('span', { className: 'facet-value' }, facetLabel(value))));
     }
     form.append(group);
   }

@@ -33,12 +33,12 @@ describe('resolveService', () => {
 });
 
 describe('facets', () => {
-  it('reads the properties with an enum, with their counts', () => {
+  it('reads the properties with an enum', () => {
     const doc = { properties: {
       name: { title: 'Name', type: 'string' },
-      zone: { title: 'Zone', enum: [1, 2, 3], 'x-counts': [6, 5, 5] },
+      zone: { title: 'Zone', enum: [1, 2, 3] },
     } };
-    expect(facetsOf(doc)).toEqual([{ name: 'zone', title: 'Zone', values: [{ value: 1, count: 6 }, { value: 2, count: 5 }, { value: 3, count: 5 }] }]);
+    expect(facetsOf(doc)).toEqual([{ name: 'zone', title: 'Zone', values: [1, 2, 3] }]);
   });
 
   it('puts the chosen values in one CQL2-JSON filter, and removes it with no choice', () => {

@@ -74,22 +74,18 @@ export function withQueryables(itemsUrl: string, values: Record<string, string>)
 export interface Facet {
   name: string;
   title: string;
-  values: Array<{ value: string | number | boolean; count: number | null }>;
+  values: Array<string | number | boolean>;
 }
 
-/** The facets of a queryables document: each property with an `enum`, with the counts of `x-counts`. */
-export function facetsOf(doc: { properties?: Record<string, { title?: string; enum?: unknown[]; 'x-counts'?: unknown[] }> } | null): Facet[] {
+/** The facets of a queryables document: each property with an `enum`. */
+export function facetsOf(doc: { properties?: Record<string, { title?: string; enum?: unknown[] }> } | null): Facet[] {
   return Object.entries(doc?.properties ?? {})
     .filter(([, property]) => Array.isArray(property.enum) && property.enum.length > 0)
     .map(([name, property]) => ({
       name,
       title: property.title ?? name,
       values: property.enum!
-        .filter((value): value is string | number | boolean => ['string', 'number', 'boolean'].includes(typeof value))
-        .map((value, index) => {
-          const count = property['x-counts']?.[index];
-          return { value, count: typeof count === 'number' ? count : null };
-        }),
+        .filter((value): value is string | number | boolean => ['string', 'number', 'boolean'].includes(typeof value)),
     }));
 }
 
