@@ -9,6 +9,13 @@ describe('resolveService', () => {
       .toEqual({ kind: 'url', url: 'https://other.example.org/ogc' });
   });
 
+  it('uses the API in the tab for a ?url= under ../api', () => {
+    expect(resolveService(`${page}?url=https://demo.example.org/site/api/ogc/rail`, null, { apiBaseUrl: 'browser' }))
+      .toEqual({ kind: 'browser', url: 'https://demo.example.org/site/api/ogc/rail' });
+    expect(resolveService(`${page}?url=https://demo.example.org/site/api/ogc/rail`, null, { apiBaseUrl: 'https://api.example.org' }))
+      .toEqual({ kind: 'url', url: 'https://demo.example.org/site/api/ogc/rail' });
+  });
+
   it('puts the service under ../api when the API runs in the tab', () => {
     expect(resolveService(page, { service: 'rail' }, { apiBaseUrl: 'browser' }))
       .toEqual({ kind: 'browser', url: 'https://demo.example.org/site/api/ogc/rail' });

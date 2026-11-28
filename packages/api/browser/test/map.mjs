@@ -1,7 +1,7 @@
 // Opens the map page of the browser-only site with no basemap, so that every
 // request stays on the site's origin. It checks that both Rail collections
-// load, that the Stations pages follow the `next` link, and that a name filter
-// finds one station. It exits 1 on a failed check, a logged error or a request
+// load, that the Stations pages follow the `next` link, that a name filter
+// finds one station, and that Open with the service URL loads it again. It exits 1 on a failed check, a logged error or a request
 // to another origin.
 //   node map.mjs <public dir> <out dir>
 import { createRequire } from 'node:module';
@@ -48,6 +48,11 @@ await page.click('button:text("Search")');
 await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '1–1');
 await expectText('.features li', ['Central'], 'name filter');
 await page.screenshot({ path: `${out}/map-filter.png` });
+
+await page.click('#service-form button[type="submit"]');
+await page.waitForURL(/[?&]url=/);
+await page.waitForSelector('.features li', { timeout: 60_000 });
+await expectText('.collection-title', ['Lines', 'Stations'], 'open the same service by URL');
 
 console.log('outside origins', [...outside]);
 console.log('errors', errors.length); for (const e of errors.slice(0, 20)) console.log('  ', e);

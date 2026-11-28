@@ -23,18 +23,24 @@ export type ServiceSource =
 /**
  * The service to open.
  *
- * 1. `?url=` names any landing page, on any server.
+ * 1. `?url=` names any landing page, on any server. A URL under `../api`
+ *    uses the API in this tab when the app's API is `browser`.
  * 2. Else `service` from the page's config, under the app's API: a URL, or
  *    `browser` for the API in this tab, served under `../api`.
  */
 export function resolveService(pageUrl: string, mapConfig: MapConfig | null, appConfig: AppConfig | null): ServiceSource | null {
   const page = new URL(pageUrl);
-  const explicit = page.searchParams.get('url')?.trim();
-  if (explicit) return { kind: 'url', url: new URL(explicit, page).href };
-  const slug = page.searchParams.get('service')?.trim() || mapConfig?.service;
   const api = appConfig?.apiBaseUrl?.trim();
+  const tabApi = new URL('../api', page).href;
+  const explicit = page.searchParams.get('url')?.trim();
+  if (explicit) {
+    const url = new URL(explicit, page).href;
+    if (api === 'browser' && (url === tabApi || url.startsWith(`${tabApi}/`))) return { kind: 'browser', url };
+    return { kind: 'url', url };
+  }
+  const slug = page.searchParams.get('service')?.trim() || mapConfig?.service;
   if (!slug || !api) return null;
-  if (api === 'browser') return { kind: 'browser', url: `${new URL('../api', page).href}/ogc/${encodeURIComponent(slug)}` };
+  if (api === 'browser') return { kind: 'browser', url: `${tabApi}/ogc/${encodeURIComponent(slug)}` };
   return { kind: 'api', apiBaseUrl: api, url: `${api.replace(/\/+$/, '')}/ogc/${encodeURIComponent(slug)}` };
 }
 
