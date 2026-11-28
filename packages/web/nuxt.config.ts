@@ -344,6 +344,9 @@ export default defineNuxtConfig({
   nitro: {
     prerender: {
       routes: ROUTED_SECTIONS.map((section) => `/${section}`),
+      // The deployment writes `config.json`. The crawler follows its preload
+      // hint, and would otherwise write a `config.json/` directory there.
+      ignore: ['/config.json'],
     },
   },
   alias: {
@@ -412,6 +415,14 @@ export default defineNuxtConfig({
           as: 'font',
           type: 'font/woff2',
           href: withBase('/assets/fonts/inter-variable-latin.woff2', baseURL),
+          crossorigin: 'anonymous',
+        },
+        // `plugins/runtime-config.client.ts` reads this before any API call.
+        // The hint fetches it while the scripts load.
+        {
+          rel: 'preload',
+          as: 'fetch',
+          href: withBase('/config.json', baseURL),
           crossorigin: 'anonymous',
         },
         // SVG first so modern browsers pick it; favicon.ico is the legacy fallback.

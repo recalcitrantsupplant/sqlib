@@ -37,7 +37,7 @@ import {
 } from '../lib/TestRunner.js';
 import { EXPECTATION_KINDS } from '../lib/testComparators.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { filterReadable, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { assertBackendAccess } from '../auth/executionScope.js';
 import {
   negotiateReportFormat,
@@ -48,6 +48,7 @@ import {
 } from '../lib/reportFormats/index.js';
 import {
   getTestRun,
+  latestTestRuns,
   listTestRuns,
   recordTestRun,
   recordTestRuns,
@@ -380,6 +381,15 @@ const runHistoryQuerySchema = {
   properties: {
     /** Newest N. Absent means everything retention kept, which is bounded. */
     limit: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+} as const;
+
+const latestRunsQuerySchema = {
+  type: 'object',
+  properties: {
+    /** Narrows the answer to the tests of one library. */
+    library: { type: 'string' },
   },
   additionalProperties: false,
 } as const;
@@ -1038,6 +1048,32 @@ export default async function (fastify: FastifyInstance) {
       }
       throw error;
     }
+  }));
+
+  /**
+   * The newest stored run of every test the caller may read, with its cases.
+   *
+   * One request in place of two per test (`/:id/runs?limit=1`, then
+   * `/:id/runs/:runId`). The web app reads it on load to show recorded
+   * verdicts. A test with no stored run has no entry.
+   */
+  fastify.get('/runs/latest', ...reposRoute({
+      tags: ['Test'],
+      summary: 'Get the newest stored run of each test, with its cases',
+      querystring: latestRunsQuerySchema,
+      response: {
+        200: { type: 'array', items: storedRunDetailResponseSchema },
+      },
+    }, async ({ repos, reply, request }) => {
+    const query = (request.query ?? {}) as { library?: string };
+    const all = repos.Test.list() as unknown as PersistedTest[];
+    const narrowed = query.library ? all.filter(test => test.isPartOf?.includes(query.library!)) : all;
+    const readable = filterReadable(request, narrowed);
+    const stored = await latestTestRuns(readable.map(test => test.$id));
+    return reply.send(stored.map(({ run, cases }) => ({
+      ...toRestApi(run),
+      cases: cases.map(row => toRestApi(row)),
+    })));
   }));
 
   /**
