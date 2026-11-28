@@ -3,6 +3,8 @@ import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import {
   getLastBackend,
   setLastBackend,
+  getLastDataGraph,
+  setLastDataGraph,
   resolveQueryBackend,
   resolveQueryDefault,
   resolveEtlBackend,
@@ -40,6 +42,16 @@ describe('backendDefaults', () => {
     it('ignores an entity with no id yet', () => {
       setLastBackend('query', null, 'urn:b:one');
       expect(getLastBackend('query', null)).toBeNull();
+    });
+
+    it("keeps a rule set's data graph apart from a query's backend", () => {
+      setLastBackend('query', 'x1', 'urn:b:one');
+      setLastDataGraph('x1', 'urn:g:network');
+      expect(getLastBackend('query', 'x1')).toBe('urn:b:one');
+      expect(getLastDataGraph('x1')).toBe('urn:g:network');
+      setLastDataGraph('x1', null);
+      expect(getLastDataGraph('x1')).toBeNull();
+      expect(getLastBackend('query', 'x1')).toBe('urn:b:one');
     });
 
     it('survives corrupt storage', () => {

@@ -277,6 +277,7 @@
             :content-type="executionResult?.contentType ?? null"
             :timing="executionResult?.timing ?? undefined"
             :executed-at="executedAtFocus"
+            :backend-name="executionResult?.backendName ?? null"
             :prefix-source="resultsPrefixSource"
           />
         </div>
@@ -495,7 +496,7 @@ import GraphReadingClause from './query-work-area/GraphReadingClause.vue';
 import { updateGraphsState, type UpdateGraphsState } from '@/lib/updateGraphs';
 import { refDebounced } from '@vueuse/core';
 import { datasetSummary, useGraphDataset } from '@/lib/graphDataset';
-import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
+import { QUERY_INSPECTOR_TABS, type QueryExecutionResultPayload, type QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
 import SaveBar from './shared/SaveBar.vue';
@@ -535,6 +536,7 @@ import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { getLastBackend, queryDefaultSource, resolveQueryBackend, setLastBackend } from '@/lib/backendDefaults';
+import { useRememberedTab } from '@/lib/inspectorTabs';
 import { backendDisplayName } from '@/lib/backendLabels';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
@@ -702,7 +704,8 @@ const diffButtonTitle = computed(() =>
   diffPlan.value ? `Diff ${diffPlan.value.left.label} → ${diffPlan.value.right.label}` : '',
 );
 
-const activeResultsTab = ref<QueryInspectorTab>('details');
+/** Kept per rail, so a visit to another rail or another query keeps the tab. */
+const activeResultsTab = useRememberedTab<QueryInspectorTab>('query', QUERY_INSPECTOR_TABS, 'details');
 const queryResultsPanelRef = ref<InstanceType<typeof QueryResultsPanel> | null>(null);
 // The library is passed so the switcher can offer sets made elsewhere in it,
 // with their fit against this query. See `useArgumentSets.loadArgumentSets`.
@@ -932,6 +935,7 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
    */
   getAdHocArguments: () => argumentSetsComposable.visibleValuesPayload(),
   getDataset: () => (takesGraphs.value ? graphDataset.payload() : null),
+  getBackendName: (id) => backendLabel(id),
   isDirty,
   queryCode,
 });
@@ -1154,10 +1158,13 @@ function isBackendAvailable(id: string): boolean {
   return availableBackends.value.some((backend) => backend.id === id);
 }
 
+/** The id the run bar's pick is kept under: the scratch id until the query is saved. */
+const backendPickId = computed(() => props.scratchId || queryId.value || null);
+
 /** Point the run bar where this query should start: last pick, default, library default. */
 function resolveRunBackend() {
   selectedBackend.value = resolveQueryBackend({
-    lastPick: getLastBackend('query', queryId.value, runEnvironmentName.value),
+    lastPick: getLastBackend('query', backendPickId.value, runEnvironmentName.value),
     environmentDefault: environmentDefaultBackend.value,
     queryDefault: toStoredBackend(defaultBackend.value),
     libraryDefault: libraryDefaultBackend.value,
@@ -1168,7 +1175,7 @@ function resolveRunBackend() {
 /** The run bar's own choice, remembered in this browser for this query. */
 function pickRunBackend(value: string) {
   selectedBackend.value = value;
-  setLastBackend('query', queryId.value, value || null, runEnvironmentName.value);
+  setLastBackend('query', backendPickId.value, value || null, runEnvironmentName.value);
 }
 
 
@@ -2101,6 +2108,7 @@ async function saveScratch(name: string) {
   if (selectedBackend.value && selectedBackend.value !== effectiveDefaultBackend.value) {
     setLastBackend('query', created.id, selectedBackend.value, runEnvironmentName.value);
   }
+  setLastBackend('query', scratchRecordId, null, runEnvironmentName.value);
   draftsStore.remove(scratchRecordId);
   toast.success(`Saved “${name}” as v1`);
   emit('scratch-saved', { id: created.id, name, libraryId });

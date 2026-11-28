@@ -95,12 +95,16 @@ a browser default. Tests assert this for queries, groups and rule sets.
 
 Each screen opens with the first of these that gives a value:
 
-| Screen | 1 | 2 | 3 |
-| --- | --- | --- | --- |
-| Query: argument set | `?argumentSet=` | Browser default | Nothing |
-| Query group: argument set | — | Browser default | Nothing |
-| Query group: data graphs | — | Browser default | Nothing |
-| Rule set: data graph | This browser's draft | Browser default | What is already picked |
+| Screen | 1 | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- |
+| Query: argument set | `?argumentSet=` | — | Browser default | Nothing |
+| Query group: argument set | — | — | Browser default | Nothing |
+| Query group: data graphs | — | — | Browser default | Nothing |
+| Rule set: data graph | This browser's draft | This browser's last pick | Browser default | What is already picked |
+
+A rule set's last pick is the data graph last chosen in its Inputs tab, kept in
+`localStorage` by `web/src/lib/backendDefaults.ts`. It opens at the graph's
+current version.
 
 ```mermaid
 flowchart LR

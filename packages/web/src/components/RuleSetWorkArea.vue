@@ -191,7 +191,8 @@
         v-model:tuple-set-version-id="tupleSetVersionId"
         v-model:inline-tuples="tupleSeeds"
         v-model:data-source="dataSource"
-        v-model:data-graph-version-id="dataGraphVersionId"
+        :data-graph-version-id="dataGraphVersionId"
+        @update:data-graph-version-id="pickDataGraph"
         v-model:data-graph-inline="dataGraphInline"
         v-model:data-graph-inline-format="dataGraphInlineFormat"
         :details="detailsProps"
@@ -215,6 +216,7 @@
         :test-disabled-reason="testDisabledReason"
         :execution-result="executionResult"
         :executed-at="executionTimestamp"
+        :executed-on="executionSource"
         :editor-extensions="readOnlyExtensions"
         :input-editor-extensions="inputExtensions"
         :tuple-editor-extensions="tupleExtensions"
@@ -297,6 +299,8 @@ import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
+import { getLastDataGraph, setLastDataGraph } from '@/lib/backendDefaults';
+import { useRememberedTab } from '@/lib/inspectorTabs';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { useSrlAnalysis } from '../composables/useSrlAnalysis';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
@@ -889,11 +893,14 @@ const {
   initialWidthPercent: 62,
 });
 /*
- * Inputs, not Details. Opening a rule set, the next thing you want is to run it
- * against something — and the tab that says what it runs against is where the
+ * With no tab remembered, Inputs opens. Opening a rule set, the next thing
+ * you want is to run it against something, and the Inputs tab is where the
  * one selection this screen makes for you can be seen and changed.
  */
-const activeTab = ref('inputs');
+const RULE_SET_INSPECTOR_TABS = ['details', 'inputs', 'stratification', 'sparql', 'results', 'code', 'tests'] as const;
+type RuleSetInspectorTab = (typeof RULE_SET_INSPECTOR_TABS)[number];
+/** Kept per rail, so a visit to another rail or another rule set keeps the tab. */
+const activeTab = useRememberedTab<RuleSetInspectorTab>('ruleSet', RULE_SET_INSPECTOR_TABS, 'inputs');
 const inspectorRef = ref<InstanceType<typeof RuleSetInspectorPanel> | null>(null);
 
 /**
@@ -923,7 +930,7 @@ function handleExpandedChange(value: boolean) {
 /** The run row asks, because it is drawn outside the region that knows. */
 const editorExpanded = computed(() => editorExpansion.isExpanded(RULE_SET_EDITOR_REGION));
 
-function focusTab(tab: string) {
+function focusTab(tab: RuleSetInspectorTab) {
   /*
    * The tabs are in the right-hand panel, which a popped-out editor covers.
    * Asking for one is asking to see it, so the pop-out gets out of the way
@@ -1224,6 +1231,7 @@ const resetState = () => {
   selectedRuleId.value = null;
   executionResult.value = null;
   executionTimestamp.value = null;
+  executionSource.value = null;
   locallySavedAt.value = null;
 };
 
@@ -1380,9 +1388,9 @@ async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof api
  * The data graph a saved rule set opens with.
  *
  * The draft's pick first, because it is this browser's and the newer of the
- * two; then the rule set's browser default, resolved to the version it would
- * select now; then whatever is already picked. See
- * `composables/useBrowserDefaults.ts`.
+ * two; then the graph last picked here; then the rule set's browser default,
+ * resolved to the version it would select now; then whatever is already
+ * picked. See `composables/useBrowserDefaults.ts` and `lib/backendDefaults.ts`.
  */
 async function applyDataGraphOnOpen(id: string) {
   const draft = draftBody.value;
@@ -1395,6 +1403,13 @@ async function applyDataGraphOnOpen(id: string) {
     dataSource.value = 'inline';
     dataGraphInline.value = draft.dataGraphInline;
     dataGraphInlineFormat.value = draft.dataGraphInlineFormat ?? 'text/turtle';
+    return;
+  }
+  const lastPick = getLastDataGraph(id);
+  const [pickedVersionId] = lastPick ? await browserDefaults.resolveDataGraphs([lastPick]) : [null];
+  if (pickedVersionId && ruleSetIdValue.value === id) {
+    dataSource.value = 'saved';
+    dataGraphVersionId.value = pickedVersionId;
     return;
   }
   const { dataGraphs } = await browserDefaults.load('ruleSet', id);
@@ -1437,8 +1452,9 @@ const loadRuleSet = async (id: string) => {
     ruleSetCurrentVersionId.value = (ruleSet.currentVersion ?? null) as string | null;
     ruleSetStamps.value = stampsOf(ruleSet);
     ruleSetConcurrency.value = ifMatch ?? ruleSetsStore.concurrency[ruleSet.id] ?? null;
-    executionResult.value = null;
-    executionTimestamp.value = null;
+    // An open can run twice for one rule set, and the key does not change on
+    // the second, so the kept run is read here rather than left to the watcher.
+    showLastRun(runCacheKey('rule-set', ruleSet.id));
 
     // The library only names where the rule set lives; nothing below waits on it.
     void ensureLibraryPresent(ruleSetLibraryId.value ?? null);
@@ -1668,6 +1684,8 @@ function setTuplesEnabled(next: boolean) {
 // component's local ExecutionResults interface are independently defined.
 const executionResult = ref<any>(null);
 const executionTimestamp = ref<string | null>(null);
+/** What the shown run read, so a kept result still names its data. */
+const executionSource = ref<string | null>(null);
 const isExecuting = ref(false);
 
 /**
@@ -1678,6 +1696,8 @@ const isExecuting = ref(false);
 interface CachedRuleSetRun {
   result: unknown;
   ranAt: string | null;
+  /** The data the run read, by its name at run time. */
+  source?: string | null;
 }
 
 const lastRunKey = computed(() => (isScratch.value
@@ -1687,14 +1707,19 @@ const lastRunKey = computed(() => (isScratch.value
 /** What the cache holds for the open record, so a restore is not re-saved. */
 let heldRun: string | null = null;
 
+/** Show the run the cache holds for a record, or nothing. */
+function showLastRun(key: string | null) {
+  const restored = loadLastRun<CachedRuleSetRun>(key);
+  heldRun = restored ? JSON.stringify(restored) : null;
+  executionResult.value = restored?.result ?? null;
+  executionTimestamp.value = restored?.ranAt ?? null;
+  executionSource.value = restored?.source ?? null;
+}
+
 watch(
   lastRunKey,
   (key, previous) => {
-    if (key === previous) return;
-    const restored = loadLastRun<CachedRuleSetRun>(key);
-    heldRun = restored ? JSON.stringify(restored) : null;
-    executionResult.value = restored?.result ?? null;
-    executionTimestamp.value = restored?.ranAt ?? null;
+    if (key !== previous) showLastRun(key);
   },
   { immediate: true },
 );
@@ -1702,7 +1727,7 @@ watch(
 watch([executionResult, executionTimestamp], ([result, ranAt]) => {
   // A run in progress clears the panel first; that is not a run to remember.
   if (!result) return;
-  const run: CachedRuleSetRun = { result, ranAt };
+  const run: CachedRuleSetRun = { result, ranAt, source: executionSource.value };
   const serialised = JSON.stringify(run);
   // Restoring is not running: re-writing here would move this record to the
   // front of the eviction queue every time it was merely looked at.
@@ -1794,6 +1819,7 @@ async function run() {
   isExecuting.value = true;
   executionResult.value = null;
   executionTimestamp.value = null;
+  executionSource.value = dataSourceLabel();
   activeTab.value = 'results';
   rightPanelCollapsed.value = false;
 
@@ -1942,6 +1968,7 @@ watch(selectedVersionId, (versionId, previous) => {
   if (ruleSetLoading.value) return;
   executionResult.value = null;
   executionTimestamp.value = null;
+  executionSource.value = null;
   void loadDocumentForSelectedVersion();
 });
 
@@ -2086,6 +2113,23 @@ const tuplesSummary = computed(() => {
   const rows = tupleSeeds.value.split('\n').filter((line) => line.trim()).length;
   return rows ? `${rows} ${rows === 1 ? 'row' : 'rows'} inline` : '';
 });
+
+/** What a run reads now, by name: the saved graph and its version, or inline data. */
+function dataSourceLabel(): string | null {
+  if (dataSource.value === 'saved') {
+    const option = dataGraphOptions.value.find((entry) => entry.versionId === dataGraphVersionId.value);
+    return option ? `${option.name} · v${option.version}` : null;
+  }
+  return dataGraphInline.value.trim() ? 'inline data' : null;
+}
+
+/** A data graph picked in the Inputs tab, kept for the next time this rule set opens. */
+function pickDataGraph(versionId: string | null) {
+  dataGraphVersionId.value = versionId;
+  if (isScratch.value || !ruleSetIdValue.value) return;
+  const graphId = dataGraphOptions.value.find((option) => option.versionId === versionId)?.graphId ?? null;
+  setLastDataGraph(ruleSetIdValue.value, graphId);
+}
 
 const dataSummary = computed(() => {
   if (dataSource.value === 'saved') {
@@ -2354,6 +2398,7 @@ async function saveInlineDataGraph() {
     dataGraphInline.value = '';
     dataGraphVersionId.value = version.id;
     dataSource.value = 'saved';
+    if (!isScratch.value) setLastDataGraph(ruleSetIdValue.value, graph.id);
     await loadDataGraphOptions();
     toast.success(`Saved “${name}” as a data graph`);
   } catch (error) {
