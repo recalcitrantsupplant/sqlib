@@ -19,7 +19,7 @@ An OGC service becomes an item of its own, on a new **OGC** entry in the
 rail. It is account level, as a backend is, and does not belong to a library.
 A service has a path under `/ogc/`, such as `/ogc/rail` or `/ogc/rail/2026`.
 It lists collections. Each collection names a query version from any library,
-a backend, and the mapping that turns the query's rows into features.
+a backend, and the type of each queryable.
 
 The web app gets a screen to create and edit services. A save takes effect at
 once, with no restart. Each service is versioned, and each version pins the
@@ -37,7 +37,7 @@ query versions that its collections run.
   <text x="100" y="108" font-size="11">currentVersion</text>
   <rect x="240" y="130" width="160" height="60" rx="6" fill="#f8f9fa" stroke="#6c757d"/>
   <text x="320" y="155" text-anchor="middle">collection "stations"</text>
-  <text x="320" y="173" text-anchor="middle" font-size="11">mapping</text>
+  <text x="320" y="173" text-anchor="middle" font-size="11">queryables</text>
   <line x1="180" y1="160" x2="240" y2="160" stroke="#495057" marker-end="url(#a)"/>
   <text x="186" y="152" font-size="11">lists</text>
   <rect x="460" y="100" width="170" height="44" rx="6" fill="#d1e7dd" stroke="#218838"/>
@@ -91,13 +91,14 @@ These follow from the same discussion:
   `packages/api/src/server/ogcRoutes.ts`). They look the slug up in a map
   built at startup. A slug cannot hold `/`.
 
-PR #278 adds to the `values` mode. The design keeps each of these, and moves
-them from the query version to the collection:
+PR #278 adds to the `values` mode. The design keeps these, and moves them
+from the query version to the collection:
 
-- A collection can name a `valuesQuery`, a SELECT that returns `?property`,
-  `?value` and an optional `?count`.
-- The queryables document carries an `enum` and `x-counts` for each
-  queryable, from that query.
+- A collection can name a `valuesQuery`, a SELECT that returns `?property`
+  and `?value`. David does not want counts (2026-11-28), so `?count` and
+  `x-counts` are removed.
+- The queryables document carries an `enum` for each queryable that the
+  values query lists.
 - Every `values` queryable takes several values: OR within one queryable,
   AND across queryables. There is no `multiple` flag.
 - The CQL2 subset is an `and` of `=` and `in` clauses. The service declares
@@ -115,12 +116,15 @@ David decided these in the project on 2026-11-28:
 | The old `ogc` object | Remove it, the library services and all compatibility code. No migration |
 | Query groups as sources | Later |
 | Serving without a restart | Do it when there is a clean way. A restart is acceptable when there is none |
+| `uri` queryables | Advertise `format: uri`, and bind the value as an IRI |
+| Counts | None. The values query gives an optional `enum` only |
+| Variable roles | Reserved variable names, no stored mapping |
 
 ## Design
 
 ### Entities
 
-Four new entity types, in the same store as the other entities. In the
+Five new entity types, in the same store as the other entities. In the
 default `sqlite` mode, that is the library SQLite file, one row for each
 entity (`docs/explanation/storage-and-caching.md`).
 
@@ -128,8 +132,9 @@ entity (`docs/explanation/storage-and-caching.md`).
 | --- | --- |
 | `OgcService` | `name`, `description`, `path`, `currentVersion`. No `isPartOf` |
 | `OgcServiceVersion` | `version`, `comment`, `collections` (a list of `OgcCollection`), `isPartOf` (its service), authorship. Immutable |
-| `OgcCollection` | `collectionId`, `title`, `description`, `queryVersion`, `backend`, `valuesQuery`, `configQuery`, `mapping`, `isPartOf` (its service version), `position` |
-| `OgcCollectionSet` | `collectionsQuery`, `queryVersion` (the items query), `base`, `backend`, `valuesQuery`, `mapping`, `isPartOf` (its service version), `position`. See [Collection sets](#collection-sets-collections-from-a-query) |
+| `OgcCollection` | `collectionId`, `title`, `description`, `queryVersion`, `backend`, `featureBase`, `valuesQuery`, `configQuery`, `pageSize`, `pageSizeMax`, `extent`, `queryables`, `isPartOf` (its service version), `position` |
+| `OgcCollectionSet` | `collectionsQuery`, `queryVersion` (the items query), `collectionBase`, `featureBase`, `backend`, `valuesQuery`, `pageSize`, `pageSizeMax`, `queryables`, `isPartOf` (its service version), `position`. See [Collection sets](#collection-sets-collections-from-a-query) |
+| `OgcQueryable` | `name`, `type`, `title`, `isPartOf` (its collection or set) |
 
 `OgcService` and `OgcServiceVersion` use `registerVersionedEntityRoutes`
 (`packages/api/src/routes/versionedEntity.ts`), as the other versioned types
@@ -143,11 +148,49 @@ The links to other entities are IRI triples with `@references`:
 - `valuesQuery`: a `QueryVersion`, pinned (#278).
 - `configQuery`: a `QueryVersion`, pinned (`cql2` mode).
 
-`mapping` is an `rdf:JSON` literal, as `tool` is on a query version. It holds
-the rest of today's `OgcObject`: `mode`, `feature`, `geometry` or `point`,
-`params`, `outputs`, `cql`, `queryables`, `pageSize`, `extent`, `omit` and
-`geometrySources`. These name variables of the pinned query version, and
-mean nothing without it. `checkOgcObject` checks the mapping unchanged.
+Every field is a plain RDF value or link. Nothing is stored as JSON,
+because the variable roles come from reserved names (see
+[Reserved variable names](#reserved-variable-names)). `extent` is four
+numbers and an optional time interval.
+
+### Reserved variable names
+
+A query's variable names say what each variable does. David proposed this
+on 2026-11-28. It replaces today's `feature`, `geometry`, `params`,
+`outputs` and `omit` keys.
+
+| Name | Where | Role |
+| --- | --- | --- |
+| `?feature` | output, and alone in a `VALUES` clause | The feature IRI. The one-feature route binds it |
+| `?geometry` | output | A `geo:wktLiteral` or `geo:geoJSONLiteral`. Without it, features have `"geometry": null` |
+| `?minx ?miny ?maxx ?maxy` | one `VALUES` clause | `bbox`, in CRS84 |
+| `?start ?end` | one `VALUES` clause | `datetime`. Either can be unbound |
+| `?skipGeometry` | `VALUES` | `true` when the client sends `skipGeometry=true` |
+| `LIMIT 0001`, `OFFSET 0002` | the query's only `LIMIT` and `OFFSET` parameters | The page |
+| `?filter`, `?cursor` | `VALUES` | `cql2` mode. A query that declares `?filter` is in `cql2` mode |
+| `?numberMatched`, `?nextCursor` | output | `cql2` mode: the total and the next cursor |
+| `?collection` | `VALUES` | Collection sets: the collection IRI |
+
+Every other `VALUES` variable that is alone in its clause is a queryable,
+with the variable name as its name. Every other output column is a feature
+property. A queryable must also be an output, so a client can see the value
+it filtered on.
+
+Three things are not in the query text, so the collection stores them:
+
+1. **The type of each queryable.** The type decides how a value is parsed
+   and bound: `uri` binds an IRI, `integer` an `xsd:integer`, `string` a
+   plain literal. The editor proposes the type from the values query's
+   result when it lists the property, and else proposes `string`.
+2. **The feature base.** The IRI prefix removed from `?feature` to make the
+   feature id in URLs.
+3. **Optional display and paging values.** The title of each queryable, the
+   page size and largest page, and the extent.
+
+`checkOgcObject` becomes a check of the query against the reserved names.
+The geometry sources key (`geometrySources`) and the `point` form are
+removed. A query with longitude and latitude columns builds a WKT point
+with `BIND`.
 
 With `@references`, the backend's **Used by** list
 (`GET /backends/:id/references`) and the delete checks cover services with
@@ -168,10 +211,10 @@ A collection set holds:
 - a **collections query**: a SELECT that returns `?collection`, `?title`, and
   optionally `?description` and the extent columns `?minx ?miny ?maxx ?maxy`;
 - an **items query**: a SELECT that declares `VALUES ?collection { UNDEF }`;
-- a `base` IRI. The collection id is the collection IRI without it, as the
-  feature id is today;
-- one `mapping`, a `backend` and an optional values query. These apply to
-  every collection of the set.
+- a `collectionBase` IRI. The collection id is the collection IRI without
+  it, as the feature id is;
+- the queryable types, the feature base, a `backend` and an optional values
+  query. These apply to every collection of the set.
 
 ```sparql
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
@@ -192,7 +235,7 @@ How the routes use it:
   rows after the stored collections. A caller sees only the collections that
   their grants let them read.
 - `/collections/{id}` and its `items` and `queryables` bind `?collection` to
-  `base` + `{id}`, and run the items query.
+  `collectionBase` + `{id}`, and run the items query.
 - A data change needs no service save and no reload.
 - An id that a stored collection already has is left out of the set's rows,
   and the service screen shows a problem line.
@@ -200,9 +243,8 @@ How the routes use it:
   gives the values of each collection. Without it, the values are the same
   for every collection of the set.
 
-The mapping still needs storage, because it describes the items query text:
-which variable is the feature, which `VALUES` clause takes `bbox`. It does
-not depend on the data, so it is stored once for the set.
+The queryable types are stored once for the set, because they describe the
+items query, not the data.
 
 The service screen shows a collection set as one row, with the number of
 collections it returned for the viewer. The collection editor gets a
@@ -230,7 +272,8 @@ collections it returned for the viewer. The collection editor gets a
   `Info` icon with the tooltip "Newer version available", from
   `VersionedEntitySelector.vue`.
 - In edit mode, a **Use v5** button on the row puts the new version in the
-  draft. The save checks the mapping against v5.
+  draft. The save checks v5 against the reserved names and the stored
+  queryables.
 - The live version is the service's `currentVersion`. A save makes a new
   version and moves `currentVersion` to it. **Make live** on an older version
   moves it back.
@@ -240,11 +283,13 @@ collections it returned for the viewer. The collection editor gets a
 ### Checks on save
 
 The save refuses a version with `400` and the key path, such as
-`collections[1].mapping.queryables.zone.var`, when:
+`collections[1].queryables.zone`, when:
 
 - a pinned version is gone, or `queryVersion` is not a SELECT;
-- `checkOgcObject` finds a problem in the mapping;
-- a slot that the mapping fills has `whenEmpty` set to `require` or
+- the query breaks a reserved-name rule, such as `?feature` missing from the
+  outputs or `?minx` outside the bbox clause;
+- a stored queryable is not a `VALUES` variable of the query;
+- a slot that the service fills has `whenEmpty` set to `require` or
   `propagateEmpty`;
 - the backend is gone;
 - two collections have one id;
@@ -301,36 +346,43 @@ Two things I have not checked:
 
 ### Queryable types and values
 
-A collection's mapping gives each queryable a `type`: `string`, `number`,
-`integer`, `boolean`, `date-time` or `uri`. The `queryables` route
-advertises the type as JSON Schema (`QUERYABLE_SCHEMA` in
-`packages/tools/src/ogc.ts`). A `uri` queryable is
+The `queryables` route advertises each queryable as JSON Schema
+(`QUERYABLE_SCHEMA` in `packages/tools/src/ogc.ts`). A `uri` queryable is
 `{ "type": "string", "format": "uri" }`.
 
-- `format: "uri"` is standard JSON Schema. OGC API Features Part 3 describes
-  queryables as JSON Schema, so a client can read it. I think the OGC spec
-  lists `uri` among the formats a queryable may use, but I have not checked
-  the exact clause.
-- The client sends a string in each case. The server reads the type from the
-  collection's mapping and binds the term. A `uri` value becomes an IRI in
-  the `VALUES` row. A `string` value becomes a plain literal.
-- The other choice binds every value as a string. The query converts it with
-  `BIND(IRI(?zoneText) AS ?zone)`. Most stores then evaluate the pattern for
-  each candidate and filter afterwards, where an IRI bound in `VALUES` joins
-  directly.
+OGC API Features Part 3 (OGC 19-079r2, version 1.0, approved 2024-07-26)
+covers this in clause 6:
 
-The values query is a sqlib addition from #278, and is not in the OGC
-specs. It is a SELECT that returns `?property`, `?value` and an optional
-`?count`. The `queryables` route runs it and adds two keys to each
-queryable:
+- Recommendation 1 C (`/rec/queryables/queryables-schema`): "Properties that
+  represent a URI SHOULD be represented as a string with format `uri` or
+  `uri-reference`." This is a recommendation (SHOULD), not a requirement.
+- Requirement 3 C: each property other than a spatial one "SHALL include a
+  `type` member". Requirement 3 F gives `date-time` or `date` for temporal
+  properties.
+- Recommendation 1 F and H: `enum` SHOULD be given where it applies, for
+  strings and for integers that are enumerated values.
 
-- `enum`, the values. This is standard JSON Schema, so any client can read
-  it.
-- `x-counts`, the number of features with each value. The `x-` prefix marks
-  it as an extension. A client that does not know it ignores it.
+The client sends a string in each case. The server reads the stored type
+and binds the term. A `uri` value becomes an IRI in the `VALUES` row. JSON
+Schema's `uri` is an absolute URI, and sqlib binds it as an IRI. The two are
+close, and an IRI with non-ASCII characters is the case where they differ.
 
-The map page from #278 shows a queryable with an `enum` as checkboxes, with
-the counts.
+The values query is a sqlib addition, and is not in the OGC specs. It is a
+SELECT that returns `?property` and `?value`. The author writes it, as a
+`UNION` of one `SELECT DISTINCT` for each queryable with a discrete set of
+values. A queryable that the query does not list, such as a date or a free
+number, gets no `enum`, and a client can filter on any value. The
+`queryables` route adds `enum` for each listed queryable. `enum` is standard
+JSON Schema, and Part 3 recommends it.
+
+```sparql
+PREFIX : <https://example.org/rail/>
+SELECT DISTINCT ?property ?value WHERE {
+  { ?s a :Station ; :zone ?value . BIND("zone" AS ?property) }
+  UNION
+  { ?s a :Station ; :stepFree ?value . BIND("stepFree" AS ?property) }
+}
+```
 
 ### Export and MCP
 
@@ -356,12 +408,12 @@ the counts.
   backend, geometry type, queryables and a map link.
 - **Add collection** opens a picker of SELECT queries from every library,
   grouped by library.
-- The collection editor fills each mapping field from the version's detected
-  outputs and `VALUES` parameters. Each field is a menu of the variables that
-  fit it. No field takes a typed variable name.
-- The queryables table lists each `VALUES` parameter that no other field
-  uses. A checkbox makes it a queryable, with a type and a title. With a
-  values query, each row shows the number of values.
+- The collection editor shows the roles it found in the query from the
+  reserved names: feature, geometry, bbox, datetime, page. A missing role
+  shows as a dash.
+- The queryables table lists each queryable that the query declares, with
+  a type menu and a title. With a values query, each row shows the number
+  of values in its `enum`.
 - A **Preview** runs the first page and draws it.
 - A query that a service uses shows the service and collection on the query
   screen, with a link.
@@ -386,19 +438,16 @@ removes it with no compatibility code:
 
 ## Open questions
 
-1. **Storage of a collection.** The design makes a collection, and a
-   collection set, an entity, with IRI triples for its links and one
-   `rdf:JSON` literal for the variable mapping. The other choices are all
-   JSON in the version, or all RDF.
-2. **Collection sets in step 1, or later.** They add one entity kind, the
+1. **Collection sets in step 1, or later.** They add one entity kind, the
    collections query and the `?collection` binding. I think they fit in
    step 1, because the routes change there anyway.
-3. **Paths.** One to three segments, with reserved words and a wildcard
+2. **Paths.** One to three segments, with reserved words and a wildcard
    route. The other choice is one segment, such as `rail-2026`.
-4. **IRI values.** A `uri` queryable binds an IRI from the string the client
-   sends. See [Queryable types and values](#queryable-types-and-values) for
-   the other choice.
-5. **Values for anonymous callers.** The values query runs as the caller, so
+3. **Reserved names.** The list in
+   [Reserved variable names](#reserved-variable-names). `?start` and `?end`
+   are short, and a data property of that name then cannot be a queryable.
+   The other choice is `?datetimeStart` and `?datetimeEnd`.
+4. **Values for anonymous callers.** The values query runs as the caller, so
    an anonymous caller sees `enum` only when the anonymous principal may run
    it. The other choice makes the values public, with the rest of the
    metadata.
