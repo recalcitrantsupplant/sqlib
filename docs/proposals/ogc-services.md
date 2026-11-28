@@ -119,6 +119,9 @@ David decided these in the project on 2026-11-28:
 | `uri` queryables | Advertise `format: uri`, and bind the value as an IRI |
 | Counts | None. The values query gives an optional `enum` only |
 | Variable roles | Reserved variable names, no stored mapping |
+| Paths | One to three segments |
+| `datetime` names | `?datetimeStart` and `?datetimeEnd` |
+| `enum` values | Public, for every caller |
 
 ## Design
 
@@ -133,7 +136,7 @@ entity (`docs/explanation/storage-and-caching.md`).
 | `OgcService` | `name`, `description`, `path`, `currentVersion`. No `isPartOf` |
 | `OgcServiceVersion` | `version`, `comment`, `collections` (a list of `OgcCollection`), `isPartOf` (its service), authorship. Immutable |
 | `OgcCollection` | `collectionId`, `title`, `description`, `queryVersion`, `backend`, `featureBase`, `valuesQuery`, `configQuery`, `pageSize`, `pageSizeMax`, `extent`, `queryables`, `isPartOf` (its service version), `position` |
-| `OgcCollectionSet` | `collectionsQuery`, `queryVersion` (the items query), `collectionBase`, `featureBase`, `backend`, `valuesQuery`, `pageSize`, `pageSizeMax`, `queryables`, `isPartOf` (its service version), `position`. See [Collection sets](#collection-sets-collections-from-a-query) |
+| `OgcCollectionSet` | `collectionsQuery`, `queryVersion` (the items query), `collectionBase`, `featureBase`, `backend`, `valuesQuery`, `pageSize`, `pageSizeMax`, `queryables`, `isPartOf` (its service version), `position`. See [Collection sets](#collections-from-a-query) |
 | `OgcQueryable` | `name`, `type`, `title`, `isPartOf` (its collection or set) |
 
 `OgcService` and `OgcServiceVersion` use `registerVersionedEntityRoutes`
@@ -164,12 +167,12 @@ on 2026-11-28. It replaces today's `feature`, `geometry`, `params`,
 | `?feature` | output, and alone in a `VALUES` clause | The feature IRI. The one-feature route binds it |
 | `?geometry` | output | A `geo:wktLiteral` or `geo:geoJSONLiteral`. Without it, features have `"geometry": null` |
 | `?minx ?miny ?maxx ?maxy` | one `VALUES` clause | `bbox`, in CRS84 |
-| `?start ?end` | one `VALUES` clause | `datetime`. Either can be unbound |
+| `?datetimeStart ?datetimeEnd` | one `VALUES` clause | `datetime`. Either can be unbound |
 | `?skipGeometry` | `VALUES` | `true` when the client sends `skipGeometry=true` |
 | `LIMIT 0001`, `OFFSET 0002` | the query's only `LIMIT` and `OFFSET` parameters | The page |
 | `?filter`, `?cursor` | `VALUES` | `cql2` mode. A query that declares `?filter` is in `cql2` mode |
 | `?numberMatched`, `?nextCursor` | output | `cql2` mode: the total and the next cursor |
-| `?collection` | `VALUES` | Collection sets: the collection IRI |
+| `?collection` | `VALUES` | Collections from a query: the collection IRI |
 
 Every other `VALUES` variable that is alone in its clause is a queryable,
 with the variable name as its name. Every other output column is a feature
@@ -200,9 +203,10 @@ no special code. I have not checked whether `versionPins.ts` reads
 `collectionId` is unique in the service. Two services may both have a
 `stations` collection.
 
-### Collection sets: collections from a query
+### Collections from a query
 
-A service entry can also be a **collection set**. A query lists the
+A service entry can also be a **query that lists collections**, called a
+collection set in the schema (`OgcCollectionSet`). A query lists the
 collections, so a new `geo:FeatureCollection` in the store appears with no
 edit to the service. David asked for this on 2026-11-28.
 
@@ -341,8 +345,9 @@ Two things I have not checked:
   caller's `Authorization`, as today. The caller needs `execute` on the
   query's library and `query:saved` on the backend. A service that draws on
   two libraries needs grants on both.
-- The `queryables` route runs `valuesQuery` as the caller, as #278 does. A
-  caller who may not run it gets the queryables without `enum`.
+- The `queryables` route runs `valuesQuery` as the service, with no caller
+  grants, so every caller sees the same `enum` values, as they see the rest
+  of the metadata.
 
 ### Queryable types and values
 
@@ -438,19 +443,9 @@ removes it with no compatibility code:
 
 ## Open questions
 
-1. **Collection sets in step 1, or later.** They add one entity kind, the
-   collections query and the `?collection` binding. I think they fit in
-   step 1, because the routes change there anyway.
-2. **Paths.** One to three segments, with reserved words and a wildcard
-   route. The other choice is one segment, such as `rail-2026`.
-3. **Reserved names.** The list in
-   [Reserved variable names](#reserved-variable-names). `?start` and `?end`
-   are short, and a data property of that name then cannot be a queryable.
-   The other choice is `?datetimeStart` and `?datetimeEnd`.
-4. **Values for anonymous callers.** The values query runs as the caller, so
-   an anonymous caller sees `enum` only when the anonymous principal may run
-   it. The other choice makes the values public, with the rest of the
-   metadata.
+1. **Collections from a query in step 1, or later.** They add one entity
+   kind, the collections query and the `?collection` binding. I think they
+   fit in step 1, because the routes change there anyway.
 
 ## Build steps
 
