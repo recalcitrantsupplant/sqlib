@@ -6,10 +6,9 @@ with PR #278 (the map page and facets) in view. It changes how
 serializer, the route plugin, the `values` and `cql2` modes and the auth rules
 of that design stay as they are.
 
-This text merges two drafts of 2026-11-28. The first draft made a service a
-library item. This one makes it account level, after David asked to decouple
-services from libraries. Where the drafts differ, the open questions name both
-choices.
+This text merges two drafts of 2026-11-28. David answered most of their
+questions the same day. The decisions are in [Decisions](#decisions), and
+the questions that remain are in [Open questions](#open-questions).
 
 The mock is in the project files, at `ogc-services/mock.html`, with
 screenshots beside it.
@@ -71,8 +70,8 @@ These follow from the same discussion:
    `/execute` or a route that a later release adds.
 6. Pin the query versions in each service version.
 7. Apply a saved service without a restart.
-8. Design query groups as collection sources. David decides whether to build
-   them.
+8. Remove the `ogc` object of query versions and the library services. sqlib
+   is before 1.0, so it keeps no compatibility code and no migration.
 
 ## What is there now
 
@@ -92,7 +91,8 @@ These follow from the same discussion:
   `packages/api/src/server/ogcRoutes.ts`). They look the slug up in a map
   built at startup. A slug cannot hold `/`.
 
-PR #278 adds to the `values` mode. This design keeps each of these as it is:
+PR #278 adds to the `values` mode. The design keeps each of these, and moves
+them from the query version to the collection:
 
 - A collection can name a `valuesQuery`, a SELECT that returns `?property`,
   `?value` and an optional `?count`.
@@ -104,56 +104,57 @@ PR #278 adds to the `values` mode. This design keeps each of these as it is:
   no CQL2 conformance class for it.
 - The `bbox` filter uses `geof:sfIntersects` on a polygon made with `BIND`.
 
+## Decisions
+
+David decided these in the project on 2026-11-28:
+
+| Question | Decision |
+| --- | --- |
+| Scope | Account level, as proposed, to start with |
+| Pinning | Pin each query version. Show the newer-version icon when a newer version exists |
+| The old `ogc` object | Remove it, the library services and all compatibility code. No migration |
+| Query groups as sources | Later |
+| Serving without a restart | Do it when there is a clean way. A restart is acceptable when there is none |
+
 ## Design
 
 ### Entities
 
-Two new entity types, made with `registerVersionedEntityRoutes`
-(`packages/api/src/routes/versionedEntity.ts`), as the other versioned
-types are:
+Three new entity types, in the same store as the other entities. In the
+default `sqlite` mode, that is the library SQLite file, one row for each
+entity (`docs/explanation/storage-and-caching.md`).
 
 | Entity | Holds |
 | --- | --- |
 | `OgcService` | `name`, `description`, `path`, `currentVersion`. No `isPartOf` |
-| `OgcServiceVersion` | `version`, `comment`, `collections` (JSON), `isPartOf` (its service), authorship. Immutable |
+| `OgcServiceVersion` | `version`, `comment`, `collections` (a list of `OgcCollection`), `isPartOf` (its service), authorship. Immutable |
+| `OgcCollection` | `collectionId`, `title`, `description`, `queryVersion`, `backend`, `valuesQuery`, `configQuery`, `mapping`, `isPartOf` (its service version), `position` |
 
-The path is on `OgcService`, so it is the same in every version.
+`OgcService` and `OgcServiceVersion` use `registerVersionedEntityRoutes`
+(`packages/api/src/routes/versionedEntity.ts`), as the other versioned types
+do. An `OgcCollection` is written with its version, as a query group's nodes
+are written with their version.
 
-`collections` is a JSON array, stored as the version's `tool` object is
-(`rdf:JSON` with a `@jsonShape`). Each entry is today's `ogc` object with
-three keys added:
+The links to other entities are IRI triples with `@references`:
 
-```jsonc
-{
-  "collectionId": "stations",
-  "queryVersion": "urn:sqlib:queryversion:…",   // the pinned version
-  "backend": "urn:sqlib:backend:rail-features",
-  "title": "Stations",
-  "mode": "values",
-  "feature": { "var": "feature", "base": "https://example.org/rail/" },
-  "geometry": "geom",
-  "params": { "limit": "1", "offset": "2", "bbox": ["minx", "miny", "maxx", "maxy"], "skipGeometry": "skip" },
-  "queryables": { "name": { "var": "name", "type": "string", "title": "Name" } },
-  "valuesQuery": "urn:sqlib:queryversion:…",    // optional, from #278, pinned
-  "pageSize": { "default": 10, "max": 100 }
-}
-```
+- `queryVersion`: a `QueryVersion`, pinned.
+- `backend`: a `Backend`. The form fills it from the query's default backend.
+- `valuesQuery`: a `QueryVersion`, pinned (#278).
+- `configQuery`: a `QueryVersion`, pinned (`cql2` mode).
 
-- `queryVersion` is a query version IRI. With query groups, it can also be a
-  query group version IRI.
-- `backend` is required. The form fills it from the query's default backend.
-- `valuesQuery` and `cql.configQuery` name query versions, pinned in the
-  same way.
-- `collectionId` is unique in the service. Two services may both have a
-  `stations` collection.
+`mapping` is an `rdf:JSON` literal, as `tool` is on a query version. It holds
+the rest of today's `OgcObject`: `mode`, `feature`, `geometry` or `point`,
+`params`, `outputs`, `cql`, `queryables`, `pageSize`, `extent`, `omit` and
+`geometrySources`. These name variables of the pinned query version, and
+mean nothing without it. `checkOgcObject` checks the mapping unchanged.
 
-The service version holds a pin on each version it names, so those versions
-cannot be deleted while the service version exists
-(`packages/api/src/lib/versionPins.ts`).
+With `@references`, the backend's **Used by** list
+(`GET /backends/:id/references`) and the delete checks cover services with
+no special code. I have not checked whether `versionPins.ts` reads
+`@references` or keeps its own list of pinning fields.
 
-I chose a JSON array over an entity for each collection. A collection has no
-identity outside its version, and the mapping is JSON on the query version
-today.
+`collectionId` is unique in the service. Two services may both have a
+`stations` collection.
 
 ### Paths
 
@@ -172,20 +173,22 @@ today.
 
 - A service version pins each collection's query version. A new query
   version does not change a service.
-- The service screen marks a collection whose query has a newer version. A
-  **Use v5** button on the row puts the new version in the draft. The save
-  checks the mapping against v5.
+- When the query has a newer version, the collection row and the version
+  menu in the collection editor show the newer-version icon. This is the
+  `Info` icon with the tooltip "Newer version available", from
+  `VersionedEntitySelector.vue`.
+- In edit mode, a **Use v5** button on the row puts the new version in the
+  draft. The save checks the mapping against v5.
 - The live version is the service's `currentVersion`. A save makes a new
   version and moves `currentVersion` to it. **Make live** on an older version
   moves it back.
 - Services have no environments, because an environment belongs to one
-  library and a service can use many. A deployment that sets
-  `SQLIB_DEFAULT_ENVIRONMENT` serves each service's `currentVersion`.
+  library and a service can use many.
 
 ### Checks on save
 
 The save refuses a version with `400` and the key path, such as
-`collections[1].queryables.zone.var`, when:
+`collections[1].mapping.queryables.zone.var`, when:
 
 - a pinned version is gone, or `queryVersion` is not a SELECT;
 - `checkOgcObject` finds a problem in the mapping;
@@ -194,35 +197,43 @@ The save refuses a version with `400` and the key path, such as
 - the backend is gone;
 - two collections have one id;
 - `valuesQuery` does not return `?property` and `?value`;
-- a `cql2` collection's `configQuery` is not a query version.
+- `configQuery` is set on a collection that is not in `cql2` mode.
 
 These are the startup checks of today, moved to save time. The pins stop a
-pinned version from going away. A backend can still be deleted. A reload then
-leaves that collection out and records a problem line.
+pinned version from going away. A backend can still be deleted. The server
+then leaves that collection out and records a problem line.
 `GET /ogc-services/{id}/problems` lists the lines for one service, and the
 service screen shows them.
 
 ### Serving without a restart
 
-The server keeps the services in one map, held by `registerOgcRoutes`.
-`reload()` runs `collectOgcServices()`, which replaces
-`collectOgcCollections()`, and swaps the map. A request in flight keeps the
-map it started with.
+This works in the full server too, because a saved service adds no route.
+One wildcard route, `/ogc/*`, serves every service. It looks the path up in
+a map at each request. A save changes the map, and the route stays the same.
+The published tools need a restart for a different reason: the MCP server
+lists its tools when a client connects, and a tool list is fixed for a
+session.
 
-`reload()` runs on a change event for an `OgcService`, an
-`OgcServiceVersion` or a `Backend` (`subscribeChanges` in
-`packages/api/src/lib/changeEvents.ts`). Query edits do not need a reload,
-because the collections run pinned versions. `indexFields`, the cached
-`luc:config` result of a `cql2` collection, is cleared for each collection
-that a reload changes.
+- `registerOgcRoutes` holds the map. `reload()` runs `collectOgcServices()`,
+  which replaces `collectOgcCollections()`, and swaps the map. A request in
+  flight keeps the map it started with.
+- `reload()` runs on a change event for an `OgcService`, an
+  `OgcServiceVersion` or a `Backend` (`subscribeChanges` in
+  `packages/api/src/lib/changeEvents.ts`). A query edit needs no reload,
+  because the collections run pinned versions.
+- `indexFields`, the cached `luc:config` result of a `cql2` collection, is
+  cleared for each collection that a reload changes.
+- The browser-only demo runs the same server code in a Worker, so the same
+  reload applies there.
 
 Two things I have not checked:
 
-- The change feed comes from a hook on HTTP routes
-  (`registerChangeFeedHook`). I have not checked that imports and the
-  migration publish events. If they do not, they call `reload()` directly.
+- The change feed comes from a hook on the HTTP routes
+  (`registerChangeFeedHook`). An import does not use those routes, so it
+  calls `reload()` directly.
 - I have not checked that the feed reaches every process when the API runs
-  as more than one. The AWS demo runs one Fargate task.
+  as more than one. The AWS demo runs one Fargate task. If it does not, the
+  fallback is a restart, which David accepted.
 
 ### Who can do what
 
@@ -235,6 +246,39 @@ Two things I have not checked:
   two libraries needs grants on both.
 - The `queryables` route runs `valuesQuery` as the caller, as #278 does. A
   caller who may not run it gets the queryables without `enum`.
+
+### Queryable types and values
+
+A collection's mapping gives each queryable a `type`: `string`, `number`,
+`integer`, `boolean`, `date-time` or `uri`. The `queryables` route
+advertises the type as JSON Schema (`QUERYABLE_SCHEMA` in
+`packages/tools/src/ogc.ts`). A `uri` queryable is
+`{ "type": "string", "format": "uri" }`.
+
+- `format: "uri"` is standard JSON Schema. OGC API Features Part 3 describes
+  queryables as JSON Schema, so a client can read it. I think the OGC spec
+  lists `uri` among the formats a queryable may use, but I have not checked
+  the exact clause.
+- The client sends a string in each case. The server reads the type from the
+  collection's mapping and binds the term. A `uri` value becomes an IRI in
+  the `VALUES` row. A `string` value becomes a plain literal.
+- The other choice binds every value as a string. The query converts it with
+  `BIND(IRI(?zoneText) AS ?zone)`. Most stores then evaluate the pattern for
+  each candidate and filter afterwards, where an IRI bound in `VALUES` joins
+  directly.
+
+The values query is a sqlib addition from #278, and is not in the OGC
+specs. It is a SELECT that returns `?property`, `?value` and an optional
+`?count`. The `queryables` route runs it and adds two keys to each
+queryable:
+
+- `enum`, the values. This is standard JSON Schema, so any client can read
+  it.
+- `x-counts`, the number of features with each value. The `x-` prefix marks
+  it as an extension. A client that does not know it ignores it.
+
+The map page from #278 shows a queryable with an `enum` as checkboxes, with
+the counts.
 
 ### Export and MCP
 
@@ -265,97 +309,77 @@ Two things I have not checked:
   fit it. No field takes a typed variable name.
 - The queryables table lists each `VALUES` parameter that no other field
   uses. A checkbox makes it a queryable, with a type and a title. With a
-  `valuesQuery`, each row shows the number of values.
+  values query, each row shows the number of values.
 - A **Preview** runs the first page and draws it.
 - A query that a service uses shows the service and collection on the query
   screen, with a link.
 
 The mock shows each of these screens except the last.
 
-### Migration from the `ogc` object
+### What is removed
 
-At startup, when no `OgcService` exists and a query version carries an `ogc`
-object, the server makes one service for each library with a slug:
+sqlib is before 1.0 and no deployment depends on the old form, so this work
+removes it with no compatibility code:
 
-- The path is the library slug, so `/ogc/{library slug}` keeps working. The
-  name and description are the library's.
-- Each query whose current version has an `ogc` object becomes a collection.
-  The collection pins that version, and its backend is the query's default
-  backend.
-
-After that, a query version save that sends `ogc` gets `400`. The message
-names the service routes. The Rail seed (`demo/libraries/rail/seed.json`)
-replaces `ogcFile` on its two queries with one `ogcServices` entry, and
-`demo/scripts/seed-library.mjs` writes it when `DEMO_OGC=true`. The map page
-from #278 keeps its URL.
-
-## Query groups as sources
-
-This needs a server change. You decide whether to build it in this work.
-
-1. **Outputs.** The server must know the columns of a group's result. It
-   reads them from the end node's query version.
-2. **Inputs.** `groupVersionInputs` already gives the start node's ports as
-   tables, and the `LIMIT` and `OFFSET` parameters of all nodes.
-3. **Backend.** A group run takes no `backendId`, because each node names its
-   own. A group collection has no backend field.
-4. **Paging.** A `LIMIT` on an early node does not page the group's result,
-   because a later node can join more rows or fewer. The check requires the
-   `limit` and `offset` parameters on the end node's query.
-5. **One feature.** The feature column must be a start node port, so that
-   the one-feature route can bind it.
-6. **Closed slots.** The `whenEmpty` check reads the start node's ports.
-
-I estimate one to two days with tests. I think item 4 is the risk. A group
-with a join after the paged node returns pages of the wrong size, with no
-error.
+- The `ogc` key of `QueryVersionSchema`, its JSON shape, and its handling in
+  `QueryVersionWriter.ts`, `toolObject.ts` and the queries routes.
+- `collectOgcCollections` and the library services at `/ogc/{library slug}`.
+- The `ogcFile` key of the Rail seed and `demo/libraries/rail/ogc/*.json`.
+  The seed gets one `ogcServices` entry, a service at `/ogc/rail` with
+  Stations and Lines, and `demo/scripts/seed-library.mjs` writes it when
+  `DEMO_OGC=true`. The map page from #278 keeps its URL.
+- The parts of `docs/guides/publishing-ogc-collections.md` and
+  `docs/proposals/ogc-api-features.md` that describe the `ogc` object on a
+  query version.
 
 ## Open questions
 
-Each question gives the choice of this text first.
-
-1. **Scope.** Account level, with collections from any library and
-   administrators only for writes. The first draft made a service a library
-   item, with the library's grants, export and environments, and queries from
-   that library only.
-2. **Pinning.** Pin each query version, with a **Use v5** button. The first
-   draft let a collection follow its query's version in the environment, with
-   a pin as an option.
-3. **Paths.** One to three segments, with reserved words and a wildcard
-   route. The first draft allowed one segment, such as `rail-2026`.
-4. **IRI values.** A `uri` queryable binds an IRI from the string the client
-   sends, as today. The other choice binds a string, and the query converts
-   it with `BIND(IRI(…))`, which most stores run more slowly.
-5. **Values for anonymous callers.** The `valuesQuery` runs as the caller,
-   so an anonymous caller sees `enum` only when the anonymous principal may
-   run it. The other choice makes the values public, with the rest of the
+1. **Storage of a collection.** The design makes a collection an entity, with
+   IRI triples for its links and one `rdf:JSON` literal for the variable
+   mapping. The other choices are all JSON in the version, or all RDF.
+2. **Paths.** One to three segments, with reserved words and a wildcard
+   route. The other choice is one segment, such as `rail-2026`.
+3. **IRI values.** A `uri` queryable binds an IRI from the string the client
+   sends. See [Queryable types and values](#queryable-types-and-values) for
+   the other choice.
+4. **Values for anonymous callers.** The values query runs as the caller, so
+   an anonymous caller sees `enum` only when the anonymous principal may run
+   it. The other choice makes the values public, with the rest of the
    metadata.
-6. **The old `ogc` object.** Migrate at startup, then refuse `ogc` on query
-   version saves. The other choice keeps reading it for one release.
-7. **Query groups.** Build them as sources now, or later.
 
 ## Build steps
 
 Each step is one pull request.
 
-1. **The entities and the routes.** `OgcService` and `OgcServiceVersion`,
-   `/ogc-services`, the save check, pins, export and import.
+1. **The entities and the routes.** `OgcService`, `OgcServiceVersion` and
+   `OgcCollection`, `/ogc-services`, the save check, pins, export and import.
    `collectOgcServices()`, the path matching and the wildcard route. The
-   migration and the Rail seed. Tests: the save check, pins, path clashes and
-   reserved words, and the CITE Part 1 run on the migrated Rail service.
+   removals in [What is removed](#what-is-removed), and the Rail seed.
+   Tests: the save check, pins, path clashes and reserved words, and the
+   CITE Part 1 run on the Rail service.
 2. **Serving without a restart.** `reload()`, the change subscription and the
    problems route. Test: create, edit and delete a service, and read its
    routes after each write with no restart.
 3. **The web app.** The rail entry, the service screen, the collection
    editor and the link on the query screen.
-4. **Guide.** Update `docs/guides/publishing-ogc-collections.md`.
-5. **Query groups as sources**, if David says yes.
+4. **Guide.** Rewrite `docs/guides/publishing-ogc-collections.md`.
 
 Step 1 waits for #278 to merge, because both change `ogcRoutes.ts` and the
 `ogc` object.
 
 ## Later work
 
+- Query groups as collection sources. This needs a server change:
+  1. The server reads a group's result columns from the end node's query
+     version.
+  2. `groupVersionInputs` already gives the start node's ports as tables,
+     and the `LIMIT` and `OFFSET` parameters of all nodes.
+  3. A group run takes no `backendId`, because each node names its own.
+  4. A `LIMIT` on an early node does not page the group's result, because a
+     later node can join more rows or fewer. The check must require the
+     `limit` and `offset` parameters on the end node's query.
+  5. The feature column must be a start node port, for the one-feature
+     route.
 - Range facets for numbers and dates.
 - The same item model for published tools, so that `/tools/` can have more
   than one service per library.
