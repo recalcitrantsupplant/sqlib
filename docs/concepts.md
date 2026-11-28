@@ -400,3 +400,18 @@ connection of the job, against a database that exists only for that test case.
 ETL is off by default (`FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`). DuckDB SQL can
 read any file on the host, and with the httpfs extension it can send outbound
 requests.
+
+## OgcService
+
+An **OgcService** publishes queries of a library as OGC API Features
+collections, at `/ogc/{slug}`. The service carries a name, a description and a
+`slug` that is unique across the deployment. An `OgcServiceVersion` holds the
+collections. Each collection names a query of the same library, and maps the
+columns and parameters of that query to features, geometry, paging,
+`bbox`, `datetime` and queryables. A collection can pin a query version, or
+follow the version of the query in the environment of the deployment.
+
+Saving a version checks each collection against the query that it names. The
+server serves the new version at its next request. OGC services are off by
+default (`FEATURE_OGC`). See
+[Publishing queries as OGC API Features collections](guides/publishing-ogc-collections.md).

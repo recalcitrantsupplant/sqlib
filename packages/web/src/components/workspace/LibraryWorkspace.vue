@@ -399,6 +399,7 @@ const testsEnabled = computed(() => isFeatureEnabled('tests'));
 const dataGraphsEnabled = computed(() => isFeatureEnabled('dataGraphs'));
 const tupleSetsEnabled = computed(() => isFeatureEnabled('tupleSets'));
 const argumentSetsEnabled = computed(() => isFeatureEnabled('argumentSets'));
+const ogcEnabled = computed(() => isFeatureEnabled('ogc'));
 const etlEnabled = computed(() => isFeatureEnabled('etl'));
 const backendsEnabled = computed(() => isFeatureEnabled('backends'));
 /*
@@ -421,6 +422,7 @@ const featureKeyByItemType: Record<SectionItemType, FeatureFlagKey> = {
   dataGraph: 'dataGraphs',
   tupleSet: 'tupleSets',
   argumentSet: 'argumentSets',
+  ogcService: 'ogc',
 };
 
 const isItemFeatureEnabled = (type: ItemType): boolean => {
@@ -449,6 +451,7 @@ const selectedTestId = ref<string | null>(null);
 const selectedDataGraphId = ref<string | null>(null);
 const selectedTupleSetId = ref<string | null>(null);
 const selectedArgumentSetId = ref<string | null>(null);
+const selectedOgcServiceId = ref<string | null>(null);
 const sidebarRefreshKey = ref(0);
 const queryVersionNumber = ref<number | null>(null);
 const queryGroupVersionNumber = ref<number | null>(null);
@@ -627,6 +630,7 @@ const openEntity = computed<ChangedEntity | null>(() => {
     test: ['test', selectedTestId.value],
     dataGraph: ['dataGraph', selectedDataGraphId.value],
     argumentSet: ['argumentSet', selectedArgumentSetId.value],
+    ogcService: ['ogcService', selectedOgcServiceId.value],
     etlJob: ['etlJob', selectedEtlJobId.value],
     benchmark: ['benchmarkExperiment', selectedBenchmarkId.value],
   };
@@ -874,6 +878,7 @@ const scratchBySection: Record<DraftSection, ReturnType<typeof useScratchItems>>
   dataGraph: useScratchItems('dataGraph'),
   tupleSet: useScratchItems('tupleSet'),
   argumentSet: useScratchItems('argumentSet'),
+  ogcService: useScratchItems('ogcService'),
   /*
    * Present so the map stays total, and unreachable from here: notebooks are a
    * screen of their own (`/notebook`) with their own list, the way Build is.
@@ -1146,6 +1151,7 @@ const savedSelectionId = computed(() => {
     case 'dataGraph': return selectedDataGraphId.value;
     case 'tupleSet': return selectedTupleSetId.value;
     case 'argumentSet': return selectedArgumentSetId.value;
+    case 'ogcService': return selectedOgcServiceId.value;
     default: return null;
   }
 });
@@ -1208,6 +1214,7 @@ function clearEntitySelection() {
   selectedDataGraphId.value = null;
   selectedTupleSetId.value = null;
   selectedArgumentSetId.value = null;
+  selectedOgcServiceId.value = null;
   selectedScratchId.value = null;
   creationRequest.value = null;
 }
@@ -1253,6 +1260,7 @@ function selectSavedItem(kind: SectionItemType, id: string) {
     case 'dataGraph': selectedDataGraphId.value = id; break;
     case 'tupleSet': selectedTupleSetId.value = id; break;
     case 'argumentSet': selectedArgumentSetId.value = id; break;
+    case 'ogcService': selectedOgcServiceId.value = id; break;
   }
 }
 

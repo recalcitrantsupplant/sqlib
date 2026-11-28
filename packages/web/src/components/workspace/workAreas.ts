@@ -26,6 +26,7 @@ import DataGraphWorkArea from '../DataGraphWorkArea.vue';
 import TupleSetWorkArea from '../TupleSetWorkArea.vue';
 import ArgumentSetWorkArea from '../ArgumentSetWorkArea.vue';
 import TestWorkArea from '../TestWorkArea.vue';
+import OgcServiceWorkArea from '../OgcServiceWorkArea.vue';
 
 type Handler = (...args: never[]) => unknown;
 
@@ -91,6 +92,10 @@ export const WORK_AREAS: Record<SectionItemType, WorkAreaEntry> = {
   argumentSet: {
     component: ArgumentSetWorkArea, feature: 'argumentSets', draftSection: 'argumentSet', idProp: 'argumentSetId', savedKey: 'argument-set',
     deletedEvent: 'argument-set-deleted',
+  },
+  ogcService: {
+    component: OgcServiceWorkArea, feature: 'ogc', draftSection: 'ogcService', idProp: 'ogcServiceId', savedKey: 'ogc-service',
+    deletedEvent: 'ogc-service-deleted',
   },
   test: {
     component: TestWorkArea, feature: 'tests', draftSection: 'test', idProp: 'testId', savedKey: 'test',

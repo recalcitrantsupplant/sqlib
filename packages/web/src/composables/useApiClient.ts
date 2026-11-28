@@ -129,6 +129,13 @@ import {
   type NotebookCreateInput,
   type NotebookUpdateInput,
   type NotebookVersion,
+  ogcServiceSchema,
+  ogcServiceCreateSchema,
+  ogcServiceUpdateSchema,
+  ogcServiceVersionSchema,
+  type OgcServiceCreate,
+  type OgcServiceUpdate,
+  type OgcServiceVersion,
   tupleSetSchema,
   tupleSetCreateSchema,
   tupleSetUpdateSchema,
@@ -344,7 +351,19 @@ export interface ListPageParams {
 }
 
 /** The kinds the rail pages from the server (#197). */
-export type PagedKind = 'query' | 'queryGroup' | 'ruleSet' | 'benchmark' | 'dataGraph' | 'tupleSet' | 'argumentSet';
+export type PagedKind = 'query' | 'queryGroup' | 'ruleSet' | 'benchmark' | 'dataGraph' | 'tupleSet' | 'argumentSet' | 'ogcService';
+
+/**
+ * An OGC service as the API presents it: the entity, plus `problems`, one line
+ * for each collection of the served version that is left out.
+ */
+export const ogcServiceResponseSchema = ogcServiceSchema.extend({
+  problems: z.array(z.string()).default([]),
+});
+export type OgcServiceRecord = z.infer<typeof ogcServiceResponseSchema>;
+export type { OgcServiceVersion };
+/** One collection of an OGC service version. */
+export type OgcServiceCollection = OgcServiceVersion['collections'][number];
 
 /** The fields every paged row has. */
 export interface PagedEntity {
@@ -854,7 +873,7 @@ export type GraphPolicySummary = z.infer<typeof graphPolicySummarySchema>;
 const SHARED_LISTS = new Set([
   'argument-sets', 'backends', 'benchmark-experiments', 'data-blocks', 'data-graphs',
   'environments', 'etl-jobs', 'libraries', 'notebooks', 'queries', 'query-groups',
-  'rule-sets', 'rules', 'tags', 'tests', 'tuple-sets',
+  'rule-sets', 'rules', 'tags', 'tests', 'tuple-sets', 'ogc-services',
 ]);
 
 function isSharedList(input: RequestInfo | URL): boolean {
@@ -2018,6 +2037,93 @@ export function useApiClient() {
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
       notebookVersionSchema.parse,
     );
+
+  /*
+   * OGC services — queries of the library served as OGC API Features
+   * collections at `/ogc/{slug}`. A version holds the collections; saving one
+   * is checked against the queries it names, and a 400 says which field.
+   */
+  const ensureOgcEnabled = () => ensureFeatureEnabled('ogc');
+
+  const listOgcServices = (filter?: LibraryFilter) => {
+    ensureOgcEnabled();
+    return requestData(
+      buildUrl(`/ogc-services${libraryFilterQuery(filter)}`),
+      { method: 'GET' },
+      (payload) => ogcServiceResponseSchema.array().parse(payload),
+    );
+  };
+
+  const getOgcService = (id: string) => {
+    ensureOgcEnabled();
+    return request(buildUrl(`/ogc-services/${encodeURIComponent(id)}`), { method: 'GET' }, ogcServiceResponseSchema.parse);
+  };
+
+  const createOgcService = (input: OgcServiceCreate) => {
+    ensureOgcEnabled();
+    return request(
+      buildUrl('/ogc-services'),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(ogcServiceCreateSchema.parse(input)) },
+      ogcServiceResponseSchema.parse,
+    );
+  };
+
+  const updateOgcService = (id: string, input: OgcServiceUpdate, options?: { ifMatch?: string | null }) => {
+    ensureOgcEnabled();
+    const headers: Record<string, string> = { ...JSON_HEADERS };
+    applyIfMatchHeader(headers, options?.ifMatch ?? null);
+    return request(
+      buildUrl(`/ogc-services/${encodeURIComponent(id)}`),
+      { method: 'PUT', headers, body: JSON.stringify(ogcServiceUpdateSchema.parse(input)) },
+      ogcServiceResponseSchema.parse,
+    );
+  };
+
+  const deleteOgcService = async (id: string) => {
+    ensureOgcEnabled();
+    await requestData(buildUrl(`/ogc-services/${encodeURIComponent(id)}`), { method: 'DELETE' });
+    return true;
+  };
+
+  const listOgcServiceVersions = (id: string) => {
+    ensureOgcEnabled();
+    return requestData(
+      buildUrl(`/ogc-services/${encodeURIComponent(id)}/versions`),
+      { method: 'GET' },
+      (payload) => ogcServiceVersionSchema.array().parse(payload),
+    );
+  };
+
+  const getOgcServiceVersion = (id: string, version: number | string) => {
+    ensureOgcEnabled();
+    return request(
+      buildUrl(`/ogc-services/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(version))}`),
+      { method: 'GET' },
+      ogcServiceVersionSchema.parse,
+    );
+  };
+
+  const createOgcServiceVersion = (
+    id: string,
+    input: { collections: OgcServiceCollection[]; comment?: string | null },
+  ) => {
+    ensureOgcEnabled();
+    return request(
+      buildUrl(`/ogc-services/${encodeURIComponent(id)}/versions`),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      ogcServiceVersionSchema.parse,
+    );
+  };
+
+  /** The note on an OGC service version; its collections are immutable. */
+  const annotateOgcServiceVersion = (id: string, version: number | string, comment: string | null) => {
+    ensureOgcEnabled();
+    return request(
+      buildUrl(`/ogc-services/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(version))}`),
+      { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ comment }) },
+      ogcServiceVersionSchema.parse,
+    );
+  };
 
   /*
    * Data graphs — the input a rule set runs against, distinct from its DATA
@@ -3562,6 +3668,7 @@ export function useApiClient() {
     dataGraph: { path: () => '/data-graphs', parse: (payload) => dataGraphSchema.array().parse(payload) },
     tupleSet: { path: () => '/tuple-sets', parse: (payload) => tupleSetSchema.array().parse(payload) },
     argumentSet: { path: () => '/argument-sets', parse: (payload) => z.array(argumentSetSummarySchema).parse(payload) },
+    ogcService: { path: () => '/ogc-services', parse: (payload) => ogcServiceResponseSchema.array().parse(payload) },
   };
 
   /**
@@ -3712,6 +3819,15 @@ export function useApiClient() {
     listNotebookVersions,
     getNotebookVersion,
     createNotebookVersion,
+    listOgcServices,
+    getOgcService,
+    createOgcService,
+    updateOgcService,
+    deleteOgcService,
+    listOgcServiceVersions,
+    getOgcServiceVersion,
+    createOgcServiceVersion,
+    annotateOgcServiceVersion,
     listDataGraphs,
     getDataGraph,
     createDataGraph,

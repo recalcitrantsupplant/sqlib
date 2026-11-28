@@ -36,7 +36,7 @@ const DEFAULT_KIND: DraftKind = 'draft';
 const DEFAULT_SECTION: DraftSection = 'query';
 
 export type DraftKind = 'draft' | 'scratch';
-export type DraftSection = 'query' | 'group' | 'rule' | 'etl' | 'bench' | 'test' | 'dataGraph' | 'tupleSet' | 'argumentSet' | 'notebook';
+export type DraftSection = 'query' | 'group' | 'rule' | 'etl' | 'bench' | 'test' | 'dataGraph' | 'tupleSet' | 'argumentSet' | 'notebook' | 'ogcService';
 
 /** Every draft section, for enumeration. See `exhaustiveDomain.ts`. */
 export const DRAFT_SECTIONS = [
@@ -48,6 +48,7 @@ export const DRAFT_SECTIONS = [
    * (`lib/notebookFormat.ts`).
    */
   'notebook',
+  'ogcService',
 ] as const satisfies readonly DraftSection[];
 
 export const _draftSectionsCover: Covers<DraftSection, (typeof DRAFT_SECTIONS)[number]> = true;

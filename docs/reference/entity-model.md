@@ -33,6 +33,7 @@ content.
 | `TupleSet` | `TupleSetVersion` | A table of RDF terms, as a SPARQL Results JSON document |
 | `Notebook` | `NotebookVersion` | Prose and cells over the entities of the library, as a `sqlib-notebook/1` JSON document |
 | `ArgumentSet` | `ArgumentSetVersion` | The input for one call of a callable |
+| `OgcService` | `OgcServiceVersion` | The OGC API Features collections served at `/ogc/{slug}`, each mapped from a query of the library |
 | `Test` | `TestVersion` | A callable, its inputs, and the expected result |
 | `BenchmarkExperiment` | `BenchmarkExperimentVersion` | A measurement plan: subjects, backends, repeats, timing policy |
 | `EtlJob` | `EtlJobVersion` | DuckDB SQL and a SPARQL template that builds RDF from its rows |

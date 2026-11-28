@@ -26,6 +26,7 @@ import {
   Table2,
   Server,
   ShieldCheck,
+  Map as MapIcon,
 } from '@lucide/vue';
 import type { FeatureFlagKey } from '@sparql-query-lib/types';
 import type { RailSection } from './railSections';
@@ -61,6 +62,7 @@ export const RAIL_ENTRIES: RailEntry[] = [
   { section: 'notebooks', label: 'Notebook', title: 'Notebook — prose and cells you write, run in order, with each result named', icon: NotebookPen, feature: 'notebook' },
   { section: 'queries', label: 'Query', title: 'Queries', icon: FileCode2, feature: 'queries' },
   { section: 'queryGroups', label: 'Groups', title: 'Query groups', icon: Workflow, feature: 'queryGroups' },
+  { section: 'ogcServices', label: 'OGC', title: 'OGC services — queries published as OGC API Features collections', icon: MapIcon, feature: 'ogc' },
   { section: 'rules', label: 'Rules', title: 'Rules, data blocks and rule sets', icon: Scale, feature: 'rulesSuite' },
   { section: 'etl', label: 'ETL', title: 'ETL', icon: GitFork, feature: 'playgroundEtl' },
   { section: 'benchmarks', label: 'Bench', title: 'Benchmarks', icon: Gauge, feature: 'benchmarks' },

@@ -24,6 +24,7 @@ import { useTestsStore } from './useTestsStore';
 import { useDataGraphsStore } from './useDataGraphsStore';
 import { useTupleSetsStore } from './useTupleSetsStore';
 import { useArgumentSetsStore } from './useArgumentSetsStore';
+import { useOgcServicesStore } from './useOgcServicesStore';
 import type { SectionItemType } from '../lib/sections';
 
 /**
@@ -57,6 +58,7 @@ export function useEntityKinds() {
   const dataGraphsStore = useDataGraphsStore();
   const tupleSetsStore = useTupleSetsStore();
   const argumentSetsStore = useArgumentSetsStore();
+  const ogcServicesStore = useOgcServicesStore();
 
   /** Every saved entity of one kind, whatever library it is in. */
   function entitiesOfKind(type: SectionItemType): KindEntity[] {
@@ -72,6 +74,7 @@ export function useEntityKinds() {
       case 'dataGraph': return dataGraphsStore.dataGraphs.value;
       case 'tupleSet': return tupleSetsStore.tupleSets.value;
       case 'argumentSet': return argumentSetsStore.argumentSets.value as unknown as KindEntity[];
+      case 'ogcService': return ogcServicesStore.ogcServices.value;
       default: return [];
     }
   }
@@ -90,6 +93,7 @@ export function useEntityKinds() {
       // Library-scoped by construction: an argument set outside a library is
       // addressable by no screen, so an unscoped listing has nothing to show.
       case 'argumentSet': return argumentSetsStore.loadArgumentSets({ library: options.library ?? null });
+      case 'ogcService': return ogcServicesStore.loadOgcServices();
       default: return Promise.resolve();
     }
   }

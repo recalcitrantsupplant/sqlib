@@ -27,6 +27,7 @@
  * left the rule-set editor stale with a stale etag.
  */
 import { useArgumentSetsStore } from './useArgumentSetsStore';
+import { useOgcServicesStore } from './useOgcServicesStore';
 import { useBackendsStore } from './useBackendsStore';
 import { useBenchmarksStore } from './useBenchmarksStore';
 import { useDataGraphsStore } from './useDataGraphsStore';
@@ -105,6 +106,10 @@ export const ENTITY_REFRESHERS: Record<string, (context: RefreshContext) => Enti
       reload: libraryId ? () => store.loadArgumentSets({ library: libraryId }) : undefined,
       refreshOne: store.loadVersions,
     };
+  },
+  ogcService: () => {
+    const store = useOgcServicesStore();
+    return { reload: store.loadOgcServices, refreshOne: store.getOgcService };
   },
   backend: () => {
     const store = useBackendsStore();

@@ -73,6 +73,7 @@ export const LEGACY_ITEM_PARAMS: Record<string, SectionItemType> = {
   dataGraph: 'dataGraph',
   tupleSet: 'tupleSet',
   argumentSet: 'argumentSet',
+  ogcService: 'ogcService',
 };
 
 /** Old `?playground=` links, to the section that absorbed each one. */
