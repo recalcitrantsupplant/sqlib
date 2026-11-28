@@ -193,6 +193,11 @@ button.icon[aria-pressed="true"] { color: var(--accent); }
 .tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
 .tabs button[hidden] { display: none; }
 .inspect-actions { display: flex; align-items: center; gap: 2px; }
+.segmented { display: inline-flex; margin-right: 6px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.segmented[hidden] { display: none; }
+.segmented button { border: 0; border-radius: 0; padding: 2px 8px; font-size: 12px; color: var(--muted); background: transparent; }
+.segmented button + button { border-left: 1px solid var(--line); }
+.segmented button[aria-pressed="true"] { background: var(--line); color: var(--text); }
 #inspect-code { flex: 1; min-height: 0; overflow: auto; background: var(--bg); }
 #inspect-code .cm-editor { font-size: 12px; min-height: 100%; }
 #inspect-code .cm-scroller { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }

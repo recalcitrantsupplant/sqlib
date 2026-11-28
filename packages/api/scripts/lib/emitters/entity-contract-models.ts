@@ -170,6 +170,11 @@ export const ENTITY_CONTRACT_MODELS: EntityContractModel[] = [
     // on the version.
   },
   {
+    entityName: 'OgcService',
+    varName: 'ogcService',
+    schemaId: 'ogcservice',
+  },
+  {
     entityName: 'Tag',
     varName: 'tag',
     schemaId: 'tag',

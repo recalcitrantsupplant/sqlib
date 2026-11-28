@@ -3,7 +3,7 @@
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 
-import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, browserdefaultdatagraphSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, environmentSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, notebookSchema, notebookversionSchema, offsetparameterSchema, patchnodeSchema, patchSchema, pointermoveSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, removalSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
+import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, browserdefaultdatagraphSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, environmentSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, notebookSchema, notebookversionSchema, offsetparameterSchema, ogcserviceSchema, ogcserviceversionSchema, patchnodeSchema, patchSchema, pointermoveSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, removalSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
 
 // Route Validation Schemas
 
@@ -3592,6 +3592,171 @@ export const updateNotebookSchema = {
   "response": {
     "200": {
       "$ref": "notebook#"
+    },
+    "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "404": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "422": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "500": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+} as const;
+
+// Route schemas for OgcService
+export const createOgcServiceSchema = {
+  "tags": [
+    "OgcService"
+  ],
+  "summary": "Create new ogcservice",
+  "body": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": {
+        "type": "string",
+        "nullable": true
+      },
+      "slug": {
+        "type": "string",
+        "minLength": 1
+      },
+      "currentVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "iri"
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "name",
+      "slug",
+      "isPartOf"
+    ],
+    "additionalProperties": false
+  },
+  "response": {
+    "201": {
+      "$ref": "ogcservice#"
+    },
+    "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "422": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "500": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+} as const;
+
+export const updateOgcServiceSchema = {
+  "tags": [
+    "OgcService"
+  ],
+  "summary": "Update ogcservice",
+  "params": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  },
+  "body": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": {
+        "type": "string",
+        "nullable": true
+      },
+      "slug": {
+        "type": "string",
+        "minLength": 1
+      },
+      "currentVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "iri"
+        },
+        "minItems": 1
+      }
+    },
+    "additionalProperties": false,
+    "minProperties": 1
+  },
+  "response": {
+    "200": {
+      "$ref": "ogcservice#"
     },
     "400": {
       "type": "object",

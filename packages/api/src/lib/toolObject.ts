@@ -143,29 +143,22 @@ export function groupInputs(options: {
 type StoredOgc = OgcObject | null | undefined;
 
 /**
- * The `ogc` object the new query version stores: the body's, else the
- * previous version's. `undefined` stores none. Checked against what the
- * version's text declares and returns, so a collection never breaks silently
- * at the next start. See `docs/proposals/ogc-api-features.md`.
+ * The `ogc` object a new query version stores: none. A collection is now
+ * configured on an OGC service (`/ogc-services`, `docs/proposals/ogc-services.md`),
+ * so a body that sends an `ogc` object is refused with a message that says
+ * where it goes, and an older version's object is not copied forward.
+ * `"ogc": null` is accepted, so a client that clears it still saves.
  */
 export function resolveVersionOgc(options: {
   body: Record<string, unknown>;
   previous: { version?: number | null; ogc?: StoredOgc } | null | undefined;
-  /** What the version's text declares and returns, or null when it does not parse. */
   context: OgcCheckContext | null;
 }): OgcObject | undefined {
-  const { body, previous, context } = options;
-  const sent = Object.prototype.hasOwnProperty.call(body, 'ogc');
-  const ogc: StoredOgc = sent ? (body.ogc as StoredOgc) : previous?.ogc;
-  if (ogc === undefined || ogc === null) return undefined;
-  const problem = context ? checkOgcObject(ogc, context) : 'ogc: the query text does not parse';
-  if (problem) {
+  const sent = options.body.ogc;
+  if (sent !== undefined && sent !== null) {
     throw new ToolObjectError(
-      sent
-        ? problem
-        : `${problem}. The ogc object was copied from version ${previous?.version ?? 'the previous version'}; ` +
-            'send a corrected ogc object, or "ogc": null, with the new text.',
+      'ogc: a query version no longer carries an OGC collection. Add the query to an OGC service (/ogc-services) instead.',
     );
   }
-  return ogc;
+  return undefined;
 }

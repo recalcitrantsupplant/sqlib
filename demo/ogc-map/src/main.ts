@@ -28,6 +28,8 @@ interface CollectionState {
   page: ItemsPage | null;
   error: string | null;
   sparqlHref: string | null;
+  /** The collection's JSON-LD context, when it has one. */
+  jsonLdContext: unknown;
   sparql: string | null;
   facets: Facet[];
   chosen: Record<string, Array<string | number | boolean>>;
@@ -101,6 +103,11 @@ async function start(): Promise<void> {
     // ogc-client drops the collection's links, so read them from the document.
     const docs = await Promise.all(ids.map(id => readJson<{ links?: Link[] }>(`${source.url.replace(/\/+$/, '')}/collections/${encodeURIComponent(id)}`)));
     // ogc-client keeps only each queryable's name and type, so read the values from the document.
+    // A collection with JSON-LD terms links its context; the Result tab can show the page as GeoJSON-LD.
+    const contexts = await Promise.all(docs.map(doc => {
+      const href = linkHref(doc?.links, 'http://www.w3.org/ns/json-ld#context', source.url);
+      return href ? readJson<{ '@context'?: unknown }>(href).then(body => body?.['@context'] ?? null) : Promise.resolve(null);
+    }));
     const queryableDocs = await Promise.all(docs.map(doc => {
       const href = linkHref(doc?.links, 'http://www.opengis.net/def/rel/ogc/1.0/queryables', source.url);
       return href ? readJson<Parameters<typeof facetsOf>[0]>(href) : Promise.resolve(null);
@@ -116,6 +123,7 @@ async function start(): Promise<void> {
         page: null,
         error: null,
         sparqlHref: linkHref(docs[index]?.links, 'describedby', source.url),
+        jsonLdContext: contexts[index] ?? null,
         sparql: null,
         facets: facetsOf(queryableDocs[index] ?? null),
         chosen: {},
@@ -356,7 +364,7 @@ function renderQueryables(): void {
 
 function renderFeatures(): void {
   const state = current();
-  showInspect(state?.page ? { query: state.sparql, result: state.page } : null);
+  showInspect(state?.page ? { query: state.sparql, result: state.page, context: state.jsonLdContext } : null);
   $('features-section').hidden = !state;
   const body = $('features');
   if (!state) return body.replaceChildren();

@@ -6,6 +6,10 @@
  * a collapse toggle beside the tabs, a drag edge on the left that a
  * double-click resets, and lines wrapped by default. The width, the collapsed
  * state and the wrap setting are kept in this browser.
+ *
+ * When the collection has a JSON-LD context (its `http://www.w3.org/ns/json-ld#context`
+ * link), the Result tab can show the page as GeoJSON-LD: the same document
+ * with that context in place, which is how a JSON-LD processor reads it.
  */
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -43,8 +47,11 @@ interface Prefs {
   wrap: boolean;
 }
 
+type Format = 'geojson' | 'jsonld';
+
 let tab: Tab = 'query';
-let texts: Record<Tab, string> = { query: '', result: '' };
+let format: Format = 'geojson';
+let content: { query: string | null; result: unknown; context: unknown } = { query: null, result: null, context: null };
 let view: EditorView | null = null;
 const wrapping = new Compartment();
 let prefs: Prefs = readPrefs();
@@ -94,10 +101,22 @@ function applyLayout(): void {
   onLayout();
 }
 
+/** The text of the open tab, in the chosen format. */
+function text(): string {
+  if (tab === 'query') return content.query ?? '';
+  if (content.result === null) return '';
+  const document = format === 'jsonld' && content.context
+    ? { '@context': content.context, ...(content.result as Record<string, unknown>) }
+    : content.result;
+  return JSON.stringify(document, null, 2);
+}
+
 function render(): void {
   for (const name of ['query', 'result'] as const) $(`tab-${name}`).setAttribute('aria-selected', String(name === tab));
+  $('result-format').hidden = tab !== 'result' || !content.context;
+  for (const name of ['geojson', 'jsonld'] as const) $(`format-${name}`).setAttribute('aria-pressed', String(name === format));
   const state = EditorState.create({
-    doc: texts[tab],
+    doc: text(),
     extensions: [
       LANGUAGES[tab](),
       syntaxHighlighting(defaultHighlightStyle),
@@ -139,7 +158,7 @@ function startResize(event: PointerEvent): void {
 async function copy(): Promise<void> {
   const button = $('inspect-copy');
   try {
-    await navigator.clipboard.writeText(texts[tab]);
+    await navigator.clipboard.writeText(text());
     button.innerHTML = ICONS.copied;
     button.title = 'Copied';
   } catch {
@@ -178,6 +197,12 @@ export function initInspect(hasQuery: boolean, layoutChanged: () => void): void 
     view?.dispatch({ effects: wrapping.reconfigure(prefs.wrap ? EditorView.lineWrapping : []) });
     applyLayout();
   };
+  for (const name of ['geojson', 'jsonld'] as const) {
+    $(`format-${name}`).onclick = () => {
+      format = name;
+      render();
+    };
+  }
   $('inspect-copy').innerHTML = ICONS.copy;
   $('inspect-copy').onclick = () => void copy();
   const resizer = $('inspect-resizer');
@@ -192,13 +217,13 @@ export function initInspect(hasQuery: boolean, layoutChanged: () => void): void 
 }
 
 /** Show a page's query and result. Null hides the panel. */
-export function showInspect(content: { query: string | null; result: unknown } | null): void {
+export function showInspect(next: { query: string | null; result: unknown; context?: unknown } | null): void {
   const panel = $('inspect');
   const wasHidden = panel.hidden;
-  panel.hidden = content === null;
-  document.body.classList.toggle('inspecting', content !== null);
+  panel.hidden = next === null;
+  document.body.classList.toggle('inspecting', next !== null);
   if (wasHidden !== panel.hidden) onLayout();
-  if (!content) return;
-  texts = { query: content.query ?? '', result: content.result === null ? '' : JSON.stringify(content.result, null, 2) };
+  if (!next) return;
+  content = { query: next.query, result: next.result, context: next.context ?? null };
   render();
 }

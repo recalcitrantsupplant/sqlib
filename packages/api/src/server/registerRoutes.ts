@@ -95,6 +95,12 @@ export async function registerApplicationRoutes(
     await fastifyApp.register(notebookRoutes, { prefix: '/notebooks' });
   }
 
+  // The OGC API Features services, served at `/ogc/{slug}` (`server/ogcRoutes.ts`).
+  if (featureFlags.ogc) {
+    const ogcServiceRoutes = (await import('../routes/ogc-services.js')).default;
+    await fastifyApp.register(ogcServiceRoutes, { prefix: '/ogc-services' });
+  }
+
   // Unflagged again, and for a reason of its own: a patch is not a library
   // feature but a *backend* one. Preview is how an agent-driven write is made
   // reviewable, and the log is how any write is made auditable, so gating it on

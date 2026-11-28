@@ -2,10 +2,10 @@
  * OGC API Features, against a real API instance
  * (`docs/proposals/ogc-api-features.md`).
  *
- * The first instance is the author's: it saves a query version with an `ogc`
- * object, which is where the object is checked and carried forward. The
- * collections are collected when a server starts, so a second instance, with
- * `FEATURE_OGC=true`, is the one that serves them.
+ * The first instance is the author's: it saves the query, and an OGC service
+ * (`docs/proposals/ogc-services.md`) whose version is checked against it, and
+ * serves the service without a restart. A second instance, started after,
+ * serves the same collections from the store.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -144,22 +144,60 @@ describe('OGC API Features, against a real API instance', () => {
     }
   });
 
-  it('checks the ogc object when the version is saved, naming the key', async () => {
-    const wrong = await saveVersion(ids.query, { queryString: BUILDINGS, ogc: { ...OGC, params: { ...OGC.params, limit: '7' } } });
-    expect(wrong.status).toBe(400);
-    expect(wrong.body.error).toContain('ogc.params.limit');
+  const CONTEXT = {
+    name: { '@id': 'https://example.org/ns#name' },
+    height: { '@id': 'https://example.org/ns#height', '@type': 'http://www.w3.org/2001/XMLSchema#integer' },
+  };
+
+  it('refuses an ogc object on a query version, and names the OGC services', async () => {
+    const refused = await saveVersion(ids.query, { queryString: BUILDINGS, ogc: OGC });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toContain('/ogc-services');
+    const saved = await saveVersion(ids.query, { queryString: BUILDINGS });
+    expect(saved.status).toBe(201);
   });
 
-  it('stores the ogc object, and carries it to a version that sends none', async () => {
-    const first = await saveVersion(ids.query, { queryString: BUILDINGS, ogc: OGC });
-    expect(first.status).toBe(201);
-    expect(first.body.queryVersion.ogc).toEqual(OGC);
-    const second = await saveVersion(ids.query, { queryString: BUILDINGS.replace('ORDER BY ?feature', 'ORDER BY ?feature ?name') });
-    expect(second.status).toBe(201);
-    expect(second.body.queryVersion.ogc).toEqual(OGC);
-    const dropped = await saveVersion(ids.query, { queryString: BUILDINGS.replace('LIMIT 0001', 'LIMIT 5') });
-    expect(dropped.status).toBe(400);
-    expect(dropped.body.error).toMatch(/ogc\.params\.limit.*copied from version 2/);
+  it('checks the slug of a new service', async () => {
+    const wrong = await send(author, 'POST', '/ogc-services', { name: 'Survey', slug: 'Survey Data', isPartOf: [ids.library] });
+    expect(wrong.status).toBe(400);
+    const service = await send(author, 'POST', '/ogc-services', { name: 'Survey', description: 'Survey data.', slug: 'survey', isPartOf: [ids.library] });
+    expect(service.status).toBe(201);
+    expect(service.body).toMatchObject({ slug: 'survey', problems: [] });
+    ids.service = service.body.id;
+    const clash = await send(author, 'POST', '/ogc-services', { name: 'Again', slug: 'survey', isPartOf: [ids.library] });
+    expect(clash.status).toBe(409);
+  });
+
+  it('checks each collection against its query when a service version is saved, naming the key', async () => {
+    const version = (collections: Json) => send(author, 'POST', `/ogc-services/${encodeURIComponent(ids.service)}/versions`, { collections });
+    const wrongLimit = await version([{ query: ids.query, ...OGC, params: { ...OGC.params, limit: '7' } }]);
+    expect(wrongLimit.status).toBe(400);
+    expect(wrongLimit.body.error).toContain('ogc.params.limit');
+    const wrongTerm = await version([{ query: ids.query, ...OGC, context: { colour: { '@id': 'https://example.org/ns#colour' } } }]);
+    expect(wrongTerm.status).toBe(400);
+    expect(wrongTerm.body.error).toContain('context.colour');
+    const saved = await version([{ query: ids.query, ...OGC, context: CONTEXT }]);
+    expect(saved.status).toBe(201);
+    expect(saved.body.collections[0]).toMatchObject({ query: ids.query, collectionId: 'buildings' });
+  });
+
+  it('serves a saved service without a restart, with its JSON-LD context', async () => {
+    const collections = await send(author, 'GET', '/ogc/survey/collections');
+    expect(collections.status).toBe(200);
+    expect(collections.body.collections.map((c: { id: string }) => c.id)).toEqual(['buildings']);
+    const links = collections.body.collections[0].links as Array<{ rel: string; href: string }>;
+    expect(links.find(l => l.rel === 'http://www.w3.org/ns/json-ld#context')?.href).toBe(
+      'https://maps.example.org/ogc/survey/collections/buildings/context.jsonld',
+    );
+    const items = await send(author, 'GET', '/ogc/survey/collections/buildings/items?limit=1');
+    expect(items.status).toBe(200);
+    expect(items.headers.link).toBe(
+      '<https://maps.example.org/ogc/survey/collections/buildings/context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
+    );
+    const context = await send(author, 'GET', '/ogc/survey/collections/buildings/context.jsonld');
+    expect(context.status).toBe(200);
+    expect(context.headers['content-type']).toContain('application/ld+json');
+    expect(context.body['@context']).toMatchObject({ '@base': 'https://example.org/building/', id: '@id', properties: '@nest', ...CONTEXT });
   });
 
   describe('a server started after the collection was saved', () => {

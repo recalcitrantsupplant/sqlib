@@ -1,6 +1,8 @@
 # OGC API Features: a GeoJSON serializer and an OGC route plugin
 
-Status: proposal. Written 2026-11-03 against `main` at `91effb2`. This is
+Status: proposal. Written 2026-11-03 against `main` at `91effb2`. How a
+collection is configured, an `ogc` object on the query version with one
+service per library, is replaced by [ogc-services.md](ogc-services.md). This is
 the detailed design for **option D** of the options paper
 "OGC API Features on sqlib" (2026-11-03): a GeoJSON serializer in a shared
 package, and a thin OGC API Features plugin in the API that sits on top of it.

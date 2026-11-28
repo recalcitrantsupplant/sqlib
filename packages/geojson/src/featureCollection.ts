@@ -157,6 +157,7 @@ export function toFeatureCollection(results: SelectResults, options: GeoJsonOpti
   const idVar = findIdVar(results, options, geometryVars);
   const omit = new Set([...(options.omitVars ?? []), ...geometryVars, ...(idVar ? [idVar] : [])]);
   const propertyVars = results.head.vars.filter(name => !omit.has(name));
+  const lexical = new Set(options.lexicalVars ?? []);
 
   const features: Feature[] = [];
   try {
@@ -172,7 +173,7 @@ export function toFeatureCollection(results: SelectResults, options: GeoJsonOpti
       const properties: Record<string, JsonValue> = {};
       for (const name of propertyVars) {
         const term = binding[name];
-        if (term) properties[name] = propertyValue(term);
+        if (term) properties[name] = lexical.has(name) && term.type !== 'bnode' ? term.value : propertyValue(term);
       }
 
       const feature: Feature = { type: 'Feature', geometry, properties };

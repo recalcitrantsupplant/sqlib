@@ -43,9 +43,8 @@ const option = (name, fallback) => {
  */
 const etlDir = option('etl-dir', process.env.DEMO_ETL_DIR || '/opt/sqlib-demo/etl');
 const issuer = option('issuer', process.env.DEMO_ISSUER || 'urn:sqlib:demo');
-// A query's `ogcFile` is the OGC API Features collection it serves as. sqlib
-// takes the version's `ogc` object only from the revision with the OGC routes
-// (sqlib#144), so it is sent only when asked for.
+// The manifest's `ogcServices` are seeded only when asked for, because only a
+// sqlib with OGC services (`/ogc-services`) takes them.
 const withOgc = process.argv.includes('--ogc') || process.env.DEMO_OGC === 'true';
 // The demo's own Fuseki, for a backend endpoint written `{{fuseki}}/...`.
 const fuseki = option('fuseki', process.env.DEMO_FUSEKI_URL || '').replace(/\/$/, '');
@@ -340,13 +339,31 @@ for (const query of manifest.queries ?? []) {
       queryString: text(query.file),
       comment: query.comment,
       ...(query.tool !== undefined ? { tool: query.tool } : {}),
-      ...(withOgc && query.ogcFile ? { ogc: JSON.parse(text(query.ogcFile)) } : {}),
     },
     // A parameter the query must be given, named by its variables.
     ...(query.inputPolicies ? { inputPolicies: query.inputPolicies } : {}),
   });
   queryVersions.set(query.id, current);
   tally('query', 'queries');
+}
+
+// 6c. OGC services. Each collection file is a collection of the service: the
+//     query it runs, the `ogc` mapping, and the JSON-LD terms. A service is
+//     served at `/ogc/{slug}`.
+for (const service of withOgc ? manifest.ogcServices ?? [] : []) {
+  actAs(service.author);
+  const created = await call('POST', '/ogc-services', {
+    ...(service.id ? { id: service.id } : {}),
+    name: service.name,
+    description: describe(service),
+    slug: service.slug,
+    isPartOf: [libraryId],
+  });
+  await call('POST', `/ogc-services/${encodeURIComponent(created.id)}/versions`, {
+    collections: service.collections.map(file => JSON.parse(text(file))),
+    ...(service.comment ? { comment: service.comment } : {}),
+  });
+  tally('OGC service');
 }
 
 // 6a. A backend's graph policy: a policy query, pinned at its current version,

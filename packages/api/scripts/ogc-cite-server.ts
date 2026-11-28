@@ -63,10 +63,11 @@ async function main() {
   });
   const query = await call(author, 'POST', '/queries', { name: 'Buildings', isPartOf: [library.id], defaultBackend: backend.id });
   await call(author, 'POST', `/queries/${encodeURIComponent(query.id!)}/versions`, {
-    queryVersion: {
-      queryString: await fs.readFile(path.join(examples, 'buildings.rq'), 'utf8'),
-      ogc: JSON.parse(await fs.readFile(path.join(examples, 'buildings.ogc.json'), 'utf8')),
-    },
+    queryVersion: { queryString: await fs.readFile(path.join(examples, 'buildings.rq'), 'utf8') },
+  });
+  const service = await call(author, 'POST', '/ogc-services', { name: 'Survey', description: 'The OGC starter set.', slug: 'survey', isPartOf: [library.id] });
+  await call(author, 'POST', `/ogc-services/${encodeURIComponent(service.id!)}/versions`, {
+    collections: [{ query: query.id, ...JSON.parse(await fs.readFile(path.join(examples, 'buildings.ogc.json'), 'utf8')) }],
   });
 
   const server = await start();

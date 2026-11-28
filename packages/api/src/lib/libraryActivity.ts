@@ -60,6 +60,7 @@ export const VERSION_TYPES: Partial<Record<EntityTypeName, EntityTypeName>> = {
   Test: 'TestVersion',
   EtlJob: 'EtlJobVersion',
   Notebook: 'NotebookVersion',
+  OgcService: 'OgcServiceVersion',
   BenchmarkExperiment: 'BenchmarkExperimentVersion',
 };
 

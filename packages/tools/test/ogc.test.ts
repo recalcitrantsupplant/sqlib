@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   cqlQueryableValues,
+  checkOgcContext,
+  ogcJsonLdContext,
+  ogcLexicalProperties,
   OgcRequestError,
   checkOgcObject,
   combineCql,
@@ -229,5 +232,29 @@ describe('CQL2-JSON', () => {
     expect(combineCql([])).toBeNull();
     expect(combineCql([filter])).toBe(filter);
     expect(combineCql([1, 2])).toEqual({ op: 'and', args: [1, 2] });
+  });
+});
+
+describe('JSON-LD terms of a collection', () => {
+  const ogc = { collectionId: 'stations', title: 'Stations', mode: 'values' as const, feature: { var: 'feature', base: 'https://example.org/rail/' } };
+  const XSD = 'http://www.w3.org/2001/XMLSchema#';
+
+  it('accepts @id with @type or @language, on properties the collection returns', () => {
+    expect(checkOgcContext(undefined, ['name'])).toBeNull();
+    expect(checkOgcContext({ name: { '@id': 'https://example.org/rail/name', '@language': 'en' }, line: { '@id': 'https://example.org/rail/onLine', '@type': '@id' } }, ['name', 'line'])).toBeNull();
+  });
+
+  it('names the term that is wrong', () => {
+    expect(checkOgcContext({ colour: { '@id': 'https://example.org/rail/colour' } }, ['name'])).toContain('context.colour');
+    expect(checkOgcContext({ name: { '@id': 'name' } }, ['name'])).toContain('context.name.@id');
+    expect(checkOgcContext({ name: { '@id': 'https://x.org/n', '@vocab': 'https://x.org/' } }, ['name'])).toContain('"@vocab" is not allowed');
+    expect(checkOgcContext({ name: { '@id': 'https://x.org/n', '@type': '@id', '@language': 'en' } }, ['name'])).toContain('not both');
+  });
+
+  it('keeps decimals lexical, and builds the served context around the terms', () => {
+    const terms = { price: { '@id': 'https://x.org/price', '@type': `${XSD}decimal` }, zone: { '@id': 'https://x.org/zone', '@type': `${XSD}integer` } };
+    expect(ogcLexicalProperties(terms)).toEqual(['price']);
+    const context = ogcJsonLdContext(ogc, terms)['@context'] as Record<string, unknown>;
+    expect(context).toMatchObject({ '@base': 'https://example.org/rail/', id: '@id', properties: '@nest', links: null, ...terms });
   });
 });

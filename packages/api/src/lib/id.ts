@@ -65,6 +65,8 @@ export const NS = {
   tupleSetVersion: 'urn:sqlib:tuple-set-version:',
   notebook: 'urn:sqlib:notebook:',
   notebookVersion: 'urn:sqlib:notebook-version:',
+  ogcService: 'urn:sqlib:ogc-service:',
+  ogcServiceVersion: 'urn:sqlib:ogc-service-version:',
   // Test runs. `testRun` names two things that are the same thing seen twice:
   // the stored run entity in the library store (issue #179), and the run a
   // report's EARL assertions cite, which lives in whichever backend the caller
@@ -190,6 +192,12 @@ const ALIAS_TO_KIND: Record<string, KnownKind> = {
   'notebook': 'notebook',
   'notebookversion': 'notebookVersion',
   'notebook-version': 'notebookVersion',
+
+  // OGC services
+  'ogcservice': 'ogcService',
+  'ogc-service': 'ogcService',
+  'ogcserviceversion': 'ogcServiceVersion',
+  'ogc-service-version': 'ogcServiceVersion',
 
   // tests
   'test': 'test',

@@ -1,7 +1,8 @@
 # OGC services as library items
 
-Status: proposal. Written 2026-11-28 against `main` at `201d79de`, with
-PR #278 (the map page) at `0c55ccd` in view. It changes how
+Status: built on the branch `claude/ogc-services`, on top of PR #278 (the map
+page and its facets). Written 2026-11-28 against `main` at `201d79de`. The
+open questions were decided on 2026-11-28; see [Decisions](#decisions). It changes how
 [ogc-api-features.md](ogc-api-features.md) configures a service. The
 serializer, the route plugin, the `values` and `cql2` modes, and the auth
 rules of that design stay as they are.
@@ -11,14 +12,14 @@ rules of that design stay as they are.
 An OGC API Features service becomes an item of its own, listed in the rail
 beside queries and query groups. Each item has its own slug, a title, a
 description and a list of collections. A collection names one query and
-holds the mapping that the query version's `ogc` object holds today. The
+holds the mapping that the query version's `ogc` object held before. The
 service is served at `/ogc/{service slug}`, and a library can have any number
-of services.
+of services. A saved service is served at the next request, without a
+restart.
 
-The design also adds basic facets to `values` mode: OR within one queryable,
-AND across queryables. A client sends them as a CQL2 filter or as query
-parameters, and a collection can name a second query that lists the values
-of each queryable.
+A collection can also carry JSON-LD terms for its properties. The service then
+serves a JSON-LD context and names it in a `Link` header on `items`, so a
+JSON-LD processor reads the GeoJSON as RDF.
 
 ## Why
 
@@ -48,6 +49,8 @@ Goals:
   queryables, from a CQL2 filter or from query parameters.
 - A queryables list that can carry each queryable's values, from a query.
 - The current Rail demo URLs keep working after migration.
+- Opt-in JSON-LD terms, so a JSON-LD client gets the property and feature
+  IRIs back from the GeoJSON.
 
 Non-goals:
 
@@ -91,7 +94,7 @@ two keys added:
   "params": { "limit": "1", "offset": "2", "bbox": ["minx", "miny", "maxx", "maxy"], "skipGeometry": "skip" },
   "queryables": {
     "name": { "var": "nameLike", "type": "string", "title": "Name" },
-    "zone": { "var": "zone", "type": "integer", "title": "Zone", "multiple": true }
+    "zone": { "var": "zoneIn", "type": "integer", "title": "Zone" }
   },
   "valuesQuery": "urn:sqlib:query:rail-stations-facets",  // optional, see Facets
   "pageSize": { "default": 10, "max": 100 }
@@ -138,28 +141,20 @@ or a service named `rail/collections`. See question 2.
 
 ## Serving without a restart
 
-Today `loadPublishedCatalogue` (`packages/api/src/lib/publishedTools.ts`)
-collects the collections once at startup, and `registerOgcRoutes` builds its
-`services` map from them. The routes are fixed patterns (`/ogc/:slug/…`) that
-look the slug up in that map, so no route needs to be registered again.
+`loadPublishedCatalogue` (`packages/api/src/lib/publishedTools.ts`) collects
+the collections at startup, and `registerOgcRoutes` builds its `services` map
+from them. The routes are fixed patterns (`/ogc/:slug/…`) that look the slug
+up in that map, so no route is registered again.
 
-The change:
-
-1. `collectOgcServices()` replaces `collectOgcCollections()`. It reads the
-   `OgcService` entities and resolves each one's version in the deployment's
-   environment, then each collection's query version.
-2. `registerOgcRoutes` holds the `services` map in a variable and exposes
-   `reload()`, which runs `collectOgcServices()` and swaps the map.
-3. A write hook calls `reload()` after a write to an `OgcService`, an
-   `OgcServiceVersion`, a `QueryVersion` or `Query` that a service names, or
-   an `Environment`. The cache coordinator
-   (`packages/api/src/lib/CacheCoordinator.ts`) has no change listeners
-   today, so the hook is new: one callback list that the entity write paths
-   call after a successful write. A request in flight keeps the map it
-   started with.
-
-`indexFields` (the cached `luc:config` result of a `cql2` collection) is
-cleared for the collections that a reload changes.
+1. `collectOgcCollections()` reads the `OgcService` entities, resolves each
+   one's version in the deployment's environment, then each collection's
+   query version (`resolveOgcCollection`).
+2. The cache coordinator (`packages/api/src/lib/CacheCoordinator.ts`) calls
+   each `onWrite` listener with the id of every entity it creates, updates or
+   deletes. The OGC routes' listener marks the map stale.
+3. The next OGC request collects the collections again and swaps the map. A
+   request in flight keeps the map it started with. The cached `luc:config`
+   results of `cql2` collections are cleared at the same time.
 
 ## The check when a service version is saved
 
@@ -170,7 +165,6 @@ plus:
 - `query` is a `Query` in the service's library, and `queryVersion`, if set,
   is one of its versions.
 - `collectionId` is unique in the service.
-- A queryable with `multiple: true` is in `values` mode.
 - `valuesQuery`, if set, is a SELECT in the same library with the outputs
   that [Facets](#facets) names.
 
@@ -178,104 +172,28 @@ A problem gets `400` with the key path, such as
 `collections[1].queryables.zone.var`.
 
 A collection that follows the environment can break later, when a new query
-version drops a variable that the mapping names. The reload then leaves that
-collection out and records a problem line, as `collectOgcCollections` does
-today. `GET /ogc-services/{id}/problems` lists those lines for one service,
-and the web app shows them on the service screen.
+version drops a variable that the mapping names. The next collection leaves
+that collection out and records a problem line. The service entity carries its
+lines in `problems` (`GET /ogc-services/{id}`), and the web app shows them on
+the service screen.
 
 ## Facets
 
-### What a client can send
+PR #278 built the facets, and this change keeps them as they are:
 
-A queryable with `multiple: true` takes several values. Its `VALUES`
-variable gets one row per value, so the query matches any of them: OR within
-the queryable. Each queryable has its own `VALUES` clause, so several
-queryables combine with AND.
+- A `values` queryable fills a `VALUES` variable that takes a list. Several
+  values of one queryable go as rows of its clause, which matches any of them:
+  OR within the queryable. Each queryable has its own clause, so several
+  queryables combine with AND.
+- A client sends them as repeated query parameters or as a CQL2-JSON filter
+  that is an `and` of `=` and `in`. Anything else gets `400`.
+- A collection's `valuesQuery` returns `?property ?value ?count`. The
+  queryables document lists the values as `enum`, with the counts in
+  `x-counts`, and the map page shows each such queryable as tick boxes.
 
-A query written for this needs no `FILTER IN`. The join with the `VALUES`
-rows does the OR:
-
-```sparql
-VALUES ?zone { UNDEF }
-VALUES ?nameLike { UNDEF }
-?feature :zone ?zone ; :name ?name .
-FILTER(!BOUND(?nameLike) || REGEX(?name, ?nameLike, "i"))
-```
-
-A `values` collection accepts two forms of request:
-
-| Form | Example | Meaning |
-| --- | --- | --- |
-| Query parameters | `?zone=1&zone=2&stepFree=true` | Repeat a parameter for OR. Different parameters are ANDed |
-| CQL2-JSON filter | `filter-lang=cql2-json&filter={"op":"and","args":[{"op":"in","args":[{"property":"zone"},[1,2]]},{"op":"=","args":[{"property":"stepFree"},true]}]}` | The same request |
-
-The CQL2 subset that `values` mode accepts:
-
-- `=` with a queryable and a literal.
-- `in` with a queryable and a list of literals, on a `multiple` queryable.
-- `or` whose arguments are all `=` on one `multiple` queryable. This is the
-  same as `in`.
-- `and` of the above, with each queryable at most once.
-- `s_intersects` with an envelope is the same as `bbox`, and `t_intersects`
-  with an interval is the same as `datetime`, when the collection has those
-  parameters.
-
-Anything else gets `400` naming the unsupported operator. The service
-declares the `cql2-json` and `basic-cql2` conformance classes only when a
-collection is in `cql2` mode, or when a `values` collection has at least one
-queryable. The exact class list is a check to make against the OGC test
-suite.
-
-### How a value becomes a term
-
-The server parses each value by its queryable's `type` and binds the matching
-term, as `queryableValue` in `packages/api/src/server/ogcRoutes.ts` does
-today: `uri` binds an IRI, `integer` an `xsd:integer`, `string` a plain
-literal. A client sends an IRI as a string, because CQL2 has no IRI literal.
-The server makes it an IRI.
-
-A query can still take the string and convert it with
-`BIND(IRI(?zoneText) AS ?zone)`. That works, but most stores then evaluate
-the pattern for every candidate and filter afterwards, where an IRI bound in
-`VALUES` is joined directly. See question 1.
-
-### The values of each queryable
-
-A collection may name a `valuesQuery`. It is a SELECT with two outputs:
-
-| Output | Holds |
-| --- | --- |
-| `?property` | The queryable's name, as a plain literal, such as `"zone"` |
-| `?value` | One value of that queryable |
-
-An optional `?count` output gives the number of features with that value.
-
-```sparql
-PREFIX : <https://example.org/rail/>
-SELECT ?property ?value (COUNT(?feature) AS ?count) WHERE {
-  ?feature a :Station .
-  { ?feature :zone ?value . BIND("zone" AS ?property) }
-  UNION
-  { ?feature :stepFree ?value . BIND("stepFree" AS ?property) }
-}
-GROUP BY ?property ?value
-ORDER BY ?property ?value
-```
-
-The `queryables` route runs it through `/execute` as the caller and adds an
-`enum` of the values to each queryable's JSON Schema. A caller who may not
-run the query gets the queryables without `enum`. The route keeps the
-result for the caller for 60 seconds. Labels for IRI values come from the
-label cache (`@rdf-label-cache/client`) in the client. The query returns no
-labels.
-
-### On the map page
-
-The map page (`demo/ogc-map`, PR #278) shows a queryable that has an `enum`
-as a list of checkboxes, with the count beside each value. A queryable
-without one stays a text field. Checked values become an `in` clause, and
-the page sends a CQL2-JSON filter. The Query and Result tabs show the SPARQL
-and the GeoJSON of the request, as they do in #278.
+A query can take a string and convert it with `BIND(IRI(?text) AS ?x)`, but a
+queryable of type `uri` makes the server bind an IRI, which the store joins
+directly. See decision 1.
 
 ## The web app
 
@@ -285,13 +203,13 @@ and the GeoJSON of the request, as they do in #278.
 - **Service screen.** The title, the slug, the service URL with a copy
   button, and a link to the map page. Below that, a table of collections:
   id, title, query (a link), and the version it runs. Problem lines from
-  `GET /ogc-services/{id}/problems` appear above the table.
+  the service's `problems` appear above the table.
 - **Collection editor.** Picking a query fills the choices from its version's
   detected outputs and inputs (`POST /queries/detect-outputs` and
   `detect-inputs`): the feature column, the geometry column or the point
   columns, the `LIMIT` and `OFFSET` parameters, the `bbox`, `datetime` and
   `skipGeometry` variables, and one row per queryable (name, variable, type,
-  title, multiple). The values query is picked from the library's queries.
+  title). The values query is picked from the library's queries.
   The save check's messages appear beside the field they name.
 - **Query screen.** A query that a service uses shows "OGC: {service} /
   {collection}" with a link to the service screen.
@@ -299,77 +217,77 @@ and the GeoJSON of the request, as they do in #278.
 The screens use short labels, with detail in tooltips and no explanatory
 sentences.
 
+## JSON-LD
+
+A collection may carry `context`: one JSON-LD term per property, with the
+predicate IRI in `@id`, and `@type` (`@id` or a datatype IRI) or `@language`.
+The save allows no other keyword, and only properties the collection returns.
+With terms:
+
+- `/ogc/{slug}/collections/{id}/context.jsonld` serves GeoJSON-LD's context
+  (https://geojson.org/geojson-ld/) with `@base` set to `feature.base`,
+  `properties` as `@nest`, the geometry as an `rdf:JSON` literal, OGC's paging
+  keys left out, and the terms.
+- The collection document links it with
+  `rel=http://www.w3.org/ns/json-ld#context`, and `items` and
+  `items/{featureId}` send it in a `Link` header (JSON-LD 1.1, section 6.1).
+- A property typed `xsd:decimal` or `xsd:float` is written as its lexical form,
+  because JSON-LD writes a JSON number with such a type in double form
+  (`1.5E0`), which is not a valid decimal.
+
+Known gaps, accepted on 2026-11-28: a property whose values mix IRIs and
+literals is read with its term's type; a term has one language; a
+`GROUP_CONCAT` value is one string.
+
 ## Export, import and MCP
 
-- A library export carries its services and their versions, as it carries
-  query groups. An import checks each service slug against the target
-  deployment and refuses a clash with `409`.
-- The MCP server lists and reads services with the same generated tools as
-  the other versioned nouns (`ogcServices_list`, `ogcServices_get`, and the
-  version tools).
+Not in this change. A library export carries queries, query groups, rule sets
+and ETL jobs today, and MCP tools are written by hand
+(`packages/tools/src/tools.ts`); neither covers OGC services yet.
 
 ## Migration
 
-A migration script, run once per deployment, makes one service per library
-that has versions with an `ogc` object:
+At startup, a server with `FEATURE_OGC=true` runs `migrateOgcObjects`
+(`packages/api/src/lib/ogcMigration.ts`). For each library whose queries'
+current versions carry `ogc` objects, and that has no service with its slug
+yet, it makes one service:
 
-- The service's slug is the library's slug, so `/ogc/{library slug}` keeps
-  working. Its title and description are the library's.
-- Each query whose current version has an `ogc` object becomes a collection
-  with that object and no `queryVersion`, so it follows the environment as
-  it does today.
+- Its slug is the library's slug, so `/ogc/{library slug}` keeps working. Its
+  title and description are the library's.
+- Each such query becomes a collection with that object and no
+  `queryVersion`, so it follows the environment as before. A collection that
+  no longer fits its query is left out and logged.
 
-After the migration, a query version save that sends `ogc` gets `400`, with
-a message that names the service routes. The Rail seed
-(`demo/libraries/rail/seed.json`) replaces `ogcFile` on its two queries with
-one `ogcServices` entry, and `demo/scripts/seed-library.mjs` writes it when
-`DEMO_OGC=true`.
+A query version save that sends `ogc` gets `400`, with a message that names
+`/ogc-services`. The Rail seed (`demo/libraries/rail/seed.json`) has one
+`ogcServices` entry, whose collection files carry `query` and `context`, and
+`demo/scripts/seed-library.mjs` writes it when `DEMO_OGC=true`.
 
-## Build steps
+## What was built
 
-Each step is one pull request.
+One pull request, on top of #278:
 
-1. **The entity and the routes.** `OgcService` and `OgcServiceVersion`,
-   `/ogc-services` through `registerVersionedEntityRoutes`, the save check,
-   version pins, environments, export and import. `collectOgcServices()`
-   replaces `collectOgcCollections()`, still at startup. The migration
-   script and the Rail seed change. Tests: the save check, pins, slug
-   clashes, and the CITE Part 1 run on the migrated Rail service.
-2. **Serving without a restart.** `reload()`, the write hook, and the
-   problems route. Test: create, edit and delete a service,
-   and read its routes after each write without a restart.
-3. **The web app.** The rail entry, the service screen, the collection
-   editor and the link on the query screen.
-4. **Facets.** `multiple` queryables, the CQL2 subset in `values` mode,
-   `valuesQuery` with `enum` in the queryables route, the map page's
-   checkbox facets, and a Rail values query for zone and step-free access.
+- the `OgcService` and `OgcServiceVersion` entities and `/ogc-services`, with
+  the save check, version pins, environments and the startup migration;
+- serving without a restart;
+- JSON-LD contexts;
+- the web app's OGC section, service screen and collection editor;
+- the map page's GeoJSON / GeoJSON-LD switch in the Result tab.
 
-Step 4 depends on step 1 only, so it can run beside steps 2 and 3.
+## Decisions
 
-## Open questions
+Decided on 2026-11-28, as this design proposed:
 
-1. **IRI values.** Should the server bind an IRI from a string when the
-   queryable's type is `uri` (this design, and today's behaviour)? The
-   alternative is to bind every value as a string and convert it in the
-   query with `BIND(IRI(…))`, which is slower on most stores.
-2. **Slug shape.** One path segment, such as `rail-2026` (this design), or
-   nested paths such as `rail/2026`? Nested paths need a reserved word list
-   (`collections`, `conformance`, `api`, `queryables`) and a wildcard route.
-3. **Queries from other libraries.** Same library only (this design), or any
-   library the author can read? Cross-library collections would need export
-   and promotion rules that span libraries.
-4. **Following the environment.** Should a collection follow its query's
-   version in the environment by default, with `queryVersion` as an opt-in
-   pin (this design)? A pin by default is safer, but every query edit then
-   needs a service edit.
-5. **The values query and public metadata.** The metadata routes are
-   readable without sign-in (decision 1 of
-   [ogc-api-features.md § Open questions](ogc-api-features.md#open-questions)).
-   This design runs the values query as the caller, so an anonymous caller
-   sees `enum` only when the anonymous principal may run it. Is that right,
-   or should the values be public with the rest of the metadata?
-6. **The old `ogc` object.** Refuse it on query version saves after the
-   migration (this design), or keep reading it for one release?
+1. **IRI values.** The server binds an IRI from the string when a queryable's
+   type is `uri`.
+2. **Slug shape.** One path segment, such as `rail-2026`.
+3. **Queries from other libraries.** A collection's query is in the service's
+   library.
+4. **Following the environment.** A collection follows its query's version in
+   the environment by default, and `queryVersion` pins one.
+5. **The values query.** It runs as the caller, so an anonymous caller sees
+   `enum` only when the anonymous principal may run it.
+6. **The old `ogc` object.** A query version save that sends one gets `400`.
 
 ## Later work
 

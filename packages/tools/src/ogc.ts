@@ -329,14 +329,43 @@ const QUERYABLE_KIND: Record<OgcQueryableType, ToolParamKind> = {
   'date-time': 'dateTime',
 };
 
-/** A collection as served: its `ogc` object, the library it is in, and the tool spec its items call runs. */
+/**
+ * One JSON-LD term of a collection's `context`: the IRI of the predicate a
+ * property came from, and how a JSON-LD processor reads the property's value.
+ * `@type` is `@id` for an IRI, or a datatype IRI. `@language` tags a string.
+ */
+export type OgcContextTerm = { '@id': string; '@type'?: string; '@language'?: string };
+
+/**
+ * A collection of an OGC service version: an `ogc` object, the query it runs,
+ * and optionally the JSON-LD terms of its properties.
+ */
+export type OgcServiceCollection = OgcObject & {
+  /** The Query, in the service's library. */
+  query: string;
+  /** A QueryVersion of that query. Absent: the query's version in the deployment's environment. */
+  queryVersion?: string;
+  /** Property name to term. Present: the collection serves a JSON-LD context. */
+  context?: Record<string, OgcContextTerm>;
+};
+
+/** The pattern of an OGC service slug: one path segment. */
+export const OGC_SERVICE_SLUG_PATTERN = '^[a-z0-9][a-z0-9-]{0,63}$';
+
+/** A collection as served: its `ogc` object, the service it is in, and the tool spec its items call runs. */
 export type OgcCollectionSpec = {
+  /** The service's slug, its path under `/ogc/`. */
   slug: string;
+  /** The library the service is in. */
   libraryId: string;
-  /** The library's name and description, for the service's landing page. */
-  libraryName: string;
-  libraryDescription?: string | null;
+  /** The OgcService. */
+  serviceId: string;
+  /** The service's title and description, for its landing page. */
+  serviceTitle: string;
+  serviceDescription?: string | null;
   ogc: OgcObject;
+  /** The JSON-LD terms of the properties, when the collection has them. */
+  context?: Record<string, OgcContextTerm>;
   /** cql2 mode: the pinned version of `cql.configQuery`, which lists the index fields. */
   configTargetId?: string;
   /** The pinned version of `valuesQuery`. */
@@ -850,4 +879,81 @@ export function checkCqlAgainstFields(filter: Cql2, fields: IndexField[]): strin
     if (field.type === 'LatLonField' && !op.startsWith('s_')) return `filter: ${name} is a geometry field; use a spatial operator`;
   }
   return null;
+}
+
+// ----------------------------------------------------------------- JSON-LD --
+
+const LANGUAGE_TAG = /^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$/;
+const XSD = 'http://www.w3.org/2001/XMLSchema#';
+
+/** The GeoJSON-LD vocabulary (https://geojson.org/geojson-ld/). */
+export const GEOJSON_LD_VOCAB = 'https://purl.org/geojson/vocab#';
+
+/**
+ * Check a collection's `context` against the query's outputs. Each key is a
+ * property the collection returns. Each term has an absolute `@id`, and at
+ * most one of `@type` (`@id` or an absolute datatype IRI) and `@language`.
+ * No other JSON-LD keyword is allowed, so a term cannot change how the rest of
+ * the served context reads.
+ */
+export function checkOgcContext(context: unknown, properties: string[]): string | null {
+  if (context === undefined) return null;
+  if (!isObject(context)) return 'context must be an object of property name to term';
+  const known = new Set(properties);
+  for (const [name, term] of Object.entries(context)) {
+    if (!known.has(name)) return `context.${name}: the collection has no property "${name}"`;
+    if (!isObject(term)) return `context.${name} must be { "@id": … }`;
+    for (const key of Object.keys(term)) {
+      if (!['@id', '@type', '@language'].includes(key)) return `context.${name}: "${key}" is not allowed; use @id, @type or @language`;
+    }
+    const id = term['@id'];
+    if (typeof id !== 'string' || !ABSOLUTE_IRI.test(id)) return `context.${name}.@id must be an absolute IRI`;
+    const type = term['@type'];
+    const language = term['@language'];
+    if (type !== undefined && language !== undefined) return `context.${name}: give @type or @language, not both`;
+    if (type !== undefined && (typeof type !== 'string' || (type !== '@id' && !ABSOLUTE_IRI.test(type)))) {
+      return `context.${name}.@type must be "@id" or an absolute datatype IRI`;
+    }
+    if (language !== undefined && (typeof language !== 'string' || !LANGUAGE_TAG.test(language))) {
+      return `context.${name}.@language must be a language tag`;
+    }
+  }
+  return null;
+}
+
+/** The properties whose values stay lexical strings, so that a datatype reads them exactly. */
+export function ogcLexicalProperties(context: Record<string, OgcContextTerm> | undefined): string[] {
+  if (!context) return [];
+  return Object.entries(context)
+    .filter(([, term]) => term['@type'] === `${XSD}decimal` || term['@type'] === `${XSD}float`)
+    .map(([name]) => name);
+}
+
+/**
+ * The JSON-LD context a collection's GeoJSON is read with. GeoJSON-LD's terms
+ * for the structure, feature ids resolved against `feature.base`, properties
+ * nested in the feature, the geometry as one JSON literal, OGC's paging keys
+ * dropped, and the collection's own terms.
+ */
+export function ogcJsonLdContext(ogc: OgcObject, terms: Record<string, OgcContextTerm>): Record<string, unknown> {
+  return {
+    '@context': {
+      '@version': 1.1,
+      '@base': ogc.feature.base,
+      geojson: GEOJSON_LD_VOCAB,
+      id: '@id',
+      type: '@type',
+      Feature: 'geojson:Feature',
+      FeatureCollection: 'geojson:FeatureCollection',
+      features: { '@id': 'geojson:features', '@container': '@set' },
+      geometry: { '@id': 'geojson:geometry', '@type': '@json' },
+      properties: '@nest',
+      bbox: { '@id': 'geojson:bbox', '@container': '@list' },
+      links: null,
+      timeStamp: null,
+      numberMatched: null,
+      numberReturned: null,
+      ...terms,
+    },
+  };
 }

@@ -60,6 +60,12 @@ const result = (await page.locator('#inspect-code .cm-line').allTextContents()).
 const geojson = result.includes('"FeatureCollection"') && result.includes('"Central"');
 console.log(geojson ? 'ok  ' : 'FAIL', 'GeoJSON of the page', geojson ? '' : JSON.stringify(result.slice(0, 300)));
 if (!geojson) failures.push('GeoJSON of the page');
+await page.click('#format-jsonld');
+const jsonld = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
+const withContext = jsonld.includes('"@context"') && jsonld.includes('https://example.org/rail/zone');
+console.log(withContext ? 'ok  ' : 'FAIL', 'GeoJSON-LD of the page', withContext ? '' : JSON.stringify(jsonld.slice(0, 300)));
+if (!withContext) failures.push('GeoJSON-LD of the page');
+await page.click('#format-geojson');
 await page.screenshot({ path: `${out}/map-result.png` });
 await page.click('#tab-query');
 await page.screenshot({ path: `${out}/map-query.png` });

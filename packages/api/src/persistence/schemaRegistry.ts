@@ -64,6 +64,8 @@ import { TupleSetSchema } from '../persistence/schemas/TupleSetSchema.js';
 import { TupleSetVersionSchema } from '../persistence/schemas/TupleSetVersionSchema.js';
 import { NotebookSchema } from '../persistence/schemas/NotebookSchema.js';
 import { NotebookVersionSchema } from '../persistence/schemas/NotebookVersionSchema.js';
+import { OgcServiceSchema } from '../persistence/schemas/OgcServiceSchema.js';
+import { OgcServiceVersionSchema } from '../persistence/schemas/OgcServiceVersionSchema.js';
 
 import type { EntityTypeName } from './entityTypeNames.js';
 
@@ -125,4 +127,6 @@ export const SCHEMA_BY_TYPE = {
   TupleSetVersion: TupleSetVersionSchema,
   Notebook: NotebookSchema,
   NotebookVersion: NotebookVersionSchema,
+  OgcService: OgcServiceSchema,
+  OgcServiceVersion: OgcServiceVersionSchema,
 } as const satisfies Record<EntityTypeName, { '@type': string }>;

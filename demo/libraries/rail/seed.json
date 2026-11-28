@@ -361,7 +361,6 @@
       ],
       "defaultBackend": "urn:sqlib:backend:rail-features",
       "file": "queries/stations-features.rq",
-      "ogcFile": "ogc/stations.json",
       "comment": "Points, bbox, name and paging.",
       "tool": false
     },
@@ -374,7 +373,6 @@
       ],
       "defaultBackend": "urn:sqlib:backend:rail-features",
       "file": "queries/lines-features.rq",
-      "ogcFile": "ogc/lines.json",
       "comment": "Line strings, bbox, name and paging.",
       "tool": false
     },
@@ -461,6 +459,19 @@
       "defaultBackend": "urn:sqlib:backend:rail-operations",
       "file": "queries/operations-everything.rq",
       "comment": "First version."
+    }
+  ],
+  "ogcServices": [
+    {
+      "id": "urn:sqlib:ogc-service:rail",
+      "name": "Rail network",
+      "description": "The Rail lines and stations as OGC API Features collections.",
+      "slug": "rail",
+      "collections": [
+        "ogc/stations.json",
+        "ogc/lines.json"
+      ],
+      "comment": "Stations and lines, with JSON-LD terms."
     }
   ],
   "ruleSets": [

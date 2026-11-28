@@ -247,6 +247,13 @@ export function deriveFieldZod(entityName: string, key: string, prop: any): stri
     return prop.nullable ? `${name}.optional().nullable()` : name;
   }
 
+  // An `rdf:JSON` property whose document is a list, named by its shape's
+  // `title` as the object case below is.
+  if (prop.type === 'array' && typeof prop.title === 'string') {
+    const zod = jsonShape(prop.title).zod;
+    return prop.nullable ? `${zod}\n  .optional()\n  .nullable()` : zod;
+  }
+
   if (prop.type === 'array') {
     // A plain string list (a tuple set version's column names) — the one
     // non-IRI array the version leaves carry.

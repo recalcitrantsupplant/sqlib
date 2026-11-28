@@ -39,6 +39,10 @@
         <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
       </div>
       <div class="inspect-actions">
+        <div id="result-format" class="segmented" role="group" aria-label="Result format" hidden>
+          <button type="button" id="format-geojson" aria-pressed="true">GeoJSON</button>
+          <button type="button" id="format-jsonld" aria-pressed="false" title="The page with the collection's JSON-LD context">GeoJSON-LD</button>
+        </div>
         <button type="button" id="inspect-wrap" class="icon" aria-pressed="true" title="Wrap lines"></button>
         <button type="button" id="inspect-copy" class="icon" title="Copy"></button>
       </div>

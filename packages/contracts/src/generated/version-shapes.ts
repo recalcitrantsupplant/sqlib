@@ -487,6 +487,64 @@ export const notebookVersionShape = {
   createdBy: optionalIriString,
   modifiedBy: optionalIriString,
 };
+// OgcServiceVersion, projected from the entity model
+export const ogcServiceVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  collections: z
+    .array(
+      z
+        .object({
+          query: z.string().min(1),
+          queryVersion: z.string().min(1).optional(),
+          context: z
+            .record(
+              z.string(),
+              z.object({ '@id': z.string().min(1), '@type': z.string().min(1).optional(), '@language': z.string().min(1).optional() }).strict(),
+            )
+            .optional(),
+          collectionId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+          title: z.string().min(1),
+          description: z.string().optional(),
+          mode: z.enum(['values', 'cql2']),
+          feature: z.object({ var: z.string().min(1), base: z.string().min(1) }).strict(),
+          geometry: z.string().min(1).nullable().optional(),
+          point: z.tuple([z.string().min(1), z.string().min(1)]).optional(),
+          geometrySources: z
+            .array(z.object({ href: z.string(), type: z.string().optional(), title: z.string().optional() }).strict())
+            .optional(),
+          params: z.record(z.string(), z.unknown()).optional(),
+          outputs: z.record(z.string(), z.string()).optional(),
+          cql: z.record(z.string(), z.unknown()).optional(),
+          queryables: z
+            .record(
+              z.string(),
+              z
+                .object({
+                  var: z.string().optional(),
+                  type: z.enum(["string", "number", "integer", "boolean", "date-time", "uri"]).optional(),
+                  title: z.string().optional(),
+                  description: z.string().optional(),
+                })
+                .strict(),
+            )
+            .optional(),
+          valuesQuery: z.string().min(1).optional(),
+          pageSize: z.object({ default: z.number().int().min(1).optional(), max: z.number().int().min(1).optional() }).strict().optional(),
+          extent: z.record(z.string(), z.unknown()).optional(),
+          omit: z.array(z.string()).optional(),
+        })
+        .strict(),
+    )
+    .max(100),
+  comment: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
+};
 // TestCase, projected from the entity model
 export const testCaseShape = {
   id: iriString,
@@ -550,6 +608,7 @@ export const ruleSetVersionSchema = z.object(ruleSetVersionShape).strict();
 export const dataGraphVersionSchema = z.object(dataGraphVersionShape).strict();
 export const tupleSetVersionSchema = z.object(tupleSetVersionShape).strict();
 export const notebookVersionSchema = z.object(notebookVersionShape).strict();
+export const ogcServiceVersionSchema = z.object(ogcServiceVersionShape).strict();
 export const testCaseSchema = z.object(testCaseShape).strict();
 export const testVersionSchema = z.object(testVersionShape).strict();
 // LimitParameter entity type
@@ -602,6 +661,8 @@ export type DataGraphVersion = z.infer<typeof dataGraphVersionSchema>;
 export type TupleSetVersion = z.infer<typeof tupleSetVersionSchema>;
 // NotebookVersion entity type
 export type NotebookVersion = z.infer<typeof notebookVersionSchema>;
+// OgcServiceVersion entity type
+export type OgcServiceVersion = z.infer<typeof ogcServiceVersionSchema>;
 // TestCase entity type
 export type TestCase = z.infer<typeof testCaseSchema>;
 // TestVersion entity type
