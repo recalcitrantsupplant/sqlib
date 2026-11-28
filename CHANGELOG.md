@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/recalcitrantsupplant/sqlib/compare/v0.3.0...v0.4.0) (2026-11-28)
+
+
+### Features
+
+* add a Rail demo that runs in demo mode with one command ([#270](https://github.com/recalcitrantsupplant/sqlib/issues/270)) ([286423f](https://github.com/recalcitrantsupplant/sqlib/commit/286423fa0a8fb2e785821a412900cddb1d1d291b))
+* run the Rail demo as a static site with the API in the browser ([#275](https://github.com/recalcitrantsupplant/sqlib/issues/275)) ([c75c1cb](https://github.com/recalcitrantsupplant/sqlib/commit/c75c1cbe019412ed02cf2e9a9c5ea5603e642c60))
+
+
+### Bug Fixes
+
+* **web:** count notebooks and argument sets on the home screen, and name the app sqlib ([#272](https://github.com/recalcitrantsupplant/sqlib/issues/272)) ([5530c07](https://github.com/recalcitrantsupplant/sqlib/commit/5530c0731c1f34d8f6c210aee79d54cefbd9a590))
+
+
+### Performance Improvements
+
+* **web:** cut the API calls a page load makes from 89 to 23 ([#274](https://github.com/recalcitrantsupplant/sqlib/issues/274)) ([201d79d](https://github.com/recalcitrantsupplant/sqlib/commit/201d79def8a8970d732e854b87acb1dc9e6ef722))
+
 ## [0.3.0](https://github.com/recalcitrantsupplant/sqlib/compare/v0.2.0...v0.3.0) (2026-11-25)
 
 
