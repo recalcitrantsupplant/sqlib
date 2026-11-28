@@ -570,6 +570,16 @@ demo: _build-deps _free-dev-ports
     echo
     if (( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 403 )); then wait -n "$api_pid" "$web_pid"; else wait "$api_pid" "$web_pid"; fi
 
+# The Rail demo as static files, with the API in a Worker in the visitor's
+# browser and no server. Seeds tmp/demo/store/library.sqlite first if it does
+# not exist. See packages/api/browser/README.md.
+#
+# Build the Rail demo as a static site, then serve it on :3721
+[group('demos')]
+build-browser-demo: _build-deps
+    sh demo/scripts/build-browser-site.sh
+    node packages/api/browser/test/serve.mjs packages/web/.output/public 3721 200.html
+
 # Delete the demo store, so the next `just demo` seeds it again
 [group('demos')]
 clean-demo:
