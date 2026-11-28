@@ -37,6 +37,7 @@ await page.goto(`${base}/map/?basemap=none`, { waitUntil: 'load' });
 await page.waitForSelector('.features li', { timeout: 60_000 });
 console.log('first features', `${Date.now() - t0} ms`);
 await expectText('.collection-title', ['Lines', 'Stations'], 'collections');
+await expectText('h2', ['Collections ?', 'Queryables Lines ?Clear', 'Features ?'], 'section headings');
 await expectText('.features button', ['Blue line', 'Green line', 'Red line', 'Yellow line'], 'lines');
 await page.screenshot({ path: `${out}/map-lines.png` });
 
@@ -47,7 +48,6 @@ await page.waitForFunction(() => document.querySelector('.pager span')?.textCont
 await expectText('.features li', ['Parkside', 'Riverside', 'Southbank', 'Stadium', 'University', 'Westfield'], 'stations page 2');
 
 await page.fill('input[name="name"]', 'cENTr');
-await page.click('button:text("Search")');
 await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '1–1');
 await expectText('.features li', ['Central'], 'name filter, any case, part of the name');
 await page.click('#tab-query');

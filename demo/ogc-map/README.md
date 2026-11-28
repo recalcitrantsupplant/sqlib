@@ -34,6 +34,21 @@ OpenFreeMap Positron style, which loads from `tiles.openfreemap.org`.
 - A feature with a `colour` or `color` property is drawn in that colour.
   Other features take the colour of their collection.
 
+## The left-hand panel
+
+The panel has three sections, each with a link to its part of the OGC
+standard:
+
+- **Collections**: the service's feature collections. The checkbox shows a
+  collection on the map, and a click selects it for the two sections below.
+- **Queryables**: the selected collection's queryables. A queryable with an
+  `enum` in the queryables document is a list of checkboxes, with the counts
+  of `x-counts`. Values ticked in one list match any of them, and the lists
+  combine with AND. Other queryables are text fields. A change reloads the
+  first page at once. "In map view" adds the map's bounds as `bbox`, and
+  follows the map as it moves.
+- **Features**: the current page, with the `prev` and `next` links.
+
 ## The right-hand panel
 
 The panel shows the selected collection's current page in two tabs: Query,

@@ -16,7 +16,18 @@
       </form>
     </header>
     <p id="status" hidden></p>
-    <ul id="collections"></ul>
+    <section id="collections-section" hidden>
+      <h2>Collections <a class="doc" href="https://docs.ogc.org/is/17-069r4/17-069r4.html#_collections_" target="_blank" rel="noopener" title="OGC API – Features, Part 1: feature collections">?</a></h2>
+      <ul id="collections"></ul>
+    </section>
+    <section id="queryables-section" hidden>
+      <h2>Queryables <span id="queryables-of" class="of"></span> <a class="doc" href="https://docs.ogc.org/is/19-079r2/19-079r2.html#queryables" target="_blank" rel="noopener" title="OGC API – Features, Part 3: queryables">?</a><button type="button" id="queryables-clear" class="link">Clear</button></h2>
+      <div id="queryables"></div>
+    </section>
+    <section id="features-section" hidden>
+      <h2>Features <a class="doc" href="https://docs.ogc.org/is/17-069r4/17-069r4.html#_items_" target="_blank" rel="noopener" title="OGC API – Features, Part 1: features">?</a></h2>
+      <div id="features"></div>
+    </section>
   </aside>
   <main id="map"></main>
   <aside id="inspect" hidden>
