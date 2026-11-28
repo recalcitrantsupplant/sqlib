@@ -316,7 +316,7 @@
                     :title="label"
                     :data-testid="`ogc-collection-bbox-${position}`"
                   >
-                    <option value="">{{ label }}</option>
+                    <option value="">—</option>
                     <option v-for="name in withCurrent(variables, form.bbox[position] ?? '')" :key="name" :value="name">?{{ name }}</option>
                   </select>
                 </div>
@@ -325,11 +325,11 @@
                 <FormField label="Datetime" as="div" class="field-wide">
                   <div class="pair">
                     <select v-model="form.datetimeStart" class="control control-mono" aria-label="Start" title="Start" data-testid="ogc-collection-datetime-start">
-                      <option value="">start</option>
+                      <option value="">—</option>
                       <option v-for="name in withCurrent(variables, form.datetimeStart)" :key="name" :value="name">?{{ name }}</option>
                     </select>
                     <select v-model="form.datetimeEnd" class="control control-mono" aria-label="End" title="End" data-testid="ogc-collection-datetime-end">
-                      <option value="">end</option>
+                      <option value="">—</option>
                       <option v-for="name in withCurrent(variables, form.datetimeEnd)" :key="name" :value="name">?{{ name }}</option>
                     </select>
                   </div>
