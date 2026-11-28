@@ -395,6 +395,29 @@ export async function registerOgcRoutes(
     return runItems(request, reply, service, spec, null, true);
   });
 
+  /**
+   * The collection's query as stored: the template that `sparql` shows with
+   * a request's arguments in place. Read through `GET /queries/{id}/versions/{n}`
+   * as the caller, so a caller who may not read the query gets that answer.
+   */
+  route('/ogc/:slug/collections/:collectionId/sparql/template', async (request, reply) => {
+    if (!showSparql()) throw new OgcAnswer(404, 'This service does not show its SPARQL.');
+    const { spec } = collectionOf(request);
+    const version = getCacheCoordinator().get(spec.tool.targetId) as { isPartOf?: string; version?: number } | null;
+    if (!version?.isPartOf || version.version === undefined) throw new OgcAnswer(404, 'The collection\'s query version is not in the store.');
+    const headers: Record<string, string> = { accept: JSON_TYPE };
+    if (typeof request.headers.authorization === 'string') headers.authorization = request.headers.authorization;
+    const response = await app.inject({
+      method: 'GET',
+      url: `${basePath}/queries/${encodeURIComponent(version.isPartOf)}/versions/${version.version}`,
+      headers,
+    });
+    if (response.statusCode !== 200) throw new OgcAnswer(response.statusCode, `The query could not be read: ${errorText(response.body)}`);
+    const body = JSON.parse(response.body) as { queryString?: string; queryVersion?: { queryString?: string } };
+    const text = body.queryString ?? body.queryVersion?.queryString ?? '';
+    return reply.header('content-type', SPARQL_QUERY_TYPE).send(text);
+  });
+
   route('/ogc/:slug/collections/:collectionId/items/:featureId', async (request, reply) => {
     const { service, spec } = collectionOf(request);
     const { featureId } = request.params as { featureId: string };

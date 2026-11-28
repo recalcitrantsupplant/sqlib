@@ -12,7 +12,7 @@
  * with that context in place, which is how a JSON-LD processor reads it.
  */
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { EditorView, lineNumbers } from '@codemirror/view';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { json } from '@codemirror/lang-json';
 import { sparql } from '@kurrawongai/codemirror-lang-sparql12';
@@ -48,10 +48,12 @@ interface Prefs {
 }
 
 type Format = 'geojson' | 'jsonld';
+type QueryView = 'template' | 'run';
 
 let tab: Tab = 'query';
 let format: Format = 'geojson';
-let content: { query: string | null; result: unknown; context: unknown } = { query: null, result: null, context: null };
+let queryView: QueryView = 'run';
+let content: { query: string | null; template: string | null; result: unknown; context: unknown } = { query: null, template: null, result: null, context: null };
 let view: EditorView | null = null;
 const wrapping = new Compartment();
 let prefs: Prefs = readPrefs();
@@ -103,7 +105,7 @@ function applyLayout(): void {
 
 /** The text of the open tab, in the chosen format. */
 function text(): string {
-  if (tab === 'query') return content.query ?? '';
+  if (tab === 'query') return (queryView === 'template' && content.template !== null ? content.template : content.query) ?? '';
   if (content.result === null) return '';
   const document = format === 'jsonld' && content.context
     ? { '@context': content.context, ...(content.result as Record<string, unknown>) }
@@ -114,11 +116,14 @@ function text(): string {
 function render(): void {
   for (const name of ['query', 'result'] as const) $(`tab-${name}`).setAttribute('aria-selected', String(name === tab));
   $('result-format').hidden = tab !== 'result' || !content.context;
+  $('query-view').hidden = tab !== 'query' || content.template === null;
+  for (const name of ['template', 'run'] as const) $(`query-${name}`).setAttribute('aria-pressed', String(name === queryView));
   for (const name of ['geojson', 'jsonld'] as const) $(`format-${name}`).setAttribute('aria-pressed', String(name === format));
   const state = EditorState.create({
     doc: text(),
     extensions: [
       LANGUAGES[tab](),
+      lineNumbers(),
       syntaxHighlighting(defaultHighlightStyle),
       wrapping.of(prefs.wrap ? EditorView.lineWrapping : []),
       EditorView.editable.of(false),
@@ -197,6 +202,12 @@ export function initInspect(hasQuery: boolean, layoutChanged: () => void): void 
     view?.dispatch({ effects: wrapping.reconfigure(prefs.wrap ? EditorView.lineWrapping : []) });
     applyLayout();
   };
+  for (const name of ['template', 'run'] as const) {
+    $(`query-${name}`).onclick = () => {
+      queryView = name;
+      render();
+    };
+  }
   for (const name of ['geojson', 'jsonld'] as const) {
     $(`format-${name}`).onclick = () => {
       format = name;
@@ -217,13 +228,13 @@ export function initInspect(hasQuery: boolean, layoutChanged: () => void): void 
 }
 
 /** Show a page's query and result. Null hides the panel. */
-export function showInspect(next: { query: string | null; result: unknown; context?: unknown } | null): void {
+export function showInspect(next: { query: string | null; template?: string | null; result: unknown; context?: unknown } | null): void {
   const panel = $('inspect');
   const wasHidden = panel.hidden;
   panel.hidden = next === null;
   document.body.classList.toggle('inspecting', next !== null);
   if (wasHidden !== panel.hidden) onLayout();
   if (!next) return;
-  content = { query: next.query, result: next.result, context: next.context ?? null };
+  content = { query: next.query, template: next.template ?? null, result: next.result, context: next.context ?? null };
   render();
 }

@@ -55,6 +55,12 @@ const sparql = (await page.locator('#inspect-code .cm-line').allTextContents()).
 const shown = /VALUES \?nameLike \{ "cENTr" \}/.test(sparql ?? '') && /REGEX/i.test(sparql ?? '') && !/LIMIT 0001/.test(sparql ?? '');
 console.log(shown ? 'ok  ' : 'FAIL', 'SPARQL of the page', shown ? '' : JSON.stringify(sparql?.slice(0, 400)));
 if (!shown) failures.push('SPARQL of the page');
+await page.click('#query-template');
+const template = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
+const stored = /VALUES \?nameLike \{ UNDEF \}/.test(template) && (await page.locator('#inspect-code .cm-lineNumbers').count()) > 0;
+console.log(stored ? 'ok  ' : 'FAIL', 'template of the query, with line numbers', stored ? '' : JSON.stringify(template.slice(0, 300)));
+if (!stored) failures.push('template of the query');
+await page.click('#query-run');
 await page.click('#tab-result');
 const result = (await page.locator('#inspect-code .cm-line').allTextContents()).join('\n');
 const geojson = result.includes('"FeatureCollection"') && result.includes('"Central"');

@@ -53,7 +53,10 @@ standard:
 
 The panel shows the selected collection's current page in two tabs: Query,
 the SPARQL that ran (when the service links it with `rel=describedby`), and
-Result, the GeoJSON that came back. It follows the web app's inspector
+Result, the GeoJSON that came back. Query switches between Template, the
+query as stored (`…/sparql/template`), and As run, with the page's arguments
+in place. Result switches between GeoJSON and GeoJSON-LD when the collection
+has a JSON-LD context. It follows the web app's inspector
 (`packages/web/src/components/shared/InspectorPanel.vue`):
 
 - The button beside the tabs collapses the panel to a strip, and expands it.

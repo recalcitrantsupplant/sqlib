@@ -306,6 +306,7 @@ describe('OGC API Features, against a real API instance', () => {
       const one = await get('/ogc/survey/collections/buildings');
       expect(one.body.links.map((link: { rel: string }) => link.rel)).not.toContain('describedby');
       expect((await get('/ogc/survey/collections/buildings/sparql')).status).toBe(404);
+      expect((await get('/ogc/survey/collections/buildings/sparql/template')).status).toBe(404);
 
       setEnv('SQLIB_OGC_SPARQL', 'true');
       try {
@@ -322,6 +323,11 @@ describe('OGC API Features, against a real API instance', () => {
         expect(text.body).toMatch(/OFFSET 2\b/);
         expect(text.body).not.toContain('LIMIT 0001');
         expect((await get('/ogc/survey/collections/buildings/sparql?colour=red')).status).toBe(400);
+
+        const template = await get('/ogc/survey/collections/buildings/sparql/template');
+        expect(template.status).toBe(200);
+        expect(template.body).toContain('VALUES ?name { UNDEF }');
+        expect(template.body).toContain('LIMIT 0001');
       } finally {
         setEnv('SQLIB_OGC_SPARQL', undefined);
       }

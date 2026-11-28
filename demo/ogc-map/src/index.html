@@ -39,6 +39,10 @@
         <button type="button" role="tab" id="tab-result" aria-selected="false">Result</button>
       </div>
       <div class="inspect-actions">
+        <div id="query-view" class="segmented" role="group" aria-label="Query view" hidden>
+          <button type="button" id="query-template" aria-pressed="false" title="The query as stored, with its parameters">Template</button>
+          <button type="button" id="query-run" aria-pressed="true" title="The query with this page's arguments in place">As run</button>
+        </div>
         <div id="result-format" class="segmented" role="group" aria-label="Result format" hidden>
           <button type="button" id="format-geojson" aria-pressed="true">GeoJSON</button>
           <button type="button" id="format-jsonld" aria-pressed="false" title="The page with the collection's JSON-LD context">GeoJSON-LD</button>

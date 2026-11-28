@@ -31,6 +31,8 @@ interface CollectionState {
   /** The collection's JSON-LD context, when it has one. */
   jsonLdContext: unknown;
   sparql: string | null;
+  /** The collection's query as stored, read once. */
+  template: string | null;
   facets: Facet[];
   chosen: Record<string, Array<string | number | boolean>>;
 }
@@ -125,6 +127,7 @@ async function start(): Promise<void> {
         sparqlHref: linkHref(docs[index]?.links, 'describedby', source.url),
         jsonLdContext: contexts[index] ?? null,
         sparql: null,
+        template: null,
         facets: facetsOf(queryableDocs[index] ?? null),
         chosen: {},
       });
@@ -211,6 +214,7 @@ async function loadPage(state: CollectionState, url: string): Promise<void> {
     state.error = (error as Error).message;
   }
   state.sparql = state.sparqlHref ? await readText(sparqlUrl(state.sparqlHref, url)) : null;
+  if (state.sparqlHref && state.template === null) state.template = await readText(`${new URL(state.sparqlHref, url).href.replace(/\/$/, '')}/template`);
   (map.getSource(state.info.id) as GeoJSONSource).setData({ type: 'FeatureCollection', features: (state.page?.features ?? []) as never });
   renderPage();
 }
@@ -364,7 +368,7 @@ function renderQueryables(): void {
 
 function renderFeatures(): void {
   const state = current();
-  showInspect(state?.page ? { query: state.sparql, result: state.page, context: state.jsonLdContext } : null);
+  showInspect(state?.page ? { query: state.sparql, template: state.template, result: state.page, context: state.jsonLdContext } : null);
   $('features-section').hidden = !state;
   const body = $('features');
   if (!state) return body.replaceChildren();

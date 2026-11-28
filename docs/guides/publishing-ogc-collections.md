@@ -234,8 +234,12 @@ the parameters of `items` and answers with the SPARQL text that `items` runs
 for them, as `application/sparql-query`. The collection links to it with
 `rel=describedby`. The demo map page shows this text in its Query tab.
 
-Anyone who can read the collection can then read its query. The setting is
-off by default for this reason.
+`/ogc/{slug}/collections/{id}/sparql/template` answers with the query as
+stored, with its parameters unfilled. It is read as the caller, so a caller
+who may not read the query gets `403`.
+
+Anyone who can read the collection can then read the SPARQL that `items`
+runs. The setting is off by default for this reason.
 
 ## Facets
 
