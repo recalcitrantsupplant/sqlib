@@ -11,6 +11,7 @@ sees more of the Rail operations store. Dana is an administrator.
 | --- | --- |
 | `just demo` | The API on :3005 and the web UI on :3001, from this checkout |
 | `just build-docker && just build-demo-docker && just run-demo-docker` | The demo API image on :3005. Run the web UI with `just run-frontend` |
+| `just build-browser-demo` | Builds a static site in `packages/web/.output/public`, with the API in a Worker in the visitor's browser, and serves it on :3721. See `packages/api/browser/README.md` |
 
 The first `just demo` seeds `tmp/demo/store/library.sqlite`, in about 10 s.
 Later starts reuse it. Run `just clean-demo` to seed again, for example after
@@ -81,6 +82,7 @@ library. A visitor who can read a library can open its data graphs.
 | `scripts/seed.sh` | Starts an API with writes open, plays each manifest back and stops the API |
 | `scripts/seed-library.mjs` | Plays one manifest back over the API |
 | `scripts/demo-issuer.mjs` | Makes a token for each person while seeding, so each entity names the person who wrote it |
+| `scripts/build-browser-site.sh` | Builds the static site with the API in the browser |
 | `scripts/tutorial-expected.mjs` | Writes the expected results of the tutorial exercises from their solutions |
 
 The store is built from these files and is not kept in git. A built store is

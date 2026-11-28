@@ -26,6 +26,7 @@
     "smoke:throughput": "tsx scripts/throughput-smoke.ts",
     "it:replication-buckets": "tsx scripts/replication-it-buckets.ts",
     "build": "tsx scripts/generate-schemas.ts && tsc --project tsconfig.build.json",
+    "build:browser": "node browser/build.mjs",
     "export:bundle": "tsx scripts/export-bundle.ts",
     "export:library-store": "tsx scripts/export-library-store.ts",
     "import:library-store": "tsx scripts/import-library-store.ts",
@@ -101,17 +102,24 @@
     "uuid": "^14.0.3"
   },
   "devDependencies": {
+    "@duckdb/duckdb-wasm": "1.32.0",
+    "@noble/hashes": "1.8.0",
     "@playwright/test": "^1.65.0",
     "@sparql-query-lib/runtime-oxigraph": "workspace:*",
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "@types/jsonld": "^1.5.15",
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.1.1",
+    "esbuild": "0.28.2",
+    "events": "3.3.0",
     "fast-check": "^4.10.3",
     "json-schema-to-ts": "^3.1.1",
+    "readable-stream": "4.8.0",
     "ts-morph": "^28.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
+    "unenv": "2.0.0-rc.25",
     "vitest": "^5.1.1"
   },
   "optionalDependencies": {

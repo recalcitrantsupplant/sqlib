@@ -3,6 +3,7 @@ import { defineNuxtPlugin, useRuntimeConfig } from '#imports';
 import type { FeatureFlags } from '@sparql-query-lib/types';
 import { debug } from '../lib/debug';
 import { withBase } from '../lib/basePath';
+import { installBrowserApi, isBrowserApi } from '../lib/browserApi';
 
 interface RuntimeConfigOverride {
   apiBaseUrl?: string;
@@ -19,6 +20,8 @@ interface RuntimeConfigOverride {
   authScope?: string;
   /** Where the signed-in user is kept: `memory` (default), `session` or `local`; see `userStoreFor`. */
   authTokenStorage?: 'local' | 'session' | 'memory';
+  /** With `apiBaseUrl: "browser"`: where duckdb-wasm is loaded from. Default: jsDelivr. */
+  duckdbBaseUrl?: string;
   /** Sign in even when the API reports auth `disabled`; see `requireLogin` in useAuth. */
   authRequireLogin?: boolean;
 }
@@ -29,8 +32,24 @@ interface RuntimeConfigOverride {
 export default defineNuxtPlugin({
   name: 'runtime-config',
   async setup() {
-  const runtimeConfig = useRuntimeConfig();
+    const runtimeConfig = useRuntimeConfig();
+    const loaded = await loadRuntimeConfig(runtimeConfig);
 
+    // No API server: run the API in a Worker in this tab. See lib/browserApi.ts.
+    if (isBrowserApi(runtimeConfig.public.apiBaseUrl)) {
+      const base = runtimeConfig.app?.baseURL;
+      const api = installBrowserApi(
+        new URL(withBase('/sqlib-api/', base), window.location.href).href,
+        new URL(withBase('/api', base), window.location.href).href,
+        { duckdbBaseUrl: loaded?.duckdbBaseUrl },
+      );
+      runtimeConfig.public.apiBaseUrl = api.baseUrl;
+      debug('runtime-config', 'API runs in this browser at', api.baseUrl);
+    }
+  },
+});
+
+async function loadRuntimeConfig(runtimeConfig: ReturnType<typeof useRuntimeConfig>): Promise<RuntimeConfigOverride | null> {
   // Beside the app rather than at the site root: a build served under a base
   // path shares that root with whatever else is hosted there, and `/config.json`
   // would be that site's file, not this app's.
@@ -43,13 +62,13 @@ export default defineNuxtPlugin({
 
     if (!response.ok) {
       console.warn(`[runtime-config] Failed to load ${configUrl}, using build-time defaults`);
-      return;
+      return null;
     }
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
       console.warn(`[runtime-config] ${configUrl} is not JSON (content-type:`, contentType, '), using build-time defaults');
-      return;
+      return null;
     }
 
     const config: RuntimeConfigOverride = await response.json();
@@ -88,8 +107,9 @@ export default defineNuxtPlugin({
       };
       debug('runtime-config', 'feature flags updated', runtimeConfig.public.featureFlags);
     }
+    return config;
   } catch (error) {
     console.warn('[runtime-config] Error loading runtime config, using build-time defaults:', error instanceof Error ? error.message : error);
+    return null;
   }
-  },
-});
+}
