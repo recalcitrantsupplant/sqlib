@@ -278,6 +278,25 @@ as RDF. The map thread proposed this form, and it fits the query model:
 The JSON-LD context is the one place where the service stores JSON. It is
 served as written, so storing it as RDF would add a conversion and no use.
 
+Rules and limits:
+
+- The save allows, on each key that is an output variable, only `@id` (an
+  absolute IRI) and one optional `@type` or `@language`. It refuses
+  `@vocab`, `@protected` and nested contexts with `400`.
+- The server maps the OGC keys that are not data (`links`, `timeStamp`,
+  `numberMatched`, `numberReturned`) to `null`.
+- JSON-LD reads a JSON number as a double. For a term typed `xsd:decimal`,
+  the serializer writes the value as a string.
+- A property with several values needs a JSON array and
+  `"@container": "@set"`. A `GROUP_CONCAT` result stays one string.
+- `"@json"` gives the geometry as `rdf:JSON`. A context cannot produce
+  `geo:geoJSONLiteral`.
+- A client needs a JSON-LD 1.1 processor, such as jsonld.js or pyld.
+- Nothing in sqlib maps a variable to a predicate IRI today. The nearest
+  mapping is the ETL `ColumnDefinition` in
+  `packages/runtime-etl/src/columns.ts` (term type, and datatype or
+  language).
+
 Known gap: a term sets IRI or literal for a property, not for each value.
 A property that holds IRIs for some features and literals for others reads
 back with one form. I have not tested the context with a JSON-LD processor.
