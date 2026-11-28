@@ -201,6 +201,16 @@ Each call runs the pinned version through `POST /execute`, with the
 slots (`?authUser`, `?authGroup`) of the caller all apply. A collection can
 therefore show each caller only their own features.
 
+## Showing the SPARQL
+
+Set `SQLIB_OGC_SPARQL=true` to give each collection a `sparql` route. It takes
+the parameters of `items` and answers with the SPARQL text that `items` runs
+for them, as `application/sparql-query`. The collection links to it with
+`rel=describedby`. The demo map page shows this text under each collection.
+
+Anyone who can read the collection can then read its query. The setting is
+off by default for this reason.
+
 ## Leaving geometry out
 
 A map that draws its shapes from PMTiles, vector tiles or a COG needs only ids

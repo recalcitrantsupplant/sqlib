@@ -21,7 +21,7 @@
   },
   "queryables": {
     "name": {
-      "var": "name",
+      "var": "nameLike",
       "type": "string",
       "title": "Name"
     }

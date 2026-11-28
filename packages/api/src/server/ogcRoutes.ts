@@ -49,6 +49,7 @@ import {
   type OgcObject,
   type OgcQueryable,
 } from '@sparql-query-lib/tools';
+import { EXPLAIN_HEADER, EXPLAIN_TOKEN, SPARQL_QUERY_TYPE } from '../lib/explainQuery.js';
 import type { PublishedCatalogue } from '../lib/publishedTools.js';
 import { publicOrigin } from '../config/publicUrl.js';
 
@@ -63,6 +64,8 @@ const CRS84_SPELLINGS = new Set([CRS84_URI, CRS84_URI.replace('http://', 'https:
 
 /** Headers worth passing back from `/execute`. */
 const FORWARDED_HEADERS = ['server-timing', 'cache-control'];
+/** `SQLIB_OGC_SPARQL=true` gives each collection a `sparql` route and link. */
+const showSparql = (): boolean => process.env.SQLIB_OGC_SPARQL === 'true';
 
 type Service = {
   slug: string;
@@ -208,6 +211,7 @@ export async function registerOgcRoutes(
       { rel: 'items', type: GEOJSON_MEDIA_TYPE, title: `${spec.ogc.title} features`, href: `${root}/items` },
       { rel: QUERYABLES_REL, type: SCHEMA_TYPE, title: 'Queryables', href: `${root}/queryables` },
     ];
+    if (showSparql()) links.push({ rel: 'describedby', type: SPARQL_QUERY_TYPE, title: 'SPARQL query', href: `${root}/sparql` });
     for (const source of spec.ogc.geometrySources ?? []) {
       links.push({ rel: 'alternate', href: source.href, ...(source.type ? { type: source.type } : {}), ...(source.title ? { title: source.title } : {}) });
     }
@@ -230,10 +234,11 @@ export async function registerOgcRoutes(
     return reply.header('content-type', JSON_TYPE).send(collectionDocument(request, service, spec));
   });
 
-  /** Run a body through `/execute` as the caller. */
-  const execute = async (request: FastifyRequest, payload: object) => {
+  /** Run a body through `/execute` as the caller. With `explain`, get the SPARQL text it would run. */
+  const execute = async (request: FastifyRequest, payload: object, explain = false) => {
     const headers: Record<string, string> = { 'content-type': JSON_TYPE, accept: SPARQL_JSON };
     if (typeof request.headers.authorization === 'string') headers.authorization = request.headers.authorization;
+    if (explain) headers[EXPLAIN_HEADER] = EXPLAIN_TOKEN;
     return app.inject({ method: 'POST', url: `${basePath}/execute`, headers, payload });
   };
 
@@ -297,6 +302,13 @@ export async function registerOgcRoutes(
     return runItems(request, reply, service, spec, null);
   });
 
+  /** The SPARQL text that `items` runs for the same parameters, with its arguments substituted. */
+  route('/ogc/:slug/collections/:collectionId/sparql', async (request, reply) => {
+    if (!showSparql()) throw new OgcAnswer(404, 'This service does not show its SPARQL.');
+    const { service, spec } = collectionOf(request);
+    return runItems(request, reply, service, spec, null, true);
+  });
+
   route('/ogc/:slug/collections/:collectionId/items/:featureId', async (request, reply) => {
     const { service, spec } = collectionOf(request);
     const { featureId } = request.params as { featureId: string };
@@ -309,6 +321,7 @@ export async function registerOgcRoutes(
     service: Service,
     spec: OgcCollectionSpec,
     featureId: string | null,
+    explain = false,
   ) {
     const { ogc } = spec;
     const query = request.query as Query;
@@ -389,7 +402,10 @@ export async function registerOgcRoutes(
     }
 
     const body = buildPublishedExecuteBody(spec.tool, values);
-    const response = await execute(request, body);
+    const response = await execute(request, body, explain);
+    if (explain && response.statusCode === 200) {
+      return reply.header('content-type', SPARQL_QUERY_TYPE).send(response.body);
+    }
     for (const name of FORWARDED_HEADERS) {
       const value = response.headers[name];
       if (value !== undefined) reply.header(name, value);

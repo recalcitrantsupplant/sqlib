@@ -70,6 +70,13 @@ export function withQueryables(itemsUrl: string, values: Record<string, string>)
   return url.href;
 }
 
+/** The collection's SPARQL link with the query parameters of an items URL. */
+export function sparqlUrl(sparqlHref: string, itemsUrl: string): string {
+  const url = new URL(sparqlHref);
+  url.search = new URL(itemsUrl).search;
+  return url.href;
+}
+
 /** `first–last of total` for a page, or `first–last` when the total is not known. */
 export function pageRange(offset: number, returned: number, matched: number | undefined): string {
   if (returned === 0) return matched === undefined ? '0' : `0 of ${matched}`;

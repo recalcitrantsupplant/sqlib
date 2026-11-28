@@ -97,3 +97,15 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   #panel { grid-row: 2; border-right: 0; border-top: 1px solid var(--line); }
   #map { grid-row: 1; }
 }
+
+.sparql { margin: 12px 0 0; font-size: 12px; }
+.sparql summary { cursor: pointer; color: var(--muted); }
+.sparql pre {
+  margin: 8px 0 0;
+  padding: 8px;
+  overflow-x: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

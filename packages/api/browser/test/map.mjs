@@ -1,7 +1,8 @@
 // Opens the map page of the browser-only site with no basemap, so that every
 // request stays on the site's origin. It checks that both Rail collections
 // load, that the Stations pages follow the `next` link, that a name filter
-// finds one station, and that Open with the service URL loads it again. It exits 1 on a failed check, a logged error or a request
+// matches part of a name in any case, that the page shows the SPARQL it ran,
+// and that Open with the service URL loads the service again. It exits 1 on a failed check, a logged error or a request
 // to another origin.
 //   node map.mjs <public dir> <out dir>
 import { createRequire } from 'node:module';
@@ -43,10 +44,15 @@ await page.click('button[title="Next page"]');
 await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '11–16');
 await expectText('.features li', ['Parkside', 'Riverside', 'Southbank', 'Stadium', 'University', 'Westfield'], 'stations page 2');
 
-await page.fill('input[name="name"]', 'Central');
+await page.fill('input[name="name"]', 'cENTr');
 await page.click('button:text("Search")');
 await page.waitForFunction(() => document.querySelector('.pager span')?.textContent === '1–1');
-await expectText('.features li', ['Central'], 'name filter');
+await expectText('.features li', ['Central'], 'name filter, any case, part of the name');
+await page.click('.sparql summary');
+const sparql = await page.locator('.sparql pre').textContent();
+const shown = /VALUES \?nameLike \{ "cENTr" \}/.test(sparql ?? '') && /REGEX/i.test(sparql ?? '') && !/LIMIT 0001/.test(sparql ?? '');
+console.log(shown ? 'ok  ' : 'FAIL', 'SPARQL of the page', shown ? '' : JSON.stringify(sparql?.slice(0, 400)));
+if (!shown) failures.push('SPARQL of the page');
 await page.screenshot({ path: `${out}/map-filter.png` });
 
 await page.click('#service-form button[type="submit"]');

@@ -11,7 +11,7 @@
 import { OgcApiEndpoint, type OgcApiCollectionInfo } from '@camptocamp/ogc-client';
 import { Map as MapLibreMap, Popup, LngLatBounds, setWorkerUrl, type GeoJSONSource, type MapGeoJSONFeature, type StyleSpecification } from 'maplibre-gl';
 import { installBrowserApi } from '../../../packages/web/src/lib/browserApi';
-import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, withQueryables, type AppConfig, type Link, type MapConfig } from './service';
+import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withQueryables, type AppConfig, type Link, type MapConfig } from './service';
 
 type Geometry = { type: string; coordinates?: unknown; geometries?: Geometry[] };
 type Feature = { type: 'Feature'; id?: string | number; geometry: Geometry | null; properties: Record<string, unknown> | null };
@@ -26,6 +26,9 @@ interface CollectionState {
   pageUrl: string | null;
   page: ItemsPage | null;
   error: string | null;
+  sparqlHref: string | null;
+  sparql: string | null;
+  sparqlOpen: boolean;
 }
 
 const PAGE_SIZE = 10;
@@ -93,6 +96,8 @@ async function start(): Promise<void> {
     $('service-title').textContent = info.title || source.url;
     document.title = info.title ? `${info.title} · Map` : 'Map';
     const infos = await Promise.all(ids.map(id => endpoint.getCollectionInfo(id)));
+    // ogc-client drops the collection's links, so read them from the document.
+    const docs = await Promise.all(ids.map(id => readJson<{ links?: Link[] }>(`${source.url.replace(/\/+$/, '')}/collections/${encodeURIComponent(id)}`)));
     infos.forEach((info, index) => {
       collections.set(info.id, {
         info,
@@ -103,6 +108,9 @@ async function start(): Promise<void> {
         pageUrl: null,
         page: null,
         error: null,
+        sparqlHref: linkHref(docs[index]?.links, 'describedby', source.url),
+        sparql: null,
+        sparqlOpen: false,
       });
     });
   } catch (error) {
@@ -182,8 +190,18 @@ async function loadPage(state: CollectionState, url: string): Promise<void> {
     state.page = null;
     state.error = (error as Error).message;
   }
+  state.sparql = state.sparqlHref ? await readText(sparqlUrl(state.sparqlHref, url)) : null;
   (map.getSource(state.info.id) as GeoJSONSource).setData({ type: 'FeatureCollection', features: (state.page?.features ?? []) as never });
   renderList();
+}
+
+async function readText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { headers: { accept: 'application/sparql-query' } });
+    return response.ok ? await response.text() : null;
+  } catch {
+    return null;
+  }
 }
 
 function showPopup(state: CollectionState, feature: MapGeoJSONFeature | Feature | undefined, at: [number, number] | { lng: number; lat: number }): void {
@@ -297,6 +315,11 @@ function renderDetail(state: CollectionState): HTMLElement {
     list.append(el('li', {}, button));
   }
   detail.append(list);
+  if (state.sparql) {
+    const sparql = el('details', { className: 'sparql', open: state.sparqlOpen }, el('summary', {}, 'SPARQL'), el('pre', {}, el('code', {}, state.sparql)));
+    sparql.ontoggle = () => (state.sparqlOpen = sparql.open);
+    detail.append(sparql);
+  }
   if (state.pageUrl && !inTab) {
     detail.append(el('a', { className: 'raw', href: state.pageUrl, target: '_blank', rel: 'noopener' }, 'GeoJSON'));
   }

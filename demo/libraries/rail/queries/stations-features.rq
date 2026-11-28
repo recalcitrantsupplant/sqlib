@@ -4,7 +4,7 @@ PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 SELECT ?feature ?geom ?name ?zone ?stepFree WHERE {
   VALUES ?feature { UNDEF }
   VALUES (?minx ?miny ?maxx ?maxy) { (UNDEF UNDEF UNDEF UNDEF) }
-  VALUES ?name { UNDEF }
+  VALUES ?nameLike { UNDEF }
   VALUES ?skip { UNDEF }
   ?feature a :Station ;
            :name ?name ;
@@ -15,6 +15,7 @@ SELECT ?feature ?geom ?name ?zone ?stepFree WHERE {
     ?feature geo:hasGeometry/geo:asWKT ?geom .
     FILTER(!BOUND(?skip) || !?skip)
   }
+  FILTER(!BOUND(?nameLike) || REGEX(?name, ?nameLike, "i"))
   FILTER(!BOUND(?minx) || (?x1 >= ?minx && ?x0 <= ?maxx && ?y1 >= ?miny && ?y0 <= ?maxy))
 }
 ORDER BY ?feature

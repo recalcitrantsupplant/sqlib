@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, withQueryables } from '../src/service';
+import { extentOf, featureLabel, linkHref, offsetOf, pageRange, resolveService, sparqlUrl, withQueryables } from '../src/service';
 
 describe('resolveService', () => {
   const page = 'https://demo.example.org/site/map/';
@@ -36,6 +36,11 @@ describe('items URLs', () => {
   it('adds queryable values once encoded and drops blank ones', () => {
     const url = withQueryables('https://x.org/items?limit=10&name=old', { name: 'King St & 5th', zone: ' ' });
     expect(url).toBe('https://x.org/items?limit=10&name=King+St+%26+5th');
+  });
+
+  it('asks for the SPARQL of the same page', () => {
+    expect(sparqlUrl('https://x.org/c/s/sparql', 'https://x.org/c/s/items?name=Cen&offset=10&limit=10'))
+      .toBe('https://x.org/c/s/sparql?name=Cen&offset=10&limit=10');
   });
 
   it('resolves a link relation against the page URL', () => {
